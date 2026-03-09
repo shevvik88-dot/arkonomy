@@ -362,7 +362,7 @@ function AddTransactionModal({ categories, onAdd, onClose }) {
           </select>
           <input style={inp} type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
-        <button onClick={() => { if (!amount || !desc) return; onAdd({ amount: parseFloat(amount), description: desc, category_id: catId || null, category_name: catName, date, type }); }}
+        <button onClick={() => { if (!amount) return; onAdd({ amount: parseFloat(amount), description: desc, category_id: catId || null, category_name: catName, date, type }); }}
           style={{ width: "100%", marginTop: 18, padding: 14, background: `linear-gradient(90deg,${C.teal},${C.blue})`, border: "none", borderRadius: 12, color: "#0B0D14", fontWeight: 700, fontSize: 16, cursor: "pointer" }}>
           Add Transaction
         </button>
