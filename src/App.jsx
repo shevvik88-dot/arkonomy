@@ -226,13 +226,25 @@ function Dashboard({ totalSpent, totalIncome, transactions, categories, profile 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {/* Balance */}
-      <div style={{ background: "linear-gradient(135deg,#0D1F3C,#0A1628)", borderRadius: 20, padding: 24, border: `1px solid #1A2B4A` }}>
-        <div style={{ color: C.muted, fontSize: 13, marginBottom: 6 }}>Balance this month</div>
-        <div style={{ fontSize: 40, fontWeight: 800, color: balance >= 0 ? C.teal : C.danger }}>{balance >= 0 ? "+" : ""}${Math.abs(balance).toFixed(2)}</div>
-        <div style={{ display: "flex", gap: 28, marginTop: 16 }}>
-          <div><div style={{ color: C.muted, fontSize: 11, letterSpacing: 1 }}>INCOME</div><div style={{ color: C.teal, fontWeight: 700, fontSize: 16 }}>${totalIncome.toFixed(2)}</div></div>
-          <div><div style={{ color: C.muted, fontSize: 11, letterSpacing: 1 }}>SPENT</div><div style={{ color: C.danger, fontWeight: 700, fontSize: 16 }}>${totalSpent.toFixed(2)}</div></div>
-          <div><div style={{ color: C.muted, fontSize: 11, letterSpacing: 1 }}>BUDGET</div><div style={{ color: C.warn, fontWeight: 700, fontSize: 16 }}>${budget.toFixed(0)}</div></div>
+      <div style={{ background: "linear-gradient(145deg,#0D1F3C,#0A1628)", borderRadius: 22, padding: "22px 22px 20px", border: `1px solid #1A2B4A`, position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(0,212,170,0.06)", pointerEvents: "none" }} />
+        <div style={{ color: "#5A7A94", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>Balance this month</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 3, marginBottom: 18 }}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: balance >= 0 ? C.teal : C.danger, alignSelf: "flex-start", marginTop: 5 }}>{balance >= 0 ? "+" : "−"}$</span>
+          <span style={{ fontSize: 34, fontWeight: 700, color: balance >= 0 ? C.teal : C.danger, letterSpacing: -1, lineHeight: 1 }}>{Math.abs(balance).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", marginBottom: 16 }} />
+        <div style={{ display: "flex" }}>
+          {[
+            { label: "INCOME", value: `$${totalIncome.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, color: C.teal },
+            { label: "SPENT",  value: `$${totalSpent.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,  color: C.danger },
+            { label: "BUDGET", value: `$${budget.toLocaleString("en-US")}`, color: C.warn },
+          ].map((item, i) => (
+            <div key={item.label} style={{ flex: 1, paddingLeft: i > 0 ? 16 : 0, borderLeft: i > 0 ? "1px solid rgba(255,255,255,0.06)" : "none", marginLeft: i > 0 ? 16 : 0 }}>
+              <div style={{ color: "#4A6A80", fontSize: 10, letterSpacing: 1.5, marginBottom: 4 }}>{item.label}</div>
+              <div style={{ color: item.color, fontWeight: 600, fontSize: 14, letterSpacing: -0.3 }}>{item.value}</div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -245,7 +257,10 @@ function Dashboard({ totalSpent, totalIncome, transactions, categories, profile 
         <div style={{ height: 8, background: C.border, borderRadius: 99 }}>
           <div style={{ height: 8, borderRadius: 99, width: `${pct}%`, background: pct > 90 ? C.danger : pct > 70 ? C.warn : `linear-gradient(90deg,${C.teal},${C.blue})`, transition: "width 0.5s" }} />
         </div>
-        <div style={{ color: C.muted, fontSize: 12, marginTop: 8 }}>${Math.max(budget - totalSpent, 0).toFixed(2)} remaining</div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+          <span style={{ color: C.muted, fontSize: 12 }}>${Math.max(budget - totalSpent, 0).toLocaleString("en-US", { minimumFractionDigits: 2 })} remaining</span>
+          <span style={{ color: C.muted, fontSize: 12 }}>${budget.toLocaleString("en-US")}</span>
+        </div>
       </div>
 
       {/* Donut Chart */}
@@ -280,8 +295,8 @@ function Dashboard({ totalSpent, totalIncome, transactions, categories, profile 
                   ))}
                 </svg>
                 <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: C.text }}>${total.toFixed(0)}</div>
-                  <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1 }}>TOTAL SPENT</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: C.text, letterSpacing: -0.5 }}>${total.toLocaleString("en-US", { minimumFractionDigits: 0 })}</div>
+                  <div style={{ fontSize: 9, color: C.muted, letterSpacing: 1.5, marginTop: 2 }}>TOTAL SPENT</div>
                 </div>
               </div>
             </div>
@@ -346,18 +361,24 @@ function NavIcon({ id, active }) {
 
 // ─── TxRow ───────────────────────────────────────────────────
 function TxRow({ t, onDelete }) {
+  const amt = Number(t.amount);
+  const isExp = t.type === "expense";
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: `1px solid ${C.border}` }}>
-      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: `1px solid ${C.border}` }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
         <CatIcon name={t.category_name} type={t.type} />
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 500 }}>{t.description || t.category_name || "Transaction"}</div>
-          <div style={{ fontSize: 12, color: C.muted }}>{t.category_name || "Other"} · {t.date}</div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.description || t.category_name || "Transaction"}</div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{t.category_name || "Other"} · {t.date}</div>
         </div>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontWeight: 700, color: t.type === "expense" ? C.danger : C.teal }}>{t.type === "expense" ? "-" : "+"}${Number(t.amount).toFixed(2)}</span>
-        {onDelete && <button onClick={() => onDelete(t.id)} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "0 4px" }}>×</button>}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 10 }}>
+        <div style={{ textAlign: "right" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: isExp ? C.danger : C.teal, letterSpacing: -0.3 }}>
+            {isExp ? "−" : "+"}${amt.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        </div>
+        {onDelete && <button onClick={() => onDelete(t.id)} style={{ background: "none", border: "none", color: "#3A3D4A", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>×</button>}
       </div>
     </div>
   );
