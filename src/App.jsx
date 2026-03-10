@@ -66,8 +66,6 @@ function AuthScreen({ onAuth }) {
             {/* Arrow head */}
             <polygon points="78,44 66,52 72,58 82,50" fill="url(#arrG)"/>
           </svg>
-          <div style={{ fontSize: 28, fontWeight: 800, background: `linear-gradient(90deg,#60A5FA,#1D5FCC)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: 2, marginBottom: 6 }}>ARKONOMY</div>
-          <div style={{ color: C.muted, fontSize: 11, letterSpacing: 3 }}>YOUR MONEY ON AUTOPILOT</div>
         </div>
 
         <div style={{ background: C.card, borderRadius: 24, padding: 28, border: `1px solid ${C.border}` }}>
