@@ -178,7 +178,7 @@ export default function App() {
       {/* Header */}
       <div style={{ padding: "20px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: C.bg, zIndex: 40, paddingBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="https://i.postimg.cc/k4tv1XgB/Remove-the-dark-background-completely-make-it-tran-delpmaspu-removebg-preview.png" alt="Arkonomy" style={{ width: 100, height: 50, objectFit: "contain" }} />
+          <img src="https://i.postimg.cc/k4tv1XgB/Remove-the-dark-background-completely-make-it-tran-delpmaspu-removebg-preview.png" alt="Arkonomy" style={{ width: 200, height: 100, objectFit: "contain" }} />
           <div>
             <div style={{ fontSize: 18, fontWeight: 300, color: "#8BB8D4", letterSpacing: 4 }}>ARKONOMY</div>
             <div style={{ color: C.muted, fontSize: 11, marginTop: 1 }}>{profile?.full_name || user.email?.split("@")[0]}</div>
