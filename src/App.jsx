@@ -268,7 +268,7 @@ function Dashboard({ totalSpent, totalIncome, transactions, categories, profile 
         const colors = ["#2563EB", "#55EFC4", "#FFE66D", "#9B9B9B", "#FF6B6B"];
         const total = catList.reduce((s, [, a]) => s + a, 0);
         let cumAngle = -90;
-        const r = 70, cx = 90, cy = 90, stroke = 28;
+        const r = 72, cx = 90, cy = 90, stroke = 14;
         const circumference = 2 * Math.PI * r;
         const slices = catList.map(([name, amount], i) => {
           const pct = amount / total;
