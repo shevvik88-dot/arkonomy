@@ -181,12 +181,7 @@ export default function App() {
           <img src="https://i.postimg.cc/k4tv1XgB/Remove-the-dark-background-completely-make-it-tran-delpmaspu-removebg-preview.png" alt="Arkonomy" style={{ width: 80, height: 40, objectFit: "contain" }} />
           <div style={{ color: C.muted, fontSize: 13 }}>{profile?.full_name || user.email?.split("@")[0]}</div>
         </div>
-        <button onClick={() => setScreen("profile")} style={{ background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
-        </button>
+        <button onClick={signOut} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "7px 13px", color: C.muted, cursor: "pointer", fontSize: 13 }}>Sign out</button>
       </div>
 
       {/* Screen content */}
@@ -393,7 +388,6 @@ function Transactions({ transactions, categories, onAdd, onDelete }) {
   );
 }
 
-// ─── Add Transaction Modal ────────────────────────────────────
 function AddTransactionModal({ categories, onAdd, onClose }) {
   const [amount, setAmount] = useState("");
   const [desc, setDesc] = useState("");
@@ -401,12 +395,13 @@ function AddTransactionModal({ categories, onAdd, onClose }) {
   const [catName, setCatName] = useState("");
   const [type, setType] = useState("expense");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [showCats, setShowCats] = useState(false);
 
   const inp = { width: "100%", padding: "12px 14px", background: "#0B0D14", border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box" };
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "flex-end", zIndex: 100, maxWidth: 430, margin: "0 auto" }}>
-      <div style={{ background: C.card, width: "100%", borderRadius: "20px 20px 0 0", padding: 24, border: `1px solid ${C.border}` }}>
+      <div style={{ background: C.card, width: "100%", borderRadius: "20px 20px 0 0", padding: 24, border: `1px solid ${C.border}`, maxHeight: "90vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
           <h3 style={{ margin: 0 }}>Add Transaction</h3>
           <button onClick={onClose} style={{ background: "none", border: "none", color: C.muted, fontSize: 24, cursor: "pointer", lineHeight: 1 }}>×</button>
@@ -419,10 +414,25 @@ function AddTransactionModal({ categories, onAdd, onClose }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <input style={inp} type="number" placeholder="Amount ($)" value={amount} onChange={e => setAmount(e.target.value)} />
           <input style={inp} placeholder="Description (optional)" value={desc} onChange={e => setDesc(e.target.value)} />
-          <select style={{ ...inp, appearance: "none" }} value={catId} onChange={e => { const cat = categories.find(c => c.id === e.target.value); setCatId(e.target.value); setCatName(cat?.name || ""); }}>
-            <option value="">Select category</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+
+          {/* Custom category picker */}
+          <div>
+            <button onClick={() => setShowCats(!showCats)} style={{ ...inp, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left" }}>
+              {catId ? <><CatIcon name={catName} type={type} size={18} /><span style={{ color: C.text }}>{catName}</span></> : <span style={{ color: C.muted }}>Select category</span>}
+            </button>
+            {showCats && (
+              <div style={{ background: "#0B0D14", border: `1px solid ${C.border}`, borderRadius: 10, marginTop: 4, overflow: "hidden" }}>
+                {categories.map(c => (
+                  <div key={c.id} onClick={() => { setCatId(c.id); setCatName(c.name); setShowCats(false); }}
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", cursor: "pointer", background: catId === c.id ? "rgba(0,212,170,0.08)" : "transparent", borderBottom: `1px solid ${C.border}` }}>
+                    <CatIcon name={c.name} type={type} size={18} />
+                    <span style={{ color: C.text, fontSize: 14 }}>{c.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <input style={inp} type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
         <button onClick={() => { if (!amount) return; onAdd({ amount: parseFloat(amount), description: desc || catName, category_id: catId || null, category_name: catName, date, type }); }}
