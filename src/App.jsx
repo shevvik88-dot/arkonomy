@@ -43,7 +43,7 @@ function AuthScreen({ onAuth }) {
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ width: "100%", maxWidth: 380 }}>
         <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <img src="https://i.postimg.cc/k4tv1XgB/Remove-the-dark-background-completely-make-it-tran-delpmaspu-removebg-preview.png" alt="Arkonomy" style={{ width: 320, height: 160, borderRadius: 28, display: "block", margin: "0 auto 16px" }} />
+          <img src="https://i.postimg.cc/k4tv1XgB/Remove-the-dark-background-completely-make-it-tran-delpmaspu-removebg-preview.png" alt="Arkonomy" style={{ width: 330, height: 160, borderRadius: 28, display: "block", margin: "0 auto 16px" }} />
           <div style={{ fontSize: 26, fontWeight: 800, background: `linear-gradient(90deg,#60A5FA,#1D5FCC)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: 3, marginBottom: 6 }}>ARKONOMY</div>
           <div style={{ color: C.muted, fontSize: 11, letterSpacing: 3 }}>YOUR MONEY ON AUTOPILOT</div>
         </div>
