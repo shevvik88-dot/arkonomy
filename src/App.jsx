@@ -544,9 +544,33 @@ function Profile({ profile, user, onSave }) {
         </button>
       </div>
       <div style={{ background: C.card, borderRadius: 16, padding: 18, border: `1px solid ${C.border}` }}>
-        <div style={{ fontWeight: 600, marginBottom: 12 }}>Coming Next</div>
-        {["🏦 Connect Bank (Plaid)", "🤖 Real AI Analysis (OpenAI)", "📱 Mobile App (iOS & Android)"].map(item => (
-          <div key={item} style={{ padding: "11px 0", borderBottom: `1px solid ${C.border}`, color: C.muted, fontSize: 14 }}>{item}</div>
+        <div style={{ fontWeight: 600, marginBottom: 14 }}>Coming Next</div>
+        {[
+          {
+            label: "Connect Bank (Plaid)",
+            color: "#1A56DB",
+            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+          },
+          {
+            label: "Real AI Analysis",
+            color: "#7C3AED",
+            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+          },
+          {
+            label: "Mobile App (iOS & Android)",
+            color: "#0D7F6E",
+            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="17" r="1"/><path d="M9 6h6"/></svg>
+          },
+        ].map((item, i, arr) => (
+          <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
+            <div style={{ width: 38, height: 38, borderRadius: 12, background: item.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: 0.85 }}>
+              {item.icon}
+            </div>
+            <span style={{ color: C.muted, fontSize: 14 }}>{item.label}</span>
+            <div style={{ marginLeft: "auto", width: 20, height: 20, borderRadius: 99, background: C.border, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+          </div>
         ))}
       </div>
     </div>
