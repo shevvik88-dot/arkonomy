@@ -178,13 +178,15 @@ export default function App() {
       {/* Header */}
       <div style={{ padding: "20px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: C.bg, zIndex: 40, paddingBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="https://i.postimg.cc/k4tv1XgB/Remove-the-dark-background-completely-make-it-tran-delpmaspu-removebg-preview.png" alt="Arkonomy" style={{ width: 200, height: 100, objectFit: "contain" }} />
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 300, color: "#8BB8D4", letterSpacing: 4 }}>ARKONOMY</div>
-            <div style={{ color: C.muted, fontSize: 11, marginTop: 1 }}>{profile?.full_name || user.email?.split("@")[0]}</div>
-          </div>
+          <img src="https://i.postimg.cc/k4tv1XgB/Remove-the-dark-background-completely-make-it-tran-delpmaspu-removebg-preview.png" alt="Arkonomy" style={{ width: 80, height: 40, objectFit: "contain" }} />
+          <div style={{ color: C.muted, fontSize: 13 }}>{profile?.full_name || user.email?.split("@")[0]}</div>
         </div>
-        <button onClick={signOut} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "7px 13px", color: C.muted, cursor: "pointer", fontSize: 13 }}>Sign out</button>
+        <button onClick={() => setScreen("profile")} style={{ background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
       </div>
 
       {/* Screen content */}
@@ -251,26 +253,54 @@ function Dashboard({ totalSpent, totalIncome, transactions, categories, profile 
         <div style={{ color: C.muted, fontSize: 12, marginTop: 8 }}>${Math.max(budget - totalSpent, 0).toFixed(2)} remaining</div>
       </div>
 
-      {/* Top spending */}
-      {catList.length > 0 && (
-        <div style={{ background: C.card, borderRadius: 16, padding: 18, border: `1px solid ${C.border}` }}>
-          <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>Top Spending</div>
-          {catList.map(([name, amount]) => {
-            const cat = categories.find(c => c.name === name);
-            return (
-              <div key={name} style={{ marginBottom: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                  <span style={{ fontSize: 14 }}>{cat?.icon || "💳"} {name}</span>
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>${amount.toFixed(2)}</span>
-                </div>
-                <div style={{ height: 4, background: C.border, borderRadius: 99 }}>
-                  <div style={{ height: 4, borderRadius: 99, width: `${Math.min((amount / budget) * 100, 100)}%`, background: cat?.color || C.teal }} />
+      {/* Donut Chart */}
+      {catList.length > 0 && (() => {
+        const colors = ["#2563EB", "#55EFC4", "#FFE66D", "#9B9B9B", "#FF6B6B"];
+        const total = catList.reduce((s, [, a]) => s + a, 0);
+        let cumAngle = -90;
+        const r = 70, cx = 90, cy = 90, stroke = 28;
+        const circumference = 2 * Math.PI * r;
+        const slices = catList.map(([name, amount], i) => {
+          const pct = amount / total;
+          const dashArray = `${pct * circumference} ${circumference}`;
+          const rotation = cumAngle;
+          cumAngle += pct * 360;
+          return { name, amount, pct, dashArray, rotation, color: colors[i % colors.length] };
+        });
+        return (
+          <div style={{ background: C.card, borderRadius: 20, padding: 20, border: `1px solid ${C.border}` }}>
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16 }}>Spending by Category</div>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+              <div style={{ position: "relative", width: 180, height: 180 }}>
+                <svg width="180" height="180" viewBox="0 0 180 180">
+                  <circle cx={cx} cy={cy} r={r} fill="none" stroke={C.border} strokeWidth={stroke} />
+                  {slices.map((s, i) => (
+                    <circle key={i} cx={cx} cy={cy} r={r} fill="none"
+                      stroke={s.color} strokeWidth={stroke}
+                      strokeDasharray={s.dashArray}
+                      strokeDashoffset={0}
+                      transform={`rotate(${s.rotation} ${cx} ${cy})`}
+                      strokeLinecap="butt"
+                    />
+                  ))}
+                </svg>
+                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: C.text }}>${total.toFixed(0)}</div>
+                  <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1 }}>TOTAL SPENT</div>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
+              {slices.map((s, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 99, background: s.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: C.muted }}>{s.name} ({Math.round(s.pct * 100)}%)</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Recent */}
       <div style={{ background: C.card, borderRadius: 16, padding: 18, border: `1px solid ${C.border}` }}>
@@ -314,7 +344,7 @@ function NavIcon({ id, active }) {
     transactions: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="7" y1="15" x2="10" y2="15"/><line x1="13" y1="15" x2="17" y2="15"/></svg>,
     savings:      <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/><path d="M12 5v2M12 17v2M5 12H3M21 12h-2"/></svg>,
     chat:         <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a9 9 0 0 1 9 9c0 4.97-4.03 9-9 9a9 9 0 0 1-4.5-1.2L3 21l2.2-4.5A9 9 0 0 1 12 2z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg>,
-    profile:      <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12m-4 0a4 4 0 1 0 8 0a4 4 0 1 0-8 0"/><path d="M3 20c0-3.87 4.03-7 9-7s9 3.13 9 7"/></svg>,
+    profile:      <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
   };
   return icons[id] || null;
 }
@@ -388,14 +418,14 @@ function AddTransactionModal({ categories, onAdd, onClose }) {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <input style={inp} type="number" placeholder="Amount ($)" value={amount} onChange={e => setAmount(e.target.value)} />
-          <input style={inp} placeholder="Description" value={desc} onChange={e => setDesc(e.target.value)} />
+          <input style={inp} placeholder="Description (optional)" value={desc} onChange={e => setDesc(e.target.value)} />
           <select style={{ ...inp, appearance: "none" }} value={catId} onChange={e => { const cat = categories.find(c => c.id === e.target.value); setCatId(e.target.value); setCatName(cat?.name || ""); }}>
             <option value="">Select category</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <input style={inp} type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
-        <button onClick={() => { if (!amount || !desc) return; onAdd({ amount: parseFloat(amount), description: desc, category_id: catId || null, category_name: catName, date, type }); }}
+        <button onClick={() => { if (!amount) return; onAdd({ amount: parseFloat(amount), description: desc || catName, category_id: catId || null, category_name: catName, date, type }); }}
           style={{ width: "100%", marginTop: 18, padding: 14, background: `linear-gradient(90deg,${C.teal},${C.blue})`, border: "none", borderRadius: 12, color: "#0B0D14", fontWeight: 700, fontSize: 16, cursor: "pointer" }}>
           Add Transaction
         </button>
