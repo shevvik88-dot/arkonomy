@@ -43,10 +43,8 @@ function AuthScreen({ onAuth }) {
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ width: "100%", maxWidth: 380 }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <div style={{ fontSize: 40, fontWeight: 800, background: `linear-gradient(90deg,${C.teal},${C.blue})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            ark<span style={{ fontWeight: 300, WebkitTextFillColor: C.text }}>onomy</span>
-          </div>
-          <div style={{ color: C.muted, fontSize: 11, letterSpacing: 3, marginTop: 6 }}>YOUR MONEY ON AUTOPILOT</div>
+          <img src="https://i.imgur.com/tIGnESE.jpeg" alt="Arkonomy" style={{ height: 80, borderRadius: 16, marginBottom: 12 }} />
+          <div style={{ color: C.muted, fontSize: 11, letterSpacing: 3 }}>YOUR MONEY ON AUTOPILOT</div>
         </div>
 
         <div style={{ background: C.card, borderRadius: 24, padding: 28, border: `1px solid ${C.border}` }}>
@@ -178,11 +176,14 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter','Helvetica Neue',sans-serif", maxWidth: 430, margin: "0 auto", position: "relative" }}>
       {/* Header */}
       <div style={{ padding: "20px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: C.bg, zIndex: 40, paddingBottom: 12 }}>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 800, background: `linear-gradient(90deg,${C.teal},${C.blue})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", display: "inline" }}>
-            ark<span style={{ fontWeight: 300, WebkitTextFillColor: C.text }}>onomy</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <img src="https://i.imgur.com/tIGnESE.jpeg" alt="Arkonomy" style={{ height: 36, borderRadius: 8 }} />
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, background: `linear-gradient(90deg,${C.teal},${C.blue})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              ark<span style={{ fontWeight: 300, WebkitTextFillColor: C.text }}>onomy</span>
+            </div>
+            <div style={{ color: C.muted, fontSize: 11, marginTop: 1 }}>{profile?.full_name || user.email?.split("@")[0]}</div>
           </div>
-          <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>{profile?.full_name || user.email?.split("@")[0]}</div>
         </div>
         <button onClick={signOut} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "7px 13px", color: C.muted, cursor: "pointer", fontSize: 13 }}>Sign out</button>
       </div>
@@ -362,7 +363,7 @@ function AddTransactionModal({ categories, onAdd, onClose }) {
           </select>
           <input style={inp} type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
-        <button onClick={() => { if (!amount) return; onAdd({ amount: parseFloat(amount), description: desc, category_id: catId || null, category_name: catName, date, type }); }}
+        <button onClick={() => { if (!amount || !desc) return; onAdd({ amount: parseFloat(amount), description: desc, category_id: catId || null, category_name: catName, date, type }); }}
           style={{ width: "100%", marginTop: 18, padding: 14, background: `linear-gradient(90deg,${C.teal},${C.blue})`, border: "none", borderRadius: 12, color: "#0B0D14", fontWeight: 700, fontSize: 16, cursor: "pointer" }}>
           Add Transaction
         </button>
