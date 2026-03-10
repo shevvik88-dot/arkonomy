@@ -43,7 +43,7 @@ function AuthScreen({ onAuth }) {
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ width: "100%", maxWidth: 380 }}>
         <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <img src="https://i.postimg.cc/k4tv1XgB/Remove-the-dark-background-completely-make-it-tran-delpmaspu-removebg-preview.png" alt="Arkonomy" style={{ width: 320, height: 160, borderRadius: 28, display: "block", margin: "0 auto 16px" }} />
+          <img src="https://i.postimg.cc/k4tv1XgB/Remove-the-dark-background-completely-make-it-tran-delpmaspu-removebg-preview.png" alt="Arkonomy" style={{ width: 130, height: 130, borderRadius: 28, display: "block", margin: "0 auto 16px" }} />
           <div style={{ fontSize: 26, fontWeight: 300, color: "#8BB8D4", letterSpacing: 8, marginBottom: 6 }}>ARKONOMY</div>
           <div style={{ color: "#4A6A80", fontSize: 11, letterSpacing: 3 }}>YOUR MONEY ON AUTOPILOT</div>
         </div>
@@ -178,11 +178,9 @@ export default function App() {
       {/* Header */}
       <div style={{ padding: "20px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: C.bg, zIndex: 40, paddingBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="https://i.postimg.cc/k4tv1XgB/Remove-the-dark-background-completely-make-it-tran-delpmaspu-removebg-preview.png" alt="Arkonomy" style={{ width: 34, height: 34, borderRadius: 8 }} />
+          <img src="https://i.postimg.cc/k4tv1XgB/Remove-the-dark-background-completely-make-it-tran-delpmaspu-removebg-preview.png" alt="Arkonomy" style={{ width: 50, height: 25, objectFit: "contain" }} />
           <div>
-            <div style={{ fontSize: 20, fontWeight: 800, background: `linear-gradient(90deg,#60A5FA,#1D5FCC)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: 1 }}>
-              ARKONOMY
-            </div>
+            <div style={{ fontSize: 18, fontWeight: 300, color: "#8BB8D4", letterSpacing: 4 }}>ARKONOMY</div>
             <div style={{ color: C.muted, fontSize: 11, marginTop: 1 }}>{profile?.full_name || user.email?.split("@")[0]}</div>
           </div>
         </div>
