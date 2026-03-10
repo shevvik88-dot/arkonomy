@@ -284,16 +284,49 @@ function Dashboard({ totalSpent, totalIncome, transactions, categories, profile 
   );
 }
 
+// ─── Category Icons SVG ──────────────────────────────────────
+function CatIcon({ name, type, size = 22 }) {
+  const cats = {
+    "Food & Dining": { color: "#E8612C", svg: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg> },
+    "Transport":    { color: "#2563EB", svg: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> },
+    "Shopping":     { color: "#1E3A5F", svg: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg> },
+    "Entertainment":{ color: "#7C3AED", svg: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg> },
+    "Health":       { color: "#059669", svg: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> },
+    "Bills":        { color: "#0891B2", svg: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> },
+    "income":       { color: "#00A67E", svg: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
+    "default":      { color: "#374151", svg: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> },
+  };
+  const key = type === "income" ? "income" : (cats[name] ? name : "default");
+  const { color, svg } = cats[key];
+  return (
+    <div style={{ width: 44, height: 44, borderRadius: 14, background: color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      {svg}
+    </div>
+  );
+}
+
+// ─── Nav Icons SVG ────────────────────────────────────────────
+function NavIcon({ id, active }) {
+  const color = active ? "#00D4AA" : "#6B7280";
+  const s = 24;
+  const icons = {
+    dashboard:    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>,
+    transactions: <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="7" y1="15" x2="10" y2="15"/><line x1="13" y1="15" x2="17" y2="15"/></svg>,
+    savings:      <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/><path d="M12 5v2M12 17v2M5 12H3M21 12h-2"/></svg>,
+    chat:         <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a9 9 0 0 1 9 9c0 4.97-4.03 9-9 9a9 9 0 0 1-4.5-1.2L3 21l2.2-4.5A9 9 0 0 1 12 2z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg>,
+    profile:      <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12m-4 0a4 4 0 1 0 8 0a4 4 0 1 0-8 0"/><path d="M3 20c0-3.87 4.03-7 9-7s9 3.13 9 7"/></svg>,
+  };
+  return icons[id] || null;
+}
+
 // ─── TxRow ───────────────────────────────────────────────────
 function TxRow({ t, onDelete }) {
-  const icons = { "Food & Dining": "🍔", "Transport": "🚗", "Shopping": "🛍️", "Entertainment": "🎬", "Health": "💊", "Bills": "📋", "income": "💰" };
-  const icon = t.type === "income" ? "💰" : (icons[t.category_name] || "💳");
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: `1px solid ${C.border}` }}>
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-        <div style={{ width: 40, height: 40, borderRadius: 12, background: C.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>{icon}</div>
+        <CatIcon name={t.category_name} type={t.type} />
         <div>
-          <div style={{ fontSize: 14, fontWeight: 500 }}>{t.description}</div>
+          <div style={{ fontSize: 14, fontWeight: 500 }}>{t.description || t.category_name || "Transaction"}</div>
           <div style={{ fontSize: 12, color: C.muted }}>{t.category_name || "Other"} · {t.date}</div>
         </div>
       </div>
@@ -483,17 +516,17 @@ function Profile({ profile, user, onSave }) {
 // ─── Bottom Nav ──────────────────────────────────────────────
 function BottomNav({ screen, setScreen }) {
   const tabs = [
-    { id: "dashboard", icon: "🏠", label: "Home" },
-    { id: "transactions", icon: "💳", label: "Spending" },
-    { id: "savings", icon: "🎯", label: "Savings" },
-    { id: "chat", icon: "✨", label: "AI" },
-    { id: "profile", icon: "⚙️", label: "Settings" },
+    { id: "dashboard", label: "Home" },
+    { id: "transactions", label: "Spending" },
+    { id: "savings", label: "Savings" },
+    { id: "chat", label: "AI" },
+    { id: "profile", label: "Settings" },
   ];
   return (
     <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(11,13,20,0.96)", backdropFilter: "blur(20px)", borderTop: `1px solid ${C.border}`, display: "flex", padding: "10px 0 18px", zIndex: 50 }}>
       {tabs.map(tab => (
         <button key={tab.id} onClick={() => setScreen(tab.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>
-          <span style={{ fontSize: 22 }}>{tab.icon}</span>
+          <NavIcon id={tab.id} active={screen === tab.id} />
           <span style={{ fontSize: 10, color: screen === tab.id ? C.teal : C.muted, fontWeight: screen === tab.id ? 700 : 400 }}>{tab.label}</span>
           {screen === tab.id && <div style={{ width: 4, height: 4, borderRadius: 99, background: C.teal, marginTop: 1 }} />}
         </button>
