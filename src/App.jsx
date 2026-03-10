@@ -43,8 +43,30 @@ function AuthScreen({ onAuth }) {
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ width: "100%", maxWidth: 380 }}>
         <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <img src="https://i.imgur.com/tIGnESE.jpeg" alt="Arkonomy" style={{ width: 150, height: 150, borderRadius: 30, display: "block", margin: "0 auto 14px" }} />
-          <div style={{ fontSize: 28, fontWeight: 800, background: `linear-gradient(90deg,${C.teal},${C.blue})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 4 }}>arkonomy</div>
+          <svg width="120" height="120" viewBox="0 0 120 120" style={{ display: "block", margin: "0 auto 14px" }}>
+            <defs>
+              <linearGradient id="triG" x1="0%" y1="100%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#0E3A8C"/>
+                <stop offset="50%" stopColor="#1D5FCC"/>
+                <stop offset="100%" stopColor="#60A5FA"/>
+              </linearGradient>
+              <linearGradient id="arrG" x1="0%" y1="100%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#1D6FCC"/>
+                <stop offset="100%" stopColor="#7DC8FF"/>
+              </linearGradient>
+            </defs>
+            {/* Left leg */}
+            <polygon points="60,14 22,98 36,98 60,40" fill="url(#triG)"/>
+            {/* Right leg */}
+            <polygon points="60,14 98,98 84,98 60,40" fill="url(#triG)"/>
+            {/* Arrow crossbar horizontal */}
+            <rect x="38" y="64" width="28" height="6" rx="2" fill="url(#arrG)"/>
+            {/* Arrow diagonal up-right */}
+            <polygon points="62,70 78,44 72,40 56,66" fill="url(#arrG)"/>
+            {/* Arrow head */}
+            <polygon points="78,44 66,52 72,58 82,50" fill="url(#arrG)"/>
+          </svg>
+          <div style={{ fontSize: 28, fontWeight: 800, background: `linear-gradient(90deg,#60A5FA,#1D5FCC)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: 2, marginBottom: 6 }}>ARKONOMY</div>
           <div style={{ color: C.muted, fontSize: 11, letterSpacing: 3 }}>YOUR MONEY ON AUTOPILOT</div>
         </div>
 
@@ -178,10 +200,27 @@ export default function App() {
       {/* Header */}
       <div style={{ padding: "20px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: C.bg, zIndex: 40, paddingBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="https://i.imgur.com/tIGnESE.jpeg" alt="Arkonomy" style={{ height: 36, borderRadius: 8 }} />
+          <svg width="32" height="32" viewBox="0 0 120 120">
+            <defs>
+              <linearGradient id="triH" x1="0%" y1="100%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#0E3A8C"/>
+                <stop offset="50%" stopColor="#1D5FCC"/>
+                <stop offset="100%" stopColor="#60A5FA"/>
+              </linearGradient>
+              <linearGradient id="arrH" x1="0%" y1="100%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#1D6FCC"/>
+                <stop offset="100%" stopColor="#7DC8FF"/>
+              </linearGradient>
+            </defs>
+            <polygon points="60,14 22,98 36,98 60,40" fill="url(#triH)"/>
+            <polygon points="60,14 98,98 84,98 60,40" fill="url(#triH)"/>
+            <rect x="38" y="64" width="28" height="6" rx="2" fill="url(#arrH)"/>
+            <polygon points="62,70 78,44 72,40 56,66" fill="url(#arrH)"/>
+            <polygon points="78,44 66,52 72,58 82,50" fill="url(#arrH)"/>
+          </svg>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 800, background: `linear-gradient(90deg,${C.teal},${C.blue})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-              ark<span style={{ fontWeight: 300, WebkitTextFillColor: C.text }}>onomy</span>
+            <div style={{ fontSize: 20, fontWeight: 800, background: `linear-gradient(90deg,#60A5FA,#1D5FCC)`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: 1 }}>
+              ARKONOMY
             </div>
             <div style={{ color: C.muted, fontSize: 11, marginTop: 1 }}>{profile?.full_name || user.email?.split("@")[0]}</div>
           </div>
