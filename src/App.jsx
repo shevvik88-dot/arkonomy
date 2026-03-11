@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = "https://hvnkxxazjfesbxdkzuba.supabase.co";
@@ -193,14 +193,44 @@ export default function App() {
             {screen === "dashboard" && <Dashboard totalSpent={totalSpent} totalIncome={totalIncome} transactions={transactions} categories={categories} profile={profile} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} />}
-            {screen === "chat" && <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={() => {
+            {screen === "chat" && <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={async () => {
               if (!chatInput.trim()) return;
               const userMsg = { role: "user", text: chatInput };
-              setChatMessages(prev => [...prev, userMsg]);
+              const updatedMessages = [...chatMessages, userMsg];
+              setChatMessages(updatedMessages);
               setChatInput("");
-              setTimeout(() => {
-                setChatMessages(prev => [...prev, { role: "assistant", text: `You've spent $${totalSpent.toFixed(2)} this month across ${thisMonth.filter(t=>t.type==="expense").length} transactions. OpenAI integration coming soon for full AI analysis!` }]);
-              }, 600);
+
+              const financialContext = {
+                currentMonth: {
+                  totalSpent,
+                  totalIncome,
+                  balance: totalIncome - totalSpent,
+                  budget: Number(profile?.monthly_budget) || 3000,
+                  transactionCount: thisMonth.length,
+                  topExpenses: (() => {
+                    const byCat = {};
+                    thisMonth.filter(t => t.type === "expense").forEach(t => {
+                      byCat[t.category_name || "Other"] = (byCat[t.category_name || "Other"] || 0) + Number(t.amount);
+                    });
+                    return Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 5);
+                  })(),
+                },
+                savingsGoals: savings.map(s => ({ name: s.name, current: s.current, target: s.target, progress: s.target > 0 ? Math.round((s.current / s.target) * 100) : 0 })),
+                recentTransactions: transactions.slice(0, 10).map(t => ({ description: t.description, amount: t.amount, type: t.type, category: t.category_name, date: t.date })),
+              };
+
+              const loadingId = Date.now();
+              setChatMessages(prev => [...prev, { role: "assistant", text: "...", id: loadingId, loading: true }]);
+
+              try {
+                const res = await supabase.functions.invoke("ai-chat", {
+                  body: { messages: updatedMessages.filter(m => !m.loading), financialContext },
+                });
+                const reply = res.data?.reply || "Sorry, something went wrong.";
+                setChatMessages(prev => prev.map(m => m.id === loadingId ? { role: "assistant", text: reply } : m));
+              } catch {
+                setChatMessages(prev => prev.map(m => m.id === loadingId ? { role: "assistant", text: "⚠️ Couldn't reach AI. Check your connection." } : m));
+              }
             }} />}
             {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} />}
           </>
@@ -373,11 +403,9 @@ function TxRow({ t, onDelete }) {
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 10 }}>
-        <div style={{ textAlign: "right" }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: isExp ? C.danger : C.teal, letterSpacing: -0.3 }}>
-            {isExp ? "−" : "+"}${amt.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
-        </div>
+        <span style={{ fontSize: 13, fontWeight: 600, color: isExp ? C.danger : C.teal, letterSpacing: -0.3 }}>
+          {isExp ? "−" : "+"}${amt.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
         {onDelete && <button onClick={() => onDelete(t.id)} style={{ background: "none", border: "none", color: "#3A3D4A", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "0 2px" }}>×</button>}
       </div>
     </div>
@@ -522,15 +550,26 @@ function Savings({ savings, onAdd, onUpdate }) {
 
 // ─── Chat ────────────────────────────────────────────────────
 function Chat({ messages, input, setInput, onSend }) {
+  const bottomRef = useRef(null);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "72vh" }}>
-      <h2 style={{ margin: "0 0 16px" }}>AI Assistant</h2>
+      <div style={{ marginBottom: 16 }}>
+        <h2 style={{ margin: "0 0 2px" }}>AI Assistant</h2>
+        <div style={{ fontSize: 12, color: "#4A6A80" }}>Powered by Claude · knows your finances</div>
+      </div>
       <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
         {messages.map((m, i) => (
-          <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", background: m.role === "user" ? `linear-gradient(90deg,${C.teal},${C.blue})` : C.card, color: m.role === "user" ? "#0B0D14" : C.text, padding: "12px 16px", borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px", maxWidth: "82%", fontSize: 14, border: m.role === "assistant" ? `1px solid ${C.border}` : "none", lineHeight: 1.5 }}>
-            {m.text}
+          <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", background: m.role === "user" ? `linear-gradient(90deg,${C.teal},${C.blue})` : C.card, color: m.role === "user" ? "#0B0D14" : C.text, padding: "12px 16px", borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px", maxWidth: "82%", fontSize: 14, border: m.role === "assistant" ? `1px solid ${C.border}` : "none", lineHeight: 1.6 }}>
+            {m.loading
+              ? <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                  {[0,1,2].map(j => <span key={j} style={{ width: 6, height: 6, borderRadius: "50%", background: C.muted, display: "inline-block", animation: `bounce 1.2s ease-in-out ${j*0.2}s infinite` }} />)}
+                  <style>{`@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}`}</style>
+                </span>
+              : m.text}
           </div>
         ))}
+        <div ref={bottomRef} />
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && onSend()} placeholder="Ask about your finances..." style={{ flex: 1, padding: "13px 16px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, outline: "none" }} />
@@ -567,26 +606,12 @@ function Profile({ profile, user, onSave }) {
       <div style={{ background: C.card, borderRadius: 16, padding: 18, border: `1px solid ${C.border}` }}>
         <div style={{ fontWeight: 600, marginBottom: 14 }}>Coming Next</div>
         {[
-          {
-            label: "Connect Bank (Plaid)",
-            color: "#1A56DB",
-            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
-          },
-          {
-            label: "Real AI Analysis",
-            color: "#7C3AED",
-            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
-          },
-          {
-            label: "Mobile App (iOS & Android)",
-            color: "#0D7F6E",
-            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="17" r="1"/><path d="M9 6h6"/></svg>
-          },
+          { label: "Connect Bank (Plaid)", color: "#1A56DB", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18"/><path d="M9 21V9"/></svg> },
+          { label: "Real AI Analysis", color: "#7C3AED", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg> },
+          { label: "Mobile App (iOS & Android)", color: "#0D7F6E", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="17" r="1"/><path d="M9 6h6"/></svg> },
         ].map((item, i, arr) => (
           <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none" }}>
-            <div style={{ width: 38, height: 38, borderRadius: 12, background: item.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: 0.85 }}>
-              {item.icon}
-            </div>
+            <div style={{ width: 38, height: 38, borderRadius: 12, background: item.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: 0.85 }}>{item.icon}</div>
             <span style={{ color: C.muted, fontSize: 14 }}>{item.label}</span>
             <div style={{ marginLeft: "auto", width: 20, height: 20, borderRadius: 99, background: C.border, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
