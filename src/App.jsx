@@ -572,6 +572,124 @@ export default function App() {
   );
 }
 
+// ─── Market Overview Card ─────────────────────────────────────
+function MarketOverview() {
+  const [markets, setMarkets] = useState([]);
+  const [news, setNews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("markets"); // "markets" | "news"
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const [mRes, nRes] = await Promise.all([
+          supabase.functions.invoke("market-data", { body: { type: "overview" } }),
+          supabase.functions.invoke("market-data", { body: { type: "news" } }),
+        ]);
+        if (mRes.data?.markets) setMarkets(mRes.data.markets);
+        if (nRes.data?.news) setNews(nRes.data.news);
+      } catch (e) {
+        setError("Could not load market data");
+      }
+      setLoading(false);
+    }
+    load();
+    // Refresh every 60 seconds
+    const t = setInterval(load, 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  const MARKET_META = {
+    SPY:  { label: "S&P 500", icon: "bar-chart", color: "#2F80FF" },
+    QQQ:  { label: "NASDAQ",  icon: "activity",  color: "#A78BFA" },
+    BTC:  { label: "Bitcoin", icon: "zap",        color: "#F59E0B" },
+    ETH:  { label: "Ethereum",icon: "zap",        color: "#34D399" },
+  };
+
+  return (
+    <GlassCard style={{ padding: "14px 16px" }}>
+      {/* Header + tabs */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: C.blue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="bar-chart" size={14} color={C.blue} />
+          </div>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>Markets</span>
+        </div>
+        <div style={{ display: "flex", gap: 4 }}>
+          {["markets", "news"].map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              style={{ padding: "4px 10px", borderRadius: 20, border: `1px solid ${tab === t ? C.blue : C.border}`, background: tab === t ? C.blue + "18" : "transparent", color: tab === t ? C.blue : C.faint, cursor: "pointer", fontSize: 11, fontWeight: tab === t ? 600 : 400, fontFamily: FONT, textTransform: "capitalize" }}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: "center", padding: "16px 0", color: C.faint, fontSize: 13 }}>
+          <span style={{ display: "inline-flex", gap: 4 }}>
+            {[0,1,2].map(i => <span key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: C.blue, display: "inline-block", opacity: 0.5, animation: `bop 1.2s ease ${i*0.2}s infinite` }} />)}
+          </span>
+        </div>
+      ) : error ? (
+        <div style={{ color: C.faint, fontSize: 12, textAlign: "center", padding: "12px 0" }}>{error}</div>
+      ) : tab === "markets" ? (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          {markets.map(m => {
+            const meta = MARKET_META[m.symbol] || { label: m.symbol, icon: "activity", color: C.cyan };
+            const pos = (m.changePct ?? 0) >= 0;
+            const chColor = pos ? C.green : C.red;
+            return (
+              <div key={m.symbol} style={{ background: C.bgTertiary, borderRadius: 12, padding: "10px 12px", border: `1px solid ${C.border}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: 7, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Icon name={meta.icon} size={11} color={meta.color} strokeWidth={2.5} />
+                  </div>
+                  <span style={{ fontSize: 11, color: C.muted, fontWeight: 500 }}>{meta.label}</span>
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: C.text, letterSpacing: -0.3 }}>
+                  ${m.price != null ? Number(m.price).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
+                  <Icon name={pos ? "trending-up" : "trending-down"} size={10} color={chColor} strokeWidth={2.5} />
+                  <span style={{ fontSize: 11, color: chColor, fontWeight: 600 }}>
+                    {m.changePct != null ? `${pos ? "+" : ""}${Number(m.changePct).toFixed(2)}%` : "—"}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {news.slice(0, 4).map((n, i) => (
+            <a key={i} href={n.url} target="_blank" rel="noopener noreferrer"
+              style={{ display: "flex", gap: 10, textDecoration: "none", padding: "8px 0", borderBottom: i < 3 ? `1px solid ${C.sep}` : "none" }}>
+              {n.image && (
+                <img src={n.image} alt="" style={{ width: 52, height: 40, borderRadius: 8, objectFit: "cover", flexShrink: 0, background: C.bgTertiary }} onError={e => e.target.style.display = "none"} />
+              )}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.text, lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{n.headline}</div>
+                <div style={{ fontSize: 10, color: C.faint, marginTop: 3 }}>{n.source} · {new Date(n.datetime * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
+
+      {!loading && !error && tab === "markets" && (
+        <div style={{ fontSize: 10, color: C.faint, marginTop: 10, textAlign: "right" }}>
+          Powered by Finnhub · refreshes every 60s
+        </div>
+      )}
+    </GlassCard>
+  );
+}
+
 // ─── Dashboard ────────────────────────────────────────────────
 function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick }) {
   const [balanceVisible, setBalanceVisible] = useState(true);
@@ -645,7 +763,10 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
         </div>
       </GlassCard>
 
-      {/* 4 ── Spending by Category */}
+      {/* 4 ── Market Overview */}
+      <MarketOverview />
+
+      {/* 5 ── Spending by Category */}
       <GlassCard style={{ padding: "14px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <span style={{ fontWeight: 600, fontSize: 14 }}>Spending by Category</span>
