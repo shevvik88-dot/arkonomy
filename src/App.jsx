@@ -577,36 +577,40 @@ function MarketOverview() {
   const [markets, setMarkets] = useState([]);
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("markets"); // "markets" | "news"
+  const [tab, setTab] = useState("markets");
   const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      const mRes = await supabase.functions.invoke("market-data", { body: { type: "overview" } });
+      if (mRes.error) throw new Error(mRes.error.message || "Function error");
+      if (!mRes.data?.markets) throw new Error("No market data returned");
+      setMarkets(mRes.data.markets);
+
+      const nRes = await supabase.functions.invoke("market-data", { body: { type: "news" } });
+      if (nRes.data?.news) setNews(nRes.data.news);
+
+      setLastUpdated(new Date());
+    } catch (e) {
+      setError(e.message || "Could not load market data");
+    }
+    setLoading(false);
+  }
 
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const [mRes, nRes] = await Promise.all([
-          supabase.functions.invoke("market-data", { body: { type: "overview" } }),
-          supabase.functions.invoke("market-data", { body: { type: "news" } }),
-        ]);
-        if (mRes.data?.markets) setMarkets(mRes.data.markets);
-        if (nRes.data?.news) setNews(nRes.data.news);
-      } catch (e) {
-        setError("Could not load market data");
-      }
-      setLoading(false);
-    }
     load();
-    // Refresh every 60 seconds
     const t = setInterval(load, 60000);
     return () => clearInterval(t);
   }, []);
 
   const MARKET_META = {
-    SPY:  { label: "S&P 500", icon: "bar-chart", color: "#2F80FF" },
-    QQQ:  { label: "NASDAQ",  icon: "activity",  color: "#A78BFA" },
-    BTC:  { label: "Bitcoin", icon: "zap",        color: "#F59E0B" },
-    ETH:  { label: "Ethereum",icon: "zap",        color: "#34D399" },
+    SPY:  { label: "S&P 500",  icon: "bar-chart", color: "#2F80FF" },
+    QQQ:  { label: "NASDAQ",   icon: "activity",  color: "#A78BFA" },
+    BTC:  { label: "Bitcoin",  icon: "zap",        color: "#F59E0B" },
+    ETH:  { label: "Ethereum", icon: "zap",        color: "#34D399" },
   };
 
   return (
@@ -618,25 +622,49 @@ function MarketOverview() {
             <Icon name="bar-chart" size={14} color={C.blue} />
           </div>
           <span style={{ fontWeight: 600, fontSize: 14 }}>Markets</span>
+          {lastUpdated && !loading && (
+            <span style={{ fontSize: 10, color: C.faint }}>
+              {lastUpdated.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
         </div>
-        <div style={{ display: "flex", gap: 4 }}>
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           {["markets", "news"].map(t => (
             <button key={t} onClick={() => setTab(t)}
               style={{ padding: "4px 10px", borderRadius: 20, border: `1px solid ${tab === t ? C.blue : C.border}`, background: tab === t ? C.blue + "18" : "transparent", color: tab === t ? C.blue : C.faint, cursor: "pointer", fontSize: 11, fontWeight: tab === t ? 600 : 400, fontFamily: FONT, textTransform: "capitalize" }}>
               {t}
             </button>
           ))}
+          <button onClick={load} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex", opacity: loading ? 0.4 : 0.7 }}>
+            <Icon name="repeat" size={13} color={C.muted} strokeWidth={2} />
+          </button>
         </div>
       </div>
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: "16px 0", color: C.faint, fontSize: 13 }}>
-          <span style={{ display: "inline-flex", gap: 4 }}>
-            {[0,1,2].map(i => <span key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: C.blue, display: "inline-block", opacity: 0.5, animation: `bop 1.2s ease ${i*0.2}s infinite` }} />)}
-          </span>
+        <div style={{ textAlign: "center", padding: "20px 0", color: C.faint, fontSize: 13 }}>
+          <div style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
+            {[0,1,2].map(i => (
+              <span key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: C.blue, display: "inline-block", animation: `bop 1.2s ease ${i*0.2}s infinite` }} />
+            ))}
+            <style>{`@keyframes bop{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}`}</style>
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11 }}>Loading market data...</div>
         </div>
       ) : error ? (
-        <div style={{ color: C.faint, fontSize: 12, textAlign: "center", padding: "12px 0" }}>{error}</div>
+        <div style={{ padding: "12px 14px", background: C.red + "10", borderRadius: 12, border: `1px solid ${C.red}22` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+            <Icon name="alert-circle" size={14} color={C.red} />
+            <span style={{ fontSize: 12, color: C.red, fontWeight: 600 }}>Could not load market data</span>
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>{error}</div>
+          <div style={{ fontSize: 11, color: C.faint, lineHeight: 1.6 }}>
+            Check: <span style={{ color: C.text }}>1)</span> Edge Function <code style={{ color: C.cyan }}>market-data</code> is deployed in Supabase <span style={{ color: C.text }}>2)</span> <code style={{ color: C.cyan }}>FINNHUB_API_KEY</code> secret is set
+          </div>
+          <button onClick={load} style={{ marginTop: 10, padding: "7px 14px", background: C.blue + "22", border: `1px solid ${C.blue}44`, borderRadius: 8, color: C.blue, cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: FONT }}>
+            Retry
+          </button>
+        </div>
       ) : tab === "markets" ? (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {markets.map(m => {
@@ -665,25 +693,28 @@ function MarketOverview() {
           })}
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {news.slice(0, 4).map((n, i) => (
-            <a key={i} href={n.url} target="_blank" rel="noopener noreferrer"
-              style={{ display: "flex", gap: 10, textDecoration: "none", padding: "8px 0", borderBottom: i < 3 ? `1px solid ${C.sep}` : "none" }}>
-              {n.image && (
-                <img src={n.image} alt="" style={{ width: 52, height: 40, borderRadius: 8, objectFit: "cover", flexShrink: 0, background: C.bgTertiary }} onError={e => e.target.style.display = "none"} />
-              )}
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.text, lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{n.headline}</div>
-                <div style={{ fontSize: 10, color: C.faint, marginTop: 3 }}>{n.source} · {new Date(n.datetime * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
-              </div>
-            </a>
-          ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+          {news.length === 0
+            ? <div style={{ color: C.faint, fontSize: 12, textAlign: "center", padding: "16px 0" }}>No news available</div>
+            : news.slice(0, 4).map((n, i) => (
+              <a key={i} href={n.url} target="_blank" rel="noopener noreferrer"
+                style={{ display: "flex", gap: 10, textDecoration: "none", padding: "10px 0", borderBottom: i < 3 ? `1px solid ${C.sep}` : "none" }}>
+                {n.image && (
+                  <img src={n.image} alt="" style={{ width: 52, height: 40, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} onError={e => { e.target.style.display = "none"; }} />
+                )}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.text, lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{n.headline}</div>
+                  <div style={{ fontSize: 10, color: C.faint, marginTop: 3 }}>{n.source} · {new Date(n.datetime * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+                </div>
+              </a>
+            ))
+          }
         </div>
       )}
 
-      {!loading && !error && tab === "markets" && (
+      {!loading && !error && tab === "markets" && markets.length > 0 && (
         <div style={{ fontSize: 10, color: C.faint, marginTop: 10, textAlign: "right" }}>
-          Powered by Finnhub · refreshes every 60s
+          Powered by Finnhub · auto-refreshes every 60s
         </div>
       )}
     </GlassCard>
