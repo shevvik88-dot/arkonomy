@@ -180,15 +180,18 @@ function DonutChart({ data, size = 196, onCatClick }) {
         </div>
       </div>
 
-      {/* Legend with $ and % */}
-      <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
+      {/* Legend with $ and % + filter button */}
+      <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6 }}>
         {slices.map(s => (
-          <div key={s.cat} onClick={() => onCatClick && onCatClick(s.cat)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: onCatClick ? "pointer" : "default", padding: "4px 8px", borderRadius: 10, background: hovered === s.cat ? s.color + "12" : "transparent", transition: "background 0.15s" }}
+          <div key={s.cat}
+            onClick={() => onCatClick && onCatClick(s.cat)}
+            style={{ display: "flex", alignItems: "center", gap: 10, cursor: onCatClick ? "pointer" : "default", padding: "6px 10px", borderRadius: 10, background: hovered === s.cat ? s.color + "18" : C.bgTertiary, border: `1px solid ${hovered === s.cat ? s.color + "44" : "transparent"}`, transition: "all 0.15s" }}
             onMouseEnter={() => setHovered(s.cat)} onMouseLeave={() => setHovered(null)}>
             <div style={{ width: 10, height: 10, borderRadius: 99, background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}88` }} />
             <span style={{ fontSize: 13, color: C.muted, flex: 1 }}>{s.cat}</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>${fmt(s.val, 0)}</span>
-            <span style={{ fontSize: 11, color: C.faint, minWidth: 34, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>${fmt(s.val, 0)}</span>
+            <span style={{ fontSize: 11, color: s.color, fontWeight: 600, minWidth: 36, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>
+            {onCatClick && <Icon name="chevron" size={12} color={C.faint} />}
           </div>
         ))}
       </div>
@@ -838,6 +841,16 @@ function Transactions({ transactions, categories, onAdd, onDelete, initialCatFil
 }
 
 // ─── Add Transaction Modal ────────────────────────────────────
+const INCOME_CATS = [
+  { name: "Salary", icon: "dollar", color: "#00A67E" },
+  { name: "Freelance", icon: "star", color: "#00C2FF" },
+  { name: "Transfer", icon: "repeat", color: "#60A5FA" },
+  { name: "Dividends", icon: "activity", color: "#A78BFA" },
+  { name: "Debt Repaid", icon: "check-circle", color: "#34D399" },
+  { name: "Gift", icon: "heart", color: "#F97316" },
+  { name: "Other Income", icon: "plus", color: "#94A3B8" },
+];
+
 function AddTransactionModal({ categories, onAdd, onClose }) {
   const [amount, setAmount] = useState("");
   const [desc, setDesc] = useState("");
@@ -847,6 +860,19 @@ function AddTransactionModal({ categories, onAdd, onClose }) {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [showCats, setShowCats] = useState(false);
   const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT };
+
+  // When switching type, reset category
+  function switchType(t) { setType(t); setCatId(""); setCatName(""); setShowCats(false); }
+
+  const displayCats = type === "income"
+    ? INCOME_CATS.map((c, i) => ({ id: `income-${i}`, ...c }))
+    : categories;
+
+  const IncomeCatIcon = ({ name, color }) => (
+    <div style={{ width: 36, height: 36, borderRadius: 11, background: color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <Icon name={INCOME_CATS.find(c => c.name === name)?.icon || "dollar"} size={16} color="#fff" strokeWidth={2} />
+    </div>
+  );
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "flex-end", zIndex: 100, maxWidth: 430, margin: "0 auto" }}>
@@ -859,22 +885,36 @@ function AddTransactionModal({ categories, onAdd, onClose }) {
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           {["expense", "income"].map(t => (
-            <button key={t} onClick={() => setType(t)} style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${type === t ? (t === "expense" ? C.red : C.green) : C.border}`, background: type === t ? (t === "expense" ? C.red + "18" : C.green + "18") : "transparent", color: type === t ? (t === "expense" ? C.red : C.green) : C.muted, cursor: "pointer", fontWeight: 600, textTransform: "capitalize", fontFamily: FONT }}>{t}</button>
+            <button key={t} onClick={() => switchType(t)} style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${type === t ? (t === "expense" ? C.red : C.green) : C.border}`, background: type === t ? (t === "expense" ? C.red + "18" : C.green + "18") : "transparent", color: type === t ? (t === "expense" ? C.red : C.green) : C.muted, cursor: "pointer", fontWeight: 600, textTransform: "capitalize", fontFamily: FONT }}>{t}</button>
           ))}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <input style={inp} type="number" placeholder="Amount ($)" value={amount} onChange={e => setAmount(e.target.value)} />
-          <input style={inp} placeholder="Description / Merchant" value={desc} onChange={e => setDesc(e.target.value)} />
+          <input style={inp} placeholder="Description / Merchant (optional)" value={desc} onChange={e => setDesc(e.target.value)} />
           <div>
             <button onClick={() => setShowCats(!showCats)} style={{ ...inp, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left" }}>
-              {catId ? <><CatIcon name={catName} type={type} size={16} /><span style={{ color: C.text }}>{catName}</span></> : <span style={{ color: C.muted }}>Select category</span>}
+              {catId
+                ? type === "income"
+                  ? <><IncomeCatIcon name={catName} color={INCOME_CATS.find(c=>c.name===catName)?.color || C.green} /><span style={{ color: C.text }}>{catName}</span></>
+                  : <><CatIcon name={catName} type={type} size={16} /><span style={{ color: C.text }}>{catName}</span></>
+                : <span style={{ color: C.muted }}>Select {type === "income" ? "income source" : "category"}</span>
+              }
+              <Icon name="chevron" size={14} color={C.faint} style={{ marginLeft: "auto" }} />
             </button>
             {showCats && (
-              <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, marginTop: 4, overflow: "hidden", maxHeight: 220, overflowY: "auto" }}>
-                {categories.map(c => (
-                  <div key={c.id} onClick={() => { setCatId(c.id); setCatName(c.name); setShowCats(false); }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", cursor: "pointer", background: catId === c.id ? C.cyan + "10" : "transparent", borderBottom: `1px solid ${C.sep}` }}>
-                    <CatIcon name={c.name} type={type} size={15} />
-                    <span style={{ color: C.text, fontSize: 14 }}>{c.name}</span>
+              <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, marginTop: 4, overflow: "hidden", maxHeight: 240, overflowY: "auto" }}>
+                {displayCats.map(c => (
+                  <div key={c.id || c.name} onClick={() => { setCatId(c.id || c.name); setCatName(c.name); setShowCats(false); }}
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", cursor: "pointer", background: catName === c.name ? C.cyan + "10" : "transparent", borderBottom: `1px solid ${C.sep}` }}>
+                    {type === "income"
+                      ? <div style={{ width: 36, height: 36, borderRadius: 11, background: c.color, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Icon name={c.icon} size={16} color="#fff" strokeWidth={2} />
+                        </div>
+                      : <CatIcon name={c.name} type={type} size={15} />
+                    }
+                    <div>
+                      <div style={{ color: C.text, fontSize: 14, fontWeight: 500 }}>{c.name}</div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -882,12 +922,108 @@ function AddTransactionModal({ categories, onAdd, onClose }) {
           </div>
           <input style={inp} type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
-        <button onClick={() => { if (!amount) return; onAdd({ amount: parseFloat(amount), description: desc || catName, category_id: catId || null, category_name: catName, date, type }); }}
-          style={{ width: "100%", marginTop: 18, padding: 15, background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT }}>
-          Add Transaction
+        <button onClick={() => { if (!amount) return; onAdd({ amount: parseFloat(amount), description: desc || catName, category_id: type === "expense" ? (catId || null) : null, category_name: catName, date, type }); }}
+          style={{ width: "100%", marginTop: 18, padding: 15, background: `linear-gradient(90deg,${type === "expense" ? C.red : C.green},${type === "expense" ? "#CC1A3A" : "#00A67E"})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT }}>
+          Add {type === "expense" ? "Expense" : "Income"}
         </button>
       </div>
     </div>
+  );
+}
+
+// ─── Savings Goal Card (with manual deposit/withdraw) ─────────
+function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getGoalIcon }) {
+  const [mode, setMode] = useState(null); // null | "deposit" | "withdraw"
+  const [customAmt, setCustomAmt] = useState("");
+
+  function confirm() {
+    const val = parseFloat(customAmt);
+    if (!val || val <= 0) return;
+    const next = mode === "deposit"
+      ? Number(sv.current) + val
+      : Math.max(Number(sv.current) - val, 0);
+    onUpdate(sv.id, next);
+    setMode(null); setCustomAmt("");
+  }
+
+  return (
+    <GlassCard>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <div style={{ width: 44, height: 44, borderRadius: 14, background: goalColor + "22", border: `1px solid ${goalColor}44`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 12px ${goalColor}33` }}>
+            <Icon name={getGoalIcon(sv.name)} size={20} color={goalColor} />
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{sv.name}</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+              ${fmt(sv.current, 0)} / ${fmt(sv.target, 0)}
+              {months && <span style={{ color: C.cyan, fontWeight: 500 }}> · ~{months}mo</span>}
+            </div>
+          </div>
+        </div>
+        <div style={{ background: goalColor + "22", borderRadius: 100, padding: "4px 10px" }}>
+          <span style={{ color: goalColor, fontWeight: 700, fontSize: 13 }}>{pct.toFixed(0)}%</span>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ height: 10, background: C.bgTertiary, borderRadius: 99, marginBottom: 10, overflow: "hidden" }}>
+        <div style={{ height: 10, borderRadius: 99, width: `${pct}%`, background: `linear-gradient(90deg,${goalColor},${goalColor}BB)`, transition: "width 0.6s", boxShadow: `0 0 12px ${goalColor}55` }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 14 }}>
+        <span style={{ color: C.text, fontWeight: 600 }}>${fmt(sv.current, 0)} saved</span>
+        <span style={{ color: C.muted }}>${fmt(remaining, 0)} remaining</span>
+      </div>
+
+      {/* Quick add buttons */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+        {[10, 25, 50, 100].map(amt => (
+          <button key={amt} onClick={() => onUpdate(sv.id, Number(sv.current) + amt)}
+            style={{ flex: 1, padding: "8px 0", background: goalColor + "15", border: `1px solid ${goalColor}40`, borderRadius: 10, color: goalColor, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: FONT }}>
+            +${amt}
+          </button>
+        ))}
+      </div>
+
+      {/* Manual deposit / withdraw buttons */}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={() => { setMode(mode === "deposit" ? null : "deposit"); setCustomAmt(""); }}
+          style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${mode === "deposit" ? C.green : C.border}`, background: mode === "deposit" ? C.green + "18" : "transparent", color: mode === "deposit" ? C.green : C.muted, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+          <Icon name="plus" size={13} color={mode === "deposit" ? C.green : C.muted} strokeWidth={2.5} /> Deposit
+        </button>
+        <button onClick={() => { setMode(mode === "withdraw" ? null : "withdraw"); setCustomAmt(""); }}
+          style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${mode === "withdraw" ? C.red : C.border}`, background: mode === "withdraw" ? C.red + "18" : "transparent", color: mode === "withdraw" ? C.red : C.muted, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+          <Icon name="trending-down" size={13} color={mode === "withdraw" ? C.red : C.muted} strokeWidth={2.5} /> Withdraw
+        </button>
+      </div>
+
+      {/* Inline input when mode active */}
+      {mode && (
+        <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ flex: 1, position: "relative" }}>
+            <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: C.muted, fontSize: 14, fontWeight: 600 }}>$</span>
+            <input
+              autoFocus
+              type="number"
+              placeholder="0.00"
+              value={customAmt}
+              onChange={e => setCustomAmt(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && confirm()}
+              style={{ width: "100%", padding: "11px 12px 11px 26px", background: C.bg, border: `1px solid ${mode === "deposit" ? C.green : C.red}55`, borderRadius: 10, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT }}
+            />
+          </div>
+          <button onClick={confirm}
+            style={{ padding: "11px 18px", background: mode === "deposit" ? C.green : C.red, border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT, whiteSpace: "nowrap" }}>
+            {mode === "deposit" ? "Add" : "Withdraw"}
+          </button>
+          <button onClick={() => { setMode(null); setCustomAmt(""); }}
+            style={{ padding: "11px 10px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 10, cursor: "pointer", display: "flex" }}>
+            <Icon name="x" size={14} color={C.muted} strokeWidth={2.5} />
+          </button>
+        </div>
+      )}
+    </GlassCard>
   );
 }
 
@@ -1017,40 +1153,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent }) {
         const months = monthsToGoal(sv);
 
         return (
-          <GlassCard key={sv.id}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
-              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <div style={{ width: 44, height: 44, borderRadius: 14, background: goalColor + "22", border: `1px solid ${goalColor}44`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 12px ${goalColor}33` }}>
-                  <Icon name={getGoalIcon(sv.name)} size={20} color={goalColor} />
-                </div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{sv.name}</div>
-                  <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
-                    ${fmt(sv.current, 0)} / ${fmt(sv.target, 0)}
-                    {months && <span style={{ color: C.cyan, fontWeight: 500 }}> · ~{months}mo</span>}
-                  </div>
-                </div>
-              </div>
-              <div style={{ background: goalColor + "22", borderRadius: 100, padding: "4px 10px" }}>
-                <span style={{ color: goalColor, fontWeight: 700, fontSize: 13 }}>{pct.toFixed(0)}%</span>
-              </div>
-            </div>
-
-            <div style={{ height: 10, background: C.bgTertiary, borderRadius: 99, marginBottom: 10, overflow: "hidden" }}>
-              <div style={{ height: 10, borderRadius: 99, width: `${pct}%`, background: `linear-gradient(90deg,${goalColor},${goalColor}BB)`, transition: "width 0.6s", boxShadow: `0 0 12px ${goalColor}55` }} />
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", color: C.muted, fontSize: 12, marginBottom: 14 }}>
-              <span style={{ color: C.text, fontWeight: 600 }}>${fmt(sv.current, 0)} saved</span>
-              <span>${fmt(remaining, 0)} remaining</span>
-            </div>
-
-            <div style={{ display: "flex", gap: 8 }}>
-              {[10, 25, 50, 100].map(amt => (
-                <button key={amt} onClick={() => onUpdate(sv.id, Number(sv.current) + amt)} style={{ flex: 1, padding: "9px 0", background: goalColor + "15", border: `1px solid ${goalColor}40`, borderRadius: 10, color: goalColor, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: FONT }}>+${amt}</button>
-              ))}
-            </div>
-          </GlassCard>
+          <SavingsGoalCard key={sv.id} sv={sv} pct={pct} goalColor={goalColor} remaining={remaining} months={months} onUpdate={onUpdate} getGoalIcon={getGoalIcon} />
         );
       })}
     </div>
