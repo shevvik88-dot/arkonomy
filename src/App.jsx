@@ -571,100 +571,102 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
   const balColor = balance >= 0 ? C.green : C.red;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 
-      {/* Balance Card */}
-      <div style={{ background: "linear-gradient(145deg,#0D1F3C,#0B1426)", borderRadius: 24, padding: "22px 22px 20px", border: `1px solid #1E2D4A`, position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", top: -40, right: -40, width: 150, height: 150, borderRadius: "50%", background: C.cyan + "0C", pointerEvents: "none" }} />
-        <div style={{ position: "absolute", bottom: -30, left: 20, width: 100, height: 100, borderRadius: "50%", background: C.blue + "08", pointerEvents: "none" }} />
+      {/* 1 ── Net Balance Card (compact) */}
+      <div style={{ background: "linear-gradient(145deg,#0D1F3C,#0B1426)", borderRadius: 20, padding: "16px 18px", border: `1px solid #1E2D4A`, position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: -30, right: -30, width: 110, height: 110, borderRadius: "50%", background: C.cyan + "0B", pointerEvents: "none" }} />
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-          <span style={{ fontSize: 11, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>Net Balance</span>
-          <button onClick={() => setBalanceVisible(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 4px", display: "flex" }}>
-            <Icon name={balanceVisible ? "eye" : "eye-off"} size={16} color={C.faint} />
+        {/* Top row: label + eye */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+          <span style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>Net Balance</span>
+          <button onClick={() => setBalanceVisible(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex" }}>
+            <Icon name={balanceVisible ? "eye" : "eye-off"} size={15} color={C.faint} />
           </button>
         </div>
 
-        <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? balColor : C.text, marginBottom: 4, lineHeight: 1.05, textShadow: balanceVisible ? `0 0 30px ${balColor}44` : "none" }}>
+        {/* Balance + subtitle on same tight block */}
+        <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? balColor : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${balColor}44` : "none" }}>
           {balanceVisible ? `$${fmt(balance)}` : "••••••"}
         </div>
-        <div style={{ fontSize: 11, color: C.faint, marginBottom: 18 }}>Net balance = income − expenses</div>
+        <div style={{ fontSize: 10, color: C.faint, marginBottom: 12 }}>income − expenses</div>
 
-        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", marginBottom: 16 }} />
+        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", marginBottom: 12 }} />
 
+        {/* 3 stats compact */}
         <div style={{ display: "flex" }}>
           {[
-            { label: "Income (this month)", value: `$${fmt(totalIncome)}`, dot: C.green, change: incomeChange },
-            { label: "Expenses (this month)", value: `$${fmt(totalSpent)}`, dot: C.red, change: expenseChange, flip: true },
-            { label: "Saved this month", value: `$${fmt(Math.max(totalIncome - totalSpent, 0), 0)}`, dot: C.cyan },
+            { label: "Income", value: `$${fmt(totalIncome, 0)}`, dot: C.green, change: incomeChange },
+            { label: "Expenses", value: `$${fmt(totalSpent, 0)}`, dot: C.red, change: expenseChange, flip: true },
+            { label: "Saved", value: `$${fmt(Math.max(totalIncome - totalSpent, 0), 0)}`, dot: C.cyan },
           ].map((item, i) => (
-            <div key={item.label} style={{ flex: 1, paddingLeft: i > 0 ? 12 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : "none", marginLeft: i > 0 ? 12 : 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
+            <div key={item.label} style={{ flex: 1, paddingLeft: i > 0 ? 10 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : "none", marginLeft: i > 0 ? 10 : 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
                 <div style={{ width: 5, height: 5, borderRadius: 99, background: item.dot }} />
-                <span style={{ fontSize: 9, color: C.muted, fontWeight: 500, letterSpacing: 0.2, lineHeight: 1.2 }}>{item.label}</span>
+                <span style={{ fontSize: 9, color: C.muted, fontWeight: 500 }}>{item.label}</span>
               </div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 4 }}>{item.value}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 3 }}>{item.value}</div>
               {item.change !== undefined && <StatBadge value={item.flip ? -item.change : item.change} suffix="" />}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Financial Health Score */}
-      <HealthScore totalSpent={totalSpent} totalIncome={totalIncome} budget={budget} savingsGoals={savings} />
-
-      {/* Weekly Summary */}
-      <WeeklySummary transactions={transactions} />
-
-      {/* Budget Card */}
-      <GlassCard>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, alignItems: "flex-start" }}>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 2 }}>Monthly Budget</div>
-            <div style={{ fontSize: 12, color: C.muted }}>Spent ${fmt(totalSpent, 0)} of ${fmt(budget, 0)}</div>
-          </div>
-          <span style={{ color: pct > 90 ? C.red : pct > 70 ? C.yellow : C.cyan, fontSize: 14, fontWeight: 700 }}>{pct.toFixed(0)}%</span>
-        </div>
-        <div style={{ height: 8, background: C.bgTertiary, borderRadius: 99, margin: "12px 0 8px" }}>
-          <div style={{ height: 8, borderRadius: 99, width: `${pct}%`, background: pct > 90 ? C.red : pct > 70 ? C.yellow : `linear-gradient(90deg,${C.cyan},${C.blue})`, transition: "width 0.6s", boxShadow: pct <= 70 ? `0 0 10px ${C.cyan}44` : "none" }} />
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span style={{ color: C.green, fontSize: 12, fontWeight: 600 }}>${fmt(Math.max(budget - totalSpent, 0))} remaining</span>
-          <span style={{ color: C.muted, fontSize: 12 }}>Budget: ${fmt(budget, 0)}</span>
-        </div>
-      </GlassCard>
-
-      {/* AI Insight Card */}
+      {/* 2 ── AI Insight (compact, high up) */}
       <AiInsightCard spendingByCategory={spendingByCategory} prevSpendingByCategory={prevSpendingByCategory} totalIncome={totalIncome} totalSpent={totalSpent} onNavigate={onNavigate} />
 
-      {/* Donut Chart */}
-      <GlassCard>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-          <span style={{ fontWeight: 600, fontSize: 15 }}>Spending by Category</span>
-          <span style={{ fontSize: 11, color: C.faint }}>Tap to filter</span>
+      {/* 3 ── Monthly Budget (compact) */}
+      <GlassCard style={{ padding: "14px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>Monthly Budget</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>Spent ${fmt(totalSpent, 0)} of ${fmt(budget, 0)}</div>
+          </div>
+          <span style={{ color: pct > 90 ? C.red : pct > 70 ? C.yellow : C.cyan, fontSize: 15, fontWeight: 800 }}>{pct.toFixed(0)}%</span>
         </div>
-        <DonutChart data={spendingByCategory} size={196} onCatClick={onCatClick} />
+        <div style={{ height: 7, background: C.bgTertiary, borderRadius: 99, marginBottom: 6 }}>
+          <div style={{ height: 7, borderRadius: 99, width: `${pct}%`, background: pct > 90 ? C.red : pct > 70 ? C.yellow : `linear-gradient(90deg,${C.cyan},${C.blue})`, transition: "width 0.6s", boxShadow: pct <= 70 ? `0 0 8px ${C.cyan}44` : "none" }} />
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span style={{ color: C.green, fontSize: 11, fontWeight: 600 }}>${fmt(Math.max(budget - totalSpent, 0))} remaining</span>
+          <span style={{ color: C.faint, fontSize: 11 }}>of ${fmt(budget, 0)}</span>
+        </div>
       </GlassCard>
 
-      {/* Recent Transactions */}
-      <GlassCard>
-        <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>Recent Transactions</div>
+      {/* 4 ── Spending by Category */}
+      <GlassCard style={{ padding: "14px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>Spending by Category</span>
+          <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: 99 }}>Tap to filter</span>
+        </div>
+        <DonutChart data={spendingByCategory} size={188} onCatClick={onCatClick} />
+      </GlassCard>
+
+      {/* 5 ── Recent Transactions (3 only + View all) */}
+      <GlassCard style={{ padding: "14px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>Recent Transactions</span>
+          <button onClick={() => onNavigate("transactions")} style={{ background: "none", border: "none", cursor: "pointer", color: C.cyan, fontSize: 12, fontWeight: 600, fontFamily: FONT, display: "flex", alignItems: "center", gap: 4, padding: 0 }}>
+            View all <Icon name="chevron" size={12} color={C.cyan} />
+          </button>
+        </div>
         {transactions.length === 0
-          ? <div style={{ color: C.muted, textAlign: "center", padding: "20px 0", fontSize: 14 }}>No transactions yet</div>
-          : transactions.slice(0, 5).map((t, i, arr) => (
+          ? <div style={{ color: C.muted, textAlign: "center", padding: "16px 0", fontSize: 13 }}>No transactions yet</div>
+          : transactions.slice(0, 3).map((t, i, arr) => (
               <div key={t.id}>
                 <TxRow t={t} />
-                {i < Math.min(arr.length, 5) - 1 && <div style={{ height: 1, background: C.sep }} />}
+                {i < arr.length - 1 && <div style={{ height: 1, background: C.sep }} />}
               </div>
             ))
         }
       </GlassCard>
+
     </div>
   );
 }
 
 // ─── Insights ─────────────────────────────────────────────────
-function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByCategory, onNavigateChat }) {
+function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByCategory, onNavigateChat, transactions, savings, profile }) {
   const monthlySavings = totalIncome - totalSpent;
   const savingsRate = totalIncome > 0 ? (monthlySavings / totalIncome) * 100 : 0;
   const insights = [];
@@ -693,6 +695,9 @@ function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByC
         <h2 style={{ margin: "0 0 4px", fontSize: 26, fontWeight: 700 }}>Insights</h2>
         <div style={{ fontSize: 13, color: C.muted }}>AI-powered spending analysis</div>
       </div>
+
+      <HealthScore totalSpent={totalSpent} totalIncome={totalIncome} budget={Number(profile?.monthly_budget) || 3000} savingsGoals={savings || []} />
+      <WeeklySummary transactions={transactions || []} />
 
       {insights.map(ins => {
         const color = colors[ins.severity];
