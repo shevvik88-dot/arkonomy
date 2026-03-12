@@ -75,6 +75,7 @@ function Icon({ name, size = 20, color = C.muted, strokeWidth = 1.8 }) {
     award:           <svg {...p}><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>,
     calendar:        <svg {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
     "bar-chart":     <svg {...p}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>,
+    edit:            <svg {...p}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
   };
   return icons[name] || icons["dollar"];
 }
@@ -395,6 +396,7 @@ export default function App() {
   const [savings, setSavings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddTx, setShowAddTx] = useState(false);
+  const [editTx, setEditTx] = useState(null); // transaction being edited
   const [catFilter, setCatFilter] = useState(null);
   const [chatMessages, setChatMessages] = useState([{ role: "assistant", text: "Hi! I'm your Arkonomy AI assistant. Ask me anything about your finances." }]);
   const [chatInput, setChatInput] = useState("");
@@ -450,6 +452,12 @@ export default function App() {
   async function deleteTransaction(id) {
     await supabase.from("transactions").delete().eq("id", id);
     setTransactions(prev => prev.filter(t => t.id !== id));
+  }
+
+  async function updateTransaction(id, updates) {
+    const { data } = await supabase.from("transactions").update(updates).eq("id", id).select().single();
+    if (data) setTransactions(prev => prev.map(t => t.id === id ? data : t));
+    setEditTx(null);
   }
 
   async function addSaving(sv) {
@@ -539,8 +547,8 @@ export default function App() {
           <div style={{ color: C.muted, textAlign: "center", padding: 40 }}>Loading...</div>
         ) : (
           <>
-            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} />}
-            {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} initialCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} />}
+            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("money"); }} />}
+            {screen === "money" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} initialCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} />}
             {screen === "insights" && <Insights {...shared} onNavigateChat={msg => { setChatMessages(prev => [...prev, { role: "user", text: msg }]); setScreen("chat"); }} />}
             {screen === "chat" && <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={() => sendChat(chatInput)} />}
@@ -550,6 +558,7 @@ export default function App() {
       </div>
 
       {showAddTx && <AddTransactionModal categories={categories} onAdd={addTransaction} onClose={() => setShowAddTx(false)} />}
+      {editTx && <AddTransactionModal categories={categories} existing={editTx} onAdd={data => updateTransaction(editTx.id, data)} onClose={() => setEditTx(null)} />}
 
       {/* Floating AI button */}
       {screen !== "chat" && (
@@ -649,7 +658,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
       <GlassCard style={{ padding: "14px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <span style={{ fontWeight: 600, fontSize: 14 }}>Recent Transactions</span>
-          <button onClick={() => onNavigate("transactions")} style={{ background: "none", border: "none", cursor: "pointer", color: C.cyan, fontSize: 12, fontWeight: 600, fontFamily: FONT, display: "flex", alignItems: "center", gap: 4, padding: 0 }}>
+          <button onClick={() => onNavigate("money")} style={{ background: "none", border: "none", cursor: "pointer", color: C.cyan, fontSize: 12, fontWeight: 600, fontFamily: FONT, display: "flex", alignItems: "center", gap: 4, padding: 0 }}>
             View all <Icon name="chevron" size={12} color={C.cyan} />
           </button>
         </div>
@@ -761,26 +770,31 @@ function CatIcon({ name, type, size = 18 }) {
 }
 
 // ─── TxRow ────────────────────────────────────────────────────
-function TxRow({ t, onDelete }) {
+function TxRow({ t, onDelete, onEdit }) {
   const isExp = t.type === "expense";
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0" }}>
-      <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0, flex: 1 }}>
         <CatIcon name={t.category_name} type={t.type} />
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.description || t.category_name || "Transaction"}</div>
           <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-            <span style={{ color: CAT_COLORS[t.category_name] || C.faint, fontWeight: 500 }}>{t.category_name || "Other"}</span>
+            <span style={{ color: CAT_COLORS[t.category_name] || C.faint, fontWeight: 500 }}>{t.category_name || (t.type === "income" ? "Income" : "Other")}</span>
             <span style={{ color: C.faint }}> · {fmtDate(t.date)}</span>
           </div>
         </div>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginLeft: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginLeft: 8 }}>
         <span style={{ fontSize: 14, fontWeight: 700, color: isExp ? C.red : C.green, letterSpacing: -0.3 }}>
           {isExp ? "−" : "+"}${fmt(t.amount)}
         </span>
+        {onEdit && (
+          <button onClick={() => onEdit(t)} style={{ background: "none", border: "none", cursor: "pointer", padding: "3px", display: "flex", opacity: 0.5 }}>
+            <Icon name="edit" size={13} color={C.muted} strokeWidth={2} />
+          </button>
+        )}
         {onDelete && (
-          <button onClick={() => onDelete(t.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex", opacity: 0.45 }}>
+          <button onClick={() => onDelete(t.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: "3px", display: "flex", opacity: 0.45 }}>
             <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
           </button>
         )}
@@ -790,7 +804,7 @@ function TxRow({ t, onDelete }) {
 }
 
 // ─── Transactions ─────────────────────────────────────────────
-function Transactions({ transactions, categories, onAdd, onDelete, initialCatFilter, onClearCatFilter }) {
+function Transactions({ transactions, categories, onAdd, onDelete, onEdit, initialCatFilter, onClearCatFilter }) {
   const [filter, setFilter] = useState("all");
   const [catFilter, setCatFilter] = useState(initialCatFilter || null);
 
@@ -799,27 +813,33 @@ function Transactions({ transactions, categories, onAdd, onDelete, initialCatFil
   let filtered = filter === "all" ? transactions : transactions.filter(t => t.type === filter);
   if (catFilter) filtered = filtered.filter(t => t.category_name === catFilter);
 
-  const allCats = [...new Set(transactions.map(t => t.category_name).filter(Boolean))];
-
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <h2 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>Transactions</h2>
+        <div>
+          <h2 style={{ margin: "0 0 2px", fontSize: 26, fontWeight: 700 }}>My Money</h2>
+          <div style={{ fontSize: 13, color: C.muted }}>All income & expenses</div>
+        </div>
         <button onClick={onAdd} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, padding: "9px 16px", color: "#fff", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontFamily: FONT }}>
           <Icon name="plus" size={14} color="#fff" strokeWidth={2.5} /> Add
         </button>
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
-        {["all", "expense", "income"].map(f => (
-          <button key={f} onClick={() => setFilter(f)} style={{ padding: "6px 14px", borderRadius: 20, border: `1px solid ${filter === f ? C.cyan : C.border}`, background: filter === f ? C.cyan + "18" : C.card, color: filter === f ? C.cyan : C.muted, cursor: "pointer", fontSize: 12, textTransform: "capitalize", fontFamily: FONT, fontWeight: filter === f ? 600 : 400 }}>{f}</button>
+        {[
+          { key: "all", label: "All" },
+          { key: "expense", label: "Expenses" },
+          { key: "income", label: "Income" },
+        ].map(f => (
+          <button key={f.key} onClick={() => setFilter(f.key)} style={{ padding: "6px 14px", borderRadius: 20, border: `1px solid ${filter === f.key ? C.cyan : C.border}`, background: filter === f.key ? C.cyan + "18" : C.card, color: filter === f.key ? C.cyan : C.muted, cursor: "pointer", fontSize: 12, fontFamily: FONT, fontWeight: filter === f.key ? 600 : 400 }}>{f.label}</button>
         ))}
       </div>
 
       {catFilter && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: CAT_COLORS[catFilter] + "18" || C.cyan + "18", borderRadius: 12, border: `1px solid ${CAT_COLORS[catFilter] || C.cyan}33` }}>
-          <span style={{ fontSize: 13, color: CAT_COLORS[catFilter] || C.cyan, fontWeight: 600 }}>{catFilter}</span>
-          <button onClick={() => setCatFilter(null)} style={{ background: "none", border: "none", cursor: "pointer", marginLeft: "auto", display: "flex" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: (CAT_COLORS[catFilter] || C.cyan) + "18", borderRadius: 12, border: `1px solid ${(CAT_COLORS[catFilter] || C.cyan)}33` }}>
+          <div style={{ width: 8, height: 8, borderRadius: 99, background: CAT_COLORS[catFilter] || C.cyan }} />
+          <span style={{ fontSize: 13, color: CAT_COLORS[catFilter] || C.cyan, fontWeight: 600, flex: 1 }}>{catFilter}</span>
+          <button onClick={() => setCatFilter(null)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}>
             <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
           </button>
         </div>
@@ -830,7 +850,7 @@ function Transactions({ transactions, categories, onAdd, onDelete, initialCatFil
           ? <div style={{ color: C.muted, textAlign: "center", padding: "30px 0", fontSize: 14 }}>No transactions</div>
           : filtered.map((t, i, arr) => (
               <div key={t.id}>
-                <TxRow t={t} onDelete={onDelete} />
+                <TxRow t={t} onDelete={onDelete} onEdit={onEdit} />
                 {i < arr.length - 1 && <div style={{ height: 1, background: C.sep }} />}
               </div>
             ))
@@ -851,34 +871,32 @@ const INCOME_CATS = [
   { name: "Other Income", icon: "plus", color: "#94A3B8" },
 ];
 
-function AddTransactionModal({ categories, onAdd, onClose }) {
-  const [amount, setAmount] = useState("");
-  const [desc, setDesc] = useState("");
-  const [catId, setCatId] = useState("");
-  const [catName, setCatName] = useState("");
-  const [type, setType] = useState("expense");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+function AddTransactionModal({ categories, onAdd, onClose, existing }) {
+  const [amount, setAmount] = useState(existing ? String(existing.amount) : "");
+  const [desc, setDesc] = useState(existing?.description || "");
+  const [catId, setCatId] = useState(existing?.category_id || "");
+  const [catName, setCatName] = useState(existing?.category_name || "");
+  const [type, setType] = useState(existing?.type || "expense");
+  const [date, setDate] = useState(existing?.date || new Date().toISOString().split("T")[0]);
   const [showCats, setShowCats] = useState(false);
+  const isEdit = !!existing;
+
+  // hide browser number spinners
+  const noSpinStyle = `input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}`;
   const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT };
 
-  // When switching type, reset category
   function switchType(t) { setType(t); setCatId(""); setCatName(""); setShowCats(false); }
 
   const displayCats = type === "income"
     ? INCOME_CATS.map((c, i) => ({ id: `income-${i}`, ...c }))
     : categories;
 
-  const IncomeCatIcon = ({ name, color }) => (
-    <div style={{ width: 36, height: 36, borderRadius: 11, background: color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-      <Icon name={INCOME_CATS.find(c => c.name === name)?.icon || "dollar"} size={16} color="#fff" strokeWidth={2} />
-    </div>
-  );
-
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "flex-end", zIndex: 100, maxWidth: 430, margin: "0 auto" }}>
+      <style>{noSpinStyle}</style>
       <div style={{ background: C.card, width: "100%", borderRadius: "24px 24px 0 0", padding: 24, border: `1px solid ${C.border}`, maxHeight: "90vh", overflowY: "auto", fontFamily: FONT }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Add Transaction</h3>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{isEdit ? "Edit Transaction" : "Add Transaction"}</h3>
           <button onClick={onClose} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 99, cursor: "pointer", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name="x" size={14} color={C.muted} strokeWidth={2.5} />
           </button>
@@ -889,17 +907,31 @@ function AddTransactionModal({ categories, onAdd, onClose }) {
           ))}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <input style={inp} type="number" placeholder="Amount ($)" value={amount} onChange={e => setAmount(e.target.value)} />
+
+          {/* Amount — styled, no spinner arrows */}
+          <div style={{ position: "relative" }}>
+            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: C.muted, fontSize: 16, fontWeight: 600, pointerEvents: "none" }}>$</span>
+            <input
+              type="number"
+              placeholder="0.00"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              style={{ ...inp, paddingLeft: 30 }}
+            />
+          </div>
+
           <input style={inp} placeholder="Description / Merchant (optional)" value={desc} onChange={e => setDesc(e.target.value)} />
+
+          {/* Category picker */}
           <div>
             <button onClick={() => setShowCats(!showCats)} style={{ ...inp, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left" }}>
-              {catId
+              {catName
                 ? type === "income"
-                  ? <><IncomeCatIcon name={catName} color={INCOME_CATS.find(c=>c.name===catName)?.color || C.green} /><span style={{ color: C.text }}>{catName}</span></>
-                  : <><CatIcon name={catName} type={type} size={16} /><span style={{ color: C.text }}>{catName}</span></>
+                  ? <><div style={{ width: 32, height: 32, borderRadius: 10, background: INCOME_CATS.find(c => c.name === catName)?.color || C.green, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name={INCOME_CATS.find(c => c.name === catName)?.icon || "dollar"} size={15} color="#fff" strokeWidth={2} /></div><span style={{ color: C.text }}>{catName}</span></>
+                  : <><CatIcon name={catName} type={type} size={15} /><span style={{ color: C.text }}>{catName}</span></>
                 : <span style={{ color: C.muted }}>Select {type === "income" ? "income source" : "category"}</span>
               }
-              <Icon name="chevron" size={14} color={C.faint} style={{ marginLeft: "auto" }} />
+              <span style={{ marginLeft: "auto" }}><Icon name="chevron" size={14} color={C.faint} /></span>
             </button>
             {showCats && (
               <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, marginTop: 4, overflow: "hidden", maxHeight: 240, overflowY: "auto" }}>
@@ -907,24 +939,26 @@ function AddTransactionModal({ categories, onAdd, onClose }) {
                   <div key={c.id || c.name} onClick={() => { setCatId(c.id || c.name); setCatName(c.name); setShowCats(false); }}
                     style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", cursor: "pointer", background: catName === c.name ? C.cyan + "10" : "transparent", borderBottom: `1px solid ${C.sep}` }}>
                     {type === "income"
-                      ? <div style={{ width: 36, height: 36, borderRadius: 11, background: c.color, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <Icon name={c.icon} size={16} color="#fff" strokeWidth={2} />
+                      ? <div style={{ width: 34, height: 34, borderRadius: 10, background: c.color, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Icon name={c.icon} size={15} color="#fff" strokeWidth={2} />
                         </div>
                       : <CatIcon name={c.name} type={type} size={15} />
                     }
-                    <div>
-                      <div style={{ color: C.text, fontSize: 14, fontWeight: 500 }}>{c.name}</div>
-                    </div>
+                    <span style={{ color: C.text, fontSize: 14, fontWeight: 500 }}>{c.name}</span>
+                    {catName === c.name && <Icon name="check-circle" size={14} color={C.cyan} style={{ marginLeft: "auto" }} />}
                   </div>
                 ))}
               </div>
             )}
           </div>
+
           <input style={inp} type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
-        <button onClick={() => { if (!amount) return; onAdd({ amount: parseFloat(amount), description: desc || catName, category_id: type === "expense" ? (catId || null) : null, category_name: catName, date, type }); }}
+
+        <button
+          onClick={() => { if (!amount) return; onAdd({ amount: parseFloat(amount), description: desc || catName, category_id: type === "expense" ? (catId || null) : null, category_name: catName, date, type }); }}
           style={{ width: "100%", marginTop: 18, padding: 15, background: `linear-gradient(90deg,${type === "expense" ? C.red : C.green},${type === "expense" ? "#CC1A3A" : "#00A67E"})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT }}>
-          Add {type === "expense" ? "Expense" : "Income"}
+          {isEdit ? "Save Changes" : `Add ${type === "expense" ? "Expense" : "Income"}`}
         </button>
       </div>
     </div>
@@ -1320,7 +1354,7 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot }) {
 function BottomNav({ screen, setScreen }) {
   const tabs = [
     { id: "dashboard", label: "Home", icon: "home" },
-    { id: "transactions", label: "Spending", icon: "credit" },
+    { id: "money", label: "My Money", icon: "credit" },
     { id: "savings", label: "Savings", icon: "target" },
     { id: "insights", label: "Insights", icon: "activity" },
     { id: "chat", label: "AI", icon: "message" },
