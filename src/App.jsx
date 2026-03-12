@@ -817,19 +817,19 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div>
-          <h2 style={{ margin: "0 0 2px", fontSize: 26, fontWeight: 700 }}>Транзакции</h2>
-          <div style={{ fontSize: 13, color: C.muted }}>Доходы и расходы</div>
+          <h2 style={{ margin: "0 0 2px", fontSize: 26, fontWeight: 700 }}>Transactions</h2>
+          <div style={{ fontSize: 13, color: C.muted }}>Income & expenses</div>
         </div>
         <button onClick={onAdd} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, padding: "9px 16px", color: "#fff", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontFamily: FONT }}>
-          <Icon name="plus" size={14} color="#fff" strokeWidth={2.5} /> Добавить
+          <Icon name="plus" size={14} color="#fff" strokeWidth={2.5} /> Add
         </button>
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         {[
-          { key: "all", label: "Все" },
-          { key: "expense", label: "Расходы" },
-          { key: "income", label: "Доходы" },
+          { key: "all", label: "All" },
+          { key: "expense", label: "Expenses" },
+          { key: "income", label: "Income" },
         ].map(f => (
           <button key={f.key} onClick={() => setFilter(f.key)}
             style={{ padding: "6px 14px", borderRadius: 20, border: `1px solid ${filter === f.key ? C.cyan : C.border}`, background: filter === f.key ? C.cyan + "18" : C.card, color: filter === f.key ? C.cyan : C.muted, cursor: "pointer", fontSize: 12, fontFamily: FONT, fontWeight: filter === f.key ? 600 : 400 }}>
@@ -850,7 +850,7 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
 
       <GlassCard style={{ padding: "0 14px" }}>
         {filtered.length === 0
-          ? <div style={{ color: C.muted, textAlign: "center", padding: "30px 0", fontSize: 14 }}>Нет транзакций</div>
+          ? <div style={{ color: C.muted, textAlign: "center", padding: "30px 0", fontSize: 14 }}>No transactions</div>
           : filtered.map((t, i, arr) => (
               <div key={t.id}>
                 <TxRow t={t} onDelete={onDelete} onEdit={onEdit} />
@@ -1000,7 +1000,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
             <div style={{ fontWeight: 700, fontSize: 15 }}>{sv.name}</div>
             <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
               ${fmt(sv.current, 0)} / ${fmt(sv.target, 0)}
-              {months && <span style={{ color: C.cyan, fontWeight: 500 }}> · ~{months}мес.</span>}
+              {months && <span style={{ color: C.cyan, fontWeight: 500 }}> · ~{months}mo</span>}
             </div>
           </div>
         </div>
@@ -1014,8 +1014,8 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
         <div style={{ height: 10, borderRadius: 99, width: `${pct}%`, background: `linear-gradient(90deg,${goalColor},${goalColor}BB)`, transition: "width 0.6s", boxShadow: `0 0 12px ${goalColor}55` }} />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 14 }}>
-        <span style={{ color: C.text, fontWeight: 600 }}>${fmt(sv.current, 0)} накоплено</span>
-        <span style={{ color: C.muted }}>${fmt(remaining, 0)} осталось</span>
+        <span style={{ color: C.text, fontWeight: 600 }}>${fmt(sv.current, 0)} saved</span>
+        <span style={{ color: C.muted }}>${fmt(remaining, 0)} remaining</span>
       </div>
 
       {/* Quick +add row */}
@@ -1035,13 +1035,13 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
           onClick={() => { setMode(mode === "deposit" ? null : "deposit"); setCustomAmt(""); }}
           style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${mode === "deposit" ? C.green : C.border}`, background: mode === "deposit" ? C.green + "20" : C.bgTertiary, color: mode === "deposit" ? C.green : C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.15s" }}>
           <Icon name="plus" size={14} color={mode === "deposit" ? C.green : C.muted} strokeWidth={2.5} />
-          Пополнить
+          Deposit
         </button>
         <button
           onClick={() => { setMode(mode === "withdraw" ? null : "withdraw"); setCustomAmt(""); }}
           style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${mode === "withdraw" ? C.red : C.border}`, background: mode === "withdraw" ? C.red + "20" : C.bgTertiary, color: mode === "withdraw" ? C.red : C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.15s" }}>
           <Icon name="trending-down" size={14} color={mode === "withdraw" ? C.red : C.muted} strokeWidth={2.5} />
-          Вывести
+          Withdraw
         </button>
       </div>
 
@@ -1063,7 +1063,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
           <button
             onClick={confirm}
             style={{ padding: "12px 20px", background: accentColor, border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT, whiteSpace: "nowrap" }}>
-            {mode === "deposit" ? "Добавить" : "Вывести"}
+            {mode === "deposit" ? "Add" : "Withdraw"}
           </button>
           <button
             onClick={() => { setMode(null); setCustomAmt(""); }}
@@ -1368,8 +1368,8 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot }) {
 // ─── Bottom Nav ───────────────────────────────────────────────
 function BottomNav({ screen, setScreen }) {
   const tabs = [
-    { id: "dashboard", label: "Главная", icon: "home" },
-    { id: "transactions", label: "Транзакции", icon: "credit" },
+    { id: "dashboard", label: "Home", icon: "home" },
+    { id: "transactions", label: "Transactions", icon: "credit" },
     { id: "savings", label: "Savings", icon: "target" },
     { id: "insights", label: "Insights", icon: "activity" },
     { id: "chat", label: "AI", icon: "message" },
