@@ -547,8 +547,8 @@ export default function App() {
           <div style={{ color: C.muted, textAlign: "center", padding: 40 }}>Loading...</div>
         ) : (
           <>
-            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("money"); }} />}
-            {screen === "money" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} initialCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} />}
+            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} />}
+            {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} />}
             {screen === "insights" && <Insights {...shared} onNavigateChat={msg => { setChatMessages(prev => [...prev, { role: "user", text: msg }]); setScreen("chat"); }} />}
             {screen === "chat" && <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={() => sendChat(chatInput)} />}
@@ -658,7 +658,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
       <GlassCard style={{ padding: "14px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <span style={{ fontWeight: 600, fontSize: 14 }}>Recent Transactions</span>
-          <button onClick={() => onNavigate("money")} style={{ background: "none", border: "none", cursor: "pointer", color: C.cyan, fontSize: 12, fontWeight: 600, fontFamily: FONT, display: "flex", alignItems: "center", gap: 4, padding: 0 }}>
+          <button onClick={() => onNavigate("transactions")} style={{ background: "none", border: "none", cursor: "pointer", color: C.cyan, fontSize: 12, fontWeight: 600, fontFamily: FONT, display: "flex", alignItems: "center", gap: 4, padding: 0 }}>
             View all <Icon name="chevron" size={12} color={C.cyan} />
           </button>
         </div>
@@ -804,11 +804,11 @@ function TxRow({ t, onDelete, onEdit }) {
 }
 
 // ─── Transactions ─────────────────────────────────────────────
-function Transactions({ transactions, categories, onAdd, onDelete, onEdit, initialCatFilter, onClearCatFilter }) {
+function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter }) {
   const [filter, setFilter] = useState("all");
-  const [catFilter, setCatFilter] = useState(initialCatFilter || null);
 
-  useEffect(() => { if (initialCatFilter) { setCatFilter(initialCatFilter); onClearCatFilter?.(); } }, [initialCatFilter]);
+  // Use prop directly — no useEffect needed
+  const catFilter = activeCatFilter || null;
 
   let filtered = filter === "all" ? transactions : transactions.filter(t => t.type === filter);
   if (catFilter) filtered = filtered.filter(t => t.category_name === catFilter);
@@ -817,21 +817,24 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, initi
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div>
-          <h2 style={{ margin: "0 0 2px", fontSize: 26, fontWeight: 700 }}>My Money</h2>
-          <div style={{ fontSize: 13, color: C.muted }}>All income & expenses</div>
+          <h2 style={{ margin: "0 0 2px", fontSize: 26, fontWeight: 700 }}>Транзакции</h2>
+          <div style={{ fontSize: 13, color: C.muted }}>Доходы и расходы</div>
         </div>
         <button onClick={onAdd} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, padding: "9px 16px", color: "#fff", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontFamily: FONT }}>
-          <Icon name="plus" size={14} color="#fff" strokeWidth={2.5} /> Add
+          <Icon name="plus" size={14} color="#fff" strokeWidth={2.5} /> Добавить
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         {[
-          { key: "all", label: "All" },
-          { key: "expense", label: "Expenses" },
-          { key: "income", label: "Income" },
+          { key: "all", label: "Все" },
+          { key: "expense", label: "Расходы" },
+          { key: "income", label: "Доходы" },
         ].map(f => (
-          <button key={f.key} onClick={() => setFilter(f.key)} style={{ padding: "6px 14px", borderRadius: 20, border: `1px solid ${filter === f.key ? C.cyan : C.border}`, background: filter === f.key ? C.cyan + "18" : C.card, color: filter === f.key ? C.cyan : C.muted, cursor: "pointer", fontSize: 12, fontFamily: FONT, fontWeight: filter === f.key ? 600 : 400 }}>{f.label}</button>
+          <button key={f.key} onClick={() => setFilter(f.key)}
+            style={{ padding: "6px 14px", borderRadius: 20, border: `1px solid ${filter === f.key ? C.cyan : C.border}`, background: filter === f.key ? C.cyan + "18" : C.card, color: filter === f.key ? C.cyan : C.muted, cursor: "pointer", fontSize: 12, fontFamily: FONT, fontWeight: filter === f.key ? 600 : 400 }}>
+            {f.label}
+          </button>
         ))}
       </div>
 
@@ -839,7 +842,7 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, initi
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: (CAT_COLORS[catFilter] || C.cyan) + "18", borderRadius: 12, border: `1px solid ${(CAT_COLORS[catFilter] || C.cyan)}33` }}>
           <div style={{ width: 8, height: 8, borderRadius: 99, background: CAT_COLORS[catFilter] || C.cyan }} />
           <span style={{ fontSize: 13, color: CAT_COLORS[catFilter] || C.cyan, fontWeight: 600, flex: 1 }}>{catFilter}</span>
-          <button onClick={() => setCatFilter(null)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}>
+          <button onClick={onClearCatFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}>
             <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
           </button>
         </div>
@@ -847,7 +850,7 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, initi
 
       <GlassCard style={{ padding: "0 14px" }}>
         {filtered.length === 0
-          ? <div style={{ color: C.muted, textAlign: "center", padding: "30px 0", fontSize: 14 }}>No transactions</div>
+          ? <div style={{ color: C.muted, textAlign: "center", padding: "30px 0", fontSize: 14 }}>Нет транзакций</div>
           : filtered.map((t, i, arr) => (
               <div key={t.id}>
                 <TxRow t={t} onDelete={onDelete} onEdit={onEdit} />
@@ -977,13 +980,18 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
       ? Number(sv.current) + val
       : Math.max(Number(sv.current) - val, 0);
     onUpdate(sv.id, next);
-    setMode(null); setCustomAmt("");
+    setMode(null);
+    setCustomAmt("");
   }
+
+  const accentColor = mode === "deposit" ? C.green : mode === "withdraw" ? C.red : goalColor;
 
   return (
     <GlassCard>
+      <style>{`input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}input[type=number]{-moz-appearance:textfield}`}</style>
+
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <div style={{ width: 44, height: 44, borderRadius: 14, background: goalColor + "22", border: `1px solid ${goalColor}44`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 12px ${goalColor}33` }}>
             <Icon name={getGoalIcon(sv.name)} size={20} color={goalColor} />
@@ -992,7 +1000,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
             <div style={{ fontWeight: 700, fontSize: 15 }}>{sv.name}</div>
             <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
               ${fmt(sv.current, 0)} / ${fmt(sv.target, 0)}
-              {months && <span style={{ color: C.cyan, fontWeight: 500 }}> · ~{months}mo</span>}
+              {months && <span style={{ color: C.cyan, fontWeight: 500 }}> · ~{months}мес.</span>}
             </div>
           </div>
         </div>
@@ -1002,41 +1010,46 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
       </div>
 
       {/* Progress bar */}
-      <div style={{ height: 10, background: C.bgTertiary, borderRadius: 99, marginBottom: 10, overflow: "hidden" }}>
+      <div style={{ height: 10, background: C.bgTertiary, borderRadius: 99, marginBottom: 8, overflow: "hidden" }}>
         <div style={{ height: 10, borderRadius: 99, width: `${pct}%`, background: `linear-gradient(90deg,${goalColor},${goalColor}BB)`, transition: "width 0.6s", boxShadow: `0 0 12px ${goalColor}55` }} />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 14 }}>
-        <span style={{ color: C.text, fontWeight: 600 }}>${fmt(sv.current, 0)} saved</span>
-        <span style={{ color: C.muted }}>${fmt(remaining, 0)} remaining</span>
+        <span style={{ color: C.text, fontWeight: 600 }}>${fmt(sv.current, 0)} накоплено</span>
+        <span style={{ color: C.muted }}>${fmt(remaining, 0)} осталось</span>
       </div>
 
-      {/* Quick add buttons */}
+      {/* Quick +add row */}
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         {[10, 25, 50, 100].map(amt => (
-          <button key={amt} onClick={() => onUpdate(sv.id, Number(sv.current) + amt)}
+          <button key={amt}
+            onClick={() => onUpdate(sv.id, Number(sv.current) + amt)}
             style={{ flex: 1, padding: "8px 0", background: goalColor + "15", border: `1px solid ${goalColor}40`, borderRadius: 10, color: goalColor, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: FONT }}>
             +${amt}
           </button>
         ))}
       </div>
 
-      {/* Manual deposit / withdraw buttons */}
-      <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={() => { setMode(mode === "deposit" ? null : "deposit"); setCustomAmt(""); }}
-          style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${mode === "deposit" ? C.green : C.border}`, background: mode === "deposit" ? C.green + "18" : "transparent", color: mode === "deposit" ? C.green : C.muted, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-          <Icon name="plus" size={13} color={mode === "deposit" ? C.green : C.muted} strokeWidth={2.5} /> Deposit
+      {/* Deposit / Withdraw toggle buttons */}
+      <div style={{ display: "flex", gap: 8, marginBottom: mode ? 10 : 0 }}>
+        <button
+          onClick={() => { setMode(mode === "deposit" ? null : "deposit"); setCustomAmt(""); }}
+          style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${mode === "deposit" ? C.green : C.border}`, background: mode === "deposit" ? C.green + "20" : C.bgTertiary, color: mode === "deposit" ? C.green : C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.15s" }}>
+          <Icon name="plus" size={14} color={mode === "deposit" ? C.green : C.muted} strokeWidth={2.5} />
+          Пополнить
         </button>
-        <button onClick={() => { setMode(mode === "withdraw" ? null : "withdraw"); setCustomAmt(""); }}
-          style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${mode === "withdraw" ? C.red : C.border}`, background: mode === "withdraw" ? C.red + "18" : "transparent", color: mode === "withdraw" ? C.red : C.muted, cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-          <Icon name="trending-down" size={13} color={mode === "withdraw" ? C.red : C.muted} strokeWidth={2.5} /> Withdraw
+        <button
+          onClick={() => { setMode(mode === "withdraw" ? null : "withdraw"); setCustomAmt(""); }}
+          style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${mode === "withdraw" ? C.red : C.border}`, background: mode === "withdraw" ? C.red + "20" : C.bgTertiary, color: mode === "withdraw" ? C.red : C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.15s" }}>
+          <Icon name="trending-down" size={14} color={mode === "withdraw" ? C.red : C.muted} strokeWidth={2.5} />
+          Вывести
         </button>
       </div>
 
-      {/* Inline input when mode active */}
+      {/* Inline amount input */}
       {mode && (
-        <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
           <div style={{ flex: 1, position: "relative" }}>
-            <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: C.muted, fontSize: 14, fontWeight: 600 }}>$</span>
+            <span style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: C.muted, fontSize: 15, fontWeight: 700, pointerEvents: "none" }}>$</span>
             <input
               autoFocus
               type="number"
@@ -1044,15 +1057,17 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
               value={customAmt}
               onChange={e => setCustomAmt(e.target.value)}
               onKeyDown={e => e.key === "Enter" && confirm()}
-              style={{ width: "100%", padding: "11px 12px 11px 26px", background: C.bg, border: `1px solid ${mode === "deposit" ? C.green : C.red}55`, borderRadius: 10, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT }}
+              style={{ width: "100%", padding: "12px 12px 12px 28px", background: C.bg, border: `2px solid ${accentColor}66`, borderRadius: 10, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT }}
             />
           </div>
-          <button onClick={confirm}
-            style={{ padding: "11px 18px", background: mode === "deposit" ? C.green : C.red, border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT, whiteSpace: "nowrap" }}>
-            {mode === "deposit" ? "Add" : "Withdraw"}
+          <button
+            onClick={confirm}
+            style={{ padding: "12px 20px", background: accentColor, border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT, whiteSpace: "nowrap" }}>
+            {mode === "deposit" ? "Добавить" : "Вывести"}
           </button>
-          <button onClick={() => { setMode(null); setCustomAmt(""); }}
-            style={{ padding: "11px 10px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 10, cursor: "pointer", display: "flex" }}>
+          <button
+            onClick={() => { setMode(null); setCustomAmt(""); }}
+            style={{ padding: "12px", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center" }}>
             <Icon name="x" size={14} color={C.muted} strokeWidth={2.5} />
           </button>
         </div>
@@ -1353,8 +1368,8 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot }) {
 // ─── Bottom Nav ───────────────────────────────────────────────
 function BottomNav({ screen, setScreen }) {
   const tabs = [
-    { id: "dashboard", label: "Home", icon: "home" },
-    { id: "money", label: "My Money", icon: "credit" },
+    { id: "dashboard", label: "Главная", icon: "home" },
+    { id: "transactions", label: "Транзакции", icon: "credit" },
     { id: "savings", label: "Savings", icon: "target" },
     { id: "insights", label: "Insights", icon: "activity" },
     { id: "chat", label: "AI", icon: "message" },
