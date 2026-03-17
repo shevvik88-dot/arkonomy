@@ -13,9 +13,8 @@
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <meta name="description" content="AI Financial Autopilot — track spending, grow savings, invest smarter" />
     <style>
-      html, body, #root {
-        margin: 0;
-        padding: 0;
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
         background-color: #0B1426;
         min-height: 100vh;
         min-height: -webkit-fill-available;
@@ -26,17 +25,86 @@
         padding-left: env(safe-area-inset-left);
         padding-right: env(safe-area-inset-right);
       }
+      #splash {
+        position: fixed;
+        inset: 0;
+        background: #0B1426;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding-top: env(safe-area-inset-top);
+        transition: opacity 0.4s ease;
+      }
+      #splash img {
+        width: 90px;
+        height: 90px;
+        object-fit: contain;
+        margin-bottom: 24px;
+        animation: pulse 1.8s ease-in-out infinite;
+      }
+      #splash-title {
+        font-family: -apple-system, 'Inter', sans-serif;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 6px;
+        color: #ffffff;
+        margin-bottom: 6px;
+      }
+      #splash-sub {
+        font-family: -apple-system, 'Inter', sans-serif;
+        font-size: 11px;
+        letter-spacing: 2px;
+        color: #4A5E7A;
+        margin-bottom: 48px;
+      }
+      .dots { display: flex; gap: 8px; }
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #2F80FF;
+        animation: bop 1.2s ease infinite;
+      }
+      .dot:nth-child(2) { animation-delay: 0.2s; background: #00C2FF; }
+      .dot:nth-child(3) { animation-delay: 0.4s; background: #12D18E; }
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.06); opacity: 0.85; }
+      }
+      @keyframes bop {
+        0%, 80%, 100% { transform: translateY(0); }
+        40% { transform: translateY(-8px); }
+      }
+      #splash.hidden { opacity: 0; pointer-events: none; }
     </style>
   </head>
   <body>
+    <div id="splash">
+      <img src="/icon-192.png" alt="Arkonomy" />
+      <div id="splash-title">ARKONOMY</div>
+      <div id="splash-sub">AI FINANCIAL AUTOPILOT</div>
+      <div class="dots">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
+      window.hideSplash = function() {
+        const splash = document.getElementById('splash');
+        if (splash) {
+          splash.classList.add('hidden');
+          setTimeout(() => splash.remove(), 400);
+        }
+      };
+      setTimeout(window.hideSplash, 4000);
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(() => console.log('SW registered'))
-            .catch(err => console.log('SW error:', err));
+          navigator.serviceWorker.register('/sw.js');
         });
       }
     </script>
