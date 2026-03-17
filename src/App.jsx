@@ -491,6 +491,11 @@ export default function App() {
   const prevSpendingByCategory = {};
   lastMonth.filter(t => t.type === "expense").forEach(t => { const k = t.category_name || "Other"; prevSpendingByCategory[k] = (prevSpendingByCategory[k] || 0) + Number(t.amount); });
 
+  // Hide splash screen once app data is loaded
+  useEffect(() => {
+    if (!loading) window.hideSplash?.();
+  }, [loading]);
+
   if (loading && !user) return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT }}>
       <div style={{ color: C.cyan, fontSize: 16, fontWeight: 500 }}>Loading Arkonomy...</div>
@@ -585,14 +590,32 @@ function MarketOverview() {
     setLoading(true);
     setError(null);
     try {
-      const mRes = await supabase.functions.invoke("market-data", { body: { type: "overview" } });
-      if (mRes.error) throw new Error(mRes.error.message || "Function error");
-      if (!mRes.data?.markets) throw new Error("No market data returned");
-      setMarkets(mRes.data.markets);
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${session?.access_token ?? ""}`,
+        "apikey": "sb_publishable_z4Mh9KZLXS_6ZZJyJ-pE7A_ClkhUDt9",
+      };
 
-      const nRes = await supabase.functions.invoke("market-data", { body: { type: "news" } });
-      if (nRes.data?.news) setNews(nRes.data.news);
+      const [mRes, nRes] = await Promise.all([
+        fetch("https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/market-data", {
+          method: "POST", headers, body: JSON.stringify({ type: "overview" }),
+        }),
+        fetch("https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/market-data", {
+          method: "POST", headers, body: JSON.stringify({ type: "news" }),
+        }),
+      ]);
 
+      if (!mRes.ok) {
+        const err = await mRes.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${mRes.status}`);
+      }
+
+      const mData = await mRes.json();
+      const nData = await nRes.json().catch(() => ({}));
+
+      if (mData?.markets) setMarkets(mData.markets);
+      if (nData?.news) setNews(nData.news);
       setLastUpdated(new Date());
     } catch (e) {
       setError(e.message || "Could not load market data");
