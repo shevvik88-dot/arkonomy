@@ -491,7 +491,6 @@ export default function App() {
   const prevSpendingByCategory = {};
   lastMonth.filter(t => t.type === "expense").forEach(t => { const k = t.category_name || "Other"; prevSpendingByCategory[k] = (prevSpendingByCategory[k] || 0) + Number(t.amount); });
 
-  // Hide splash screen once app data is loaded
   useEffect(() => {
     if (!loading) window.hideSplash?.();
   }, [loading]);
