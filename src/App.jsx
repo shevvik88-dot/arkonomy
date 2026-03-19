@@ -106,9 +106,9 @@ function StatBadge({ value, suffix = "vs last month" }) {
 function DonutChart({ data, size = 196, onCatClick }) {
   const cx = size / 2, cy = size / 2;
   const outerR = size / 2 - 8;
-  const innerR = outerR - 34;
-  const mid = (outerR + innerR) / 2;
-  const sw = 34;
+const innerR = outerR - 22;
+const mid = (outerR + innerR) / 2;
+const sw = 22;
   const [hovered, setHovered] = useState(null);
 
   const entries = Object.entries(data).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
@@ -142,7 +142,7 @@ function DonutChart({ data, size = 196, onCatClick }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, fontFamily: FONT }}>
       <div style={{ position: "relative", width: size, height: size }}>
-        <svg width={size} height={size} style={{ display: "block", filter: "drop-shadow(0 4px 32px rgba(0,194,255,0.12))" }}>
+        <svg width={size} height={size} sstyle={{ display: "block" }}>
           <defs>
             <radialGradient id="cg" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor={C.cyan} stopOpacity="0.10" />
@@ -156,10 +156,10 @@ function DonutChart({ data, size = 196, onCatClick }) {
             if (endAdj - startAdj < 0.5) return null;
             const isHov = hovered === s.cat;
             if (endAdj - startAdj >= 359.5)
-              return <circle key={i} cx={cx} cy={cy} r={mid} fill="none" stroke={s.color} strokeWidth={isHov ? sw + 4 : sw} style={{ filter: `drop-shadow(0 0 ${isHov ? 14 : 10}px ${s.color}99)`, cursor: "pointer", transition: "all 0.2s" }} onClick={() => onCatClick && onCatClick(s.cat)} onMouseEnter={() => setHovered(s.cat)} onMouseLeave={() => setHovered(null)} />;
+              return <circle key={i} cx={cx} cy={cy} r={mid} fill="none" stroke={s.color} strokeWidth={isHov ? sw + 4 : sw} style={{ filter: isHov ? `drop-shadow(0 0 6px ${s.color}66)` : 'none', cursor: "pointer", transition: "all 0.2s" }} onClick={() => onCatClick && onCatClick(s.cat)} onMouseEnter={() => setHovered(s.cat)} onMouseLeave={() => setHovered(null)} />;
             return (
               <path key={i} d={arcPath(startAdj, endAdj)} stroke={s.color} strokeWidth={isHov ? sw + 4 : sw} fill="none" strokeLinecap="round"
-                style={{ filter: `drop-shadow(0 0 ${isHov ? 14 : 10}px ${s.color}99)`, cursor: onCatClick ? "pointer" : "default", transition: "all 0.2s" }}
+                style={{ filter: isHov ? `drop-shadow(0 0 6px ${s.color}66)` : 'none', cursor: onCatClick ? "pointer" : "default", transition: "all 0.2s" }}
                 onClick={() => onCatClick && onCatClick(s.cat)}
                 onMouseEnter={() => setHovered(s.cat)} onMouseLeave={() => setHovered(null)} />
             );
