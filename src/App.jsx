@@ -507,7 +507,7 @@ export default function App() {
       </div>
 
       {/* Content */}
-      <div style={{ padding: "14px 14px 110px" }}>
+      <div style={{ padding: "14px 14px 110px", paddingTop: 70 }}>
         {loading ? (
           <div style={{ color: C.muted, textAlign: "center", padding: 40 }}>Loading...</div>
         ) : (
@@ -780,7 +780,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
           <span style={{ fontWeight: 600, fontSize: 14 }}>Spending by Category</span>
           <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: 99 }}>Tap to filter</span>
         </div>
-        <DonutChart data={spendingByCategory} size={188} onCatClick={onCatClick} />
+        <DonutChart data={spendingByCategory} size={158} onCatClick={onCatClick} />
       </GlassCard>
 
       {/* 4 ── Monthly Budget */}
