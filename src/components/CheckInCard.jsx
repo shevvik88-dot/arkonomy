@@ -32,10 +32,10 @@ export default function CheckInCard({ data, onAskAI }) {
   const isSubtle = SUBTLE.has(state);
 
   return (
-    <div style={{ background: th.cardBg, border: `1px solid ${th.cardBorder}`, borderRadius: 16, padding: 15, fontFamily: FONT }}>
+    <div style={{ background: th.cardBg, border: `1px solid ${th.cardBorder}`, borderRadius: 16, padding: '11px 13px', fontFamily: FONT }}>
 
       {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 12 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 8 }}>
         <div style={{ display:'flex', alignItems:'center', gap: 7 }}>
           <div style={{ width:6, height:6, borderRadius:'50%', background: ac, flexShrink:0 }} />
           <span style={{ fontSize:11, fontWeight:700, color: ac, letterSpacing:'.3px' }}>
@@ -56,7 +56,7 @@ export default function CheckInCard({ data, onAskAI }) {
       )}
 
       {/* Insight */}
-      <div style={{ fontSize:14, fontWeight:600, color:'#dce8ff', lineHeight:1.55, marginBottom:6 }}>
+      <div style={{ fontSize:14, fontWeight:600, color:'#dce8ff', lineHeight:1.5, marginBottom:4 }}>
         {insight}
       </div>
 
