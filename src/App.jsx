@@ -771,10 +771,19 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
         </div>
       </div>
 
-      {/* 2 ── AI Check-In (replaces old AiInsightCard) */}
+     {/* 2 ── AI Check-In */}
       <CheckInCard data={checkInData} onAskAI={() => onNavigate("chat")} />
 
-      {/* 3 ── Monthly Budget */}
+      {/* 3 ── Spending by Category */}
+      <GlassCard style={{ padding: "14px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>Spending by Category</span>
+          <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: 99 }}>Tap to filter</span>
+        </div>
+        <DonutChart data={spendingByCategory} size={188} onCatClick={onCatClick} />
+      </GlassCard>
+
+      {/* 4 ── Monthly Budget */}
       <GlassCard style={{ padding: "14px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <div>
@@ -792,17 +801,8 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
         </div>
       </GlassCard>
 
-      {/* 4 ── Market Overview */}
+      {/* 5 ── Market Overview (last) */}
       <MarketOverview />
-
-      {/* 5 ── Spending by Category */}
-      <GlassCard style={{ padding: "14px 16px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <span style={{ fontWeight: 600, fontSize: 14 }}>Spending by Category</span>
-          <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: 99 }}>Tap to filter</span>
-        </div>
-        <DonutChart data={spendingByCategory} size={188} onCatClick={onCatClick} />
-      </GlassCard>
 
       {/* 6 ── Recent Transactions */}
       <GlassCard style={{ padding: "14px 16px" }}>
