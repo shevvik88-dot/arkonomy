@@ -596,7 +596,7 @@ function MarketOverview() {
   };
 
   return (
-    <GlassCard style={{ padding: "14px 16px", opacity: 0.82 }}>
+    <GlassCard style={{ padding: "14px 16px", opacity: 0.75 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <div style={{ width: 28, height: 28, borderRadius: 8, background: C.blue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -733,7 +733,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
 
       {/* 1 ── Net Balance Card */}
       <div style={{ background: "linear-gradient(145deg,#0D1F3C,#0B1426)", borderRadius: 20, padding: "16px 18px", border: `1px solid #1E2D4A`, position: "relative", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,194,255,0.06)" }}>
