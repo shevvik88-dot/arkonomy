@@ -169,14 +169,14 @@ const sw = 22;
         <div style={{ position: "absolute", left: cx - innerR, top: cy - innerR, width: innerR * 2, height: innerR * 2, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: C.bg, pointerEvents: "none" }}>
           {hovered ? (
             <>
-              <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, letterSpacing: 0.5, marginBottom: 2, textAlign: "center", padding: "0 4px" }}>{hovered}</div>
+              <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: 0.5, marginBottom: 2, textAlign: "center", padding: "0 4px" }}>{hovered}</div>
               <div style={{ fontSize: 17, fontWeight: 800, color: CAT_COLORS[hovered] || C.cyan }}>${fmt((data[hovered] || 0), 0)}</div>
-              <div style={{ fontSize: 11, color: C.muted }}>{Math.round(((data[hovered] || 0) / total) * 100)}%</div>
+              <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>{Math.round(((data[hovered] || 0) / total) * 100)}%</div>
             </>
           ) : (
             <>
              <div style={{ fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: -0.5, marginBottom: 2 }}>${fmt(total, 0)}</div>
-          <div style={{ fontSize: 10, color: C.faint, letterSpacing: 0.5, fontWeight: 500 }}>Total spent</div>
+           <div style={{ fontSize: 10, color: C.muted, letterSpacing: 0.5, fontWeight: 600 }}>Total spent</div>
             </>
           )}
         </div>
@@ -525,11 +525,11 @@ export default function App() {
       {showAddTx && <AddTransactionModal categories={categories} onAdd={addTransaction} onClose={() => setShowAddTx(false)} />}
       {editTx && <AddTransactionModal categories={categories} existing={editTx} onAdd={data => updateTransaction(editTx.id, data)} onClose={() => setEditTx(null)} />}
 
-      {screen !== "chat" && (
-        <button onClick={() => setScreen("chat")} style={{ position: "fixed", bottom: 78, right: "calc(50% - 215px + 14px)", width: 48, height: 48, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 20px ${C.cyan}55`, zIndex: 45 }}>
-          <Icon name="zap" size={20} color="#fff" strokeWidth={2} />
-        </button>
-      )}
+    {screen !== "chat" && (
+  <button onClick={() => setScreen("chat")} style={{ position: "fixed", bottom: 20, right: "calc(50% - 215px + 14px)", width: 44, height: 44, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 20px ${C.cyan}55`, zIndex: 55 }}>
+    <Icon name="zap" size={18} color="#fff" strokeWidth={2} />
+  </button>
+)}
 
       <BottomNav screen={screen} setScreen={setScreen} />
     </div>
