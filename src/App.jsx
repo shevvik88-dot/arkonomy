@@ -175,8 +175,8 @@ const sw = 22;
             </>
           ) : (
             <>
-              <div style={{ fontSize: 10, color: C.faint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 3, fontWeight: 500 }}>Total</div>
-              <div style={{ fontSize: 19, fontWeight: 800, color: C.text, letterSpacing: -0.5 }}>${fmt(total, 0)}</div>
+             <div style={{ fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: -0.5, marginBottom: 2 }}>${fmt(total, 0)}</div>
+          <div style={{ fontSize: 10, color: C.faint, letterSpacing: 0.5, fontWeight: 500 }}>Total spent</div>
             </>
           )}
         </div>
@@ -507,7 +507,7 @@ export default function App() {
       </div>
 
       {/* Content */}
-      <div style={{ padding: "14px 14px 110px", paddingTop: 70 }}>
+      <div style={{ padding: "70px 14px 90px" }}>
         {loading ? (
           <div style={{ color: C.muted, textAlign: "center", padding: 40 }}>Loading...</div>
         ) : (
@@ -526,7 +526,7 @@ export default function App() {
       {editTx && <AddTransactionModal categories={categories} existing={editTx} onAdd={data => updateTransaction(editTx.id, data)} onClose={() => setEditTx(null)} />}
 
       {screen !== "chat" && (
-        <button onClick={() => setScreen("chat")} style={{ position: "fixed", bottom: 110, right: "calc(50% - 215px + 14px)", width: 48, height: 48, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 20px ${C.cyan}55`, zIndex: 45 }}>
+        <button onClick={() => setScreen("chat")} style={{ position: "fixed", bottom: 76, right: "calc(50% - 215px + 14px)", width: 48, height: 48, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 20px ${C.cyan}55`, zIndex: 45 }}>
           <Icon name="zap" size={20} color="#fff" strokeWidth={2} />
         </button>
       )}
@@ -736,7 +736,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 
       {/* 1 ── Net Balance Card */}
-      <div style={{ background: "linear-gradient(145deg,#0D1F3C,#0B1426)", borderRadius: 20, padding: "16px 18px", border: `1px solid #1E2D4A`, position: "relative", overflow: "hidden" }}>
+      <div style={{ background: "linear-gradient(145deg,#0D1F3C,#0B1426)", borderRadius: 20, padding: "16px 18px", border: `1px solid #1E2D4A`, position: "relative", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,194,255,0.06)" }}>
         <div style={{ position: "absolute", top: -30, right: -30, width: 110, height: 110, borderRadius: "50%", background: C.cyan + "0B", pointerEvents: "none" }} />
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
@@ -746,10 +746,10 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
           </button>
         </div>
 
-        <div style={{ fontSize: 38, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? balColor : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${balColor}44` : "none" }}>
+        <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? balColor : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${balColor}44` : "none" }}>
           {balanceVisible ? `$${fmt(balance)}` : "••••••"}
         </div>
-        <div style={{ fontSize: 10, color: C.faint, marginBottom: 12 }}>income − expenses</div>
+        <div style={{ fontSize: 10, color: C.faint, marginBottom: 12 }}>Available balance</div> 
 
         <div style={{ height: 1, background: "rgba(255,255,255,0.05)", marginBottom: 12 }} />
 
