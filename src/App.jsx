@@ -490,7 +490,7 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT, maxWidth: 430, margin: "0 auto", position: "relative" }}>
       {/* Header */}
-      <div style={{ padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "rgba(11,20,38,0.98)", backdropFilter: "blur(20px)", zIndex: 40, borderBottom: `1px solid ${C.sep}` }}>
+      <div style={{ padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(11,20,38,0.98)", backdropFilter: "blur(20px)", zIndex: 40, borderBottom: `1px solid ${C.sep}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <img src="https://i.postimg.cc/k4tv1XgB/Remove-the-dark-background-completely-make-it-tran-delpmaspu-removebg-preview.png" alt="Arkonomy" style={{ width: 72, height: 36, objectFit: "contain" }} />
           <div>
@@ -507,7 +507,7 @@ export default function App() {
       </div>
 
       {/* Content */}
-      <div style={{ padding: "60px 14px 90px" }}>
+      <div style={{ padding: "72px 14px 90px" }}>
         {loading ? (
           <div style={{ color: C.muted, textAlign: "center", padding: 40 }}>Loading...</div>
         ) : (
@@ -526,7 +526,7 @@ export default function App() {
       {editTx && <AddTransactionModal categories={categories} existing={editTx} onAdd={data => updateTransaction(editTx.id, data)} onClose={() => setEditTx(null)} />}
 
       {screen !== "chat" && (
-        <button onClick={() => setScreen("chat")} style={{ position: "fixed", bottom: 90, right: "calc(50% - 215px + 14px)", width: 48, height: 48, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 20px ${C.cyan}55`, zIndex: 45 }}>
+        <button onClick={() => setScreen("chat")} style={{ position: "fixed", bottom: 100, right: "calc(50% - 215px + 14px)", width: 48, height: 48, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 20px ${C.cyan}55`, zIndex: 45 }}>
           <Icon name="zap" size={20} color="#fff" strokeWidth={2} />
         </button>
       )}
