@@ -488,7 +488,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT, maxWidth: 430, margin: "0 auto", position: "relative" }}>
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT, maxWidth: 430, margin: "0 auto", position: "relative", overflow: "visible" }}>
       {/* Header */}
       <div <div style={{ padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "rgba(11,20,38,0.99)", backdropFilter: "blur(20px)", zIndex: 50, borderBottom: `1px solid ${C.sep}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -526,7 +526,7 @@ export default function App() {
       {editTx && <AddTransactionModal categories={categories} existing={editTx} onAdd={data => updateTransaction(editTx.id, data)} onClose={() => setEditTx(null)} />}
 
       {screen !== "chat" && (
-        <button onClick={() => setScreen("chat")} style={{ position: "fixed", bottom: 72, right: "calc(50% - 215px + 14px)", width: 48, height: 48, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 20px ${C.cyan}55`, zIndex: 45 }}>
+        <button onClick={() => setScreen("chat")} style={{ position: "fixed", bottom: 78, right: "calc(50% - 215px + 14px)", width: 48, height: 48, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 20px ${C.cyan}55`, zIndex: 45 }}>
           <Icon name="zap" size={20} color="#fff" strokeWidth={2} />
         </button>
       )}
