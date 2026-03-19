@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
+import CheckInCard from "./components/CheckInCard";
 
 const fontLink = document.createElement("link");
 fontLink.rel = "stylesheet";
@@ -181,7 +182,6 @@ function DonutChart({ data, size = 196, onCatClick }) {
         </div>
       </div>
 
-      {/* Legend with $ and % + filter button */}
       <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6 }}>
         {slices.map(s => (
           <div key={s.cat}
@@ -241,7 +241,6 @@ function HealthScore({ totalSpent, totalIncome, budget, savingsGoals }) {
         </div>
       </div>
 
-      {/* Breakdown */}
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
         {[
           { label: "Savings Rate", value: Math.round(Math.min(savingsRate / 0.3, 1) * 100), color: C.cyan },
@@ -285,43 +284,6 @@ function WeeklySummary({ transactions }) {
           </span>
         ) : "no data from last week yet"}.
       </div>
-    </GlassCard>
-  );
-}
-
-// ─── AI Insight Card (dashboard mini) ─────────────────────────
-function AiInsightCard({ spendingByCategory, prevSpendingByCategory, totalIncome, totalSpent, onNavigate }) {
-  const insights = [];
-  const savingsRate = totalIncome > 0 ? ((totalIncome - totalSpent) / totalIncome) * 100 : 0;
-
-  Object.entries(spendingByCategory).forEach(([cat, amount]) => {
-    const prev = prevSpendingByCategory[cat] || 0;
-    if (prev > 0) {
-      const change = ((amount - prev) / prev) * 100;
-      if (change > 20) insights.push({ text: `You spent ${change.toFixed(0)}% more on ${cat} this month. Cutting back could save ~$${fmt(amount - prev, 0)}/month.`, icon: "trending-up", color: C.red });
-    }
-  });
-  if (savingsRate < 10 && totalIncome > 0) insights.push({ text: `Your savings rate is ${savingsRate.toFixed(1)}%. The recommended target is 20% of income.`, icon: "target", color: C.yellow });
-  if (insights.length === 0) insights.push({ text: "Your spending looks healthy this month. Consider investing your surplus to build long-term wealth.", icon: "check-circle", color: C.green });
-
-  const ins = insights[0];
-  return (
-    <GlassCard style={{ background: `linear-gradient(135deg,${C.cyan}08,${C.card})`, border: `1px solid ${C.cyan}25` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <div style={{ width: 32, height: 32, borderRadius: 10, background: C.cyan + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Icon name="zap" size={15} color={C.cyan} />
-        </div>
-        <span style={{ fontWeight: 600, fontSize: 14, color: C.cyan }}>AI Insight</span>
-      </div>
-      <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 12 }}>
-        <Icon name={ins.icon} size={16} color={ins.color} />
-        <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.65, flex: 1 }}>{ins.text}</div>
-      </div>
-      <div style={{ fontSize: 10, color: C.faint, marginBottom: 10 }}>AI insights are for informational purposes only and should not be considered financial advice.</div>
-      <button onClick={() => onNavigate("chat")} style={{ background: "none", border: `1px solid ${C.cyan}44`, borderRadius: 10, padding: "7px 14px", color: C.cyan, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", gap: 6 }}>
-        <Icon name="message" size={12} color={C.cyan} /> Ask AI Assistant
-        <Icon name="chevron" size={12} color={C.cyan} />
-      </button>
     </GlassCard>
   );
 }
@@ -396,7 +358,7 @@ export default function App() {
   const [savings, setSavings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddTx, setShowAddTx] = useState(false);
-  const [editTx, setEditTx] = useState(null); // transaction being edited
+  const [editTx, setEditTx] = useState(null);
   const [catFilter, setCatFilter] = useState(null);
   const [chatMessages, setChatMessages] = useState([{ role: "assistant", text: "Hi! I'm your Arkonomy AI assistant. Ask me anything about your finances." }]);
   const [chatInput, setChatInput] = useState("");
@@ -475,7 +437,6 @@ export default function App() {
     setProfile(prev => ({ ...prev, ...updates }));
   }
 
-  // ── Stats ─────────────────────────────────────────────────────
   const now = new Date();
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const thisMonth = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
@@ -564,7 +525,6 @@ export default function App() {
       {showAddTx && <AddTransactionModal categories={categories} onAdd={addTransaction} onClose={() => setShowAddTx(false)} />}
       {editTx && <AddTransactionModal categories={categories} existing={editTx} onAdd={data => updateTransaction(editTx.id, data)} onClose={() => setEditTx(null)} />}
 
-      {/* Floating AI button */}
       {screen !== "chat" && (
         <button onClick={() => setScreen("chat")} style={{ position: "fixed", bottom: 88, right: "calc(50% - 215px + 14px)", width: 48, height: 48, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 20px ${C.cyan}55`, zIndex: 45 }}>
           <Icon name="zap" size={20} color="#fff" strokeWidth={2} />
@@ -637,7 +597,6 @@ function MarketOverview() {
 
   return (
     <GlassCard style={{ padding: "14px 16px" }}>
-      {/* Header + tabs */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <div style={{ width: 28, height: 28, borderRadius: 8, background: C.blue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -753,14 +712,33 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
   const expenseChange = lastSpent > 0 ? ((totalSpent - lastSpent) / lastSpent) * 100 : 0;
   const balColor = balance >= 0 ? C.green : C.red;
 
+  // ── Compute CheckInCard data ──────────────────────────────────
+  const checkInData = {
+    spent:       totalSpent,
+    budget:      budget,
+    income:      totalIncome,
+    savingsRate: totalIncome > 0 ? Math.round((totalIncome - totalSpent) / totalIncome * 100) : 0,
+    day:         new Date().getDate(),
+    spikePct: (() => {
+      const spikes = Object.entries(spendingByCategory).map(([cat, amt]) => {
+        const p = prevSpendingByCategory[cat] || 0;
+        return p > 0 ? ((amt - p) / p) * 100 : 0;
+      });
+      return spikes.length ? Math.round(Math.max(...spikes)) : 0;
+    })(),
+    catSpend: Object.values(spendingByCategory).length
+      ? Math.max(...Object.values(spendingByCategory))
+      : 0,
+    cat: Object.entries(spendingByCategory).sort((a, b) => b[1] - a[1])[0]?.[0] || "Other",
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 
-      {/* 1 ── Net Balance Card (compact) */}
+      {/* 1 ── Net Balance Card */}
       <div style={{ background: "linear-gradient(145deg,#0D1F3C,#0B1426)", borderRadius: 20, padding: "16px 18px", border: `1px solid #1E2D4A`, position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: -30, right: -30, width: 110, height: 110, borderRadius: "50%", background: C.cyan + "0B", pointerEvents: "none" }} />
 
-        {/* Top row: label + eye */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
           <span style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>Net Balance</span>
           <button onClick={() => setBalanceVisible(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex" }}>
@@ -768,7 +746,6 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
           </button>
         </div>
 
-        {/* Balance + subtitle on same tight block */}
         <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? balColor : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${balColor}44` : "none" }}>
           {balanceVisible ? `$${fmt(balance)}` : "••••••"}
         </div>
@@ -776,7 +753,6 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
 
         <div style={{ height: 1, background: "rgba(255,255,255,0.05)", marginBottom: 12 }} />
 
-        {/* 3 stats compact */}
         <div style={{ display: "flex" }}>
           {[
             { label: "Income", value: `$${fmt(totalIncome, 0)}`, dot: C.green, change: incomeChange },
@@ -795,10 +771,10 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
         </div>
       </div>
 
-      {/* 2 ── AI Insight (compact, high up) */}
-      <AiInsightCard spendingByCategory={spendingByCategory} prevSpendingByCategory={prevSpendingByCategory} totalIncome={totalIncome} totalSpent={totalSpent} onNavigate={onNavigate} />
+      {/* 2 ── AI Check-In (replaces old AiInsightCard) */}
+      <CheckInCard data={checkInData} onAskAI={() => onNavigate("chat")} />
 
-      {/* 3 ── Monthly Budget (compact) */}
+      {/* 3 ── Monthly Budget */}
       <GlassCard style={{ padding: "14px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <div>
@@ -828,7 +804,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
         <DonutChart data={spendingByCategory} size={188} onCatClick={onCatClick} />
       </GlassCard>
 
-      {/* 5 ── Recent Transactions (3 only + View all) */}
+      {/* 6 ── Recent Transactions */}
       <GlassCard style={{ padding: "14px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <span style={{ fontWeight: 600, fontSize: 14 }}>Recent Transactions</span>
@@ -980,10 +956,7 @@ function TxRow({ t, onDelete, onEdit }) {
 // ─── Transactions ─────────────────────────────────────────────
 function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter }) {
   const [filter, setFilter] = useState("all");
-
-  // Use prop directly — no useEffect needed
   const catFilter = activeCatFilter || null;
-
   let filtered = filter === "all" ? transactions : transactions.filter(t => t.type === filter);
   if (catFilter) filtered = filtered.filter(t => t.category_name === catFilter);
 
@@ -1058,7 +1031,6 @@ function AddTransactionModal({ categories, onAdd, onClose, existing }) {
   const [showCats, setShowCats] = useState(false);
   const isEdit = !!existing;
 
-  // hide browser number spinners
   const noSpinStyle = `input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}`;
   const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT };
 
@@ -1084,22 +1056,11 @@ function AddTransactionModal({ categories, onAdd, onClose, existing }) {
           ))}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-
-          {/* Amount — styled, no spinner arrows */}
           <div style={{ position: "relative" }}>
             <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: C.muted, fontSize: 16, fontWeight: 600, pointerEvents: "none" }}>$</span>
-            <input
-              type="number"
-              placeholder="0.00"
-              value={amount}
-              onChange={e => setAmount(e.target.value)}
-              style={{ ...inp, paddingLeft: 30 }}
-            />
+            <input type="number" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} style={{ ...inp, paddingLeft: 30 }} />
           </div>
-
           <input style={inp} placeholder="Description / Merchant (optional)" value={desc} onChange={e => setDesc(e.target.value)} />
-
-          {/* Category picker */}
           <div>
             <button onClick={() => setShowCats(!showCats)} style={{ ...inp, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left" }}>
               {catName
@@ -1128,10 +1089,8 @@ function AddTransactionModal({ categories, onAdd, onClose, existing }) {
               </div>
             )}
           </div>
-
           <input style={inp} type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
-
         <button
           onClick={() => { if (!amount) return; onAdd({ amount: parseFloat(amount), description: desc || catName, category_id: type === "expense" ? (catId || null) : null, category_name: catName, date, type }); }}
           style={{ width: "100%", marginTop: 18, padding: 15, background: `linear-gradient(90deg,${type === "expense" ? C.red : C.green},${type === "expense" ? "#CC1A3A" : "#00A67E"})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT }}>
@@ -1142,9 +1101,9 @@ function AddTransactionModal({ categories, onAdd, onClose, existing }) {
   );
 }
 
-// ─── Savings Goal Card (with manual deposit/withdraw) ─────────
+// ─── Savings Goal Card ────────────────────────────────────────
 function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getGoalIcon }) {
-  const [mode, setMode] = useState(null); // null | "deposit" | "withdraw"
+  const [mode, setMode] = useState(null);
   const [customAmt, setCustomAmt] = useState("");
 
   function confirm() {
@@ -1163,8 +1122,6 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
   return (
     <GlassCard>
       <style>{`input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}input[type=number]{-moz-appearance:textfield}`}</style>
-
-      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <div style={{ width: 44, height: 44, borderRadius: 14, background: goalColor + "22", border: `1px solid ${goalColor}44`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 12px ${goalColor}33` }}>
@@ -1182,8 +1139,6 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
           <span style={{ color: goalColor, fontWeight: 700, fontSize: 13 }}>{pct.toFixed(0)}%</span>
         </div>
       </div>
-
-      {/* Progress bar */}
       <div style={{ height: 10, background: C.bgTertiary, borderRadius: 99, marginBottom: 8, overflow: "hidden" }}>
         <div style={{ height: 10, borderRadius: 99, width: `${pct}%`, background: `linear-gradient(90deg,${goalColor},${goalColor}BB)`, transition: "width 0.6s", boxShadow: `0 0 12px ${goalColor}55` }} />
       </div>
@@ -1191,57 +1146,35 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
         <span style={{ color: C.text, fontWeight: 600 }}>${fmt(sv.current, 0)} saved</span>
         <span style={{ color: C.muted }}>${fmt(remaining, 0)} remaining</span>
       </div>
-
-      {/* Quick +add row */}
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         {[10, 25, 50, 100].map(amt => (
-          <button key={amt}
-            onClick={() => onUpdate(sv.id, Number(sv.current) + amt)}
+          <button key={amt} onClick={() => onUpdate(sv.id, Number(sv.current) + amt)}
             style={{ flex: 1, padding: "8px 0", background: goalColor + "15", border: `1px solid ${goalColor}40`, borderRadius: 10, color: goalColor, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: FONT }}>
             +${amt}
           </button>
         ))}
       </div>
-
-      {/* Deposit / Withdraw toggle buttons */}
       <div style={{ display: "flex", gap: 8, marginBottom: mode ? 10 : 0 }}>
-        <button
-          onClick={() => { setMode(mode === "deposit" ? null : "deposit"); setCustomAmt(""); }}
-          style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${mode === "deposit" ? C.green : C.border}`, background: mode === "deposit" ? C.green + "20" : C.bgTertiary, color: mode === "deposit" ? C.green : C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.15s" }}>
-          <Icon name="plus" size={14} color={mode === "deposit" ? C.green : C.muted} strokeWidth={2.5} />
-          Deposit
+        <button onClick={() => { setMode(mode === "deposit" ? null : "deposit"); setCustomAmt(""); }}
+          style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${mode === "deposit" ? C.green : C.border}`, background: mode === "deposit" ? C.green + "20" : C.bgTertiary, color: mode === "deposit" ? C.green : C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <Icon name="plus" size={14} color={mode === "deposit" ? C.green : C.muted} strokeWidth={2.5} /> Deposit
         </button>
-        <button
-          onClick={() => { setMode(mode === "withdraw" ? null : "withdraw"); setCustomAmt(""); }}
-          style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${mode === "withdraw" ? C.red : C.border}`, background: mode === "withdraw" ? C.red + "20" : C.bgTertiary, color: mode === "withdraw" ? C.red : C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.15s" }}>
-          <Icon name="trending-down" size={14} color={mode === "withdraw" ? C.red : C.muted} strokeWidth={2.5} />
-          Withdraw
+        <button onClick={() => { setMode(mode === "withdraw" ? null : "withdraw"); setCustomAmt(""); }}
+          style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${mode === "withdraw" ? C.red : C.border}`, background: mode === "withdraw" ? C.red + "20" : C.bgTertiary, color: mode === "withdraw" ? C.red : C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <Icon name="trending-down" size={14} color={mode === "withdraw" ? C.red : C.muted} strokeWidth={2.5} /> Withdraw
         </button>
       </div>
-
-      {/* Inline amount input */}
       {mode && (
         <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
           <div style={{ flex: 1, position: "relative" }}>
             <span style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: C.muted, fontSize: 15, fontWeight: 700, pointerEvents: "none" }}>$</span>
-            <input
-              autoFocus
-              type="number"
-              placeholder="0.00"
-              value={customAmt}
-              onChange={e => setCustomAmt(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && confirm()}
-              style={{ width: "100%", padding: "12px 12px 12px 28px", background: C.bg, border: `2px solid ${accentColor}66`, borderRadius: 10, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT }}
-            />
+            <input autoFocus type="number" placeholder="0.00" value={customAmt} onChange={e => setCustomAmt(e.target.value)} onKeyDown={e => e.key === "Enter" && confirm()}
+              style={{ width: "100%", padding: "12px 12px 12px 28px", background: C.bg, border: `2px solid ${accentColor}66`, borderRadius: 10, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT }} />
           </div>
-          <button
-            onClick={confirm}
-            style={{ padding: "12px 20px", background: accentColor, border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT, whiteSpace: "nowrap" }}>
+          <button onClick={confirm} style={{ padding: "12px 20px", background: accentColor, border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
             {mode === "deposit" ? "Add" : "Withdraw"}
           </button>
-          <button
-            onClick={() => { setMode(null); setCustomAmt(""); }}
-            style={{ padding: "12px", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center" }}>
+          <button onClick={() => { setMode(null); setCustomAmt(""); }} style={{ padding: "12px", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center" }}>
             <Icon name="x" size={14} color={C.muted} strokeWidth={2.5} />
           </button>
         </div>
@@ -1292,7 +1225,6 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent }) {
         </button>
       </div>
 
-      {/* Summary */}
       {(totalSaved > 0 || monthlySurplus > 0) && (
         <div style={{ background: "linear-gradient(135deg,#0D2A1F,#0B1426)", borderRadius: 20, padding: 20, border: `1px solid ${C.green}30` }}>
           <div style={{ display: "flex" }}>
@@ -1308,7 +1240,6 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent }) {
         </div>
       )}
 
-      {/* Auto Round-up */}
       <div style={{ background: "linear-gradient(135deg,#0D2233,#0B1426)", borderRadius: 20, padding: 20, border: `1px solid ${C.cyan}30`, position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: -20, right: -20, width: 100, height: 100, borderRadius: "50%", background: C.cyan + "0A", pointerEvents: "none" }} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
@@ -1348,7 +1279,6 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent }) {
         )}
       </div>
 
-      {/* Add Goal Form */}
       {showAdd && (
         <GlassCard>
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>New Savings Goal</div>
@@ -1374,10 +1304,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent }) {
         const goalColor = sv.color || C.green;
         const remaining = Math.max(Number(sv.target) - Number(sv.current), 0);
         const months = monthsToGoal(sv);
-
-        return (
-          <SavingsGoalCard key={sv.id} sv={sv} pct={pct} goalColor={goalColor} remaining={remaining} months={months} onUpdate={onUpdate} getGoalIcon={getGoalIcon} />
-        );
+        return <SavingsGoalCard key={sv.id} sv={sv} pct={pct} goalColor={goalColor} remaining={remaining} months={months} onUpdate={onUpdate} getGoalIcon={getGoalIcon} />;
       })}
     </div>
   );
@@ -1397,7 +1324,6 @@ function Chat({ messages, input, setInput, onSend }) {
           Powered by Claude · knows your finances
         </div>
       </div>
-
       <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
         {messages.map((m, i) => (
           <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", background: m.role === "user" ? `linear-gradient(90deg,${C.cyan},${C.blue})` : C.card, color: m.role === "user" ? "#fff" : C.text, padding: "12px 16px", borderRadius: m.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px", maxWidth: "82%", fontSize: 14, border: m.role === "assistant" ? `1px solid ${C.border}` : "none", lineHeight: 1.65, fontWeight: m.role === "user" ? 500 : 400 }}>
@@ -1411,11 +1337,9 @@ function Chat({ messages, input, setInput, onSend }) {
         ))}
         <div ref={bottomRef} />
       </div>
-
       <div style={{ fontSize: 10, color: C.faint, textAlign: "center", marginBottom: 10, lineHeight: 1.5 }}>
         AI insights are for informational purposes only and should not be considered financial advice.
       </div>
-
       <div style={{ display: "flex", gap: 8 }}>
         <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && onSend()} placeholder="Ask about your finances..." style={{ flex: 1, padding: "13px 16px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 14, outline: "none", fontFamily: FONT }} />
         <button onClick={onSend} style={{ padding: "13px 18px", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center" }}>
@@ -1504,7 +1428,6 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot }) {
         ))}
       </GlassCard>
 
-      {/* Legal */}
       <GlassCard style={{ border: `1px solid ${C.yellow}22` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <Icon name="info" size={15} color={C.yellow} />
