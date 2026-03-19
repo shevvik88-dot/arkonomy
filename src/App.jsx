@@ -526,7 +526,7 @@ export default function App() {
       {editTx && <AddTransactionModal categories={categories} existing={editTx} onAdd={data => updateTransaction(editTx.id, data)} onClose={() => setEditTx(null)} />}
 
       {screen !== "chat" && (
-        <button onClick={() => setScreen("chat")} style={{ position: "fixed", bottom: 88, right: "calc(50% - 215px + 14px)", width: 48, height: 48, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 20px ${C.cyan}55`, zIndex: 45 }}>
+        <button onClick={() => setScreen("chat")} style={{ position: "fixed", bottom: 110, right: "calc(50% - 215px + 14px)", width: 48, height: 48, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 20px ${C.cyan}55`, zIndex: 45 }}>
           <Icon name="zap" size={20} color="#fff" strokeWidth={2} />
         </button>
       )}
@@ -596,7 +596,7 @@ function MarketOverview() {
   };
 
   return (
-    <GlassCard style={{ padding: "14px 16px" }}>
+    <GlassCard style={{ padding: "14px 16px", opacity: 0.82 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <div style={{ width: 28, height: 28, borderRadius: 8, background: C.blue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -746,7 +746,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
           </button>
         </div>
 
-        <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? balColor : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${balColor}44` : "none" }}>
+        <div style={{ fontSize: 38, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? balColor : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${balColor}44` : "none" }}>
           {balanceVisible ? `$${fmt(balance)}` : "••••••"}
         </div>
         <div style={{ fontSize: 10, color: C.faint, marginBottom: 12 }}>income − expenses</div>
