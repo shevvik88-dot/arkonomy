@@ -899,7 +899,7 @@ function CatIcon({ name, type, size = 18 }) {
     "Transport":     { color: "#2563EB", icon: "car" },
     "Shopping":      { color: "#B45309", icon: "shopping" },
     "Entertainment": { color: "#7C3AED", icon: "film" },
-    "Health":        { color: "#059669", icon: "heart" },
+    "Health":        { color: "#06B6D4", icon: "heart" },
     "Bills":         { color: "#0891B2", icon: "file" },
     "Subscriptions": { color: "#EA580C", icon: "repeat" },
     "income":        { color: "#00A67E", icon: "dollar" },
