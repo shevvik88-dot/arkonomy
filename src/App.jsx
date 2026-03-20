@@ -25,7 +25,7 @@ const C = {
 const CAT_COLORS = {
   "Food & Dining": "#FF6B6B", "Transport": "#4ECDC4",
   "Shopping": "#F59E0B", "Entertainment": "#A78BFA",
-  "Health": "#A78BFA", "Bills": "#60A5FA",
+  "Health": "#F472B6", "Bills": "#60A5FA",
   "Subscriptions": "#F97316", "Other": "#94A3B8",
 };
 
@@ -393,7 +393,7 @@ export default function App() {
       { name: "Transport", icon: "car", color: "#4ECDC4", budget: 300 },
       { name: "Shopping", icon: "shopping", color: "#F59E0B", budget: 400 },
       { name: "Entertainment", icon: "film", color: "#A78BFA", budget: 200 },
-      { name: "Health", icon: "heart", color: "#34D399", budget: 150 },
+      { name: "Health", icon: "heart", color: "#F472B6", budget: 150 },
       { name: "Bills", icon: "file", color: "#60A5FA", budget: 800 },
     ];
     const { data } = await supabase.from("categories").insert(defaults.map(d => ({ ...d, user_id: user.id }))).select();
@@ -899,7 +899,7 @@ function CatIcon({ name, type, size = 18 }) {
     "Transport":     { color: "#2563EB", icon: "car" },
     "Shopping":      { color: "#B45309", icon: "shopping" },
     "Entertainment": { color: "#7C3AED", icon: "film" },
-    "Health":        { color: "#A78BFA", icon: "heart" },
+    "Health":        { color: "#F472B6", icon: "heart" },
     "Bills":         { color: "#0891B2", icon: "file" },
     "Subscriptions": { color: "#EA580C", icon: "repeat" },
     "income":        { color: "#00A67E", icon: "dollar" },
