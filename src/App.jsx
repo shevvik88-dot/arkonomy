@@ -774,7 +774,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
           <span style={{ fontWeight: 600, fontSize: 14 }}>Spending by Category</span>
           <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: 99 }}>Tap to filter</span>
         </div>
-        <DonutChart data={spendingByCategory} size={140} onCatClick={onCatClick} />
+        <DonutChart data={spendingByCategory} size={152} onCatClick={onCatClick} />
       </GlassCard>
 
       {/* 4 ── Monthly Budget */}
