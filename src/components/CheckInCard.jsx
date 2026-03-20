@@ -76,7 +76,7 @@ export default function CheckInCard({ data, onAskAI }) {
 
       {/* Action */}
       {action && (
-        <div style={{ borderRadius:10, padding:'11px 13px', marginBottom:11, border:`1px solid ${alpha(ac,.45)}`, background: alpha(ac,.18) }}>
+        <div style={{ borderRadius:10, padding:'11px 13px', marginBottom:11, border:`1px solid ${alpha(ac,.55)}`, background: alpha(ac,.22) }}>
           <div style={{ fontSize:10, fontWeight:700, letterSpacing:'.8px', color: alpha(ac,.6), marginBottom:4, fontFamily:'monospace' }}>
             ACTION
           </div>
