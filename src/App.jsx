@@ -913,23 +913,39 @@ function CatIcon({ name, type, size = 18 }) {
   );
 }
 
-// ─── Helpers (Transactions v2) ────────────────────────────────
-function calcSummary(txs) {
-  const income  = txs.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
-  const expense = txs.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
-  return { income, expense, net: income - expense };
+// ─── Transactions – helpers ────────────────────────────────────
+function calcSummary(txs, prevTxs = []) {
+  const sum = (arr, type) => arr.filter(t => t.type === type).reduce((s, t) => s + Number(t.amount), 0);
+  const income = sum(txs, "income"), expense = sum(txs, "expense");
+  const pIncome = sum(prevTxs, "income"), pExpense = sum(prevTxs, "expense");
+  return {
+    income, expense, net: income - expense,
+    incomeVsPrev:  pIncome  > 0 ? ((income  - pIncome)  / pIncome)  * 100 : null,
+    expenseVsPrev: pExpense > 0 ? ((expense - pExpense) / pExpense) * 100 : null,
+    netVsPrev:     (pIncome - pExpense) !== 0 ? (income - expense) - (pIncome - pExpense) : null,
+  };
 }
 
-function fmtMoney(n) {
+function fmtMoney(n, sign = false) {
   const abs = Math.abs(n);
-  if (abs >= 1_000_000) return "$" + (abs / 1_000_000).toFixed(1) + "M";
-  if (abs >= 10_000)    return "$" + Math.round(abs).toLocaleString("en-US");
-  return "$" + Number(abs).toFixed(2);
+  let s;
+  if (abs >= 1_000_000) s = "$" + (abs / 1_000_000).toFixed(1) + "M";
+  else if (abs >= 10_000) s = "$" + Math.round(abs).toLocaleString("en-US");
+  else s = "$" + Number(abs).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (sign) s = (n >= 0 ? "+" : "−") + s;
+  return s;
+}
+
+function fmtPct(pct) {
+  if (pct === null || pct === undefined) return null;
+  const abs = Math.abs(pct);
+  return (pct >= 0 ? "+" : "−") + abs.toFixed(0) + "%";
 }
 
 function deriveSignal(t) {
   if (t.is_recurring) return "recurring";
   if (t.type === "expense" && Number(t.amount) > 500) return "spike";
+  if (t.unusual) return "unusual";
   return null;
 }
 
@@ -947,10 +963,14 @@ const CAT_ICONS_MAP = {
 // ─── Toast system ─────────────────────────────────────────────
 function useToasts() {
   const [toasts, setToasts] = useState([]);
+  const timers = useRef({});
   const show = (msg, type = "success") => {
-    const id = Date.now() + Math.random();
+    const id = "t_" + Date.now() + "_" + Math.random().toString(36).slice(2);
     setToasts(prev => [...prev.slice(-2), { id, msg, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 2600);
+    timers.current[id] = setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+      delete timers.current[id];
+    }, 2600);
   };
   return { toasts, show };
 }
@@ -959,40 +979,49 @@ function ToastStack({ toasts }) {
   const icons = { success: "✓", warning: "⚠", info: "i" };
   const tColors = { success: "#12D18E", warning: "#FFB800", info: "#2F80FF" };
   return (
-    <div style={{ position: "fixed", bottom: 88, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", gap: 6, alignItems: "center", zIndex: 200, pointerEvents: "none", width: "100%", maxWidth: 360 }}>
+    <div style={{ position: "fixed", bottom: 92, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", gap: 6, alignItems: "center", zIndex: 200, pointerEvents: "none", width: "100%", maxWidth: 380 }}>
       {toasts.map(t => (
-        <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(11,20,38,0.97)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 22, padding: "9px 15px 9px 10px", whiteSpace: "nowrap", animation: "txToastIn 0.22s ease", fontFamily: FONT }}>
+        <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(11,20,38,0.97)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 22, padding: "9px 15px 9px 10px", whiteSpace: "nowrap", animation: "txToastIn 0.22s ease", fontFamily: FONT, boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
           <div style={{ width: 22, height: 22, borderRadius: 11, background: tColors[t.type], display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <span style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{icons[t.type]}</span>
           </div>
           <span style={{ fontSize: 13, fontWeight: 500, color: "#fff" }}>{t.msg}</span>
         </div>
       ))}
-      <style>{`@keyframes txToastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <style>{`@keyframes txToastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}</style>
     </div>
   );
 }
 
 // ─── Summary Cards ────────────────────────────────────────────
 function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
+  const incomeCtx = summary.incomeVsPrev !== null ? fmtPct(summary.incomeVsPrev) + " vs last month" : "this month";
+  const expCtx    = summary.expenseVsPrev !== null ? fmtPct(summary.expenseVsPrev) + " vs budget" : "vs budget";
+  const netCtx    = summary.netVsPrev !== null ? fmtMoney(summary.netVsPrev, true) + " vs last month" : "this month";
+
+  const isOverBudget = summary.expenseVsPrev !== null && summary.expenseVsPrev > 0;
+
   const cards = [
-    { label: "Income",   value: fmtMoney(summary.income),  color: "#12D18E", badge: null,            ctx: "this month", onClick: onIncomeClick },
-    { label: "Expenses", value: fmtMoney(summary.expense), color: "#FF5C7A", badge: summary.expense > summary.income * 0.8 ? "over budget" : null, badgeColor: "#FF5C7A", ctx: "vs budget", onClick: onExpenseClick },
-    { label: "Net",      value: (summary.net >= 0 ? "+" : "") + fmtMoney(summary.net), color: "#12D18E", badge: "on track", badgeColor: "#12D18E", ctx: "this month", highlight: true, onClick: onNetClick },
+    { label: "Income",   value: fmtMoney(summary.income,  true),                              color: "#12D18E", ctx: incomeCtx, ctxColor: summary.incomeVsPrev >= 0  ? "#12D18E" : "#FF5C7A", badge: null, onClick: onIncomeClick },
+    { label: "Expenses", value: fmtMoney(summary.expense),                                    color: "#FF5C7A", ctx: expCtx,    ctxColor: isOverBudget ? "#FF5C7A" : "#12D18E", badge: isOverBudget ? "over budget" : "within budget", badgeOk: !isOverBudget, onClick: onExpenseClick },
+    { label: "Net",      value: fmtMoney(summary.net, true),                                  color: "#12D18E", ctx: netCtx,    ctxColor: (summary.netVsPrev ?? 0) >= 0 ? "#12D18E" : "#FF5C7A", badge: "on track", badgeOk: true, highlight: true, onClick: onNetClick },
   ];
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7, marginBottom: 12 }}>
       {cards.map(card => (
         <button key={card.label} onClick={card.onClick}
-          style={{ background: card.highlight ? "#12D18E12" : C.card, border: `1px solid ${card.highlight ? "#12D18E30" : C.border}`, borderRadius: 14, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 4, cursor: "pointer", textAlign: "left", fontFamily: FONT, minHeight: 86, transition: "transform 0.13s" }}
+          style={{ background: card.highlight ? "rgba(18,209,142,0.08)" : C.card, border: `1px solid ${card.highlight ? "rgba(18,209,142,0.22)" : C.border}`, borderRadius: 14, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 3, cursor: "pointer", textAlign: "left", fontFamily: FONT, minHeight: 90, transition: "transform 0.12s ease", boxShadow: card.highlight ? "0 2px 12px rgba(18,209,142,0.1)" : "none" }}
           onPointerDown={e => e.currentTarget.style.transform = "scale(0.96)"}
           onPointerUp={e => e.currentTarget.style.transform = "scale(1)"}
           onPointerLeave={e => e.currentTarget.style.transform = "scale(1)"}
         >
           <span style={{ fontSize: 10, fontWeight: 600, color: C.faint, letterSpacing: 0.5, textTransform: "uppercase" }}>{card.label}</span>
           <span style={{ fontSize: 15, fontWeight: 700, color: card.color, letterSpacing: -0.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.value}</span>
-          <span style={{ fontSize: 10, color: C.faint }}>{card.ctx}</span>
-          {card.badge && <span style={{ fontSize: 9, fontWeight: 700, color: card.badgeColor, background: card.badgeColor + "18", padding: "2px 5px", borderRadius: 4, alignSelf: "flex-start", letterSpacing: 0.3, textTransform: "uppercase" }}>{card.badge}</span>}
+          <span style={{ fontSize: 10, color: card.ctxColor, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.ctx}</span>
+          {card.badge && (
+            <span style={{ fontSize: 9, fontWeight: 700, color: card.badgeOk ? "#12D18E" : "#FF5C7A", background: card.badgeOk ? "rgba(18,209,142,0.13)" : "rgba(255,92,122,0.13)", padding: "2px 5px", borderRadius: 4, alignSelf: "flex-start", letterSpacing: 0.3, textTransform: "uppercase", marginTop: 2 }}>{card.badge}</span>
+          )}
         </button>
       ))}
     </div>
@@ -1001,68 +1030,150 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
 
 // ─── AI Insight Card ──────────────────────────────────────────
 const INSIGHTS_CFG = [
-  { type: "warning",     accent: "#FFB800", icon: "alert-circle", label: "Heads up",
-    headline: s => s.expense > 500 ? `You overspent by $${Math.round(s.expense - 500)} this month` : "Expenses spiked this month",
-    body: () => "Transport hit $590 — 3× your usual. Setting a cap could save you ~$90.",
-    p: "Limit this category", pType: "warning", s1: "View details", s2: "Exclude from budget",
-    show: s => s.expense > 400 },
-  { type: "opportunity", accent: "#00C2FF", icon: "zap",          label: "Opportunity",
-    headline: () => "Save $90 more this month",
-    body: () => "You're under budget on Food. Move the surplus now to lock in your April goal.",
-    p: "Save $90 now", pType: "success", s1: "View projection", s2: "Adjust goal",
-    show: s => s.income > s.expense },
-  { type: "positive",    accent: "#12D18E", icon: "trending-up",  label: "Saving streak",
-    headline: s => `Net balance: ${fmtMoney(s.net)} ahead`,
-    body: () => "Under budget for 21 days straight — your best run this quarter.",
-    p: "Boost savings goal", pType: "success", s1: "View trend", s2: "Share progress",
-    show: s => s.net > 100 },
+  {
+    type: "warning", accent: "#FFB800", icon: "alert-circle", label: "Heads up",
+    headline: s => s.expense > 500 ? `You overspent by ${fmtMoney(s.expense - 500)} this month` : "Expenses are spiking",
+    body: s => `Transport hit ${fmtMoney(s.expense > 500 ? s.expense - (s.income - s.expense) : 590)} — 3× your usual. Setting a cap could recover ~$90 this month.`,
+    p: "Limit this category", pMsg: "Transport limit set", pType: "warning",
+    s1: "View Transport",     s1Msg: null,
+    s2: "Exclude from budget", s2Msg: "Car Repair excluded",
+    show: s => s.expense > 400,
+  },
+  {
+    type: "opportunity", accent: "#2F80FF", icon: "zap", label: "Opportunity",
+    headline: s => `Move ${fmtMoney(Math.round(Math.max(s.income - s.expense, 90)))} now to hit your goal early`,
+    body: () => "You're under budget on Food this week. Locking in the surplus today puts April's goal 12 days ahead of schedule.",
+    p: "Move to savings now", pMsg: "$90 moved to savings", pType: "success",
+    s1: "View projection",    s1Msg: null,
+    s2: "Adjust goal",        s2Msg: null,
+    show: s => s.income > s.expense && s.net > 50,
+  },
+  {
+    type: "positive", accent: "#12D18E", icon: "trending-up", label: "Saving streak",
+    headline: s => s.netVsPrev > 0 ? `${fmtMoney(s.netVsPrev)} ahead of last month` : "3-week saving streak",
+    body: () => "Under budget for 21 days straight — your best run this quarter. Redirect the surplus to compound faster.",
+    p: "Boost my savings goal", pMsg: "Savings goal updated", pType: "success",
+    s1: "View streak",         s1Msg: null,
+    s2: "Share progress",      s2Msg: "Copied to clipboard",
+    show: s => s.net > 100,
+  },
 ];
 
 function AIInsightCard({ summary, onAction }) {
   const active = INSIGHTS_CFG.filter(i => i.show(summary));
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
-  const rotRef = useRef(null); const resumeRef = useRef(null);
+  const [cardKey, setCardKey] = useState(0);
+  const rotRef = useRef(null);
+  const resumeRef = useRef(null);
 
-  const ins = active[idx % Math.max(active.length, 1)];
-  if (!ins) return null;
+  const safeIdx = active.length > 0 ? idx % active.length : 0;
+  const ins = active[safeIdx];
+
+  // fallback
+  if (!ins) {
+    return (
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "13px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(18,209,142,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Icon name="check-circle" size={13} color="#12D18E" strokeWidth={2} />
+        </div>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.text, fontFamily: FONT }}>You're on track this month</div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 2, fontFamily: FONT }}>No unusual activity detected</div>
+        </div>
+      </div>
+    );
+  }
+
+  function pause() {
+    setPaused(true);
+    clearTimeout(rotRef.current);
+    clearTimeout(resumeRef.current);
+    resumeRef.current = setTimeout(() => setPaused(false), 15000);
+  }
+
+  function goTo(i) {
+    if (i === safeIdx) return;
+    pause();
+    setIdx(i);
+    setCardKey(k => k + 1);
+  }
 
   useEffect(() => {
     if (paused || active.length <= 1) return;
-    rotRef.current = setTimeout(() => setIdx(i => (i + 1) % active.length), 9000);
+    rotRef.current = setTimeout(() => {
+      setIdx(i => (i + 1) % active.length);
+      setCardKey(k => k + 1);
+    }, 9000);
     return () => clearTimeout(rotRef.current);
-  }, [idx, paused, active.length]);
+  }, [safeIdx, paused, active.length, cardKey]);
 
-  function pause() { setPaused(true); clearTimeout(rotRef.current); clearTimeout(resumeRef.current); resumeRef.current = setTimeout(() => setPaused(false), 14000); }
-  function goTo(i) { pause(); setIdx(i); }
+  function handleCTA(msg, type, navigateFn) {
+    pause();
+    if (navigateFn) navigateFn();
+    if (msg) onAction(msg, type);
+  }
 
   return (
-    <div style={{ background: ins.accent + "0E", border: `1px solid ${ins.accent}30`, borderRadius: 14, padding: "13px 13px 12px", marginBottom: 12 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <div style={{ width: 22, height: 22, borderRadius: 7, background: ins.accent + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name={ins.icon} size={11} color={ins.accent} strokeWidth={2.2} />
+    <div style={{ marginBottom: 12, position: "relative" }}>
+      <style>{`
+        @keyframes insIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+        .ins-card{animation:insIn 0.28s ease forwards}
+      `}</style>
+      <div key={cardKey} className="ins-card" style={{ background: ins.accent + "0D", border: `1px solid ${ins.accent}28`, borderRadius: 14, padding: "13px 13px 12px" }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+            <div style={{ width: 22, height: 22, borderRadius: 7, background: ins.accent + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name={ins.icon} size={11} color={ins.accent} strokeWidth={2.2} />
+            </div>
+            <span style={{ fontSize: 10, fontWeight: 700, color: ins.accent, letterSpacing: 0.7, textTransform: "uppercase", fontFamily: FONT }}>{ins.label}</span>
           </div>
-          <span style={{ fontSize: 10, fontWeight: 700, color: ins.accent, letterSpacing: 0.6, textTransform: "uppercase", fontFamily: FONT }}>{ins.label}</span>
+          {active.length > 1 && (
+            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              {active.map((_, i) => (
+                <button key={i} onClick={() => goTo(i)}
+                  style={{ width: i === safeIdx ? 14 : 5, height: 5, borderRadius: i === safeIdx ? 3 : 99, background: i === safeIdx ? ins.accent : "rgba(255,255,255,0.14)", border: "none", cursor: "pointer", padding: 0, transition: "all 0.25s ease" }}
+                />
+              ))}
+            </div>
+          )}
         </div>
-        {active.length > 1 && (
-          <div style={{ display: "flex", gap: 4 }}>
-            {active.map((_, i) => (
-              <button key={i} onClick={() => goTo(i)} style={{ width: i === idx ? 14 : 5, height: 5, borderRadius: i === idx ? 3 : 99, background: i === idx ? ins.accent : "rgba(255,255,255,0.12)", border: "none", cursor: "pointer", padding: 0, transition: "all 0.25s" }} />
-            ))}
+
+        {/* Content */}
+        <div style={{ fontSize: 14, fontWeight: 600, color: C.text, letterSpacing: -0.2, marginBottom: 5, lineHeight: 1.35, fontFamily: FONT }}>{ins.headline(summary)}</div>
+        <div style={{ fontSize: 12, color: "rgba(170,200,230,0.82)", lineHeight: 1.55, marginBottom: 12, fontFamily: FONT }}>{ins.body(summary)}</div>
+
+        {/* CTA hierarchy: primary → secondary → tertiary */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+          {/* Primary — full-width filled */}
+          <button
+            onClick={() => handleCTA(ins.pMsg, ins.pType)}
+            style={{ width: "100%", padding: "11px 16px", background: ins.accent, border: "none", borderRadius: 10, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, letterSpacing: -0.1, transition: "filter 0.12s ease", minHeight: 44 }}
+            onPointerDown={e => e.currentTarget.style.filter = "brightness(0.82)"}
+            onPointerUp={e => e.currentTarget.style.filter = "brightness(1)"}
+            onPointerLeave={e => e.currentTarget.style.filter = "brightness(1)"}
+          >{ins.p}</button>
+
+          {/* Secondary + Tertiary row */}
+          <div style={{ display: "flex", gap: 7 }}>
+            {/* Secondary — outlined */}
+            <button
+              onClick={() => handleCTA(ins.s1Msg, "info")}
+              style={{ flex: 1, padding: "8px 8px", background: ins.accent + "10", border: `1px solid ${ins.accent}30`, borderRadius: 10, color: ins.accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 40, transition: "background 0.12s" }}
+              onPointerDown={e => e.currentTarget.style.background = ins.accent + "20"}
+              onPointerUp={e => e.currentTarget.style.background = ins.accent + "10"}
+              onPointerLeave={e => e.currentTarget.style.background = ins.accent + "10"}
+            >{ins.s1}</button>
+            {/* Tertiary — text only */}
+            <button
+              onClick={() => handleCTA(ins.s2Msg, "info")}
+              style={{ flex: 1, padding: "8px 8px", background: "transparent", border: "none", borderRadius: 10, color: ins.accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, opacity: 0.62, minHeight: 40 }}
+              onPointerDown={e => e.currentTarget.style.opacity = "0.9"}
+              onPointerUp={e => e.currentTarget.style.opacity = "0.62"}
+              onPointerLeave={e => e.currentTarget.style.opacity = "0.62"}
+            >{ins.s2}</button>
           </div>
-        )}
-      </div>
-      <div style={{ fontSize: 14, fontWeight: 600, color: C.text, letterSpacing: -0.2, marginBottom: 4, lineHeight: 1.3, fontFamily: FONT }}>{ins.headline(summary)}</div>
-      <div style={{ fontSize: 12, color: "rgba(175,205,230,0.8)", lineHeight: 1.5, marginBottom: 11, fontFamily: FONT }}>{ins.body(summary)}</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <button onClick={() => { pause(); onAction(ins.p, ins.pType); }}
-          style={{ width: "100%", padding: 10, background: ins.accent, border: "none", borderRadius: 10, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT }}
-          onPointerDown={e => e.currentTarget.style.filter = "brightness(0.85)"} onPointerUp={e => e.currentTarget.style.filter = ""} onPointerLeave={e => e.currentTarget.style.filter = ""}
-        >{ins.p}</button>
-        <div style={{ display: "flex", gap: 6 }}>
-          <button onClick={() => { pause(); onAction(ins.s1, "info"); }} style={{ flex: 1, padding: "8px 6px", background: ins.accent + "12", border: `1px solid ${ins.accent}30`, borderRadius: 10, color: ins.accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>{ins.s1}</button>
-          <button onClick={() => { pause(); onAction(ins.s2, "info"); }} style={{ flex: 1, padding: "8px 6px", background: "transparent", border: "none", borderRadius: 10, color: ins.accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, opacity: 0.65 }}>{ins.s2}</button>
         </div>
       </div>
     </div>
@@ -1226,102 +1337,153 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
   const { toasts, show: toast } = useToasts();
   const catFilter = activeCatFilter || null;
 
+  // Current vs prev month split for summary context
+  const now = new Date();
+  const prevMo = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const curTxs  = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
+  const prevTxs = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === prevMo.getMonth() && d.getFullYear() === prevMo.getFullYear(); });
+  const summary = calcSummary(curTxs, prevTxs);
+
   let filtered = filter === "all" ? transactions : transactions.filter(t => t.type === filter);
   if (catFilter) filtered = filtered.filter(t => t.category_name === catFilter);
 
-  const counts = { all: transactions.length, expense: transactions.filter(t => t.type === "expense").length, income: transactions.filter(t => t.type === "income").length };
-  const summary = calcSummary(transactions);
+  const counts = {
+    all:     transactions.length,
+    expense: transactions.filter(t => t.type === "expense").length,
+    income:  transactions.filter(t => t.type === "income").length,
+  };
 
-  const expenseRows = Object.entries(transactions.filter(t => t.type === "expense").reduce((a, t) => { a[t.category_name] = (a[t.category_name] || 0) + Number(t.amount); return a; }, {}))
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, total], _, arr) => ({ name, amount: fmtMoney(total), color: CAT_COLORS[name] || C.blue, icon: CAT_ICONS_MAP[name] || "credit", pct: Math.round((total / arr.reduce((s, [, v]) => s + v, 0)) * 100) }));
+  const expenseRows = Object.entries(
+    transactions.filter(t => t.type === "expense").reduce((a, t) => { a[t.category_name || "Other"] = (a[t.category_name || "Other"] || 0) + Number(t.amount); return a; }, {})
+  ).sort((a, b) => b[1] - a[1]).map(([name, total], _, arr) => ({
+    name, amount: fmtMoney(total), color: CAT_COLORS[name] || C.blue,
+    icon: CAT_ICONS_MAP[name] || "credit",
+    pct: Math.round((total / arr.reduce((s, [, v]) => s + v, 0)) * 100),
+  }));
 
   function handleDelete(id) { onDelete(id); toast("Deleted", "warning"); }
-  function handleMoveToSavings(tx) { toast(`$${Number(tx.amount).toFixed(0)} moved to savings`, "success"); }
+  function handleMoveToSavings(tx) { toast(fmtMoney(Number(tx.amount)) + " moved to savings", "success"); }
   function handleFlag(tx) { toast("Flagged for review", "warning"); }
-  function handleDuplicate(tx) { onAdd({ amount: tx.amount, description: tx.description, category_id: tx.category_id, category_name: tx.category_name, date: tx.date, type: tx.type }); toast("Duplicated", "info"); }
+  function handleDuplicate(tx) {
+    onAdd({ amount: tx.amount, description: tx.description, category_id: tx.category_id, category_name: tx.category_name, date: tx.date, type: tx.type });
+    toast("Transaction duplicated", "info");
+  }
 
-  const monthLabel = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const monthLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
   return (
     <div style={{ fontFamily: FONT }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+
+      {/* ── Header ── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
         <div>
-          <h2 style={{ margin: "0 0 2px", fontSize: 24, fontWeight: 700, letterSpacing: -0.6, color: C.text }}>{monthLabel}</h2>
-          <div style={{ fontSize: 13, color: C.faint }}>Transactions</div>
+          <h2 style={{ margin: "0 0 2px", fontSize: 26, fontWeight: 700, letterSpacing: -0.6, color: C.text, lineHeight: 1.1 }}>Transactions</h2>
+          <div style={{ fontSize: 13, color: C.faint }}>{monthLabel}</div>
         </div>
+        {/* FAB */}
         <button onClick={onAdd}
-          style={{ width: 44, height: 44, borderRadius: "50%", background: C.blue, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", outline: "5px solid rgba(47,128,255,0.13)", transition: "transform 0.14s" }}
-          onPointerDown={e => e.currentTarget.style.transform = "scale(0.9)"} onPointerUp={e => e.currentTarget.style.transform = "scale(1)"} onPointerLeave={e => e.currentTarget.style.transform = "scale(1)"}
+          style={{ width: 44, height: 44, minWidth: 44, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 16px rgba(47,128,255,0.38), 0 0 0 5px rgba(47,128,255,0.1)`, transition: "transform 0.14s ease, box-shadow 0.14s ease" }}
+          onPointerDown={e => { e.currentTarget.style.transform = "scale(0.88)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(47,128,255,0.25), 0 0 0 2px rgba(47,128,255,0.1)"; }}
+          onPointerUp={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(47,128,255,0.38), 0 0 0 5px rgba(47,128,255,0.1)"; }}
+          onPointerLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(47,128,255,0.38), 0 0 0 5px rgba(47,128,255,0.1)"; }}
         >
-          <Icon name="plus" size={16} color="#fff" strokeWidth={2.5} />
+          <Icon name="plus" size={18} color="#fff" strokeWidth={2.5} />
         </button>
       </div>
 
-      {/* Summary cards */}
+      {/* ── Summary cards ── */}
       <SummaryCards summary={summary}
-        onIncomeClick={() => setSheet({ title: "Income breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.income)} total`, rows: transactions.filter(t => t.type === "income").map(t => ({ name: t.description || t.category_name, sub: fmtDate(t.date), amount: "+" + fmtMoney(Number(t.amount)), color: "#12D18E", icon: "dollar" })), actionLabel: "Move surplus to savings", actionColor: "#12D18E", onAction: () => toast("Surplus moved to savings", "success") })}
-        onExpenseClick={() => setSheet({ title: "Expenses breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.expense)} total`, rows: expenseRows, actionLabel: "Set category limit", actionColor: "#FFB800", onAction: () => toast("Category limit saved", "success") })}
-        onNetClick={() => setSheet({ title: "Net summary", subtitle: monthLabel, rows: [{ name: "Total income", amount: "+" + fmtMoney(summary.income), color: "#12D18E", icon: "trending-up", pct: 100 }, { name: "Total expenses", amount: "−" + fmtMoney(summary.expense), color: "#FF5C7A", icon: "trending-down", pct: Math.round((summary.expense / (summary.income || 1)) * 100) }, { name: "Net saved", amount: (summary.net >= 0 ? "+" : "−") + fmtMoney(summary.net), color: "#12D18E", icon: "award", pct: Math.round((summary.net / (summary.income || 1)) * 100) }], actionLabel: "Boost savings goal", actionColor: "#12D18E", onAction: () => toast("Savings goal updated", "success") })}
+        onIncomeClick={() => setSheet({
+          title: "Income breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.income)} total`,
+          rows: transactions.filter(t => t.type === "income").map(t => ({ name: t.description || t.category_name || "Income", sub: fmtDate(t.date), amount: fmtMoney(Number(t.amount), true), color: "#12D18E", icon: "dollar" })),
+          actionLabel: "Move surplus to savings", actionColor: "#12D18E", onAction: () => toast("Surplus moved to savings", "success"),
+        })}
+        onExpenseClick={() => setSheet({
+          title: "Expenses breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.expense)} total`,
+          rows: expenseRows, actionLabel: "Set category limit", actionColor: "#FFB800", onAction: () => toast("Category limit saved", "success"),
+        })}
+        onNetClick={() => setSheet({
+          title: "Net summary", subtitle: monthLabel,
+          rows: [
+            { name: "Total income",   amount: fmtMoney(summary.income, true),  color: "#12D18E", icon: "trending-up",   pct: 100 },
+            { name: "Total expenses", amount: fmtMoney(summary.expense),        color: "#FF5C7A", icon: "trending-down", pct: Math.round((summary.expense / Math.max(summary.income, 1)) * 100) },
+            { name: "Net saved",      amount: fmtMoney(summary.net, true),      color: "#12D18E", icon: "award",         pct: Math.round((summary.net / Math.max(summary.income, 1)) * 100) },
+          ],
+          actionLabel: "Boost savings goal", actionColor: "#12D18E", onAction: () => toast("Savings goal updated", "success"),
+        })}
       />
 
-      {/* AI Insight */}
-      <AIInsightCard summary={summary} onAction={(label, type) => toast(label, type)} />
+      {/* ── AI Insight (part of normal flow) ── */}
+      <AIInsightCard summary={summary} onAction={(msg, type) => { if (msg) toast(msg, type); }} />
 
-      {/* Category filter pill */}
+      {/* ── Category filter pill ── */}
       {catFilter && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: (CAT_COLORS[catFilter] || C.cyan) + "18", borderRadius: 12, border: `1px solid ${(CAT_COLORS[catFilter] || C.cyan)}33` }}>
           <div style={{ width: 8, height: 8, borderRadius: 99, background: CAT_COLORS[catFilter] || C.cyan }} />
           <span style={{ fontSize: 13, color: CAT_COLORS[catFilter] || C.cyan, fontWeight: 600, flex: 1 }}>{catFilter}</span>
-          <button onClick={onClearCatFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}><Icon name="x" size={13} color={C.muted} strokeWidth={2.5} /></button>
+          <button onClick={onClearCatFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4 }}><Icon name="x" size={13} color={C.muted} strokeWidth={2.5} /></button>
         </div>
       )}
 
-      {/* Filter tabs with counts */}
+      {/* ── Filter tabs ── */}
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-        {[{ key: "all", label: "All" }, { key: "expense", label: "Expenses" }, { key: "income", label: "Income" }].map(f => (
-          <button key={f.key} onClick={() => setFilter(f.key)}
-            style={{ padding: "6px 13px", borderRadius: 18, border: `1px solid ${filter === f.key ? C.blue : C.border}`, background: filter === f.key ? C.blue : "transparent", color: filter === f.key ? "#fff" : C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: filter === f.key ? 500 : 400, display: "flex", alignItems: "center", gap: 4, minHeight: 34 }}>
-            {f.label}
-            <span style={{ fontSize: 11, background: filter === f.key ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.07)", borderRadius: 8, padding: "1px 5px", color: filter === f.key ? "rgba(255,255,255,0.9)" : C.faint }}>{counts[f.key]}</span>
-          </button>
-        ))}
+        {[{ key: "all", label: "All" }, { key: "expense", label: "Expenses" }, { key: "income", label: "Income" }].map(f => {
+          const active = filter === f.key;
+          return (
+            <button key={f.key} onClick={() => setFilter(f.key)}
+              style={{ padding: "7px 14px", borderRadius: 20, border: `1px solid ${active ? C.blue : C.border}`, background: active ? C.blue : "transparent", color: active ? "#fff" : C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: active ? 600 : 400, display: "flex", alignItems: "center", gap: 5, minHeight: 36, transition: "all 0.15s ease" }}>
+              {f.label}
+              <span style={{ fontSize: 11, background: active ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.07)", borderRadius: 8, padding: "1px 6px", color: active ? "rgba(255,255,255,0.92)" : C.faint }}>{counts[f.key]}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* List */}
+      {/* ── Transaction list ── */}
       {filtered.length === 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "32px 20px", textAlign: "center" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "36px 20px", textAlign: "center" }}>
           <div style={{ width: 56, height: 56, background: C.bgSecondary, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name="credit" size={24} color={C.faint} strokeWidth={1.6} />
           </div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{filter === "all" ? "No transactions yet" : `No ${filter} transactions`}</div>
-          <div style={{ fontSize: 13, color: C.faint, maxWidth: 220, lineHeight: 1.5 }}>{filter === "all" ? "Add your first transaction to get started." : "Nothing recorded here this month."}</div>
-          {filter === "all" && <button onClick={onAdd} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, padding: "12px 24px", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, fontFamily: FONT }}>+ Add transaction</button>}
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{filter === "all" ? "No transactions yet" : `No ${filter === "expense" ? "expense" : "income"} transactions`}</div>
+          <div style={{ fontSize: 13, color: C.faint, maxWidth: 220, lineHeight: 1.55 }}>{filter === "all" ? "Add your first transaction to get started." : "Nothing recorded here this month."}</div>
+          {filter === "all" && (
+            <button onClick={onAdd} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, padding: "12px 24px", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, fontFamily: FONT, minHeight: 44 }}>+ Add transaction</button>
+          )}
         </div>
       ) : (
-        <div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {filtered.map(t => (
             <TxRow key={t.id} t={t} onDelete={handleDelete} onEdit={onEdit} onLongPress={tx => setQuickTx(tx)} />
           ))}
         </div>
       )}
 
-      {/* Swipe hint */}
+      {/* ── Swipe hint (once) ── */}
       {!hintDone && filtered.length > 0 && (
-        <div style={{ margin: "8px 0 0", padding: "9px 12px", background: C.bgSecondary, borderRadius: 10, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <div style={{ marginTop: 8, padding: "9px 12px", background: C.bgSecondary, borderRadius: 10, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 11, fontWeight: 500, color: C.blue }}>← Edit</span>
-            <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.08)" }} />
+            <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.1)" }} />
             <span style={{ fontSize: 11, fontWeight: 500, color: C.red }}>Delete →</span>
           </div>
-          <button onClick={() => setHintDone(true)} style={{ width: 22, height: 22, background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 11, cursor: "pointer", color: C.faint, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT }}>×</button>
+          <button onClick={() => setHintDone(true)} style={{ width: 24, height: 24, background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 12, cursor: "pointer", color: C.faint, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT }}>×</button>
         </div>
       )}
 
-      {/* Sheets & menus */}
+      {/* ── Sheets & overlays ── */}
       {sheet && <BreakdownSheet title={sheet.title} subtitle={sheet.subtitle} rows={sheet.rows} actionLabel={sheet.actionLabel} actionColor={sheet.actionColor} onAction={sheet.onAction} onClose={() => setSheet(null)} />}
-      {quickTx && <QuickActionsMenu tx={quickTx} onClose={() => setQuickTx(null)} onEdit={tx => { setQuickTx(null); onEdit(tx); }} onDelete={id => { setQuickTx(null); handleDelete(id); }} onMoveToSavings={tx => { setQuickTx(null); handleMoveToSavings(tx); }} onFlag={tx => { setQuickTx(null); handleFlag(tx); }} onDuplicate={tx => { setQuickTx(null); handleDuplicate(tx); }} />}
+      {quickTx && (
+        <QuickActionsMenu
+          tx={quickTx}
+          onClose={() => setQuickTx(null)}
+          onEdit={tx => { setQuickTx(null); onEdit(tx); }}
+          onDelete={id => { setQuickTx(null); handleDelete(id); }}
+          onMoveToSavings={tx => { setQuickTx(null); handleMoveToSavings(tx); }}
+          onFlag={tx => { setQuickTx(null); handleFlag(tx); }}
+          onDuplicate={tx => { setQuickTx(null); handleDuplicate(tx); }}
+        />
+      )}
       <ToastStack toasts={toasts} />
     </div>
   );
