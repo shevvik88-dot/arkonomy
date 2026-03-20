@@ -25,7 +25,7 @@ const C = {
 const CAT_COLORS = {
   "Food & Dining": "#FF6B6B", "Transport": "#4ECDC4",
   "Shopping": "#F59E0B", "Entertainment": "#A78BFA",
-  "Health": "#06B6D4", "Bills": "#60A5FA",
+  "Health": "#A78BFA", "Bills": "#60A5FA",
   "Subscriptions": "#F97316", "Other": "#94A3B8",
 };
 
@@ -899,7 +899,7 @@ function CatIcon({ name, type, size = 18 }) {
     "Transport":     { color: "#2563EB", icon: "car" },
     "Shopping":      { color: "#B45309", icon: "shopping" },
     "Entertainment": { color: "#7C3AED", icon: "film" },
-    "Health":        { color: "#06B6D4", icon: "heart" },
+    "Health":        { color: "#A78BFA", icon: "heart" },
     "Bills":         { color: "#0891B2", icon: "file" },
     "Subscriptions": { color: "#EA580C", icon: "repeat" },
     "income":        { color: "#00A67E", icon: "dollar" },
