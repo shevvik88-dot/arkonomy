@@ -169,9 +169,9 @@ const sw = 22;
         <div style={{ position: "absolute", left: cx - innerR, top: cy - innerR, width: innerR * 2, height: innerR * 2, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#0e1829", pointerEvents: "none" }}>
           {hovered ? (
             <>
-              <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: 0.5, marginBottom: 2, textAlign: "center", padding: "0 4px" }}>{hovered}</div>
+              <div style={{ fontSize: 10, color: "#ffffff", fontWeight: 600, letterSpacing: 0.5, marginBottom: 2, textAlign: "center", padding: "0 4px" }}>{hovered}</div>
               <div style={{ fontSize: 17, fontWeight: 800, color: CAT_COLORS[hovered] || C.cyan }}>${fmt((data[hovered] || 0), 0)}</div>
-              <div style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>{Math.round(((data[hovered] || 0) / total) * 100)}%</div>
+              <div style={{ fontSize: 11, color: "#ffffff", fontWeight: 600 }}>{Math.round(((data[hovered] || 0) / total) * 100)}%</div>
             </>
           ) : (
             <>
