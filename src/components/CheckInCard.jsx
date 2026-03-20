@@ -56,7 +56,7 @@ export default function CheckInCard({ data, onAskAI }) {
       )}
 
       {/* Insight */}
-      <div style={{ fontSize:14, fontWeight:600, color:'#dce8ff', lineHeight:1.5, marginBottom:4 }}>
+      <div style={{ fontSize:14, fontWeight:700, color:'#eef4ff', lineHeight:1.5, marginBottom:4 }}>
         {insight}
       </div>
 
@@ -76,7 +76,7 @@ export default function CheckInCard({ data, onAskAI }) {
 
       {/* Action */}
       {action && (
-        <div style={{ borderRadius:10, padding:'11px 13px', marginBottom:11, border:`1px solid ${alpha(ac,.35)}`, background: alpha(ac,.14) }}>
+        <div style={{ borderRadius:10, padding:'11px 13px', marginBottom:11, border:`1px solid ${alpha(ac,.45)}`, background: alpha(ac,.18) }}>
           <div style={{ fontSize:10, fontWeight:700, letterSpacing:'.8px', color: alpha(ac,.6), marginBottom:4, fontFamily:'monospace' }}>
             ACTION
           </div>
@@ -93,7 +93,7 @@ export default function CheckInCard({ data, onAskAI }) {
 
       {/* Safe to save */}
       {showSafe && safeMax > 0 && (
-        <div style={{ borderRadius:8, padding:'9px 11px', marginBottom:13, border:`1px solid ${alpha(ac,.10)}`, background: alpha(ac,.04) }}>
+        <div style={{ borderRadius:8, padding:'9px 11px', marginBottom:13, border:`1px solid ${alpha(ac,.07)}`, background: alpha(ac,.02) }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
             <span style={{ fontSize:11, color:'#4a6080', fontWeight:600 }}>Safe to save</span>
             <span style={{ fontSize:14, fontWeight:700, color: ac }}>
