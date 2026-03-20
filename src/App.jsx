@@ -183,15 +183,15 @@ const sw = 22;
       </div>
 
       <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6 }}>
-        {slices.map(s => (
+        {slices.map((s, i) => (
           <div key={s.cat}
             onClick={() => onCatClick && onCatClick(s.cat)}
             style={{ display: "flex", alignItems: "center", gap: 10, cursor: onCatClick ? "pointer" : "default", padding: "6px 10px", borderRadius: 10, background: hovered === s.cat ? s.color + "18" : C.bgTertiary, border: `1px solid ${hovered === s.cat ? s.color + "44" : "transparent"}`, transition: "all 0.15s" }}
             onMouseEnter={() => setHovered(s.cat)} onMouseLeave={() => setHovered(null)}>
             <div style={{ width: 10, height: 10, borderRadius: 99, background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}88` }} />
-            <span style={{ fontSize: 13, color: C.muted, flex: 1 }}>{s.cat}</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>${fmt(s.val, 0)}</span>
-            <span style={{ fontSize: 11, color: s.color, fontWeight: 600, minWidth: 36, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>
+            <span style={{ fontSize: 13, color: i === 0 ? C.text : C.muted, fontWeight: i === 0 ? 600 : 400, flex: 1 }}>{s.cat}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: i === 0 ? '#ffffff' : C.text }}>${fmt(s.val, 0)}</span>
+            <span style={{ fontSize: 11, color: s.color, fontWeight: i === 0 ? 700 : 500, minWidth: 36, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>
             {onCatClick && <Icon name="chevron" size={12} color={C.faint} />}
           </div>
         ))}
@@ -590,7 +590,7 @@ function MarketOverview() {
   };
 
   return (
-    <GlassCard style={{ padding: "14px 16px", opacity: 0.75 }}>
+    <GlassCard style={{ padding: "14px 16px", opacity: 0.70 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <div style={{ width: 28, height: 28, borderRadius: 8, background: C.blue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -730,7 +730,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
 
       {/* 1 ── Net Balance Card */}
-      <div style={{ background: "linear-gradient(145deg,#0D1F3C,#0B1426)", borderRadius: 20, padding: "16px 18px", border: `1px solid #1E2D4A`, position: "relative", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,194,255,0.06)" }}>
+      <div style={{ background: "linear-gradient(145deg,#0D1F3C,#0B1426)", borderRadius: 20, padding: "16px 18px", border: `1px solid #1E2D4A`, position: "relative", overflow: "hidden", boxShadow: "0 4px 32px rgba(0,194,255,0.08)" }}>
         <div style={{ position: "absolute", top: -30, right: -30, width: 110, height: 110, borderRadius: "50%", background: C.cyan + "0B", pointerEvents: "none" }} />
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
@@ -743,8 +743,8 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
         <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? balColor : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${balColor}44` : "none" }}>
           {balanceVisible ? `$${fmt(balance)}` : "••••••"}
         </div>
-        <div style={{ fontSize: 10, color: C.faint, marginBottom: 12 }}>Available balance</div> 
-
+        <div style={{ fontSize: 9, color: C.faint, marginBottom: 12, letterSpacing: 0.5 }}>Available balance</div>
+        
         <div style={{ height: 1, background: "rgba(255,255,255,0.05)", marginBottom: 12 }} />
 
         <div style={{ display: "flex" }}>
@@ -769,7 +769,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
       <CheckInCard data={checkInData} onAskAI={() => onNavigate("chat")} />
 
       {/* 3 ── Spending by Category */}
-      <GlassCard style={{ padding: "14px 16px" }}>
+      <GlassCard style={{ padding: "14px 16px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <span style={{ fontWeight: 600, fontSize: 14 }}>Spending by Category</span>
           <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: 99 }}>Tap to filter</span>
