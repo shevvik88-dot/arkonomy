@@ -524,12 +524,7 @@ export default function App() {
 
       {showAddTx && <AddTransactionModal categories={categories} onAdd={addTransaction} onClose={() => setShowAddTx(false)} />}
       {editTx && <AddTransactionModal categories={categories} existing={editTx} onAdd={data => updateTransaction(editTx.id, data)} onClose={() => setEditTx(null)} />}
-
-    {screen !== "chat" && (
-  <button onClick={() => setScreen("chat")} style={{ position: "fixed", bottom: 20, right: "calc(50% - 215px + 14px)", width: 44, height: 44, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 20px ${C.cyan}55`, zIndex: 55 }}>
-    <Icon name="zap" size={18} color="#fff" strokeWidth={2} />
-  </button>
-)}
+        )}
 
       <BottomNav screen={screen} setScreen={setScreen} />
     </div>
