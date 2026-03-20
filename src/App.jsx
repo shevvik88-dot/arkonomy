@@ -25,7 +25,7 @@ const C = {
 const CAT_COLORS = {
   "Food & Dining": "#FF6B6B", "Transport": "#4ECDC4",
   "Shopping": "#F59E0B", "Entertainment": "#A78BFA",
-  "Health": "#34D399", "Bills": "#60A5FA",
+  "Health": "#06B6D4", "Bills": "#60A5FA",
   "Subscriptions": "#F97316", "Other": "#94A3B8",
 };
 
@@ -166,7 +166,7 @@ const sw = 22;
           })}
           <circle cx={cx} cy={cy} r={outerR} fill="url(#cg)" />
         </svg>
-        <div style={{ position: "absolute", left: cx - innerR, top: cy - innerR, width: innerR * 2, height: innerR * 2, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: C.bg, pointerEvents: "none" }}>
+        <div style={{ position: "absolute", left: cx - innerR, top: cy - innerR, width: innerR * 2, height: innerR * 2, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#0e1829", pointerEvents: "none" }}>
           {hovered ? (
             <>
               <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: 0.5, marginBottom: 2, textAlign: "center", padding: "0 4px" }}>{hovered}</div>
@@ -175,8 +175,8 @@ const sw = 22;
             </>
           ) : (
             <>
-             <div style={{ fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: -0.5, marginBottom: 2 }}>${fmt(total, 0)}</div>
-           <div style={{ fontSize: 10, color: C.muted, letterSpacing: 0.5, fontWeight: 600 }}>Total spent</div>
+             <div style={{ fontSize: 20, fontWeight: 800, color: "#ffffff", letterSpacing: -0.5, marginBottom: 2 }}>${fmt(total, 0)}</div>
+           <div style={{ fontSize: 10, color: "#9AA4B2", letterSpacing: 0.5, fontWeight: 600 }}>Total spent</div>
             </>
           )}
         </div>
