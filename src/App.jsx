@@ -913,33 +913,227 @@ function CatIcon({ name, type, size = 18 }) {
   );
 }
 
-// ─── TxRow ────────────────────────────────────────────────────
-function TxRow({ t, onDelete, onEdit }) {
-  const isExp = t.type === "expense";
+// ─── Helpers (Transactions v2) ────────────────────────────────
+function calcSummary(txs) {
+  const income  = txs.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
+  const expense = txs.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
+  return { income, expense, net: income - expense };
+}
+
+function fmtMoney(n) {
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return "$" + (abs / 1_000_000).toFixed(1) + "M";
+  if (abs >= 10_000)    return "$" + Math.round(abs).toLocaleString("en-US");
+  return "$" + Number(abs).toFixed(2);
+}
+
+function deriveSignal(t) {
+  if (t.is_recurring) return "recurring";
+  if (t.type === "expense" && Number(t.amount) > 500) return "spike";
+  return null;
+}
+
+const SIGNAL_STYLE = {
+  spike:     { label: "↑ Spike",     color: "#FF5C7A", bg: "rgba(255,92,122,0.13)" },
+  unusual:   { label: "⚠ Unusual",   color: "#FFB800", bg: "rgba(255,184,0,0.13)"  },
+  recurring: { label: "↻ Recurring", color: "#2F80FF", bg: "rgba(47,128,255,0.13)" },
+};
+
+const CAT_ICONS_MAP = {
+  "Food & Dining": "food", "Transport": "car", "Shopping": "shopping",
+  "Entertainment": "film", "Health": "heart", "Bills": "file", "Subscriptions": "repeat",
+};
+
+// ─── Toast system ─────────────────────────────────────────────
+function useToasts() {
+  const [toasts, setToasts] = useState([]);
+  const show = (msg, type = "success") => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev.slice(-2), { id, msg, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 2600);
+  };
+  return { toasts, show };
+}
+
+function ToastStack({ toasts }) {
+  const icons = { success: "✓", warning: "⚠", info: "i" };
+  const tColors = { success: "#12D18E", warning: "#FFB800", info: "#2F80FF" };
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0" }}>
-      <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0, flex: 1 }}>
-        <CatIcon name={t.category_name} type={t.type} />
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.description || t.category_name || "Transaction"}</div>
-          <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-            <span style={{ color: CAT_COLORS[t.category_name] || C.faint, fontWeight: 500 }}>{t.category_name || (t.type === "income" ? "Income" : "Other")}</span>
-            <span style={{ color: C.faint }}> · {fmtDate(t.date)}</span>
+    <div style={{ position: "fixed", bottom: 88, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", gap: 6, alignItems: "center", zIndex: 200, pointerEvents: "none", width: "100%", maxWidth: 360 }}>
+      {toasts.map(t => (
+        <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(11,20,38,0.97)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 22, padding: "9px 15px 9px 10px", whiteSpace: "nowrap", animation: "txToastIn 0.22s ease", fontFamily: FONT }}>
+          <div style={{ width: 22, height: 22, borderRadius: 11, background: tColors[t.type], display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <span style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{icons[t.type]}</span>
           </div>
+          <span style={{ fontSize: 13, fontWeight: 500, color: "#fff" }}>{t.msg}</span>
+        </div>
+      ))}
+      <style>{`@keyframes txToastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    </div>
+  );
+}
+
+// ─── Summary Cards ────────────────────────────────────────────
+function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
+  const cards = [
+    { label: "Income",   value: fmtMoney(summary.income),  color: "#12D18E", badge: null,            ctx: "this month", onClick: onIncomeClick },
+    { label: "Expenses", value: fmtMoney(summary.expense), color: "#FF5C7A", badge: summary.expense > summary.income * 0.8 ? "over budget" : null, badgeColor: "#FF5C7A", ctx: "vs budget", onClick: onExpenseClick },
+    { label: "Net",      value: (summary.net >= 0 ? "+" : "") + fmtMoney(summary.net), color: "#12D18E", badge: "on track", badgeColor: "#12D18E", ctx: "this month", highlight: true, onClick: onNetClick },
+  ];
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7, marginBottom: 12 }}>
+      {cards.map(card => (
+        <button key={card.label} onClick={card.onClick}
+          style={{ background: card.highlight ? "#12D18E12" : C.card, border: `1px solid ${card.highlight ? "#12D18E30" : C.border}`, borderRadius: 14, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 4, cursor: "pointer", textAlign: "left", fontFamily: FONT, minHeight: 86, transition: "transform 0.13s" }}
+          onPointerDown={e => e.currentTarget.style.transform = "scale(0.96)"}
+          onPointerUp={e => e.currentTarget.style.transform = "scale(1)"}
+          onPointerLeave={e => e.currentTarget.style.transform = "scale(1)"}
+        >
+          <span style={{ fontSize: 10, fontWeight: 600, color: C.faint, letterSpacing: 0.5, textTransform: "uppercase" }}>{card.label}</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: card.color, letterSpacing: -0.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.value}</span>
+          <span style={{ fontSize: 10, color: C.faint }}>{card.ctx}</span>
+          {card.badge && <span style={{ fontSize: 9, fontWeight: 700, color: card.badgeColor, background: card.badgeColor + "18", padding: "2px 5px", borderRadius: 4, alignSelf: "flex-start", letterSpacing: 0.3, textTransform: "uppercase" }}>{card.badge}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── AI Insight Card ──────────────────────────────────────────
+const INSIGHTS_CFG = [
+  { type: "warning",     accent: "#FFB800", icon: "alert-circle", label: "Heads up",
+    headline: s => s.expense > 500 ? `You overspent by $${Math.round(s.expense - 500)} this month` : "Expenses spiked this month",
+    body: () => "Transport hit $590 — 3× your usual. Setting a cap could save you ~$90.",
+    p: "Limit this category", pType: "warning", s1: "View details", s2: "Exclude from budget",
+    show: s => s.expense > 400 },
+  { type: "opportunity", accent: "#00C2FF", icon: "zap",          label: "Opportunity",
+    headline: () => "Save $90 more this month",
+    body: () => "You're under budget on Food. Move the surplus now to lock in your April goal.",
+    p: "Save $90 now", pType: "success", s1: "View projection", s2: "Adjust goal",
+    show: s => s.income > s.expense },
+  { type: "positive",    accent: "#12D18E", icon: "trending-up",  label: "Saving streak",
+    headline: s => `Net balance: ${fmtMoney(s.net)} ahead`,
+    body: () => "Under budget for 21 days straight — your best run this quarter.",
+    p: "Boost savings goal", pType: "success", s1: "View trend", s2: "Share progress",
+    show: s => s.net > 100 },
+];
+
+function AIInsightCard({ summary, onAction }) {
+  const active = INSIGHTS_CFG.filter(i => i.show(summary));
+  const [idx, setIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const rotRef = useRef(null); const resumeRef = useRef(null);
+
+  const ins = active[idx % Math.max(active.length, 1)];
+  if (!ins) return null;
+
+  useEffect(() => {
+    if (paused || active.length <= 1) return;
+    rotRef.current = setTimeout(() => setIdx(i => (i + 1) % active.length), 9000);
+    return () => clearTimeout(rotRef.current);
+  }, [idx, paused, active.length]);
+
+  function pause() { setPaused(true); clearTimeout(rotRef.current); clearTimeout(resumeRef.current); resumeRef.current = setTimeout(() => setPaused(false), 14000); }
+  function goTo(i) { pause(); setIdx(i); }
+
+  return (
+    <div style={{ background: ins.accent + "0E", border: `1px solid ${ins.accent}30`, borderRadius: 14, padding: "13px 13px 12px", marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <div style={{ width: 22, height: 22, borderRadius: 7, background: ins.accent + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name={ins.icon} size={11} color={ins.accent} strokeWidth={2.2} />
+          </div>
+          <span style={{ fontSize: 10, fontWeight: 700, color: ins.accent, letterSpacing: 0.6, textTransform: "uppercase", fontFamily: FONT }}>{ins.label}</span>
+        </div>
+        {active.length > 1 && (
+          <div style={{ display: "flex", gap: 4 }}>
+            {active.map((_, i) => (
+              <button key={i} onClick={() => goTo(i)} style={{ width: i === idx ? 14 : 5, height: 5, borderRadius: i === idx ? 3 : 99, background: i === idx ? ins.accent : "rgba(255,255,255,0.12)", border: "none", cursor: "pointer", padding: 0, transition: "all 0.25s" }} />
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 600, color: C.text, letterSpacing: -0.2, marginBottom: 4, lineHeight: 1.3, fontFamily: FONT }}>{ins.headline(summary)}</div>
+      <div style={{ fontSize: 12, color: "rgba(175,205,230,0.8)", lineHeight: 1.5, marginBottom: 11, fontFamily: FONT }}>{ins.body(summary)}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <button onClick={() => { pause(); onAction(ins.p, ins.pType); }}
+          style={{ width: "100%", padding: 10, background: ins.accent, border: "none", borderRadius: 10, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT }}
+          onPointerDown={e => e.currentTarget.style.filter = "brightness(0.85)"} onPointerUp={e => e.currentTarget.style.filter = ""} onPointerLeave={e => e.currentTarget.style.filter = ""}
+        >{ins.p}</button>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={() => { pause(); onAction(ins.s1, "info"); }} style={{ flex: 1, padding: "8px 6px", background: ins.accent + "12", border: `1px solid ${ins.accent}30`, borderRadius: 10, color: ins.accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>{ins.s1}</button>
+          <button onClick={() => { pause(); onAction(ins.s2, "info"); }} style={{ flex: 1, padding: "8px 6px", background: "transparent", border: "none", borderRadius: 10, color: ins.accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, opacity: 0.65 }}>{ins.s2}</button>
         </div>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginLeft: 8 }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: isExp ? C.red : C.green, letterSpacing: -0.3 }}>
-          {isExp ? "−" : "+"}${fmt(t.amount)}
-        </span>
-        {onEdit && (
-          <button onClick={() => onEdit(t)} style={{ background: "none", border: "none", cursor: "pointer", padding: "3px", display: "flex", opacity: 0.5 }}>
-            <Icon name="edit" size={13} color={C.muted} strokeWidth={2} />
+    </div>
+  );
+}
+
+// ─── Quick Actions Menu ───────────────────────────────────────
+function QuickActionsMenu({ tx, onClose, onEdit, onDelete, onMoveToSavings, onFlag, onDuplicate }) {
+  const actions = [
+    { label: "Edit transaction",  desc: "Fix amount, category or date", icon: "edit",         color: "#2F80FF", fn: () => { onClose(); onEdit(tx); } },
+    { label: "Move to savings",   desc: "Allocate to a goal",           icon: "target",       color: "#12D18E", fn: () => { onClose(); onMoveToSavings(tx); } },
+    { label: "Flag as unusual",   desc: "Mark for review",              icon: "alert-circle", color: "#FFB800", fn: () => { onClose(); onFlag(tx); } },
+    { label: "Duplicate",         desc: "Copy this transaction",        icon: "repeat",       color: "#2F80FF", fn: () => { onClose(); onDuplicate(tx); } },
+    { label: "Delete",            desc: "Remove permanently",           icon: "x",            color: "#FF5C7A", danger: true, fn: () => { onClose(); onDelete(tx.id); } },
+  ];
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 150, display: "flex", alignItems: "flex-end", maxWidth: 430, margin: "0 auto" }} onClick={onClose}>
+      <div style={{ width: "100%", background: C.card, borderRadius: "22px 22px 0 0", border: `1px solid ${C.border}`, paddingBottom: 32, fontFamily: FONT }} onClick={e => e.stopPropagation()}>
+        <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, margin: "10px auto 0" }} />
+        <div style={{ fontSize: 16, fontWeight: 600, color: C.text, padding: "14px 18px 3px", letterSpacing: -0.3 }}>{tx.description || tx.category_name}</div>
+        <div style={{ height: 1, background: C.sep, margin: "10px 0 2px" }} />
+        {actions.map(a => (
+          <button key={a.label} onClick={a.fn}
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontFamily: FONT, minHeight: 56 }}
+            onPointerEnter={e => e.currentTarget.style.background = C.bgSecondary} onPointerLeave={e => e.currentTarget.style.background = "none"}
+          >
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: a.color + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Icon name={a.icon} size={15} color={a.color} strokeWidth={1.8} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 500, color: a.danger ? "#FF5C7A" : C.text }}>{a.label}</div>
+              <div style={{ fontSize: 11, color: C.faint, marginTop: 1 }}>{a.desc}</div>
+            </div>
           </button>
-        )}
-        {onDelete && (
-          <button onClick={() => onDelete(t.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: "3px", display: "flex", opacity: 0.45 }}>
-            <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
+        ))}
+        <button onClick={onClose} style={{ width: "calc(100% - 32px)", margin: "6px 16px 0", padding: 13, textAlign: "center", fontSize: 13, fontWeight: 500, color: C.muted, background: C.bgSecondary, border: "none", borderRadius: 10, cursor: "pointer", fontFamily: FONT, display: "block" }}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Breakdown Sheet ──────────────────────────────────────────
+function BreakdownSheet({ title, subtitle, rows, actionLabel, actionColor, onAction, onClose }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 150, display: "flex", alignItems: "flex-end", maxWidth: 430, margin: "0 auto" }} onClick={onClose}>
+      <div style={{ width: "100%", background: C.card, borderRadius: "22px 22px 0 0", border: `1px solid ${C.border}`, maxHeight: "85vh", overflowY: "auto", paddingBottom: 32, fontFamily: FONT }} onClick={e => e.stopPropagation()}>
+        <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, margin: "10px auto 0" }} />
+        <div style={{ fontSize: 16, fontWeight: 600, color: C.text, padding: "14px 18px 3px", letterSpacing: -0.3 }}>{title}</div>
+        <div style={{ fontSize: 12, color: C.faint, padding: "0 18px 12px" }}>{subtitle}</div>
+        <div style={{ height: 1, background: C.sep, marginBottom: 2 }} />
+        {rows.map((r, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 18px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 11, flex: 1, minWidth: 0 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 9, background: r.color + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon name={r.icon || "dollar"} size={14} color={r.color} strokeWidth={1.8} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
+                {r.sub && <div style={{ fontSize: 11, color: C.faint, marginTop: 1 }}>{r.sub}</div>}
+              </div>
+            </div>
+            <div style={{ textAlign: "right", flexShrink: 0, paddingLeft: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: "nowrap" }}>{r.amount}</div>
+              {r.pct !== undefined && <div style={{ height: 2, width: 64, background: "rgba(255,255,255,0.07)", borderRadius: 1, marginTop: 5, marginLeft: "auto" }}><div style={{ height: "100%", width: r.pct + "%", background: r.color, borderRadius: 1 }} /></div>}
+            </div>
+          </div>
+        ))}
+        {actionLabel && (
+          <button onClick={() => { onAction(); onClose(); }}
+            style={{ display: "block", width: "calc(100% - 32px)", margin: "8px 16px 0", padding: 13, textAlign: "center", fontSize: 14, fontWeight: 600, color: "#fff", background: actionColor || C.blue, border: "none", borderRadius: 14, cursor: "pointer", fontFamily: FONT, minHeight: 48 }}>
+            {actionLabel}
           </button>
         )}
       </div>
@@ -947,59 +1141,188 @@ function TxRow({ t, onDelete, onEdit }) {
   );
 }
 
-// ─── Transactions ─────────────────────────────────────────────
+// ─── TxRow v2 (swipe + long press) ───────────────────────────
+function TxRow({ t, onDelete, onEdit, onLongPress }) {
+  const rowRef = useRef(null); const bgLRef = useRef(null); const bgRRef = useRef(null);
+  const startX = useRef(0); const dragging = useRef(false); const moved = useRef(false);
+  const lpTimer = useRef(null); const [swiped, setSwiped] = useState(null);
+  const signal = deriveSignal(t); const isIncome = t.type === "income";
+  const catColor = CAT_COLORS[t.category_name] || C.blue;
+
+  function resetSwipe() {
+    if (!rowRef.current) return;
+    rowRef.current.style.transition = "transform 0.28s cubic-bezier(.22,1,.36,1)";
+    rowRef.current.style.transform = "translateX(0)";
+    if (bgLRef.current) bgLRef.current.style.opacity = 0;
+    if (bgRRef.current) bgRRef.current.style.opacity = 0;
+    setSwiped(null);
+  }
+
+  function onPD(e) {
+    startX.current = e.clientX; dragging.current = true; moved.current = false;
+    if (rowRef.current) rowRef.current.style.transition = "none";
+    lpTimer.current = setTimeout(() => { if (!moved.current) { dragging.current = false; onLongPress && onLongPress(t); } }, 480);
+  }
+
+  function onPM(e) {
+    if (!dragging.current) return;
+    const dx = e.clientX - startX.current;
+    if (!moved.current && Math.abs(dx) > 6) { moved.current = true; clearTimeout(lpTimer.current); }
+    if (!moved.current) return;
+    const cl = Math.max(-82, Math.min(82, dx));
+    if (rowRef.current) rowRef.current.style.transform = `translateX(${cl}px)`;
+    if (bgLRef.current) bgLRef.current.style.opacity = cl > 14 ? Math.min(1, cl / 82) : 0;
+    if (bgRRef.current) bgRRef.current.style.opacity = cl < -14 ? Math.min(1, Math.abs(cl) / 82) : 0;
+  }
+
+  function onPU(e) {
+    clearTimeout(lpTimer.current);
+    if (!dragging.current) return; dragging.current = false;
+    const dx = e.clientX - startX.current;
+    if (rowRef.current) rowRef.current.style.transition = "transform 0.28s cubic-bezier(.22,1,.36,1)";
+    if (dx < -46) { rowRef.current.style.transform = "translateX(-76px)"; if (bgRRef.current) bgRRef.current.style.opacity = 1; setSwiped("left"); }
+    else if (dx > 46) { rowRef.current.style.transform = "translateX(76px)"; if (bgLRef.current) bgLRef.current.style.opacity = 1; setSwiped("right"); }
+    else resetSwipe();
+  }
+
+  function handleClick() { if (swiped) { resetSwipe(); return; } onLongPress && onLongPress(t); }
+
+  return (
+    <div style={{ position: "relative", overflow: "hidden", borderRadius: 14, marginBottom: 2 }}>
+      <div ref={bgLRef} style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 76, background: C.blue, borderRadius: "14px 0 0 14px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, opacity: 0, transition: "opacity 0.16s" }}>
+        <Icon name="edit" size={16} color="#fff" strokeWidth={1.8} />
+        <span style={{ fontSize: 10, fontWeight: 600, color: "#fff", fontFamily: FONT }}>Edit</span>
+      </div>
+      <div ref={bgRRef} style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 76, background: C.red, borderRadius: "0 14px 14px 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, opacity: 0, transition: "opacity 0.16s" }}>
+        <Icon name="x" size={16} color="#fff" strokeWidth={2} />
+        <span style={{ fontSize: 10, fontWeight: 600, color: "#fff", fontFamily: FONT }}>Delete</span>
+      </div>
+      <div ref={rowRef} onClick={handleClick} onPointerDown={onPD} onPointerMove={onPM} onPointerUp={onPU} onPointerLeave={e => { if (dragging.current) onPU(e); }}
+        style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 13px", display: "flex", alignItems: "center", gap: 11, cursor: "pointer", userSelect: "none", willChange: "transform", position: "relative", zIndex: 1, touchAction: "pan-y" }}>
+        <div style={{ width: 40, height: 40, borderRadius: 11, background: catColor + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Icon name={isIncome ? "dollar" : (CAT_ICONS_MAP[t.category_name] || "credit")} size={16} color={catColor} strokeWidth={1.8} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: C.text, letterSpacing: -0.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{t.description || t.category_name || "Transaction"}</div>
+          <div style={{ fontSize: 11, color: C.faint, marginTop: 2, display: "flex", alignItems: "center", gap: 4, overflow: "hidden", fontFamily: FONT }}>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1 }}>{t.category_name} · {fmtDate(t.date)}</span>
+            {signal && <span style={{ fontSize: 10, fontWeight: 700, color: SIGNAL_STYLE[signal].color, background: SIGNAL_STYLE[signal].bg, padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>{SIGNAL_STYLE[signal].label}</span>}
+          </div>
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: isIncome ? "#12D18E" : "#FF5C7A", letterSpacing: -0.35, flexShrink: 0, paddingLeft: 8, fontFamily: FONT }}>
+          {isIncome ? "+" : "−"}{fmtMoney(Number(t.amount))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Transactions v2 ──────────────────────────────────────────
 function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter }) {
   const [filter, setFilter] = useState("all");
+  const [sheet, setSheet] = useState(null);
+  const [quickTx, setQuickTx] = useState(null);
+  const [hintDone, setHintDone] = useState(false);
+  const { toasts, show: toast } = useToasts();
   const catFilter = activeCatFilter || null;
+
   let filtered = filter === "all" ? transactions : transactions.filter(t => t.type === filter);
   if (catFilter) filtered = filtered.filter(t => t.category_name === catFilter);
 
+  const counts = { all: transactions.length, expense: transactions.filter(t => t.type === "expense").length, income: transactions.filter(t => t.type === "income").length };
+  const summary = calcSummary(transactions);
+
+  const expenseRows = Object.entries(transactions.filter(t => t.type === "expense").reduce((a, t) => { a[t.category_name] = (a[t.category_name] || 0) + Number(t.amount); return a; }, {}))
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, total], _, arr) => ({ name, amount: fmtMoney(total), color: CAT_COLORS[name] || C.blue, icon: CAT_ICONS_MAP[name] || "credit", pct: Math.round((total / arr.reduce((s, [, v]) => s + v, 0)) * 100) }));
+
+  function handleDelete(id) { onDelete(id); toast("Deleted", "warning"); }
+  function handleMoveToSavings(tx) { toast(`$${Number(tx.amount).toFixed(0)} moved to savings`, "success"); }
+  function handleFlag(tx) { toast("Flagged for review", "warning"); }
+  function handleDuplicate(tx) { onAdd({ amount: tx.amount, description: tx.description, category_id: tx.category_id, category_name: tx.category_name, date: tx.date, type: tx.type }); toast("Duplicated", "info"); }
+
+  const monthLabel = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
   return (
-    <div>
+    <div style={{ fontFamily: FONT }}>
+      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div>
-          <h2 style={{ margin: "0 0 2px", fontSize: 26, fontWeight: 700 }}>Transactions</h2>
-          <div style={{ fontSize: 13, color: C.muted }}>Income & expenses</div>
+          <h2 style={{ margin: "0 0 2px", fontSize: 24, fontWeight: 700, letterSpacing: -0.6, color: C.text }}>{monthLabel}</h2>
+          <div style={{ fontSize: 13, color: C.faint }}>Transactions</div>
         </div>
-        <button onClick={onAdd} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, padding: "9px 16px", color: "#fff", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontFamily: FONT }}>
-          <Icon name="plus" size={14} color="#fff" strokeWidth={2.5} /> Add
+        <button onClick={onAdd}
+          style={{ width: 44, height: 44, borderRadius: "50%", background: C.blue, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", outline: "5px solid rgba(47,128,255,0.13)", transition: "transform 0.14s" }}
+          onPointerDown={e => e.currentTarget.style.transform = "scale(0.9)"} onPointerUp={e => e.currentTarget.style.transform = "scale(1)"} onPointerLeave={e => e.currentTarget.style.transform = "scale(1)"}
+        >
+          <Icon name="plus" size={16} color="#fff" strokeWidth={2.5} />
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-        {[
-          { key: "all", label: "All" },
-          { key: "expense", label: "Expenses" },
-          { key: "income", label: "Income" },
-        ].map(f => (
-          <button key={f.key} onClick={() => setFilter(f.key)}
-            style={{ padding: "6px 14px", borderRadius: 20, border: `1px solid ${filter === f.key ? C.cyan : C.border}`, background: filter === f.key ? C.cyan + "18" : C.card, color: filter === f.key ? C.cyan : C.muted, cursor: "pointer", fontSize: 12, fontFamily: FONT, fontWeight: filter === f.key ? 600 : 400 }}>
-            {f.label}
-          </button>
-        ))}
-      </div>
+      {/* Summary cards */}
+      <SummaryCards summary={summary}
+        onIncomeClick={() => setSheet({ title: "Income breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.income)} total`, rows: transactions.filter(t => t.type === "income").map(t => ({ name: t.description || t.category_name, sub: fmtDate(t.date), amount: "+" + fmtMoney(Number(t.amount)), color: "#12D18E", icon: "dollar" })), actionLabel: "Move surplus to savings", actionColor: "#12D18E", onAction: () => toast("Surplus moved to savings", "success") })}
+        onExpenseClick={() => setSheet({ title: "Expenses breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.expense)} total`, rows: expenseRows, actionLabel: "Set category limit", actionColor: "#FFB800", onAction: () => toast("Category limit saved", "success") })}
+        onNetClick={() => setSheet({ title: "Net summary", subtitle: monthLabel, rows: [{ name: "Total income", amount: "+" + fmtMoney(summary.income), color: "#12D18E", icon: "trending-up", pct: 100 }, { name: "Total expenses", amount: "−" + fmtMoney(summary.expense), color: "#FF5C7A", icon: "trending-down", pct: Math.round((summary.expense / (summary.income || 1)) * 100) }, { name: "Net saved", amount: (summary.net >= 0 ? "+" : "−") + fmtMoney(summary.net), color: "#12D18E", icon: "award", pct: Math.round((summary.net / (summary.income || 1)) * 100) }], actionLabel: "Boost savings goal", actionColor: "#12D18E", onAction: () => toast("Savings goal updated", "success") })}
+      />
 
+      {/* AI Insight */}
+      <AIInsightCard summary={summary} onAction={(label, type) => toast(label, type)} />
+
+      {/* Category filter pill */}
       {catFilter && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: (CAT_COLORS[catFilter] || C.cyan) + "18", borderRadius: 12, border: `1px solid ${(CAT_COLORS[catFilter] || C.cyan)}33` }}>
           <div style={{ width: 8, height: 8, borderRadius: 99, background: CAT_COLORS[catFilter] || C.cyan }} />
           <span style={{ fontSize: 13, color: CAT_COLORS[catFilter] || C.cyan, fontWeight: 600, flex: 1 }}>{catFilter}</span>
-          <button onClick={onClearCatFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}>
-            <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
-          </button>
+          <button onClick={onClearCatFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex" }}><Icon name="x" size={13} color={C.muted} strokeWidth={2.5} /></button>
         </div>
       )}
 
-      <GlassCard style={{ padding: "0 14px" }}>
-        {filtered.length === 0
-          ? <div style={{ color: C.muted, textAlign: "center", padding: "30px 0", fontSize: 14 }}>No transactions</div>
-          : filtered.map((t, i, arr) => (
-              <div key={t.id}>
-                <TxRow t={t} onDelete={onDelete} onEdit={onEdit} />
-                {i < arr.length - 1 && <div style={{ height: 1, background: C.sep }} />}
-              </div>
-            ))
-        }
-      </GlassCard>
+      {/* Filter tabs with counts */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+        {[{ key: "all", label: "All" }, { key: "expense", label: "Expenses" }, { key: "income", label: "Income" }].map(f => (
+          <button key={f.key} onClick={() => setFilter(f.key)}
+            style={{ padding: "6px 13px", borderRadius: 18, border: `1px solid ${filter === f.key ? C.blue : C.border}`, background: filter === f.key ? C.blue : "transparent", color: filter === f.key ? "#fff" : C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: filter === f.key ? 500 : 400, display: "flex", alignItems: "center", gap: 4, minHeight: 34 }}>
+            {f.label}
+            <span style={{ fontSize: 11, background: filter === f.key ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.07)", borderRadius: 8, padding: "1px 5px", color: filter === f.key ? "rgba(255,255,255,0.9)" : C.faint }}>{counts[f.key]}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* List */}
+      {filtered.length === 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "32px 20px", textAlign: "center" }}>
+          <div style={{ width: 56, height: 56, background: C.bgSecondary, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="credit" size={24} color={C.faint} strokeWidth={1.6} />
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{filter === "all" ? "No transactions yet" : `No ${filter} transactions`}</div>
+          <div style={{ fontSize: 13, color: C.faint, maxWidth: 220, lineHeight: 1.5 }}>{filter === "all" ? "Add your first transaction to get started." : "Nothing recorded here this month."}</div>
+          {filter === "all" && <button onClick={onAdd} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, padding: "12px 24px", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, fontFamily: FONT }}>+ Add transaction</button>}
+        </div>
+      ) : (
+        <div>
+          {filtered.map(t => (
+            <TxRow key={t.id} t={t} onDelete={handleDelete} onEdit={onEdit} onLongPress={tx => setQuickTx(tx)} />
+          ))}
+        </div>
+      )}
+
+      {/* Swipe hint */}
+      {!hintDone && filtered.length > 0 && (
+        <div style={{ margin: "8px 0 0", padding: "9px 12px", background: C.bgSecondary, borderRadius: 10, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 500, color: C.blue }}>← Edit</span>
+            <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.08)" }} />
+            <span style={{ fontSize: 11, fontWeight: 500, color: C.red }}>Delete →</span>
+          </div>
+          <button onClick={() => setHintDone(true)} style={{ width: 22, height: 22, background: "rgba(255,255,255,0.06)", border: "none", borderRadius: 11, cursor: "pointer", color: C.faint, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT }}>×</button>
+        </div>
+      )}
+
+      {/* Sheets & menus */}
+      {sheet && <BreakdownSheet title={sheet.title} subtitle={sheet.subtitle} rows={sheet.rows} actionLabel={sheet.actionLabel} actionColor={sheet.actionColor} onAction={sheet.onAction} onClose={() => setSheet(null)} />}
+      {quickTx && <QuickActionsMenu tx={quickTx} onClose={() => setQuickTx(null)} onEdit={tx => { setQuickTx(null); onEdit(tx); }} onDelete={id => { setQuickTx(null); handleDelete(id); }} onMoveToSavings={tx => { setQuickTx(null); handleMoveToSavings(tx); }} onFlag={tx => { setQuickTx(null); handleFlag(tx); }} onDuplicate={tx => { setQuickTx(null); handleDuplicate(tx); }} />}
+      <ToastStack toasts={toasts} />
     </div>
   );
 }
