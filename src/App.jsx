@@ -916,22 +916,35 @@ function CatIcon({ name, type, size = 18 }) {
 // ─── Transactions – helpers ────────────────────────────────────
 
 const TX_NAME_MAP = {
+  // expenses
   "repair": "Car Repair", "car repair": "Car Repair", "repiar": "Car Repair",
-  "coffe": "Coffee & Dining", "coffee": "Coffee", "cofee": "Coffee & Dining",
+  "coffe": "Coffee & Dining", "coffee": "Coffee & Dining", "cofee": "Coffee & Dining",
+  "gym": "Gym", "groceries": "Groceries", "pharmacy": "Pharmacy",
+  "uber": "Uber", "lyft": "Lyft", "amazon": "Amazon",
+  "netflix": "Netflix", "spotify": "Spotify", "apple": "Apple",
+  // income
   "salary": "Salary", "paycheck": "Salary", "payroll": "Salary",
   "freelance": "Freelance Income", "transfer": "Bank Transfer",
-  "uber": "Uber", "lyft": "Lyft", "amazon": "Amazon",
-  "netflix": "Netflix", "spotify": "Spotify",
-  "transaction": null,
+  "dividends": "Dividends", "refund": "Refund",
+  // generic labels that add no info — fall through to smart fallback
+  "transaction": null, "payment": null, "deposit": null, "debit": null, "credit": null,
 };
 
 function normalizeTxName(t) {
   const raw   = (t.description || "").trim();
   const cat   = (t.category_name || "").trim();
   const lower = raw.toLowerCase();
-  if (TX_NAME_MAP[lower] !== undefined) return TX_NAME_MAP[lower] || cat || "Transaction";
-  if (!raw || lower === cat.toLowerCase()) return cat || "Transaction";
-  return raw.replace(/\b\w/g, c => c.toUpperCase());
+  if (TX_NAME_MAP[lower] !== undefined) {
+    const mapped = TX_NAME_MAP[lower];
+    if (mapped) return mapped;
+    // null = generic label, fall through to smart fallback
+  } else if (raw && lower !== cat.toLowerCase()) {
+    return raw.replace(/\b\w/g, c => c.toUpperCase());
+  }
+  if (cat) return cat;
+  if (t.type === "income")  return "Income";
+  if (t.type === "expense") return "Expense";
+  return "Transaction";
 }
 
 function calcSummary(txs, prevTxs = []) {
@@ -1028,14 +1041,34 @@ function ToastStack({ toasts }) {
 
 // ─── Summary Cards ─────────────────────────────────────────────
 function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
-  const incomeCtx  = summary.incomeVsPrev  !== null ? fmtPct(summary.incomeVsPrev)  + " vs last mo." : null;
-  const expenseCtx = summary.expenseVsPrev !== null ? fmtPct(summary.expenseVsPrev) + " vs budget"   : null;
-  const netCtx     = summary.netVsPrev     !== null ? fmtMoney(summary.netVsPrev, true) + " vs last mo." : null;
-  const isOverBudget = (summary.expenseVsPrev ?? 0) > 10;
+  // Always show a real number. When prev-month data exists, show delta.
+  // When it doesn't (first month or filtered view), derive context from current data.
+  const hasIncPrev  = summary.incomeVsPrev  !== null;
+  const hasExpPrev  = summary.expenseVsPrev !== null;
+  const hasNetPrev  = summary.netVsPrev     !== null;
+
+  // Income context
+  const incomeCtx     = hasIncPrev ? fmtPct(summary.incomeVsPrev) + " vs last mo." : null;
+  const incomeCtxClr  = hasIncPrev ? ((summary.incomeVsPrev ?? 0) >= 0 ? "#12D18E" : "#FF5C7A") : C.faint;
+
+  // Expense context — if no prev data, compare to income (budget proxy)
+  const expVsBudgetPct = summary.income > 0 ? Math.round((summary.expense / summary.income) * 100) : null;
+  const isOverBudget  = hasExpPrev ? (summary.expenseVsPrev ?? 0) > 10 : (expVsBudgetPct !== null && expVsBudgetPct > 80);
+  const expenseCtx    = hasExpPrev
+    ? fmtPct(summary.expenseVsPrev) + " vs budget"
+    : expVsBudgetPct !== null ? expVsBudgetPct + "% of income" : null;
+  const expenseCtxClr = isOverBudget ? "#FF5C7A" : "#12D18E";
+
+  // Net context
+  const netCtx    = hasNetPrev
+    ? fmtMoney(summary.netVsPrev, true) + " vs last mo."
+    : summary.income > 0 ? fmtMoney(summary.income - summary.expense, true) + " saved" : null;
+  const netCtxClr = hasNetPrev ? ((summary.netVsPrev ?? 0) >= 0 ? "#12D18E" : "#FF5C7A") : "#12D18E";
+
   const cards = [
-    { label: "Income",   value: fmtMoney(summary.income),        valColor: "#12D18E", ctx: incomeCtx,  ctxColor: (summary.incomeVsPrev  ?? 0) >= 0 ? "#12D18E" : "#FF5C7A", badge: null,           onClick: onIncomeClick },
-    { label: "Expenses", value: fmtMoney(summary.expense),       valColor: "#FF5C7A", ctx: expenseCtx, ctxColor: isOverBudget ? "#FF5C7A" : "#12D18E",                       badge: isOverBudget ? "over budget" : "within budget", badgeOk: !isOverBudget, onClick: onExpenseClick },
-    { label: "Net",      value: fmtMoney(summary.net, true),     valColor: summary.net >= 0 ? "#12D18E" : "#FF5C7A", ctx: netCtx, ctxColor: (summary.netVsPrev ?? 0) >= 0 ? "#12D18E" : "#FF5C7A", badge: "on track", badgeOk: true, highlight: true, onClick: onNetClick },
+    { label: "Income",   value: fmtMoney(summary.income),        valColor: "#12D18E",                                     ctx: incomeCtx,  ctxColor: incomeCtxClr,  badge: null,                                                           onClick: onIncomeClick },
+    { label: "Expenses", value: fmtMoney(summary.expense),       valColor: "#FF5C7A",                                     ctx: expenseCtx, ctxColor: expenseCtxClr, badge: isOverBudget ? "over budget" : "within budget", badgeOk: !isOverBudget, onClick: onExpenseClick },
+    { label: "Net",      value: fmtMoney(summary.net, true),     valColor: summary.net >= 0 ? "#12D18E" : "#FF5C7A",      ctx: netCtx,     ctxColor: netCtxClr,     badge: summary.net >= 0 ? "on track" : "deficit",      badgeOk: summary.net >= 0, highlight: true, onClick: onNetClick },
   ];
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 7, marginBottom: 12 }}>
