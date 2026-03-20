@@ -914,15 +914,43 @@ function CatIcon({ name, type, size = 18 }) {
 }
 
 // ─── Transactions – helpers ────────────────────────────────────
+
+const TX_NAME_MAP = {
+  "repair": "Car Repair", "car repair": "Car Repair", "repiar": "Car Repair",
+  "coffe": "Coffee & Dining", "coffee": "Coffee", "cofee": "Coffee & Dining",
+  "salary": "Salary", "paycheck": "Salary", "payroll": "Salary",
+  "freelance": "Freelance Income", "transfer": "Bank Transfer",
+  "uber": "Uber", "lyft": "Lyft", "amazon": "Amazon",
+  "netflix": "Netflix", "spotify": "Spotify",
+  "transaction": null,
+};
+
+function normalizeTxName(t) {
+  const raw   = (t.description || "").trim();
+  const cat   = (t.category_name || "").trim();
+  const lower = raw.toLowerCase();
+  if (TX_NAME_MAP[lower] !== undefined) return TX_NAME_MAP[lower] || cat || "Transaction";
+  if (!raw || lower === cat.toLowerCase()) return cat || "Transaction";
+  return raw.replace(/\b\w/g, c => c.toUpperCase());
+}
+
 function calcSummary(txs, prevTxs = []) {
-  const sum = (arr, type) => arr.filter(t => t.type === type).reduce((s, t) => s + Number(t.amount), 0);
-  const income = sum(txs, "income"), expense = sum(txs, "expense");
-  const pIncome = sum(prevTxs, "income"), pExpense = sum(prevTxs, "expense");
+  const byType = (arr, type) => arr.filter(t => t.type === type).reduce((s, t) => s + Number(t.amount), 0);
+  const income  = byType(txs, "income");
+  const expense = byType(txs, "expense");
+  const net     = income - expense;
+  const pIncome  = byType(prevTxs, "income");
+  const pExpense = byType(prevTxs, "expense");
+  const pNet     = pIncome - pExpense;
+  const monthlyGap = Math.max(pExpense - expense, 0);
+  const foodSpend  = byType(txs.filter(t => t.category_name === "Food & Dining"), "expense");
+  const foodGap    = Math.max(300 - foodSpend, 0);
+  const surplus    = Math.min(Math.round(Math.max(monthlyGap, foodGap)), 200);
   return {
-    income, expense, net: income - expense,
+    income, expense, net, surplus,
     incomeVsPrev:  pIncome  > 0 ? ((income  - pIncome)  / pIncome)  * 100 : null,
     expenseVsPrev: pExpense > 0 ? ((expense - pExpense) / pExpense) * 100 : null,
-    netVsPrev:     (pIncome - pExpense) !== 0 ? (income - expense) - (pIncome - pExpense) : null,
+    netVsPrev:     pNet !== 0   ? net - pNet : null,
   };
 }
 
@@ -938,8 +966,7 @@ function fmtMoney(n, sign = false) {
 
 function fmtPct(pct) {
   if (pct === null || pct === undefined) return null;
-  const abs = Math.abs(pct);
-  return (pct >= 0 ? "+" : "−") + abs.toFixed(0) + "%";
+  return (pct >= 0 ? "+" : "−") + Math.abs(pct).toFixed(0) + "%";
 }
 
 function deriveSignal(t) {
@@ -960,15 +987,15 @@ const CAT_ICONS_MAP = {
   "Entertainment": "film", "Health": "heart", "Bills": "file", "Subscriptions": "repeat",
 };
 
-// ─── Toast system ─────────────────────────────────────────────
+// ─── Toast ─────────────────────────────────────────────────────
 function useToasts() {
   const [toasts, setToasts] = useState([]);
   const timers = useRef({});
   const show = (msg, type = "success") => {
-    const id = "t_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+    const id = "t" + Date.now() + Math.random().toString(36).slice(2);
     setToasts(prev => [...prev.slice(-2), { id, msg, type }]);
     timers.current[id] = setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
+      setToasts(prev => prev.filter(x => x.id !== id));
       delete timers.current[id];
     }, 2600);
   };
@@ -976,51 +1003,57 @@ function useToasts() {
 }
 
 function ToastStack({ toasts }) {
-  const icons = { success: "✓", warning: "⚠", info: "i" };
-  const tColors = { success: "#12D18E", warning: "#FFB800", info: "#2F80FF" };
+  const cfg = {
+    success: { color: "#12D18E", icon: "✓" },
+    warning: { color: "#FFB800", icon: "⚠" },
+    info:    { color: "#2F80FF", icon: "i" },
+  };
   return (
     <div style={{ position: "fixed", bottom: 92, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", gap: 6, alignItems: "center", zIndex: 200, pointerEvents: "none", width: "100%", maxWidth: 380 }}>
-      {toasts.map(t => (
-        <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(11,20,38,0.97)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 22, padding: "9px 15px 9px 10px", whiteSpace: "nowrap", animation: "txToastIn 0.22s ease", fontFamily: FONT, boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
-          <div style={{ width: 22, height: 22, borderRadius: 11, background: tColors[t.type], display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <span style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{icons[t.type]}</span>
+      <style>{`@keyframes txIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      {toasts.map(t => {
+        const c = cfg[t.type] || cfg.success;
+        return (
+          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(9,18,34,0.97)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 22, padding: "9px 15px 9px 10px", whiteSpace: "nowrap", animation: "txIn 0.22s ease", fontFamily: FONT, boxShadow: "0 4px 20px rgba(0,0,0,0.45)" }}>
+            <div style={{ width: 22, height: 22, borderRadius: 11, background: c.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <span style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{c.icon}</span>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 500, color: "#fff" }}>{t.msg}</span>
           </div>
-          <span style={{ fontSize: 13, fontWeight: 500, color: "#fff" }}>{t.msg}</span>
-        </div>
-      ))}
-      <style>{`@keyframes txToastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}</style>
+        );
+      })}
     </div>
   );
 }
 
-// ─── Summary Cards ────────────────────────────────────────────
+// ─── Summary Cards ─────────────────────────────────────────────
 function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
-  const incomeCtx = summary.incomeVsPrev !== null ? fmtPct(summary.incomeVsPrev) + " vs last month" : "this month";
-  const expCtx    = summary.expenseVsPrev !== null ? fmtPct(summary.expenseVsPrev) + " vs budget" : "vs budget";
-  const netCtx    = summary.netVsPrev !== null ? fmtMoney(summary.netVsPrev, true) + " vs last month" : "this month";
-
-  const isOverBudget = summary.expenseVsPrev !== null && summary.expenseVsPrev > 0;
-
+  const incomeCtx  = summary.incomeVsPrev  !== null ? fmtPct(summary.incomeVsPrev)  + " vs last mo." : null;
+  const expenseCtx = summary.expenseVsPrev !== null ? fmtPct(summary.expenseVsPrev) + " vs budget"   : null;
+  const netCtx     = summary.netVsPrev     !== null ? fmtMoney(summary.netVsPrev, true) + " vs last mo." : null;
+  const isOverBudget = (summary.expenseVsPrev ?? 0) > 10;
   const cards = [
-    { label: "Income",   value: fmtMoney(summary.income,  true),                              color: "#12D18E", ctx: incomeCtx, ctxColor: summary.incomeVsPrev >= 0  ? "#12D18E" : "#FF5C7A", badge: null, onClick: onIncomeClick },
-    { label: "Expenses", value: fmtMoney(summary.expense),                                    color: "#FF5C7A", ctx: expCtx,    ctxColor: isOverBudget ? "#FF5C7A" : "#12D18E", badge: isOverBudget ? "over budget" : "within budget", badgeOk: !isOverBudget, onClick: onExpenseClick },
-    { label: "Net",      value: fmtMoney(summary.net, true),                                  color: "#12D18E", ctx: netCtx,    ctxColor: (summary.netVsPrev ?? 0) >= 0 ? "#12D18E" : "#FF5C7A", badge: "on track", badgeOk: true, highlight: true, onClick: onNetClick },
+    { label: "Income",   value: fmtMoney(summary.income),        valColor: "#12D18E", ctx: incomeCtx,  ctxColor: (summary.incomeVsPrev  ?? 0) >= 0 ? "#12D18E" : "#FF5C7A", badge: null,           onClick: onIncomeClick },
+    { label: "Expenses", value: fmtMoney(summary.expense),       valColor: "#FF5C7A", ctx: expenseCtx, ctxColor: isOverBudget ? "#FF5C7A" : "#12D18E",                       badge: isOverBudget ? "over budget" : "within budget", badgeOk: !isOverBudget, onClick: onExpenseClick },
+    { label: "Net",      value: fmtMoney(summary.net, true),     valColor: summary.net >= 0 ? "#12D18E" : "#FF5C7A", ctx: netCtx, ctxColor: (summary.netVsPrev ?? 0) >= 0 ? "#12D18E" : "#FF5C7A", badge: "on track", badgeOk: true, highlight: true, onClick: onNetClick },
   ];
-
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7, marginBottom: 12 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 7, marginBottom: 12 }}>
       {cards.map(card => (
         <button key={card.label} onClick={card.onClick}
-          style={{ background: card.highlight ? "rgba(18,209,142,0.08)" : C.card, border: `1px solid ${card.highlight ? "rgba(18,209,142,0.22)" : C.border}`, borderRadius: 14, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 3, cursor: "pointer", textAlign: "left", fontFamily: FONT, minHeight: 90, transition: "transform 0.12s ease", boxShadow: card.highlight ? "0 2px 12px rgba(18,209,142,0.1)" : "none" }}
+          style={{ background: card.highlight ? "rgba(18,209,142,0.07)" : C.card, border: `1px solid ${card.highlight ? "rgba(18,209,142,0.2)" : C.border}`, borderRadius: 14, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 3, cursor: "pointer", textAlign: "left", fontFamily: FONT, minHeight: 90, transition: "transform 0.12s ease" }}
           onPointerDown={e => e.currentTarget.style.transform = "scale(0.96)"}
-          onPointerUp={e => e.currentTarget.style.transform = "scale(1)"}
-          onPointerLeave={e => e.currentTarget.style.transform = "scale(1)"}
+          onPointerUp={e => e.currentTarget.style.transform = ""}
+          onPointerLeave={e => e.currentTarget.style.transform = ""}
         >
           <span style={{ fontSize: 10, fontWeight: 600, color: C.faint, letterSpacing: 0.5, textTransform: "uppercase" }}>{card.label}</span>
-          <span style={{ fontSize: 15, fontWeight: 700, color: card.color, letterSpacing: -0.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.value}</span>
-          <span style={{ fontSize: 10, color: card.ctxColor, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.ctx}</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: card.valColor, letterSpacing: -0.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.value}</span>
+          {card.ctx
+            ? <span style={{ fontSize: 10, color: card.ctxColor, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.ctx}</span>
+            : <span style={{ fontSize: 10, color: C.faint }}>this month</span>
+          }
           {card.badge && (
-            <span style={{ fontSize: 9, fontWeight: 700, color: card.badgeOk ? "#12D18E" : "#FF5C7A", background: card.badgeOk ? "rgba(18,209,142,0.13)" : "rgba(255,92,122,0.13)", padding: "2px 5px", borderRadius: 4, alignSelf: "flex-start", letterSpacing: 0.3, textTransform: "uppercase", marginTop: 2 }}>{card.badge}</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: card.badgeOk ? "#12D18E" : "#FF5C7A", background: card.badgeOk ? "rgba(18,209,142,0.12)" : "rgba(255,92,122,0.12)", padding: "2px 6px", borderRadius: 4, alignSelf: "flex-start", letterSpacing: 0.4, textTransform: "uppercase", marginTop: 2 }}>{card.badge}</span>
           )}
         </button>
       ))}
@@ -1028,53 +1061,86 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
   );
 }
 
-// ─── AI Insight Card ──────────────────────────────────────────
-const INSIGHTS_CFG = [
+// ─── AI Insight Card ───────────────────────────────────────────
+const INSIGHT_DEFS = [
   {
     type: "warning", accent: "#FFB800", icon: "alert-circle", label: "Heads up",
-    headline: s => s.expense > 500 ? `You overspent by ${fmtMoney(s.expense - 500)} this month` : "Expenses are spiking",
-    body: s => `Transport hit ${fmtMoney(s.expense > 500 ? s.expense - (s.income - s.expense) : 590)} — 3× your usual. Setting a cap could recover ~$90 this month.`,
-    p: "Limit this category", pMsg: "Transport limit set", pType: "warning",
-    s1: "View Transport",     s1Msg: null,
-    s2: "Exclude from budget", s2Msg: "Car Repair excluded",
-    show: s => s.expense > 400,
+    show: s => (s.expenseVsPrev !== null && s.expenseVsPrev > 10) || (s._topExpenseAmt > 400),
+    headline: s => {
+      if (s.expenseVsPrev > 10) {
+        const extra = Math.round(s.expense - (s.expense / (1 + s.expenseVsPrev / 100)));
+        return `You overspent by ${fmtMoney(extra)} this month`;
+      }
+      return `${s._topExpenseCat || "Transport"} spending spiked`;
+    },
+    body: s => {
+      const cat = s._topExpenseCat || "Transport";
+      const amt = s._topExpenseAmt ? fmtMoney(s._topExpenseAmt) : "$590";
+      return `${cat} hit ${amt} — well above your usual. Setting a monthly limit could recover ~$90 before month-end.`;
+    },
+    p:     "Limit this category",
+    pMsg:  "Category limit set",
+    pType: "warning",
+    s1:    "View breakdown",
+    s2:    "Exclude this item",
+    s2Msg: "Excluded from budget",
   },
   {
     type: "opportunity", accent: "#2F80FF", icon: "zap", label: "Opportunity",
-    headline: s => `Move ${fmtMoney(Math.round(Math.max(s.income - s.expense, 90)))} now to hit your goal early`,
-    body: () => "You're under budget on Food this week. Locking in the surplus today puts April's goal 12 days ahead of schedule.",
-    p: "Move to savings now", pMsg: "$90 moved to savings", pType: "success",
-    s1: "View projection",    s1Msg: null,
-    s2: "Adjust goal",        s2Msg: null,
-    show: s => s.income > s.expense && s.net > 50,
+    show: s => s.surplus >= 20 && s.income > s.expense,
+    headline: s => `Move ${fmtMoney(s.surplus)} to savings — lock in progress early`,
+    body: s => {
+      const daysLeft = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() - new Date().getDate();
+      return `You're under your Food & Dining average with ${daysLeft} days to go. Moving ${fmtMoney(s.surplus)} now keeps your April goal ahead of schedule.`;
+    },
+    p:     s => `Move ${fmtMoney(s.surplus)} to savings`,
+    pMsg:  s => `${fmtMoney(s.surplus)} moved to savings`,
+    pType: "success",
+    s1:    "View projection",
+    s2:    "Adjust my goal",
   },
   {
-    type: "positive", accent: "#12D18E", icon: "trending-up", label: "Saving streak",
-    headline: s => s.netVsPrev > 0 ? `${fmtMoney(s.netVsPrev)} ahead of last month` : "3-week saving streak",
-    body: () => "Under budget for 21 days straight — your best run this quarter. Redirect the surplus to compound faster.",
-    p: "Boost my savings goal", pMsg: "Savings goal updated", pType: "success",
-    s1: "View streak",         s1Msg: null,
-    s2: "Share progress",      s2Msg: "Copied to clipboard",
-    show: s => s.net > 100,
+    type: "positive", accent: "#12D18E", icon: "trending-up", label: "On track",
+    show: s => (s.netVsPrev ?? 0) >= 0 && s.net > 0,
+    headline: s => s.netVsPrev > 0 ? `You're ${fmtMoney(s.netVsPrev)} ahead of last month` : "Saving streak — 3 weeks strong",
+    body: s => {
+      const msg = s.netVsPrev > 0 ? `Net is up ${fmtMoney(s.netVsPrev)} vs last month.` : "Under budget for 21 days straight.";
+      return `${msg} Your best run this quarter — compounding this into savings now maximises the gain.`;
+    },
+    p:     "Boost my savings goal",
+    pMsg:  "Savings goal updated",
+    pType: "success",
+    s1:    "View trend",
+    s2:    "Share progress",
+    s2Msg: "Copied to clipboard",
   },
 ];
 
-function AIInsightCard({ summary, onAction }) {
-  const active = INSIGHTS_CFG.filter(i => i.show(summary));
-  const [idx, setIdx] = useState(0);
-  const [paused, setPaused] = useState(false);
+function AIInsightCard({ summary, transactions, onAction }) {
+  const enriched = { ...summary };
+  if (transactions && transactions.length > 0) {
+    const bycat = transactions.filter(t => t.type === "expense").reduce((a, t) => {
+      const k = t.category_name || "Other";
+      a[k] = (a[k] || 0) + Number(t.amount);
+      return a;
+    }, {});
+    const top = Object.entries(bycat).sort((a, b) => b[1] - a[1])[0];
+    if (top) { enriched._topExpenseCat = top[0]; enriched._topExpenseAmt = top[1]; }
+  }
+
+  const active    = INSIGHT_DEFS.filter(d => d.show(enriched));
+  const [idx,     setIdx]     = useState(0);
   const [cardKey, setCardKey] = useState(0);
-  const rotRef = useRef(null);
+  const [paused,  setPaused]  = useState(false);
+  const rotRef    = useRef(null);
   const resumeRef = useRef(null);
+  const safeIdx   = active.length > 0 ? idx % active.length : 0;
+  const def       = active[safeIdx];
 
-  const safeIdx = active.length > 0 ? idx % active.length : 0;
-  const ins = active[safeIdx];
-
-  // fallback
-  if (!ins) {
+  if (!def) {
     return (
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "13px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(18,209,142,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <div style={{ width: 28, height: 28, minWidth: 28, borderRadius: 8, background: "rgba(18,209,142,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Icon name="check-circle" size={13} color="#12D18E" strokeWidth={2} />
         </div>
         <div>
@@ -1094,9 +1160,7 @@ function AIInsightCard({ summary, onAction }) {
 
   function goTo(i) {
     if (i === safeIdx) return;
-    pause();
-    setIdx(i);
-    setCardKey(k => k + 1);
+    pause(); setIdx(i); setCardKey(k => k + 1);
   }
 
   useEffect(() => {
@@ -1108,71 +1172,57 @@ function AIInsightCard({ summary, onAction }) {
     return () => clearTimeout(rotRef.current);
   }, [safeIdx, paused, active.length, cardKey]);
 
-  function handleCTA(msg, type, navigateFn) {
+  const resolve = v => typeof v === "function" ? v(enriched) : v;
+
+  function handleCTA(msgField, type) {
     pause();
-    if (navigateFn) navigateFn();
+    const msg = resolve(msgField);
     if (msg) onAction(msg, type);
   }
 
+  const accent = def.accent;
+
   return (
-    <div style={{ marginBottom: 12, position: "relative" }}>
-      <style>{`
-        @keyframes insIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-        .ins-card{animation:insIn 0.28s ease forwards}
-      `}</style>
-      <div key={cardKey} className="ins-card" style={{ background: ins.accent + "0D", border: `1px solid ${ins.accent}28`, borderRadius: 14, padding: "13px 13px 12px" }}>
-        {/* Header */}
+    <div style={{ marginBottom: 12 }}>
+      <style>{`.ins-anim{animation:insIn 0.28s ease forwards}@keyframes insIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <div key={cardKey} className="ins-anim" style={{ background: accent + "0D", border: `1px solid ${accent}26`, borderRadius: 14, padding: "13px 13px 12px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <div style={{ width: 22, height: 22, borderRadius: 7, background: ins.accent + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Icon name={ins.icon} size={11} color={ins.accent} strokeWidth={2.2} />
+            <div style={{ width: 22, height: 22, borderRadius: 7, background: accent + "20", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name={def.icon} size={11} color={accent} strokeWidth={2.2} />
             </div>
-            <span style={{ fontSize: 10, fontWeight: 700, color: ins.accent, letterSpacing: 0.7, textTransform: "uppercase", fontFamily: FONT }}>{ins.label}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: accent, letterSpacing: 0.7, textTransform: "uppercase", fontFamily: FONT }}>{def.label}</span>
           </div>
           {active.length > 1 && (
-            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 4 }}>
               {active.map((_, i) => (
-                <button key={i} onClick={() => goTo(i)}
-                  style={{ width: i === safeIdx ? 14 : 5, height: 5, borderRadius: i === safeIdx ? 3 : 99, background: i === safeIdx ? ins.accent : "rgba(255,255,255,0.14)", border: "none", cursor: "pointer", padding: 0, transition: "all 0.25s ease" }}
-                />
+                <button key={i} onClick={() => goTo(i)} style={{ width: i === safeIdx ? 14 : 5, height: 5, borderRadius: i === safeIdx ? 3 : 99, background: i === safeIdx ? accent : "rgba(255,255,255,0.14)", border: "none", cursor: "pointer", padding: 0, transition: "all 0.25s" }} />
               ))}
             </div>
           )}
         </div>
-
-        {/* Content */}
-        <div style={{ fontSize: 14, fontWeight: 600, color: C.text, letterSpacing: -0.2, marginBottom: 5, lineHeight: 1.35, fontFamily: FONT }}>{ins.headline(summary)}</div>
-        <div style={{ fontSize: 12, color: "rgba(170,200,230,0.82)", lineHeight: 1.55, marginBottom: 12, fontFamily: FONT }}>{ins.body(summary)}</div>
-
-        {/* CTA hierarchy: primary → secondary → tertiary */}
+        <div style={{ fontSize: 14, fontWeight: 600, color: C.text, letterSpacing: -0.2, marginBottom: 5, lineHeight: 1.35, fontFamily: FONT }}>{resolve(def.headline)}</div>
+        <div style={{ fontSize: 12, color: "rgba(168,198,228,0.82)", lineHeight: 1.55, marginBottom: 11, fontFamily: FONT }}>{resolve(def.body)}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-          {/* Primary — full-width filled */}
-          <button
-            onClick={() => handleCTA(ins.pMsg, ins.pType)}
-            style={{ width: "100%", padding: "11px 16px", background: ins.accent, border: "none", borderRadius: 10, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, letterSpacing: -0.1, transition: "filter 0.12s ease", minHeight: 44 }}
-            onPointerDown={e => e.currentTarget.style.filter = "brightness(0.82)"}
-            onPointerUp={e => e.currentTarget.style.filter = "brightness(1)"}
-            onPointerLeave={e => e.currentTarget.style.filter = "brightness(1)"}
-          >{ins.p}</button>
-
-          {/* Secondary + Tertiary row */}
+          <button onClick={() => handleCTA(def.pMsg, def.pType)}
+            style={{ width: "100%", padding: "11px 16px", background: `linear-gradient(135deg,${accent},${accent}CC)`, border: "none", borderRadius: 10, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, minHeight: 44, boxShadow: `0 3px 10px ${accent}38`, transition: "filter 0.12s" }}
+            onPointerDown={e => e.currentTarget.style.filter = "brightness(0.84)"}
+            onPointerUp={e => e.currentTarget.style.filter = ""}
+            onPointerLeave={e => e.currentTarget.style.filter = ""}
+          >{resolve(def.p)}</button>
           <div style={{ display: "flex", gap: 7 }}>
-            {/* Secondary — outlined */}
-            <button
-              onClick={() => handleCTA(ins.s1Msg, "info")}
-              style={{ flex: 1, padding: "8px 8px", background: ins.accent + "10", border: `1px solid ${ins.accent}30`, borderRadius: 10, color: ins.accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 40, transition: "background 0.12s" }}
-              onPointerDown={e => e.currentTarget.style.background = ins.accent + "20"}
-              onPointerUp={e => e.currentTarget.style.background = ins.accent + "10"}
-              onPointerLeave={e => e.currentTarget.style.background = ins.accent + "10"}
-            >{ins.s1}</button>
-            {/* Tertiary — text only */}
-            <button
-              onClick={() => handleCTA(ins.s2Msg, "info")}
-              style={{ flex: 1, padding: "8px 8px", background: "transparent", border: "none", borderRadius: 10, color: ins.accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, opacity: 0.62, minHeight: 40 }}
+            <button onClick={() => handleCTA(null, "info")}
+              style={{ flex: 1, padding: "8px 8px", background: accent + "10", border: `1px solid ${accent}2A`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 40, transition: "background 0.12s" }}
+              onPointerDown={e => e.currentTarget.style.background = accent + "1E"}
+              onPointerUp={e => e.currentTarget.style.background = accent + "10"}
+              onPointerLeave={e => e.currentTarget.style.background = accent + "10"}
+            >{def.s1}</button>
+            <button onClick={() => handleCTA(def.s2Msg || null, "info")}
+              style={{ flex: 1, padding: "8px 8px", background: "transparent", border: "none", borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, opacity: 0.6, minHeight: 40 }}
               onPointerDown={e => e.currentTarget.style.opacity = "0.9"}
-              onPointerUp={e => e.currentTarget.style.opacity = "0.62"}
-              onPointerLeave={e => e.currentTarget.style.opacity = "0.62"}
-            >{ins.s2}</button>
+              onPointerUp={e => e.currentTarget.style.opacity = "0.6"}
+              onPointerLeave={e => e.currentTarget.style.opacity = "0.6"}
+            >{def.s2}</button>
           </div>
         </div>
       </div>
@@ -1180,7 +1230,7 @@ function AIInsightCard({ summary, onAction }) {
   );
 }
 
-// ─── Quick Actions Menu ───────────────────────────────────────
+// ─── Quick Actions Menu ────────────────────────────────────────
 function QuickActionsMenu({ tx, onClose, onEdit, onDelete, onMoveToSavings, onFlag, onDuplicate }) {
   const actions = [
     { label: "Edit transaction",  desc: "Fix amount, category or date", icon: "edit",         color: "#2F80FF", fn: () => { onClose(); onEdit(tx); } },
@@ -1192,13 +1242,14 @@ function QuickActionsMenu({ tx, onClose, onEdit, onDelete, onMoveToSavings, onFl
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 150, display: "flex", alignItems: "flex-end", maxWidth: 430, margin: "0 auto" }} onClick={onClose}>
       <div style={{ width: "100%", background: C.card, borderRadius: "22px 22px 0 0", border: `1px solid ${C.border}`, paddingBottom: 32, fontFamily: FONT }} onClick={e => e.stopPropagation()}>
-        <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, margin: "10px auto 0" }} />
-        <div style={{ fontSize: 16, fontWeight: 600, color: C.text, padding: "14px 18px 3px", letterSpacing: -0.3 }}>{tx.description || tx.category_name}</div>
+        <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.11)", borderRadius: 2, margin: "10px auto 0" }} />
+        <div style={{ fontSize: 16, fontWeight: 600, color: C.text, padding: "14px 18px 3px", letterSpacing: -0.3 }}>{normalizeTxName(tx)}</div>
         <div style={{ height: 1, background: C.sep, margin: "10px 0 2px" }} />
         {actions.map(a => (
           <button key={a.label} onClick={a.fn}
             style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontFamily: FONT, minHeight: 56 }}
-            onPointerEnter={e => e.currentTarget.style.background = C.bgSecondary} onPointerLeave={e => e.currentTarget.style.background = "none"}
+            onPointerEnter={e => e.currentTarget.style.background = C.bgSecondary}
+            onPointerLeave={e => e.currentTarget.style.background = "none"}
           >
             <div style={{ width: 36, height: 36, borderRadius: 10, background: a.color + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Icon name={a.icon} size={15} color={a.color} strokeWidth={1.8} />
@@ -1209,25 +1260,27 @@ function QuickActionsMenu({ tx, onClose, onEdit, onDelete, onMoveToSavings, onFl
             </div>
           </button>
         ))}
-        <button onClick={onClose} style={{ width: "calc(100% - 32px)", margin: "6px 16px 0", padding: 13, textAlign: "center", fontSize: 13, fontWeight: 500, color: C.muted, background: C.bgSecondary, border: "none", borderRadius: 10, cursor: "pointer", fontFamily: FONT, display: "block" }}>Cancel</button>
+        <button onClick={onClose} style={{ display: "block", width: "calc(100% - 32px)", margin: "4px 16px 0", padding: 13, textAlign: "center", fontSize: 13, fontWeight: 500, color: C.muted, background: C.bgSecondary, border: "none", borderRadius: 10, cursor: "pointer", fontFamily: FONT, minHeight: 48 }}>
+          Cancel
+        </button>
       </div>
     </div>
   );
 }
 
-// ─── Breakdown Sheet ──────────────────────────────────────────
+// ─── Breakdown Sheet ───────────────────────────────────────────
 function BreakdownSheet({ title, subtitle, rows, actionLabel, actionColor, onAction, onClose }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 150, display: "flex", alignItems: "flex-end", maxWidth: 430, margin: "0 auto" }} onClick={onClose}>
       <div style={{ width: "100%", background: C.card, borderRadius: "22px 22px 0 0", border: `1px solid ${C.border}`, maxHeight: "85vh", overflowY: "auto", paddingBottom: 32, fontFamily: FONT }} onClick={e => e.stopPropagation()}>
-        <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, margin: "10px auto 0" }} />
+        <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.11)", borderRadius: 2, margin: "10px auto 0" }} />
         <div style={{ fontSize: 16, fontWeight: 600, color: C.text, padding: "14px 18px 3px", letterSpacing: -0.3 }}>{title}</div>
         <div style={{ fontSize: 12, color: C.faint, padding: "0 18px 12px" }}>{subtitle}</div>
         <div style={{ height: 1, background: C.sep, marginBottom: 2 }} />
         {rows.map((r, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 18px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 11, flex: 1, minWidth: 0 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 9, background: r.color + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <div style={{ width: 32, height: 32, minWidth: 32, borderRadius: 9, background: r.color + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Icon name={r.icon || "dollar"} size={14} color={r.color} strokeWidth={1.8} />
               </div>
               <div style={{ minWidth: 0 }}>
@@ -1235,15 +1288,18 @@ function BreakdownSheet({ title, subtitle, rows, actionLabel, actionColor, onAct
                 {r.sub && <div style={{ fontSize: 11, color: C.faint, marginTop: 1 }}>{r.sub}</div>}
               </div>
             </div>
-            <div style={{ textAlign: "right", flexShrink: 0, paddingLeft: 8 }}>
+            <div style={{ textAlign: "right", flexShrink: 0, paddingLeft: 10 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: "nowrap" }}>{r.amount}</div>
-              {r.pct !== undefined && <div style={{ height: 2, width: 64, background: "rgba(255,255,255,0.07)", borderRadius: 1, marginTop: 5, marginLeft: "auto" }}><div style={{ height: "100%", width: r.pct + "%", background: r.color, borderRadius: 1 }} /></div>}
+              {r.pct !== undefined && (
+                <div style={{ height: 2, width: 60, background: "rgba(255,255,255,0.07)", borderRadius: 1, marginTop: 5, marginLeft: "auto" }}>
+                  <div style={{ height: "100%", width: Math.min(r.pct, 100) + "%", background: r.color, borderRadius: 1 }} />
+                </div>
+              )}
             </div>
           </div>
         ))}
         {actionLabel && (
-          <button onClick={() => { onAction(); onClose(); }}
-            style={{ display: "block", width: "calc(100% - 32px)", margin: "8px 16px 0", padding: 13, textAlign: "center", fontSize: 14, fontWeight: 600, color: "#fff", background: actionColor || C.blue, border: "none", borderRadius: 14, cursor: "pointer", fontFamily: FONT, minHeight: 48 }}>
+          <button onClick={() => { onAction(); onClose(); }} style={{ display: "block", width: "calc(100% - 32px)", margin: "10px 16px 0", padding: 13, textAlign: "center", fontSize: 14, fontWeight: 600, color: "#fff", background: actionColor, border: "none", borderRadius: 14, cursor: "pointer", fontFamily: FONT, minHeight: 48 }}>
             {actionLabel}
           </button>
         )}
@@ -1252,27 +1308,44 @@ function BreakdownSheet({ title, subtitle, rows, actionLabel, actionColor, onAct
   );
 }
 
-// ─── TxRow v2 (swipe + long press) ───────────────────────────
+// ─── Transaction Row ───────────────────────────────────────────
 function TxRow({ t, onDelete, onEdit, onLongPress }) {
-  const rowRef = useRef(null); const bgLRef = useRef(null); const bgRRef = useRef(null);
-  const startX = useRef(0); const dragging = useRef(false); const moved = useRef(false);
-  const lpTimer = useRef(null); const [swiped, setSwiped] = useState(null);
-  const signal = deriveSignal(t); const isIncome = t.type === "income";
-  const catColor = CAT_COLORS[t.category_name] || C.blue;
+  const rowRef   = useRef(null);
+  const bgLRef   = useRef(null);
+  const bgRRef   = useRef(null);
+  const startX   = useRef(0);
+  const dragging = useRef(false);
+  const moved    = useRef(false);
+  const lpTimer  = useRef(null);
+  const [swiped, setSwiped] = useState(null);
+
+  const signal      = deriveSignal(t);
+  const isIncome    = t.type === "income";
+  const catColor    = CAT_COLORS[t.category_name] || C.blue;
+  const catIcon     = isIncome ? "dollar" : (CAT_ICONS_MAP[t.category_name] || "credit");
+  const displayName = normalizeTxName(t);
 
   function resetSwipe() {
     if (!rowRef.current) return;
     rowRef.current.style.transition = "transform 0.28s cubic-bezier(.22,1,.36,1)";
-    rowRef.current.style.transform = "translateX(0)";
-    if (bgLRef.current) bgLRef.current.style.opacity = 0;
-    if (bgRRef.current) bgRRef.current.style.opacity = 0;
+    rowRef.current.style.transform  = "translateX(0)";
+    if (bgLRef.current) bgLRef.current.style.opacity = "0";
+    if (bgRRef.current) bgRRef.current.style.opacity = "0";
     setSwiped(null);
   }
 
   function onPD(e) {
-    startX.current = e.clientX; dragging.current = true; moved.current = false;
+    startX.current  = e.clientX;
+    dragging.current = true;
+    moved.current    = false;
     if (rowRef.current) rowRef.current.style.transition = "none";
-    lpTimer.current = setTimeout(() => { if (!moved.current) { dragging.current = false; onLongPress && onLongPress(t); } }, 480);
+    lpTimer.current = setTimeout(() => {
+      if (!moved.current && dragging.current) {
+        dragging.current = false;
+        resetSwipe();
+        onLongPress && onLongPress(t);
+      }
+    }, 480);
   }
 
   function onPM(e) {
@@ -1282,65 +1355,81 @@ function TxRow({ t, onDelete, onEdit, onLongPress }) {
     if (!moved.current) return;
     const cl = Math.max(-82, Math.min(82, dx));
     if (rowRef.current) rowRef.current.style.transform = `translateX(${cl}px)`;
-    if (bgLRef.current) bgLRef.current.style.opacity = cl > 14 ? Math.min(1, cl / 82) : 0;
-    if (bgRRef.current) bgRRef.current.style.opacity = cl < -14 ? Math.min(1, Math.abs(cl) / 82) : 0;
+    if (bgLRef.current) bgLRef.current.style.opacity = cl >  14 ? String(Math.min(1, cl / 76))             : "0";
+    if (bgRRef.current) bgRRef.current.style.opacity = cl < -14 ? String(Math.min(1, Math.abs(cl) / 76)) : "0";
   }
 
   function onPU(e) {
     clearTimeout(lpTimer.current);
-    if (!dragging.current) return; dragging.current = false;
+    if (!dragging.current) return;
+    dragging.current = false;
     const dx = e.clientX - startX.current;
     if (rowRef.current) rowRef.current.style.transition = "transform 0.28s cubic-bezier(.22,1,.36,1)";
-    if (dx < -46) { rowRef.current.style.transform = "translateX(-76px)"; if (bgRRef.current) bgRRef.current.style.opacity = 1; setSwiped("left"); }
-    else if (dx > 46) { rowRef.current.style.transform = "translateX(76px)"; if (bgLRef.current) bgLRef.current.style.opacity = 1; setSwiped("right"); }
-    else resetSwipe();
+    if (!moved.current) return;
+    if (dx < -46) {
+      rowRef.current.style.transform = "translateX(-76px)";
+      if (bgRRef.current) bgRRef.current.style.opacity = "1";
+      setSwiped("left");
+    } else if (dx > 46) {
+      rowRef.current.style.transform = "translateX(76px)";
+      if (bgLRef.current) bgLRef.current.style.opacity = "1";
+      setSwiped("right");
+    } else {
+      resetSwipe();
+    }
   }
 
-  function handleClick() { if (swiped) { resetSwipe(); return; } onLongPress && onLongPress(t); }
+  function handleClick() {
+    if (swiped) { resetSwipe(); return; }
+    onLongPress && onLongPress(t);
+  }
 
   return (
     <div style={{ position: "relative", overflow: "hidden", borderRadius: 14, marginBottom: 2 }}>
-      <div ref={bgLRef} style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 76, background: C.blue, borderRadius: "14px 0 0 14px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, opacity: 0, transition: "opacity 0.16s" }}>
+      <div ref={bgLRef} style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 76, background: C.blue, borderRadius: "14px 0 0 14px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, opacity: 0, transition: "opacity 0.14s" }}>
         <Icon name="edit" size={16} color="#fff" strokeWidth={1.8} />
         <span style={{ fontSize: 10, fontWeight: 600, color: "#fff", fontFamily: FONT }}>Edit</span>
       </div>
-      <div ref={bgRRef} style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 76, background: C.red, borderRadius: "0 14px 14px 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, opacity: 0, transition: "opacity 0.16s" }}>
+      <div ref={bgRRef} style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 76, background: C.red, borderRadius: "0 14px 14px 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, opacity: 0, transition: "opacity 0.14s" }}>
         <Icon name="x" size={16} color="#fff" strokeWidth={2} />
         <span style={{ fontSize: 10, fontWeight: 600, color: "#fff", fontFamily: FONT }}>Delete</span>
       </div>
       <div ref={rowRef} onClick={handleClick} onPointerDown={onPD} onPointerMove={onPM} onPointerUp={onPU} onPointerLeave={e => { if (dragging.current) onPU(e); }}
-        style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 13px", display: "flex", alignItems: "center", gap: 11, cursor: "pointer", userSelect: "none", willChange: "transform", position: "relative", zIndex: 1, touchAction: "pan-y" }}>
-        <div style={{ width: 40, height: 40, borderRadius: 11, background: catColor + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <Icon name={isIncome ? "dollar" : (CAT_ICONS_MAP[t.category_name] || "credit")} size={16} color={catColor} strokeWidth={1.8} />
+        style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 13px", display: "flex", alignItems: "center", gap: 11, cursor: "pointer", userSelect: "none", willChange: "transform", position: "relative", zIndex: 1, touchAction: "pan-y", minHeight: 64 }}>
+        <div style={{ width: 40, height: 40, minWidth: 40, borderRadius: 11, background: catColor + "20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Icon name={catIcon} size={16} color={catColor} strokeWidth={1.8} />
         </div>
         <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-          <div style={{ fontSize: 14, fontWeight: 500, color: C.text, letterSpacing: -0.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{t.description || t.category_name || "Transaction"}</div>
+          <div style={{ fontSize: 14, fontWeight: 500, color: C.text, letterSpacing: -0.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{displayName}</div>
           <div style={{ fontSize: 11, color: C.faint, marginTop: 2, display: "flex", alignItems: "center", gap: 4, overflow: "hidden", fontFamily: FONT }}>
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1 }}>{t.category_name} · {fmtDate(t.date)}</span>
-            {signal && <span style={{ fontSize: 10, fontWeight: 700, color: SIGNAL_STYLE[signal].color, background: SIGNAL_STYLE[signal].bg, padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>{SIGNAL_STYLE[signal].label}</span>}
+            {signal && (
+              <span style={{ fontSize: 10, fontWeight: 700, color: SIGNAL_STYLE[signal].color, background: SIGNAL_STYLE[signal].bg, padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>
+                {SIGNAL_STYLE[signal].label}
+              </span>
+            )}
           </div>
         </div>
-        <div style={{ fontSize: 15, fontWeight: 600, color: isIncome ? "#12D18E" : "#FF5C7A", letterSpacing: -0.35, flexShrink: 0, paddingLeft: 8, fontFamily: FONT }}>
+        <span style={{ fontSize: 15, fontWeight: 600, color: isIncome ? "#12D18E" : "#FF5C7A", letterSpacing: -0.35, flexShrink: 0, paddingLeft: 8, fontFamily: FONT }}>
           {isIncome ? "+" : "−"}{fmtMoney(Number(t.amount))}
-        </div>
+        </span>
       </div>
     </div>
   );
 }
 
-// ─── Transactions v2 ──────────────────────────────────────────
+// ─── Transactions Screen ───────────────────────────────────────
 function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter }) {
-  const [filter, setFilter] = useState("all");
-  const [sheet, setSheet] = useState(null);
-  const [quickTx, setQuickTx] = useState(null);
+  const [filter,   setFilter]   = useState("all");
+  const [sheet,    setSheet]    = useState(null);
+  const [quickTx,  setQuickTx]  = useState(null);
   const [hintDone, setHintDone] = useState(false);
   const { toasts, show: toast } = useToasts();
   const catFilter = activeCatFilter || null;
 
-  // Current vs prev month split for summary context
-  const now = new Date();
+  const now    = new Date();
   const prevMo = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const curTxs  = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
+  const curTxs  = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === now.getMonth()    && d.getFullYear() === now.getFullYear(); });
   const prevTxs = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === prevMo.getMonth() && d.getFullYear() === prevMo.getFullYear(); });
   const summary = calcSummary(curTxs, prevTxs);
 
@@ -1353,93 +1442,69 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
     income:  transactions.filter(t => t.type === "income").length,
   };
 
-  const expenseRows = Object.entries(
-    transactions.filter(t => t.type === "expense").reduce((a, t) => { a[t.category_name || "Other"] = (a[t.category_name || "Other"] || 0) + Number(t.amount); return a; }, {})
-  ).sort((a, b) => b[1] - a[1]).map(([name, total], _, arr) => ({
-    name, amount: fmtMoney(total), color: CAT_COLORS[name] || C.blue,
-    icon: CAT_ICONS_MAP[name] || "credit",
+  const expenseMap  = transactions.filter(t => t.type === "expense").reduce((a, t) => { const k = t.category_name || "Other"; a[k] = (a[k] || 0) + Number(t.amount); return a; }, {});
+  const expenseRows = Object.entries(expenseMap).sort((a, b) => b[1] - a[1]).map(([name, total], _, arr) => ({
+    name, amount: fmtMoney(total), color: CAT_COLORS[name] || C.blue, icon: CAT_ICONS_MAP[name] || "credit",
     pct: Math.round((total / arr.reduce((s, [, v]) => s + v, 0)) * 100),
   }));
 
-  function handleDelete(id) { onDelete(id); toast("Deleted", "warning"); }
+  function handleDelete(id)     { onDelete(id); toast("Deleted", "warning"); }
   function handleMoveToSavings(tx) { toast(fmtMoney(Number(tx.amount)) + " moved to savings", "success"); }
-  function handleFlag(tx) { toast("Flagged for review", "warning"); }
-  function handleDuplicate(tx) {
-    onAdd({ amount: tx.amount, description: tx.description, category_id: tx.category_id, category_name: tx.category_name, date: tx.date, type: tx.type });
-    toast("Transaction duplicated", "info");
-  }
+  function handleFlag(tx)       { toast("Flagged for review", "warning"); }
+  function handleDuplicate(tx)  { onAdd({ amount: tx.amount, description: tx.description, category_id: tx.category_id, category_name: tx.category_name, date: tx.date, type: tx.type }); toast("Transaction duplicated", "info"); }
 
   const monthLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
   return (
     <div style={{ fontFamily: FONT }}>
 
-      {/* ── Header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
         <div>
           <h2 style={{ margin: "0 0 2px", fontSize: 26, fontWeight: 700, letterSpacing: -0.6, color: C.text, lineHeight: 1.1 }}>Transactions</h2>
           <div style={{ fontSize: 13, color: C.faint }}>{monthLabel}</div>
         </div>
-        {/* FAB */}
         <button onClick={onAdd}
-          style={{ width: 44, height: 44, minWidth: 44, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 16px rgba(47,128,255,0.38), 0 0 0 5px rgba(47,128,255,0.1)`, transition: "transform 0.14s ease, box-shadow 0.14s ease" }}
-          onPointerDown={e => { e.currentTarget.style.transform = "scale(0.88)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(47,128,255,0.25), 0 0 0 2px rgba(47,128,255,0.1)"; }}
-          onPointerUp={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(47,128,255,0.38), 0 0 0 5px rgba(47,128,255,0.1)"; }}
-          onPointerLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(47,128,255,0.38), 0 0 0 5px rgba(47,128,255,0.1)"; }}
+          style={{ width: 44, height: 44, minWidth: 44, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 16px rgba(47,128,255,0.35), 0 0 0 5px rgba(47,128,255,0.09)`, transition: "transform 0.14s ease, box-shadow 0.14s ease" }}
+          onPointerDown={e => { e.currentTarget.style.transform = "scale(0.88)"; e.currentTarget.style.boxShadow = "0 2px 6px rgba(47,128,255,0.22)"; }}
+          onPointerUp={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 16px rgba(47,128,255,0.35), 0 0 0 5px rgba(47,128,255,0.09)"; }}
+          onPointerLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 16px rgba(47,128,255,0.35), 0 0 0 5px rgba(47,128,255,0.09)"; }}
         >
           <Icon name="plus" size={18} color="#fff" strokeWidth={2.5} />
         </button>
       </div>
 
-      {/* ── Summary cards ── */}
-      <SummaryCards summary={summary}
-        onIncomeClick={() => setSheet({
-          title: "Income breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.income)} total`,
-          rows: transactions.filter(t => t.type === "income").map(t => ({ name: t.description || t.category_name || "Income", sub: fmtDate(t.date), amount: fmtMoney(Number(t.amount), true), color: "#12D18E", icon: "dollar" })),
-          actionLabel: "Move surplus to savings", actionColor: "#12D18E", onAction: () => toast("Surplus moved to savings", "success"),
-        })}
-        onExpenseClick={() => setSheet({
-          title: "Expenses breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.expense)} total`,
-          rows: expenseRows, actionLabel: "Set category limit", actionColor: "#FFB800", onAction: () => toast("Category limit saved", "success"),
-        })}
-        onNetClick={() => setSheet({
-          title: "Net summary", subtitle: monthLabel,
-          rows: [
-            { name: "Total income",   amount: fmtMoney(summary.income, true),  color: "#12D18E", icon: "trending-up",   pct: 100 },
-            { name: "Total expenses", amount: fmtMoney(summary.expense),        color: "#FF5C7A", icon: "trending-down", pct: Math.round((summary.expense / Math.max(summary.income, 1)) * 100) },
-            { name: "Net saved",      amount: fmtMoney(summary.net, true),      color: "#12D18E", icon: "award",         pct: Math.round((summary.net / Math.max(summary.income, 1)) * 100) },
-          ],
-          actionLabel: "Boost savings goal", actionColor: "#12D18E", onAction: () => toast("Savings goal updated", "success"),
-        })}
+      <SummaryCards
+        summary={summary}
+        onIncomeClick={() => setSheet({ title: "Income breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.income)} total`, rows: transactions.filter(t => t.type === "income").map(t => ({ name: normalizeTxName(t), sub: fmtDate(t.date), amount: fmtMoney(Number(t.amount), true), color: "#12D18E", icon: "dollar" })), actionLabel: "Move surplus to savings", actionColor: "#12D18E", onAction: () => toast("Surplus moved to savings", "success") })}
+        onExpenseClick={() => setSheet({ title: "Expenses breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.expense)} total`, rows: expenseRows, actionLabel: "Set category limit", actionColor: "#FFB800", onAction: () => toast("Category limit saved", "success") })}
+        onNetClick={() => setSheet({ title: "Net summary", subtitle: monthLabel, rows: [{ name: "Total income", amount: fmtMoney(summary.income, true), color: "#12D18E", icon: "trending-up", pct: 100 }, { name: "Total expenses", amount: fmtMoney(summary.expense), color: "#FF5C7A", icon: "trending-down", pct: Math.round(summary.expense / Math.max(summary.income, 1) * 100) }, { name: "Net saved", amount: fmtMoney(summary.net, true), color: "#12D18E", icon: "award", pct: Math.round(summary.net / Math.max(summary.income, 1) * 100) }], actionLabel: "Boost savings goal", actionColor: "#12D18E", onAction: () => toast("Savings goal updated", "success") })}
       />
 
-      {/* ── AI Insight (part of normal flow) ── */}
-      <AIInsightCard summary={summary} onAction={(msg, type) => { if (msg) toast(msg, type); }} />
+      <AIInsightCard summary={summary} transactions={curTxs} onAction={(msg, type) => { if (msg) toast(msg, type); }} />
 
-      {/* ── Category filter pill ── */}
       {catFilter && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: (CAT_COLORS[catFilter] || C.cyan) + "18", borderRadius: 12, border: `1px solid ${(CAT_COLORS[catFilter] || C.cyan)}33` }}>
           <div style={{ width: 8, height: 8, borderRadius: 99, background: CAT_COLORS[catFilter] || C.cyan }} />
           <span style={{ fontSize: 13, color: CAT_COLORS[catFilter] || C.cyan, fontWeight: 600, flex: 1 }}>{catFilter}</span>
-          <button onClick={onClearCatFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4 }}><Icon name="x" size={13} color={C.muted} strokeWidth={2.5} /></button>
+          <button onClick={onClearCatFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4, minHeight: 28 }}>
+            <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
+          </button>
         </div>
       )}
 
-      {/* ── Filter tabs ── */}
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         {[{ key: "all", label: "All" }, { key: "expense", label: "Expenses" }, { key: "income", label: "Income" }].map(f => {
-          const active = filter === f.key;
+          const on = filter === f.key;
           return (
             <button key={f.key} onClick={() => setFilter(f.key)}
-              style={{ padding: "7px 14px", borderRadius: 20, border: `1px solid ${active ? C.blue : C.border}`, background: active ? C.blue : "transparent", color: active ? "#fff" : C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: active ? 600 : 400, display: "flex", alignItems: "center", gap: 5, minHeight: 36, transition: "all 0.15s ease" }}>
+              style={{ padding: "7px 14px", borderRadius: 20, border: `1px solid ${on ? C.blue : C.border}`, background: on ? C.blue : "transparent", color: on ? "#fff" : C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: on ? 600 : 400, display: "flex", alignItems: "center", gap: 5, minHeight: 38, transition: "all 0.15s ease" }}>
               {f.label}
-              <span style={{ fontSize: 11, background: active ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.07)", borderRadius: 8, padding: "1px 6px", color: active ? "rgba(255,255,255,0.92)" : C.faint }}>{counts[f.key]}</span>
+              <span style={{ fontSize: 11, background: on ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.07)", borderRadius: 8, padding: "1px 6px", color: on ? "rgba(255,255,255,0.9)" : C.faint }}>{counts[f.key]}</span>
             </button>
           );
         })}
       </div>
 
-      {/* ── Transaction list ── */}
       {filtered.length === 0 ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "36px 20px", textAlign: "center" }}>
           <div style={{ width: 56, height: 56, background: C.bgSecondary, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1447,19 +1512,14 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
           </div>
           <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{filter === "all" ? "No transactions yet" : `No ${filter === "expense" ? "expense" : "income"} transactions`}</div>
           <div style={{ fontSize: 13, color: C.faint, maxWidth: 220, lineHeight: 1.55 }}>{filter === "all" ? "Add your first transaction to get started." : "Nothing recorded here this month."}</div>
-          {filter === "all" && (
-            <button onClick={onAdd} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, padding: "12px 24px", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, fontFamily: FONT, minHeight: 44 }}>+ Add transaction</button>
-          )}
+          {filter === "all" && <button onClick={onAdd} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, padding: "12px 24px", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, fontFamily: FONT, minHeight: 44 }}>+ Add transaction</button>}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {filtered.map(t => (
-            <TxRow key={t.id} t={t} onDelete={handleDelete} onEdit={onEdit} onLongPress={tx => setQuickTx(tx)} />
-          ))}
+          {filtered.map(t => <TxRow key={t.id} t={t} onDelete={handleDelete} onEdit={onEdit} onLongPress={tx => setQuickTx(tx)} />)}
         </div>
       )}
 
-      {/* ── Swipe hint (once) ── */}
       {!hintDone && filtered.length > 0 && (
         <div style={{ marginTop: 8, padding: "9px 12px", background: C.bgSecondary, borderRadius: 10, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1467,27 +1527,17 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
             <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.1)" }} />
             <span style={{ fontSize: 11, fontWeight: 500, color: C.red }}>Delete →</span>
           </div>
-          <button onClick={() => setHintDone(true)} style={{ width: 24, height: 24, background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 12, cursor: "pointer", color: C.faint, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT }}>×</button>
+          <button onClick={() => setHintDone(true)} style={{ width: 26, height: 26, background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 13, cursor: "pointer", color: C.faint, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT }}>×</button>
         </div>
       )}
 
-      {/* ── Sheets & overlays ── */}
       {sheet && <BreakdownSheet title={sheet.title} subtitle={sheet.subtitle} rows={sheet.rows} actionLabel={sheet.actionLabel} actionColor={sheet.actionColor} onAction={sheet.onAction} onClose={() => setSheet(null)} />}
-      {quickTx && (
-        <QuickActionsMenu
-          tx={quickTx}
-          onClose={() => setQuickTx(null)}
-          onEdit={tx => { setQuickTx(null); onEdit(tx); }}
-          onDelete={id => { setQuickTx(null); handleDelete(id); }}
-          onMoveToSavings={tx => { setQuickTx(null); handleMoveToSavings(tx); }}
-          onFlag={tx => { setQuickTx(null); handleFlag(tx); }}
-          onDuplicate={tx => { setQuickTx(null); handleDuplicate(tx); }}
-        />
-      )}
+      {quickTx && <QuickActionsMenu tx={quickTx} onClose={() => setQuickTx(null)} onEdit={tx => { setQuickTx(null); onEdit(tx); }} onDelete={id => { setQuickTx(null); handleDelete(id); }} onMoveToSavings={tx => { setQuickTx(null); handleMoveToSavings(tx); }} onFlag={tx => { setQuickTx(null); handleFlag(tx); }} onDuplicate={tx => { setQuickTx(null); handleDuplicate(tx); }} />}
       <ToastStack toasts={toasts} />
     </div>
   );
 }
+
 
 // ─── Add Transaction Modal ────────────────────────────────────
 const INCOME_CATS = [
