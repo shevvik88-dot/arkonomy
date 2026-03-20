@@ -524,7 +524,6 @@ export default function App() {
 
       {showAddTx && <AddTransactionModal categories={categories} onAdd={addTransaction} onClose={() => setShowAddTx(false)} />}
       {editTx && <AddTransactionModal categories={categories} existing={editTx} onAdd={data => updateTransaction(editTx.id, data)} onClose={() => setEditTx(null)} />}
-        }
 
       <BottomNav screen={screen} setScreen={setScreen} />
     </div>
