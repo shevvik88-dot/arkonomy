@@ -527,7 +527,7 @@ export default function App() {
     screen === "savings"      ? "savings" :
     screen === "insights"     ? "insights" : "home";
 
-  const { insight, allInsights, refresh: refreshInsights } = useInsights(insightScreen, user?.id);
+  const { insight, allInsights, aiContext } = useInsights(insightScreen, user?.id);
 
   function handleInsightAction(action, data) {
     if (action === "review_spending" || action === "reduce_category") setScreen("transactions");
