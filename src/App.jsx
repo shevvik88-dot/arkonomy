@@ -1068,10 +1068,15 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
   const cards = [
     { label: "Income",   value: fmtMoney(summary.income),        valColor: "#12D18E",                                     ctx: incomeCtx,  ctxColor: incomeCtxClr,  badge: null,                                                           onClick: onIncomeClick },
     { label: "Expenses", value: fmtMoney(summary.expense),       valColor: "#FF5C7A",                                     ctx: expenseCtx, ctxColor: expenseCtxClr, badge: isOverBudget ? "over budget" : "within budget", badgeOk: !isOverBudget, onClick: onExpenseClick },
-    { label: "Net",      value: fmtMoney(summary.net, true),     valColor: summary.net >= 0 ? "#12D18E" : "#FF5C7A",      ctx: netCtx,     ctxColor: netCtxClr,     badge: summary.net >= 0 ? "on track" : "deficit",      badgeOk: summary.net >= 0, highlight: true, onClick: onNetClick },
+    { label: "Net",      value: fmtMoney(summary.net, true),     valColor: summary.net >= 0 ? "#12D18E" : "#FF5C7A",      ctx: netCtx,     ctxColor: netCtxClr,     badge: summary.net >= 0 ? "on track" : "deficit",      badgeOk: summary.net >= 0, highlight: true, onClick: onNetClick,
+      safeAction: summary.net > 0
+        ? `Save ${fmtMoney(summary.surplus)} safely`
+        : `Overspending by ${fmtMoney(Math.abs(summary.net))}`,
+      safeActionOk: summary.net >= 0,
+    },
   ];
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 7, marginBottom: 12 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 6, marginBottom: 8 }}>
       {cards.map(card => (
         <button key={card.label} onClick={card.onClick}
           style={{ background: card.highlight ? "rgba(18,209,142,0.07)" : C.card, border: `1px solid ${card.highlight ? "rgba(18,209,142,0.2)" : C.border}`, borderRadius: 14, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 3, cursor: "pointer", textAlign: "left", fontFamily: FONT, minHeight: 90, transition: "transform 0.12s ease" }}
@@ -1087,6 +1092,9 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
           }
           {card.badge && (
             <span style={{ fontSize: 9, fontWeight: 700, color: card.badgeOk ? "#12D18E" : "#FF5C7A", background: card.badgeOk ? "rgba(18,209,142,0.12)" : "rgba(255,92,122,0.12)", padding: "2px 6px", borderRadius: 4, alignSelf: "flex-start", letterSpacing: 0.4, textTransform: "uppercase", marginTop: 2 }}>{card.badge}</span>
+          )}
+          {card.safeAction && (
+            <span style={{ fontSize: 9, color: card.safeActionOk ? "rgba(18,209,142,0.65)" : "rgba(255,92,122,0.65)", fontWeight: 500, lineHeight: 1.3, marginTop: 1 }}>{card.safeAction}</span>
           )}
         </button>
       ))}
@@ -1219,49 +1227,92 @@ function AIInsightCard({ summary, transactions, onAction }) {
 
   const accent = def.accent;
 
+  const [expanded, setExpanded] = useState(false);
+
+  // Compact stat: top expense category + amount
+  const compactStat = enriched._topExpenseAmt
+    ? `${enriched._topExpenseCat || "Transport"} · ${fmtMoney(enriched._topExpenseAmt)}`
+    : null;
+
+  // Compact headline: shorter, action-oriented
+  const compactHeadline = enriched._topExpenseCat
+    ? `${enriched._topExpenseCat} overspending`
+    : "Spending spike detected";
+
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div style={{ marginBottom: 10 }}>
       <style>{`.ins-anim{animation:insIn 0.28s ease forwards}@keyframes insIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}`}</style>
-      <div key={cardKey} className="ins-anim" style={{ background: accent + "0D", border: `1px solid ${accent}26`, borderRadius: 14, padding: "13px 13px 12px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <div style={{ width: 22, height: 22, borderRadius: 7, background: accent + "20", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Icon name={def.icon} size={11} color={accent} strokeWidth={2.2} />
-            </div>
-            <span style={{ fontSize: 10, fontWeight: 700, color: accent, letterSpacing: 0.7, textTransform: "uppercase", fontFamily: FONT }}>{def.label}</span>
+      <div key={cardKey} className="ins-anim"
+        style={{ background: accent + "0D", border: `1px solid ${accent}26`, borderRadius: 14, overflow: "hidden", transition: "all 0.24s ease" }}>
+
+        {/* ── Compact state (always visible) ── */}
+        <div
+          onClick={() => { setExpanded(e => !e); pause(); }}
+          style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", cursor: "pointer" }}>
+          {/* Badge */}
+          <div style={{ width: 22, height: 22, minWidth: 22, borderRadius: 7, background: accent + "20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Icon name={def.icon} size={11} color={accent} strokeWidth={2.2} />
           </div>
-          {active.length > 1 && (
-            <div style={{ display: "flex", gap: 4 }}>
-              {active.map((_, i) => (
-                <button key={i} onClick={() => goTo(i)} style={{ width: i === safeIdx ? 14 : 5, height: 5, borderRadius: i === safeIdx ? 3 : 99, background: i === safeIdx ? accent : "rgba(255,255,255,0.14)", border: "none", cursor: "pointer", padding: 0, transition: "all 0.25s" }} />
-              ))}
+          {/* Text */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: accent, letterSpacing: 0.6, textTransform: "uppercase", fontFamily: FONT }}>{def.label}</span>
+              {active.length > 1 && (
+                <div style={{ display: "flex", gap: 3 }}>
+                  {active.map((_, i) => (
+                    <div key={i} onClick={ev => { ev.stopPropagation(); goTo(i); }}
+                      style={{ width: i === safeIdx ? 12 : 4, height: 4, borderRadius: i === safeIdx ? 2 : 99, background: i === safeIdx ? accent : "rgba(255,255,255,0.14)", cursor: "pointer", transition: "all 0.25s" }} />
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        <div style={{ fontSize: 14, fontWeight: 600, color: C.text, letterSpacing: -0.2, marginBottom: 5, lineHeight: 1.35, fontFamily: FONT }}>{resolve(def.headline)}</div>
-        <div style={{ fontSize: 12, color: "rgba(168,198,228,0.82)", lineHeight: 1.55, marginBottom: 11, fontFamily: FONT }}>{resolve(def.body)}</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-          <button onClick={() => handleCTA(def.pMsg, def.pType)}
-            style={{ width: "100%", padding: "11px 16px", background: `linear-gradient(135deg,${accent},${accent}CC)`, border: "none", borderRadius: 10, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, minHeight: 44, boxShadow: `0 3px 10px ${accent}38`, transition: "filter 0.12s" }}
-            onPointerDown={e => e.currentTarget.style.filter = "brightness(0.84)"}
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.text, letterSpacing: -0.15, fontFamily: FONT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {compactHeadline}
+              {compactStat && <span style={{ fontWeight: 400, color: "rgba(168,198,228,0.7)", marginLeft: 6 }}>— {compactStat.split(" · ")[1]}</span>}
+            </div>
+          </div>
+          {/* Quick fix CTA */}
+          <button
+            onClick={ev => { ev.stopPropagation(); handleCTA(def.pMsg, def.pType); }}
+            style={{ flexShrink: 0, padding: "7px 14px", background: `linear-gradient(135deg,${accent},${accent}CC)`, border: "none", borderRadius: 8, color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 36, boxShadow: `0 2px 8px ${accent}30`, whiteSpace: "nowrap", transition: "filter 0.12s" }}
+            onPointerDown={e => e.currentTarget.style.filter = "brightness(0.82)"}
             onPointerUp={e => e.currentTarget.style.filter = ""}
             onPointerLeave={e => e.currentTarget.style.filter = ""}
-          >{resolve(def.p)}</button>
-          <div style={{ display: "flex", gap: 7 }}>
-            <button onClick={() => handleCTA(null, "info")}
-              style={{ flex: 1, padding: "9px 8px", background: accent + "14", border: `1.5px solid ${accent}40`, borderRadius: 10, color: accent, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 40, transition: "background 0.12s, border-color 0.12s" }}
-              onPointerDown={e => { e.currentTarget.style.background = accent + "24"; e.currentTarget.style.borderColor = accent + "66"; }}
-              onPointerUp={e => { e.currentTarget.style.background = accent + "14"; e.currentTarget.style.borderColor = accent + "40"; }}
-              onPointerLeave={e => { e.currentTarget.style.background = accent + "14"; e.currentTarget.style.borderColor = accent + "40"; }}
-            >{def.s1}</button>
-            <button onClick={() => handleCTA(def.s2Msg || null, "info")}
-              style={{ flex: 1, padding: "9px 8px", background: "transparent", border: `1.5px solid ${accent}22`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 40, transition: "background 0.12s, border-color 0.12s, opacity 0.12s", opacity: 0.72 }}
-              onPointerDown={e => { e.currentTarget.style.background = accent + "12"; e.currentTarget.style.opacity = "1"; }}
-              onPointerUp={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.opacity = "0.72"; }}
-              onPointerLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.opacity = "0.72"; }}
-            >{def.s2}</button>
-          </div>
+          >Fix this</button>
+          {/* Chevron */}
+          <div style={{ color: C.faint, fontSize: 14, marginLeft: 2, transition: "transform 0.22s", transform: expanded ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}>▾</div>
         </div>
+
+        {/* ── Expanded state ── */}
+        {expanded && (
+          <div style={{ padding: "0 13px 12px", borderTop: `1px solid ${accent}18`, paddingTop: 10 }}>
+            <div style={{ fontSize: 12, color: "rgba(168,198,228,0.82)", lineHeight: 1.55, marginBottom: 11, fontFamily: FONT }}>{resolve(def.body)}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {/* Primary — full-width */}
+              <button onClick={() => handleCTA(def.pMsg, def.pType)}
+                style={{ width: "100%", padding: "11px 16px", background: `linear-gradient(135deg,${accent},${accent}CC)`, border: "none", borderRadius: 10, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, minHeight: 44, boxShadow: `0 3px 10px ${accent}38`, transition: "filter 0.12s" }}
+                onPointerDown={e => e.currentTarget.style.filter = "brightness(0.84)"}
+                onPointerUp={e => e.currentTarget.style.filter = ""}
+                onPointerLeave={e => e.currentTarget.style.filter = ""}
+              >{resolve(def.p)}</button>
+              {/* Secondary row */}
+              <div style={{ display: "flex", gap: 7 }}>
+                <button onClick={() => handleCTA(null, "info")}
+                  style={{ flex: 1, padding: "9px 8px", background: accent + "14", border: `1.5px solid ${accent}40`, borderRadius: 10, color: accent, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 40, transition: "background 0.12s" }}
+                  onPointerDown={e => { e.currentTarget.style.background = accent + "24"; }}
+                  onPointerUp={e => { e.currentTarget.style.background = accent + "14"; }}
+                  onPointerLeave={e => { e.currentTarget.style.background = accent + "14"; }}
+                >{def.s1}</button>
+                <button onClick={() => handleCTA(def.s2Msg || null, "info")}
+                  style={{ flex: 1, padding: "9px 8px", background: "transparent", border: `1.5px solid ${accent}22`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 40, opacity: 0.72, transition: "opacity 0.12s" }}
+                  onPointerDown={e => e.currentTarget.style.opacity = "1"}
+                  onPointerUp={e => e.currentTarget.style.opacity = "0.72"}
+                  onPointerLeave={e => e.currentTarget.style.opacity = "0.72"}
+                >{def.s2}</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1447,9 +1498,16 @@ function TxRow({ t, onDelete, onEdit, onLongPress }) {
             )}
           </div>
         </div>
-        <span style={{ fontSize: 15, fontWeight: 600, color: isIncome ? "#12D18E" : "#FF5C7A", letterSpacing: -0.35, flexShrink: 0, paddingLeft: 8, fontFamily: FONT }}>
-          {isIncome ? "+" : "−"}{fmtMoney(Number(t.amount))}
-        </span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0, paddingLeft: 8, gap: 2 }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: isIncome ? "#12D18E" : "#FF5C7A", letterSpacing: -0.35, fontFamily: FONT }}>
+            {isIncome ? "+" : "−"}{fmtMoney(Number(t.amount))}
+          </span>
+          {t._incomeTotal > 0 && !isIncome && (
+            <span style={{ fontSize: 9, color: C.faint, fontWeight: 500, fontFamily: FONT }}>
+              {Math.round((Number(t.amount) / t._incomeTotal) * 100)}% income
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1553,7 +1611,7 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {filtered.map(t => <TxRow key={t.id} t={t} onDelete={handleDelete} onEdit={onEdit} onLongPress={tx => setQuickTx(tx)} />)}
+          {filtered.map(t => <TxRow key={t.id} t={{ ...t, _incomeTotal: summary.income }} onDelete={handleDelete} onEdit={onEdit} onLongPress={tx => setQuickTx(tx)} />)}
         </div>
       )}
 
@@ -2032,22 +2090,29 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot }) {
 }
 
 // ─── Bottom Nav ───────────────────────────────────────────────
-function BottomNav({ screen, setScreen }) {
+function BottomNav({ screen, setScreen, insightCount = 1 }) {
   const tabs = [
-    { id: "dashboard", label: "Home", icon: "home" },
-    { id: "transactions", label: "Transactions", icon: "credit" },
-    { id: "savings", label: "Savings", icon: "target" },
-    { id: "insights", label: "Insights", icon: "activity" },
-    { id: "chat", label: "AI", icon: "message" },
+    { id: "dashboard",    label: "Home",         icon: "home"     },
+    { id: "transactions", label: "Transactions",  icon: "credit"   },
+    { id: "savings",      label: "Savings",       icon: "target"   },
+    { id: "insights",     label: "Insights",      icon: "activity" },
+    { id: "chat",         label: "AI",            icon: "message"  },
   ];
   return (
     <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(11,20,38,0.97)", backdropFilter: "blur(24px)", borderTop: `1px solid ${C.sep}`, display: "flex", padding: "10px 0 20px", zIndex: 50 }}>
+      <style>{`@keyframes aiPulse{0%,100%{opacity:0.55;transform:scale(1)}50%{opacity:1;transform:scale(1.35)}}`}</style>
       {tabs.map(tab => {
         const active = screen === tab.id;
         const isAI = tab.id === "chat";
+        const showBadge = isAI && insightCount > 0 && !active;
         return (
-          <button key={tab.id} onClick={() => setScreen(tab.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "4px 0" }}>
-            <Icon name={tab.icon} size={22} color={active ? (isAI ? C.cyan : C.blue) : C.faint} strokeWidth={active ? 2.2 : 1.8} />
+          <button key={tab.id} onClick={() => setScreen(tab.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "4px 0", position: "relative" }}>
+            <div style={{ position: "relative" }}>
+              <Icon name={tab.icon} size={22} color={active ? (isAI ? C.cyan : C.blue) : C.faint} strokeWidth={active ? 2.2 : 1.8} />
+              {showBadge && (
+                <div style={{ position: "absolute", top: -3, right: -4, width: 8, height: 8, borderRadius: "50%", background: C.cyan, border: `1.5px solid rgba(11,20,38,0.97)`, animation: "aiPulse 2s ease-in-out infinite" }} />
+              )}
+            </div>
             <span style={{ fontSize: 10, color: active ? (isAI ? C.cyan : C.blue) : C.faint, fontWeight: active ? 700 : 400, fontFamily: FONT }}>{tab.label}</span>
             {active && <div style={{ width: 4, height: 4, borderRadius: 99, background: isAI ? C.cyan : C.blue, boxShadow: `0 0 6px ${isAI ? C.cyan : C.blue}` }} />}
           </button>
