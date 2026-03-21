@@ -602,25 +602,32 @@ export default function App() {
   };
 
   const ctx = {
-    // Core metrics
-    metrics: {
-      currentBalance: totalIncome - totalSpent,
-      currentMonthSpend: totalSpent,
-      currentMonthIncome: totalIncome,
-      monthlyBudget: Number(profile?.monthly_budget) || 3000,
-      budgetUsedPct: Math.round((totalSpent / (Number(profile?.monthly_budget) || 3000)) * 100),
-      netBalance: totalIncome - totalSpent,
-    },
-    // Engine signals — grounding source of truth
-    engine: engineContext,
-    // Spending breakdown
-    topCategories,
-    // Savings goals
-    savingsGoals: savingsState,
-    totalSaved: savings.reduce((s, sv) => s + Number(sv.current), 0),
-    // Recent activity
-    recentTransactions: recentTxns,
-  };
+  metrics: {
+    currentBalance: totalIncome - totalSpent,
+    currentMonthSpend: totalSpent,
+    currentMonthIncome: totalIncome,
+    monthlyBudget: Number(profile?.monthly_budget) || 3000,
+    budgetUsedPct: Math.round((totalSpent / (Number(profile?.monthly_budget) || 3000)) * 100),
+  },
+  engine: {
+    activeSignals: aiContext?.activeSignals ?? [],
+    topInsight: aiContext?.topInsight ?? null,
+  },
+  topCategories: Object.entries(spendingByCategory)
+    .sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([name, amount]) => ({ name, amount: Math.round(amount) })),
+  savingsGoals: savings.map(s => ({
+    name: s.name, current: Number(s.current), target: Number(s.target),
+    progressPct: s.target > 0 ? Math.round((s.current / s.target) * 100) : 0,
+    remaining: Math.max(Number(s.target) - Number(s.current), 0),
+  })),
+  totalSaved: savings.reduce((s, sv) => s + Number(sv.current), 0),
+  recentTransactions: transactions.slice(0, 8).map(t => ({
+    description: t.description || t.category_name,
+    amount: Number(t.amount), type: t.type,
+    category: t.category_name, date: t.date,
+  })),
+};
 
   const lid = Date.now();
   setChatMessages(prev => [...prev, { role: "assistant", text: "...", id: lid, loading: true }]);
