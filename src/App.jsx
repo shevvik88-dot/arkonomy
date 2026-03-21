@@ -1062,7 +1062,7 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
   // Net context
   const netCtx    = hasNetPrev
     ? fmtMoney(summary.netVsPrev, true) + " vs last mo."
-    : summary.income > 0 ? fmtMoney(summary.income - summary.expense, true) + " saved" : null;
+    : summary.income > 0 ? fmtMoney(summary.income - summary.expense, true) + " net balance" : null;
   const netCtxClr = hasNetPrev ? ((summary.netVsPrev ?? 0) >= 0 ? "#12D18E" : "#FF5C7A") : "#12D18E";
 
   const cards = [
@@ -1100,16 +1100,20 @@ const INSIGHT_DEFS = [
     type: "warning", accent: "#FFB800", icon: "alert-circle", label: "Heads up",
     show: s => (s.expenseVsPrev !== null && s.expenseVsPrev > 10) || (s._topExpenseAmt > 400),
     headline: s => {
-      if (s.expenseVsPrev > 10) {
+      const cat = s._topExpenseCat || "Transport";
+      if (s.expenseVsPrev !== null && s.expenseVsPrev > 10) {
         const extra = Math.round(s.expense - (s.expense / (1 + s.expenseVsPrev / 100)));
         return `You overspent by ${fmtMoney(extra)} this month`;
       }
-      return `${s._topExpenseCat || "Transport"} spending spiked`;
+      if (s._topExpenseAmt && s._topExpenseAmt > 400) {
+        return `You're overspending on ${cat} this month`;
+      }
+      return `${cat} is higher than usual`;
     },
     body: s => {
       const cat = s._topExpenseCat || "Transport";
       const amt = s._topExpenseAmt ? fmtMoney(s._topExpenseAmt) : "$590";
-      return `${cat} hit ${amt} — well above your usual. Setting a monthly limit could recover ~$90 before month-end.`;
+      return `${cat} hit ${amt} — 3× your usual. A monthly cap here would recover ~$90 before month-end.`;
     },
     p:     "Limit this category",
     pMsg:  "Category limit set",
@@ -1245,16 +1249,16 @@ function AIInsightCard({ summary, transactions, onAction }) {
           >{resolve(def.p)}</button>
           <div style={{ display: "flex", gap: 7 }}>
             <button onClick={() => handleCTA(null, "info")}
-              style={{ flex: 1, padding: "8px 8px", background: accent + "10", border: `1px solid ${accent}2A`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 40, transition: "background 0.12s" }}
-              onPointerDown={e => e.currentTarget.style.background = accent + "1E"}
-              onPointerUp={e => e.currentTarget.style.background = accent + "10"}
-              onPointerLeave={e => e.currentTarget.style.background = accent + "10"}
+              style={{ flex: 1, padding: "9px 8px", background: accent + "14", border: `1.5px solid ${accent}40`, borderRadius: 10, color: accent, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 40, transition: "background 0.12s, border-color 0.12s" }}
+              onPointerDown={e => { e.currentTarget.style.background = accent + "24"; e.currentTarget.style.borderColor = accent + "66"; }}
+              onPointerUp={e => { e.currentTarget.style.background = accent + "14"; e.currentTarget.style.borderColor = accent + "40"; }}
+              onPointerLeave={e => { e.currentTarget.style.background = accent + "14"; e.currentTarget.style.borderColor = accent + "40"; }}
             >{def.s1}</button>
             <button onClick={() => handleCTA(def.s2Msg || null, "info")}
-              style={{ flex: 1, padding: "8px 8px", background: "transparent", border: "none", borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, opacity: 0.6, minHeight: 40 }}
-              onPointerDown={e => e.currentTarget.style.opacity = "0.9"}
-              onPointerUp={e => e.currentTarget.style.opacity = "0.6"}
-              onPointerLeave={e => e.currentTarget.style.opacity = "0.6"}
+              style={{ flex: 1, padding: "9px 8px", background: "transparent", border: `1.5px solid ${accent}22`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 40, transition: "background 0.12s, border-color 0.12s, opacity 0.12s", opacity: 0.72 }}
+              onPointerDown={e => { e.currentTarget.style.background = accent + "12"; e.currentTarget.style.opacity = "1"; }}
+              onPointerUp={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.opacity = "0.72"; }}
+              onPointerLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.opacity = "0.72"; }}
             >{def.s2}</button>
           </div>
         </div>
@@ -1497,10 +1501,10 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
           <div style={{ fontSize: 13, color: C.faint }}>{monthLabel}</div>
         </div>
         <button onClick={onAdd}
-          style={{ width: 44, height: 44, minWidth: 44, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 16px rgba(47,128,255,0.35), 0 0 0 5px rgba(47,128,255,0.09)`, transition: "transform 0.14s ease, box-shadow 0.14s ease" }}
-          onPointerDown={e => { e.currentTarget.style.transform = "scale(0.88)"; e.currentTarget.style.boxShadow = "0 2px 6px rgba(47,128,255,0.22)"; }}
-          onPointerUp={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 16px rgba(47,128,255,0.35), 0 0 0 5px rgba(47,128,255,0.09)"; }}
-          onPointerLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 16px rgba(47,128,255,0.35), 0 0 0 5px rgba(47,128,255,0.09)"; }}
+          style={{ width: 46, height: 46, minWidth: 46, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 20px rgba(47,128,255,0.45), 0 0 0 6px rgba(47,128,255,0.11)`, transition: "transform 0.16s cubic-bezier(.22,1,.36,1), box-shadow 0.16s ease" }}
+          onPointerDown={e => { e.currentTarget.style.transform = "scale(0.86)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(47,128,255,0.25), 0 0 0 2px rgba(47,128,255,0.08)"; }}
+          onPointerUp={e => { e.currentTarget.style.transform = "scale(1.04)"; e.currentTarget.style.boxShadow = "0 6px 24px rgba(47,128,255,0.5), 0 0 0 6px rgba(47,128,255,0.11)"; setTimeout(() => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 20px rgba(47,128,255,0.45), 0 0 0 6px rgba(47,128,255,0.11)"; }, 120); }}
+          onPointerLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 20px rgba(47,128,255,0.45), 0 0 0 6px rgba(47,128,255,0.11)"; }}
         >
           <Icon name="plus" size={18} color="#fff" strokeWidth={2.5} />
         </button>
@@ -1510,7 +1514,7 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
         summary={summary}
         onIncomeClick={() => setSheet({ title: "Income breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.income)} total`, rows: transactions.filter(t => t.type === "income").map(t => ({ name: normalizeTxName(t), sub: fmtDate(t.date), amount: fmtMoney(Number(t.amount), true), color: "#12D18E", icon: "dollar" })), actionLabel: "Move surplus to savings", actionColor: "#12D18E", onAction: () => toast("Surplus moved to savings", "success") })}
         onExpenseClick={() => setSheet({ title: "Expenses breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.expense)} total`, rows: expenseRows, actionLabel: "Set category limit", actionColor: "#FFB800", onAction: () => toast("Category limit saved", "success") })}
-        onNetClick={() => setSheet({ title: "Net summary", subtitle: monthLabel, rows: [{ name: "Total income", amount: fmtMoney(summary.income, true), color: "#12D18E", icon: "trending-up", pct: 100 }, { name: "Total expenses", amount: fmtMoney(summary.expense), color: "#FF5C7A", icon: "trending-down", pct: Math.round(summary.expense / Math.max(summary.income, 1) * 100) }, { name: "Net saved", amount: fmtMoney(summary.net, true), color: "#12D18E", icon: "award", pct: Math.round(summary.net / Math.max(summary.income, 1) * 100) }], actionLabel: "Boost savings goal", actionColor: "#12D18E", onAction: () => toast("Savings goal updated", "success") })}
+        onNetClick={() => setSheet({ title: "Net summary", subtitle: monthLabel, rows: [{ name: "Total income", amount: fmtMoney(summary.income, true), color: "#12D18E", icon: "trending-up", pct: 100 }, { name: "Total expenses", amount: fmtMoney(summary.expense), color: "#FF5C7A", icon: "trending-down", pct: Math.round(summary.expense / Math.max(summary.income, 1) * 100) }, { name: "Net balance", amount: fmtMoney(summary.net, true), color: "#12D18E", icon: "award", pct: Math.round(summary.net / Math.max(summary.income, 1) * 100) }], actionLabel: "Boost savings goal", actionColor: "#12D18E", onAction: () => toast("Savings goal updated", "success") })}
       />
 
       <AIInsightCard summary={summary} transactions={curTxs} onAction={(msg, type) => { if (msg) toast(msg, type); }} />
@@ -1553,14 +1557,17 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
         </div>
       )}
 
+      {/* Swipe hint — appears briefly on first load, then auto-hides */}
       {!hintDone && filtered.length > 0 && (
-        <div style={{ marginTop: 8, padding: "9px 12px", background: C.bgSecondary, borderRadius: 10, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ marginTop: 8, padding: "8px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 10, border: `1px solid rgba(255,255,255,0.05)`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, animation: "hintFade 0.3s ease forwards", animationDelay: "1.2s", opacity: 1 }}>
+          <style>{`@keyframes hintFade{0%{opacity:1}100%{opacity:0;visibility:hidden}}`}</style>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 11, color: C.faint }}>Swipe</span>
             <span style={{ fontSize: 11, fontWeight: 500, color: C.blue }}>← Edit</span>
-            <div style={{ width: 1, height: 12, background: "rgba(255,255,255,0.1)" }} />
+            <span style={{ fontSize: 10, color: C.faint }}>·</span>
             <span style={{ fontSize: 11, fontWeight: 500, color: C.red }}>Delete →</span>
           </div>
-          <button onClick={() => setHintDone(true)} style={{ width: 26, height: 26, background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 13, cursor: "pointer", color: C.faint, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT }}>×</button>
+          <button onClick={() => setHintDone(true)} style={{ width: 22, height: 22, background: "none", border: "none", cursor: "pointer", color: C.faint, fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, opacity: 0.5 }}>×</button>
         </div>
       )}
 
