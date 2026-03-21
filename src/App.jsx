@@ -972,7 +972,10 @@ function fmtMoney(n, sign = false) {
   let s;
   if (abs >= 1_000_000) s = "$" + (abs / 1_000_000).toFixed(1) + "M";
   else if (abs >= 10_000) s = "$" + Math.round(abs).toLocaleString("en-US");
-  else s = "$" + Number(abs).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  else {
+    const isWhole = abs === Math.floor(abs);
+    s = "$" + Number(abs).toLocaleString("en-US", { minimumFractionDigits: isWhole ? 0 : 2, maximumFractionDigits: isWhole ? 0 : 2 });
+  }
   if (sign) s = (n >= 0 ? "+" : "−") + s;
   return s;
 }
@@ -1130,8 +1133,7 @@ const INSIGHT_DEFS = [
     body: s => {
       const cat = s._topExpenseCat || "Transport";
       const amt = fmtMoney(Math.round(s._topExpenseAmt || 590));
-      return `${cat} hit ${amt} — 3× your usual.
-Cutting back now could recover ~$90 before month-end.`;
+      return `You spent ${amt} on ${cat} — 3× your usual.\nCutting back now could save ~$90 this month.`;
     },
     p:     "Reduce spending",
     pMsg:  "Spending limit set",
@@ -1204,11 +1206,9 @@ function AIInsightCard({ summary, transactions, onAction }) {
     .filter(d => d.show(enriched))
     .sort((a, b) => a.priority - b.priority)[0] || null;
 
-  const autoExp  = def ? shouldAutoExpand(def, enriched) : false;
-  const [expanded,  setExpanded]  = useState(autoExp);
-  const [cardKey,   setCardKey]   = useState(0);
-  const [paused,    setPaused]    = useState(false);
-  const rotRef    = useRef(null);
+  const autoExp = def ? shouldAutoExpand(def, enriched) : false;
+  const [expanded, setExpanded] = useState(autoExp);
+  const [paused,   setPaused]   = useState(false);
   const resumeRef = useRef(null);
 
   // Fallback card
@@ -1228,7 +1228,6 @@ function AIInsightCard({ summary, transactions, onAction }) {
 
   function pause() {
     setPaused(true);
-    clearTimeout(rotRef.current);
     clearTimeout(resumeRef.current);
     resumeRef.current = setTimeout(() => setPaused(false), 15000);
   }
@@ -1244,23 +1243,16 @@ function AIInsightCard({ summary, transactions, onAction }) {
   const accent             = def.accent;
   const compactHeadlineText = resolve(def.compactHeadline) || resolve(def.headline);
 
-  // CTA label map — strict 2-word standard
-  const compactCtaLabel = {
-    warning:     "Reduce spending",
-    opportunity: "Move to savings",
-    positive:    "Boost savings",
-  }[def.type] || "Take action";
-
   return (
     <div style={{ marginBottom: 10 }}>
       <style>{`.ins-anim{animation:insIn 0.28s ease forwards}@keyframes insIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}`}</style>
-      <div key={cardKey} className="ins-anim"
+      <div className="ins-anim"
         style={{ background: accent + "0D", border: `1px solid ${accent}26`, borderRadius: 14, overflow: "hidden" }}>
 
-        {/* ── Compact row (always visible, tap to toggle) ── */}
+        {/* ── Compact row — tappable when not auto-expanded ── */}
         <div
-          onClick={() => { setExpanded(e => !e); pause(); }}
-          style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", cursor: "pointer" }}>
+          onClick={autoExp ? undefined : () => { setExpanded(e => !e); pause(); }}
+          style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", cursor: autoExp ? "default" : "pointer" }}>
 
           {/* Type icon */}
           <div style={{ width: 22, height: 22, minWidth: 22, borderRadius: 7, background: accent + "20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -1275,18 +1267,9 @@ function AIInsightCard({ summary, transactions, onAction }) {
             </div>
           </div>
 
-          {/* Primary CTA — inline in compact */}
-          <button
-            onClick={ev => { ev.stopPropagation(); handleCTA(def.pMsg, def.pType); }}
-            style={{ flexShrink: 0, padding: "7px 12px", background: `linear-gradient(135deg,${accent},${accent}CC)`, border: "none", borderRadius: 8, color: "#fff", fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT, minHeight: 34, letterSpacing: -0.1, whiteSpace: "nowrap", boxShadow: `0 2px 6px ${accent}28`, transition: "filter 0.12s" }}
-            onPointerDown={e => e.currentTarget.style.filter = "brightness(0.82)"}
-            onPointerUp={e => e.currentTarget.style.filter = ""}
-            onPointerLeave={e => e.currentTarget.style.filter = ""}
-          >{compactCtaLabel}</button>
-
-          {/* Chevron — hidden when auto-expanded (no need to signal expandability) */}
+          {/* Chevron — only when not auto-expanded (signals tap-to-expand) */}
           {!autoExp && (
-            <div style={{ color: C.faint, fontSize: 13, marginLeft: 2, flexShrink: 0, transition: "transform 0.22s", transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>▾</div>
+            <div style={{ color: C.faint, fontSize: 13, marginLeft: 2, flexShrink: 0, transition: "transform 0.22s ease", transform: expanded ? "rotate(180deg)" : "rotate(0deg)", opacity: 0.6 }}>▾</div>
           )}
         </div>
 
@@ -1308,16 +1291,16 @@ function AIInsightCard({ summary, transactions, onAction }) {
               {/* Secondary */}
               <div style={{ display: "flex", gap: 7 }}>
                 <button onClick={() => handleCTA(null, "info")}
-                  style={{ flex: 1, padding: "9px 8px", background: accent + "12", border: `1.5px solid ${accent}38`, borderRadius: 10, color: accent, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 40, transition: "background 0.12s" }}
-                  onPointerDown={e => e.currentTarget.style.background = accent + "22"}
-                  onPointerUp={e => e.currentTarget.style.background = accent + "12"}
-                  onPointerLeave={e => e.currentTarget.style.background = accent + "12"}
+                  style={{ flex: 1, padding: "7px 8px", background: "transparent", border: `1px solid ${accent}28`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 11, cursor: "pointer", fontFamily: FONT, minHeight: 36, opacity: 0.75, transition: "opacity 0.12s" }}
+                  onPointerDown={e => e.currentTarget.style.opacity = "1"}
+                  onPointerUp={e => e.currentTarget.style.opacity = "0.75"}
+                  onPointerLeave={e => e.currentTarget.style.opacity = "0.75"}
                 >{def.s1}</button>
                 <button onClick={() => handleCTA(def.s2Msg || null, "info")}
-                  style={{ flex: 1, padding: "9px 8px", background: "transparent", border: `1.5px solid ${accent}20`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 40, opacity: 0.68, transition: "opacity 0.12s" }}
-                  onPointerDown={e => e.currentTarget.style.opacity = "1"}
-                  onPointerUp={e => e.currentTarget.style.opacity = "0.68"}
-                  onPointerLeave={e => e.currentTarget.style.opacity = "0.68"}
+                  style={{ flex: 1, padding: "7px 8px", background: "transparent", border: `1px solid ${accent}18`, borderRadius: 10, color: accent, fontWeight: 400, fontSize: 11, cursor: "pointer", fontFamily: FONT, minHeight: 36, opacity: 0.55, transition: "opacity 0.12s" }}
+                  onPointerDown={e => e.currentTarget.style.opacity = "0.9"}
+                  onPointerUp={e => e.currentTarget.style.opacity = "0.55"}
+                  onPointerLeave={e => e.currentTarget.style.opacity = "0.55"}
                 >{def.s2}</button>
               </div>
             </div>
