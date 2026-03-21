@@ -1105,25 +1105,31 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
 // ─── AI Insight Card ───────────────────────────────────────────
 const INSIGHT_DEFS = [
   {
+    // Warning: overspending
     type: "warning", accent: "#FFB800", icon: "alert-circle", label: "Heads up",
     show: s => (s.expenseVsPrev !== null && s.expenseVsPrev > 10) || (s._topExpenseAmt > 400),
+    // compact headline: direct, personal, specific
+    compactHeadline: s => {
+      const cat = s._topExpenseCat || "Transport";
+      const amt = s._topExpenseAmt ? fmtMoney(s._topExpenseAmt) : null;
+      return amt ? `You overspent on ${cat} — ${amt}` : `You're over budget on ${cat}`;
+    },
+    // expanded headline: same but slightly fuller
     headline: s => {
       const cat = s._topExpenseCat || "Transport";
       if (s.expenseVsPrev !== null && s.expenseVsPrev > 10) {
         const extra = Math.round(s.expense - (s.expense / (1 + s.expenseVsPrev / 100)));
         return `You overspent by ${fmtMoney(extra)} this month`;
       }
-      if (s._topExpenseAmt && s._topExpenseAmt > 400) {
-        return `You're overspending on ${cat} this month`;
-      }
-      return `${cat} is higher than usual`;
+      return `You're over budget on ${cat}`;
     },
+    // expanded body: max 2 short sentences
     body: s => {
       const cat = s._topExpenseCat || "Transport";
       const amt = s._topExpenseAmt ? fmtMoney(s._topExpenseAmt) : "$590";
-      return `${cat} hit ${amt} — 3× your usual. A monthly cap here would recover ~$90 before month-end.`;
+      return `${cat} hit ${amt} — 3× your usual. Cutting back now could recover ~$90 before month-end.`;
     },
-    p:     "Limit this category",
+    p:     "Reduce spending",     // contextual CTA for warning
     pMsg:  "Category limit set",
     pType: "warning",
     s1:    "View breakdown",
@@ -1131,28 +1137,34 @@ const INSIGHT_DEFS = [
     s2Msg: "Excluded from budget",
   },
   {
+    // Opportunity: surplus available
     type: "opportunity", accent: "#2F80FF", icon: "zap", label: "Opportunity",
     show: s => s.surplus >= 20 && s.income > s.expense,
-    headline: s => `Move ${fmtMoney(s.surplus)} to savings — lock in progress early`,
-    body: s => {
-      const daysLeft = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() - new Date().getDate();
-      return `You're under your Food & Dining average with ${daysLeft} days to go. Moving ${fmtMoney(s.surplus)} now keeps your April goal ahead of schedule.`;
-    },
-    p:     s => `Move ${fmtMoney(s.surplus)} to savings`,
+    compactHeadline: s => `You have ${fmtMoney(s.surplus)} to save this month`,
+    headline: s => `You have ${fmtMoney(s.surplus)} available to save`,
+    // expanded body: short, clear action
+    body: s => `You're under budget this month. Move ${fmtMoney(s.surplus)} to savings now.`,
+    p:     s => `Move ${fmtMoney(s.surplus)} to savings`,  // contextual CTA
     pMsg:  s => `${fmtMoney(s.surplus)} moved to savings`,
     pType: "success",
     s1:    "View projection",
     s2:    "Adjust my goal",
   },
   {
+    // Positive: ahead of target
     type: "positive", accent: "#12D18E", icon: "trending-up", label: "On track",
     show: s => (s.netVsPrev ?? 0) >= 0 && s.net > 0,
-    headline: s => s.netVsPrev > 0 ? `You're ${fmtMoney(s.netVsPrev)} ahead of last month` : "Saving streak — 3 weeks strong",
-    body: s => {
-      const msg = s.netVsPrev > 0 ? `Net is up ${fmtMoney(s.netVsPrev)} vs last month.` : "Under budget for 21 days straight.";
-      return `${msg} Your best run this quarter — compounding this into savings now maximises the gain.`;
-    },
-    p:     "Boost my savings goal",
+    compactHeadline: s => s.netVsPrev > 0
+      ? `You're ${fmtMoney(s.netVsPrev)} ahead this month 🎯`
+      : "3-week saving streak 🔥",
+    headline: s => s.netVsPrev > 0
+      ? `You're ${fmtMoney(s.netVsPrev)} ahead of last month`
+      : "3-week saving streak — keep going",
+    // expanded body: rewarding, motivating, short
+    body: s => s.netVsPrev > 0
+      ? `You're on your best run this quarter. Increase your savings target now while you're ahead.`
+      : `Under budget for 21 days straight. A great time to increase your savings goal.`,
+    p:     "Boost savings goal",   // contextual CTA for positive
     pMsg:  "Savings goal updated",
     pType: "success",
     s1:    "View trend",
@@ -1229,15 +1241,10 @@ function AIInsightCard({ summary, transactions, onAction }) {
 
   const [expanded, setExpanded] = useState(false);
 
-  // Compact stat: top expense category + amount
-  const compactStat = enriched._topExpenseAmt
-    ? `${enriched._topExpenseCat || "Transport"} · ${fmtMoney(enriched._topExpenseAmt)}`
-    : null;
-
-  // Compact headline: shorter, action-oriented
-  const compactHeadline = enriched._topExpenseCat
-    ? `${enriched._topExpenseCat} overspending`
-    : "Spending spike detected";
+  // Compact headline from per-insight definition (type-specific, direct)
+  const compactHeadlineText = def.compactHeadline
+    ? resolve(def.compactHeadline)
+    : resolve(def.headline);
 
   return (
     <div style={{ marginBottom: 10 }}>
@@ -1267,8 +1274,7 @@ function AIInsightCard({ summary, transactions, onAction }) {
               )}
             </div>
             <div style={{ fontSize: 13, fontWeight: 600, color: C.text, letterSpacing: -0.15, fontFamily: FONT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              {compactHeadline}
-              {compactStat && <span style={{ fontWeight: 400, color: "rgba(168,198,228,0.7)", marginLeft: 6 }}>— {compactStat.split(" · ")[1]}</span>}
+              {compactHeadlineText}
             </div>
           </div>
           {/* Quick fix CTA */}
@@ -1278,14 +1284,14 @@ function AIInsightCard({ summary, transactions, onAction }) {
             onPointerDown={e => e.currentTarget.style.filter = "brightness(0.82)"}
             onPointerUp={e => e.currentTarget.style.filter = ""}
             onPointerLeave={e => e.currentTarget.style.filter = ""}
-          >Fix this</button>
+          >{def.type === "warning" ? "Reduce" : def.type === "opportunity" ? "Save now" : "Boost"}</button>
           {/* Chevron */}
           <div style={{ color: C.faint, fontSize: 14, marginLeft: 2, transition: "transform 0.22s", transform: expanded ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}>▾</div>
         </div>
 
         {/* ── Expanded state ── */}
         {expanded && (
-          <div style={{ padding: "0 13px 12px", borderTop: `1px solid ${accent}18`, paddingTop: 10 }}>
+          <div style={{ padding: "10px 13px 12px", borderTop: `1px solid ${accent}18` }}>
             <div style={{ fontSize: 12, color: "rgba(168,198,228,0.82)", lineHeight: 1.55, marginBottom: 11, fontFamily: FONT }}>{resolve(def.body)}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
               {/* Primary — full-width */}
@@ -1502,9 +1508,9 @@ function TxRow({ t, onDelete, onEdit, onLongPress }) {
           <span style={{ fontSize: 15, fontWeight: 600, color: isIncome ? "#12D18E" : "#FF5C7A", letterSpacing: -0.35, fontFamily: FONT }}>
             {isIncome ? "+" : "−"}{fmtMoney(Number(t.amount))}
           </span>
-          {t._incomeTotal > 0 && !isIncome && (
-            <span style={{ fontSize: 9, color: C.faint, fontWeight: 500, fontFamily: FONT }}>
-              {Math.round((Number(t.amount) / t._incomeTotal) * 100)}% income
+          {t._incomeTotal > 0 && !isIncome && Number(t.amount) > 0 && (
+            <span style={{ fontSize: 9, color: "rgba(74,94,122,0.8)", fontWeight: 400, fontFamily: FONT, letterSpacing: 0.1 }}>
+              {Math.round((Number(t.amount) / t._incomeTotal) * 100)}%
             </span>
           )}
         </div>
@@ -1559,9 +1565,9 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
           <div style={{ fontSize: 13, color: C.faint }}>{monthLabel}</div>
         </div>
         <button onClick={onAdd}
-          style={{ width: 46, height: 46, minWidth: 46, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 20px rgba(47,128,255,0.45), 0 0 0 6px rgba(47,128,255,0.11)`, transition: "transform 0.16s cubic-bezier(.22,1,.36,1), box-shadow 0.16s ease" }}
+          style={{ width: 46, height: 46, minWidth: 46, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 14px rgba(47,128,255,0.32), 0 0 0 5px rgba(47,128,255,0.08)`, transition: "transform 0.16s cubic-bezier(.22,1,.36,1), box-shadow 0.16s ease" }}
           onPointerDown={e => { e.currentTarget.style.transform = "scale(0.86)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(47,128,255,0.25), 0 0 0 2px rgba(47,128,255,0.08)"; }}
-          onPointerUp={e => { e.currentTarget.style.transform = "scale(1.04)"; e.currentTarget.style.boxShadow = "0 6px 24px rgba(47,128,255,0.5), 0 0 0 6px rgba(47,128,255,0.11)"; setTimeout(() => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 20px rgba(47,128,255,0.45), 0 0 0 6px rgba(47,128,255,0.11)"; }, 120); }}
+          onPointerUp={e => { e.currentTarget.style.transform = "scale(1.04)"; e.currentTarget.style.boxShadow = "0 4px 18px rgba(47,128,255,0.4), 0 0 0 5px rgba(47,128,255,0.09)"; setTimeout(() => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 20px rgba(47,128,255,0.45), 0 0 0 6px rgba(47,128,255,0.11)"; }, 120); }}
           onPointerLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 20px rgba(47,128,255,0.45), 0 0 0 6px rgba(47,128,255,0.11)"; }}
         >
           <Icon name="plus" size={18} color="#fff" strokeWidth={2.5} />
