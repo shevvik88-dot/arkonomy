@@ -1,6 +1,88 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 import CheckInCard from "./components/CheckInCard";
+
+// ─── AI Brain: useInsights hook ───────────────────────────────
+function useInsights(screen, userId) {
+  const [data, setData] = useState(null);
+
+  const refresh = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const res = await fetch(
+        "https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/get-insights",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId }) }
+      );
+      const json = await res.json();
+      setData(json);
+    } catch (e) {
+      console.error("useInsights error:", e);
+    }
+  }, [userId]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  if (!data) return { insight: null, allInsights: [], aiContext: null, refresh };
+
+  const insight = screen === "insights"
+    ? data.screens?.insights?.[0] ?? null
+    : data.screens?.[screen] ?? null;
+
+  return {
+    insight,
+    allInsights: data.screens?.insights ?? [],
+    aiContext: data.screens?.ai ?? null,
+    refresh,
+  };
+}
+
+// ─── AI Brain: InsightCard component ─────────────────────────
+const INSIGHT_COLORS = {
+  cash_risk:           { bg: "#2D1515", border: "#FF5C7A", icon: "⚠️" },
+  category_spike:      { bg: "#2A1F0E", border: "#FFB800", icon: "📈" },
+  overspending:        { bg: "#2A1F0E", border: "#FFB800", icon: "📊" },
+  savings_opportunity: { bg: "#0E2A1A", border: "#12D18E", icon: "💡" },
+  goal_off_track:      { bg: "#1A1A2E", border: "#A78BFA", icon: "🎯" },
+  positive_progress:   { bg: "#0E2A1A", border: "#00C2FF", icon: "✅" },
+};
+
+function InsightCard({ insight, onAction }) {
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (insight?.autoExpand) setExpanded(true);
+  }, [insight?.type]);
+
+  if (!insight) return null;
+
+  const c = INSIGHT_COLORS[insight.type] ?? INSIGHT_COLORS.overspending;
+  const { headline, body, cta, action } = insight.rendered;
+
+  return (
+    <div onClick={() => setExpanded(e => !e)} style={{
+      background: c.bg, border: `1px solid ${c.border}`,
+      borderRadius: 14, padding: "13px 14px", marginBottom: 10, cursor: "pointer",
+      fontFamily: "'Inter', -apple-system, sans-serif",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 15 }}>{c.icon}</span>
+          <span style={{ color: "#fff", fontWeight: 600, fontSize: 13, letterSpacing: -0.1 }}>{headline}</span>
+        </div>
+        <span style={{ color: "#4A5E7A", fontSize: 11, flexShrink: 0, marginLeft: 8 }}>{expanded ? "▲" : "▼"}</span>
+      </div>
+      {expanded && (
+        <div style={{ marginTop: 10, borderTop: `1px solid ${c.border}22`, paddingTop: 10 }}>
+          <p style={{ color: "rgba(168,198,228,0.82)", fontSize: 12, lineHeight: 1.6, margin: "0 0 12px", whiteSpace: "pre-line" }}>{body}</p>
+          <button onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
+            style={{ width: "100%", padding: "11px 16px", background: `linear-gradient(135deg,${c.border},${c.border}CC)`, border: "none", borderRadius: 10, color: insight.type === "savings_opportunity" ? "#000" : "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif", boxShadow: `0 3px 10px ${c.border}32` }}>
+            {cta}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const fontLink = document.createElement("link");
 fontLink.rel = "stylesheet";
@@ -437,6 +519,22 @@ export default function App() {
     setProfile(prev => ({ ...prev, ...updates }));
   }
 
+  // ── AI Brain insights ─────────────────────────────────────────
+  const insightScreen =
+    screen === "dashboard"    ? "home" :
+    screen === "transactions" ? "transactions" :
+    screen === "savings"      ? "savings" :
+    screen === "insights"     ? "insights" : "home";
+
+  const { insight, allInsights, refresh: refreshInsights } = useInsights(insightScreen, user?.id);
+
+  function handleInsightAction(action, data) {
+    if (action === "review_spending" || action === "reduce_category") setScreen("transactions");
+    if (action === "move_to_savings" || action === "catch_up_goal")   setScreen("savings");
+    if (action === "view_progress")                                    setScreen("insights");
+    if (action === "view_bills")                                       setScreen("transactions");
+  }
+
   const now = new Date();
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const thisMonth = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
@@ -512,10 +610,10 @@ export default function App() {
           <div style={{ color: C.muted, textAlign: "center", padding: 40 }}>Loading...</div>
         ) : (
           <>
-            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} />}
-            {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} />}
-            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} />}
-            {screen === "insights" && <Insights {...shared} onNavigateChat={msg => { setChatMessages(prev => [...prev, { role: "user", text: msg }]); setScreen("chat"); }} />}
+            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} />}
+            {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} />}
+            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} insight={insight} onInsightAction={handleInsightAction} />}
+            {screen === "insights" && <Insights {...shared} onNavigateChat={msg => { setChatMessages(prev => [...prev, { role: "user", text: msg }]); setScreen("chat"); }} allInsights={allInsights} onInsightAction={handleInsightAction} />}
             {screen === "chat" && <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={() => sendChat(chatInput)} />}
             {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} autopilot={autopilot} setAutopilot={setAutopilot} />}
           </>
@@ -697,7 +795,7 @@ function MarketOverview() {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────
-function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick }) {
+function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, insight, onInsightAction }) {
   const [balanceVisible, setBalanceVisible] = useState(true);
   const budget = Number(profile?.monthly_budget) || 3000;
   const balance = totalIncome - totalSpent;
@@ -768,6 +866,9 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
      {/* 2 ── AI Check-In */}
       <CheckInCard data={checkInData} onAskAI={() => onNavigate("chat")} />
 
+      {/* 2b ── AI Brain Insight */}
+      <InsightCard insight={insight} onAction={onInsightAction} />
+
       {/* 3 ── Spending by Category */}
       <GlassCard style={{ padding: "14px 16px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -822,7 +923,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
 }
 
 // ─── Insights ─────────────────────────────────────────────────
-function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByCategory, onNavigateChat, transactions, savings, profile }) {
+function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByCategory, onNavigateChat, transactions, savings, profile, allInsights, onInsightAction }) {
   const monthlySavings = totalIncome - totalSpent;
   const savingsRate = totalIncome > 0 ? (monthlySavings / totalIncome) * 100 : 0;
   const insights = [];
@@ -851,6 +952,15 @@ function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByC
         <h2 style={{ margin: "0 0 4px", fontSize: 26, fontWeight: 700 }}>Insights</h2>
         <div style={{ fontSize: 13, color: C.muted }}>AI-powered spending analysis</div>
       </div>
+
+      {/* AI Brain insights — top of screen */}
+      {allInsights && allInsights.length > 0 && (
+        <div>
+          {allInsights.map((ins, i) => (
+            <InsightCard key={ins.type + i} insight={ins} onAction={onInsightAction} />
+          ))}
+        </div>
+      )}
 
       <HealthScore totalSpent={totalSpent} totalIncome={totalIncome} budget={Number(profile?.monthly_budget) || 3000} savingsGoals={savings || []} />
       <WeeklySummary transactions={transactions || []} />
@@ -1507,7 +1617,7 @@ function TxRow({ t, onDelete, onEdit, onLongPress }) {
 }
 
 // ─── Transactions Screen ───────────────────────────────────────
-function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter }) {
+function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter, insight, onInsightAction }) {
   const [filter,   setFilter]   = useState("all");
   const [sheet,    setSheet]    = useState(null);
   const [quickTx,  setQuickTx]  = useState(null);
@@ -1567,6 +1677,8 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
         onExpenseClick={() => setSheet({ title: "Expenses breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.expense)} total`, rows: expenseRows, actionLabel: "Set category limit", actionColor: "#FFB800", onAction: () => toast("Category limit saved", "success") })}
         onNetClick={() => setSheet({ title: "Net summary", subtitle: monthLabel, rows: [{ name: "Total income", amount: fmtMoney(summary.income, true), color: "#12D18E", icon: "trending-up", pct: 100 }, { name: "Total expenses", amount: fmtMoney(summary.expense), color: "#FF5C7A", icon: "trending-down", pct: Math.round(summary.expense / Math.max(summary.income, 1) * 100) }, { name: "Net balance", amount: fmtMoney(summary.net, true), color: "#12D18E", icon: "award", pct: Math.round(summary.net / Math.max(summary.income, 1) * 100) }], actionLabel: "Boost savings goal", actionColor: "#12D18E", onAction: () => toast("Savings goal updated", "success") })}
       />
+
+      <InsightCard insight={insight} onAction={onInsightAction} />
 
       <AIInsightCard summary={summary} transactions={curTxs} onAction={(msg, type) => { if (msg) toast(msg, type); }} />
 
@@ -1804,7 +1916,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
 }
 
 // ─── Savings ──────────────────────────────────────────────────
-function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent }) {
+function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, onInsightAction }) {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [newTarget, setNewTarget] = useState("");
@@ -1844,6 +1956,8 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent }) {
           <Icon name="plus" size={14} color="#fff" strokeWidth={2.5} /> Goal
         </button>
       </div>
+
+      <InsightCard insight={insight} onAction={onInsightAction} />
 
       {(totalSaved > 0 || monthlySurplus > 0) && (
         <div style={{ background: "linear-gradient(135deg,#0D2A1F,#0B1426)", borderRadius: 20, padding: 20, border: `1px solid ${C.green}30` }}>
