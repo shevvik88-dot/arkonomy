@@ -1,29 +1,22 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import CheckInCard from "./components/CheckInCard";
 
 // ─── AI Brain: useInsights hook ───────────────────────────────
-const { insight, allInsights, aiContext } = useInsights(insightScreen, user?.id);
 function useInsights(screen, userId) {
   const [data, setData] = useState(null);
 
-  const refresh = useCallback(async () => {
+  useEffect(() => {
     if (!userId) return;
-    try {
-      const res = await fetch(
-        "https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/get-insights",
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId }) }
-      );
-      const json = await res.json();
-      setData(json);
-    } catch (e) {
-      console.error("useInsights error:", e);
-    }
+    supabase.functions
+      .invoke("get-insights", { body: { userId } })
+      .then(({ data: result, error }) => {
+        if (error) { console.error("useInsights error:", error); return; }
+        setData(result);
+      });
   }, [userId]);
 
-  useEffect(() => { refresh(); }, [refresh]);
-
-  if (!data) return { insight: null, allInsights: [], aiContext: null, refresh };
+  if (!data) return { insight: null, allInsights: [], aiContext: null };
 
   const insight = screen === "insights"
     ? data.screens?.insights?.[0] ?? null
@@ -33,7 +26,6 @@ function useInsights(screen, userId) {
     insight,
     allInsights: data.screens?.insights ?? [],
     aiContext: data.screens?.ai ?? null,
-    refresh,
   };
 }
 
@@ -520,22 +512,6 @@ export default function App() {
     setProfile(prev => ({ ...prev, ...updates }));
   }
 
-  // ── AI Brain insights ─────────────────────────────────────────
-  const insightScreen =
-    screen === "dashboard"    ? "home" :
-    screen === "transactions" ? "transactions" :
-    screen === "savings"      ? "savings" :
-    screen === "insights"     ? "insights" : "home";
-
-  const { insight, allInsights, aiContext } = useInsights(insightScreen, user?.id);
-
-  function handleInsightAction(action, data) {
-    if (action === "review_spending" || action === "reduce_category") setScreen("transactions");
-    if (action === "move_to_savings" || action === "catch_up_goal")   setScreen("savings");
-    if (action === "view_progress")                                    setScreen("insights");
-    if (action === "view_bills")                                       setScreen("transactions");
-  }
-
   const now = new Date();
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const thisMonth = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
@@ -564,6 +540,22 @@ export default function App() {
   if (!user) return <AuthScreen onAuth={setUser} />;
 
   const shared = { transactions, categories, savings, profile, totalSpent, totalIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory };
+
+  // ── AI Brain insights ─────────────────────────────────────────
+  const insightScreen =
+    screen === "dashboard"    ? "home" :
+    screen === "transactions" ? "transactions" :
+    screen === "savings"      ? "savings" :
+    screen === "insights"     ? "insights" : "home";
+
+  const { insight, allInsights, aiContext } = useInsights(insightScreen, user?.id);
+
+  function handleInsightAction(action, _data) {
+    if (action === "review_spending" || action === "reduce_category") setScreen("transactions");
+    if (action === "move_to_savings" || action === "catch_up_goal")   setScreen("savings");
+    if (action === "view_progress")                                    setScreen("insights");
+    if (action === "view_bills")                                       setScreen("transactions");
+  }
 
   async function sendChat(input) {
   if (!input.trim()) return;
