@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import CheckInCard from "./components/CheckInCard";
 
 // ─── AI Brain: useInsights hook ───────────────────────────────
+const { insight, allInsights, aiContext } = useInsights(insightScreen, user?.id);
 function useInsights(screen, userId) {
   const [data, setData] = useState(null);
 
@@ -565,25 +566,75 @@ export default function App() {
   const shared = { transactions, categories, savings, profile, totalSpent, totalIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory };
 
   async function sendChat(input) {
-    if (!input.trim()) return;
-    const userMsg = { role: "user", text: input };
-    const updated = [...chatMessages, userMsg];
-    setChatMessages(updated); setChatInput("");
-    const ctx = {
-      currentMonth: { totalSpent, totalIncome, balance: totalIncome - totalSpent, budget: Number(profile?.monthly_budget) || 3000, topExpenses: Object.entries(spendingByCategory).sort((a, b) => b[1] - a[1]).slice(0, 5) },
-      savingsGoals: savings.map(s => ({ name: s.name, current: s.current, target: s.target, progress: s.target > 0 ? Math.round((s.current / s.target) * 100) : 0 })),
-      recentTransactions: transactions.slice(0, 10).map(t => ({ description: t.description, amount: t.amount, type: t.type, category: t.category_name, date: t.date })),
-    };
-    const lid = Date.now();
-    setChatMessages(prev => [...prev, { role: "assistant", text: "...", id: lid, loading: true }]);
-    try {
-      const res = await supabase.functions.invoke("ai-chat", { body: { messages: updated.filter(m => !m.loading), financialContext: ctx } });
-      const reply = res.data?.reply || "Sorry, something went wrong.";
-      setChatMessages(prev => prev.map(m => m.id === lid ? { role: "assistant", text: reply } : m));
-    } catch {
-      setChatMessages(prev => prev.map(m => m.id === lid ? { role: "assistant", text: "Could not reach AI. Check your connection." } : m));
-    }
+  if (!input.trim()) return;
+  const userMsg = { role: "user", text: input };
+  const updated = [...chatMessages, userMsg];
+  setChatMessages(updated);
+  setChatInput("");
+
+  // ── Build grounded context ──────────────────────────────────
+  const topCategories = Object.entries(spendingByCategory)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([name, amount]) => ({ name, amount: Math.round(amount) }));
+
+  const recentTxns = transactions.slice(0, 8).map(t => ({
+    description: t.description || t.category_name || "Transaction",
+    amount: Number(t.amount),
+    type: t.type,
+    category: t.category_name,
+    date: t.date,
+  }));
+
+  const savingsState = savings.map(s => ({
+    name: s.name,
+    current: Number(s.current),
+    target: Number(s.target),
+    progressPct: s.target > 0 ? Math.round((s.current / s.target) * 100) : 0,
+    remaining: Math.max(Number(s.target) - Number(s.current), 0),
+  }));
+
+  // aiContext comes from useInsights hook (already in App state)
+  // Pass activeSignals and topInsight from the engine
+  const engineContext = {
+    activeSignals: aiContext?.activeSignals ?? [],
+    topInsight: aiContext?.topInsight ?? null,
+  };
+
+  const ctx = {
+    // Core metrics
+    metrics: {
+      currentBalance: totalIncome - totalSpent,
+      currentMonthSpend: totalSpent,
+      currentMonthIncome: totalIncome,
+      monthlyBudget: Number(profile?.monthly_budget) || 3000,
+      budgetUsedPct: Math.round((totalSpent / (Number(profile?.monthly_budget) || 3000)) * 100),
+      netBalance: totalIncome - totalSpent,
+    },
+    // Engine signals — grounding source of truth
+    engine: engineContext,
+    // Spending breakdown
+    topCategories,
+    // Savings goals
+    savingsGoals: savingsState,
+    totalSaved: savings.reduce((s, sv) => s + Number(sv.current), 0),
+    // Recent activity
+    recentTransactions: recentTxns,
+  };
+
+  const lid = Date.now();
+  setChatMessages(prev => [...prev, { role: "assistant", text: "...", id: lid, loading: true }]);
+
+  try {
+    const res = await supabase.functions.invoke("ai-chat", {
+      body: { messages: updated.filter(m => !m.loading), financialContext: ctx }
+    });
+    const reply = res.data?.reply || "Sorry, something went wrong.";
+    setChatMessages(prev => prev.map(m => m.id === lid ? { role: "assistant", text: reply } : m));
+  } catch {
+    setChatMessages(prev => prev.map(m => m.id === lid ? { role: "assistant", text: "Could not reach AI. Check your connection." } : m));
   }
+}
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT, maxWidth: 430, margin: "0 auto", position: "relative", overflow: "visible" }}>
