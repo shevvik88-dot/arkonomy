@@ -1103,68 +1103,75 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
 }
 
 // ─── AI Insight Card ───────────────────────────────────────────
+
+// Priority order: warning > opportunity > positive
+// Only the single highest-priority qualifying insight is shown.
 const INSIGHT_DEFS = [
   {
-    // Warning: overspending
-    type: "warning", accent: "#FFB800", icon: "alert-circle", label: "Heads up",
+    type: "warning",
+    priority: 1,
+    accent: "#FFB800", icon: "alert-circle", label: "Heads up",
     show: s => (s.expenseVsPrev !== null && s.expenseVsPrev > 10) || (s._topExpenseAmt > 400),
-    // compact headline: direct, personal, specific
+    // Auto-expand for high overspending (>30% over or top cat >$500)
+    autoExpand: s => (s.expenseVsPrev > 30) || (s._topExpenseAmt > 500),
     compactHeadline: s => {
       const cat = s._topExpenseCat || "Transport";
-      const amt = s._topExpenseAmt ? fmtMoney(s._topExpenseAmt) : null;
+      const amt = s._topExpenseAmt ? fmtMoney(Math.round(s._topExpenseAmt)) : null;
       return amt ? `You overspent on ${cat} — ${amt}` : `You're over budget on ${cat}`;
     },
-    // expanded headline: same but slightly fuller
     headline: s => {
       const cat = s._topExpenseCat || "Transport";
-      if (s.expenseVsPrev !== null && s.expenseVsPrev > 10) {
+      if (s.expenseVsPrev > 10) {
         const extra = Math.round(s.expense - (s.expense / (1 + s.expenseVsPrev / 100)));
         return `You overspent by ${fmtMoney(extra)} this month`;
       }
       return `You're over budget on ${cat}`;
     },
-    // expanded body: max 2 short sentences
     body: s => {
       const cat = s._topExpenseCat || "Transport";
-      const amt = s._topExpenseAmt ? fmtMoney(s._topExpenseAmt) : "$590";
-      return `${cat} hit ${amt} — 3× your usual. Cutting back now could recover ~$90 before month-end.`;
+      const amt = fmtMoney(Math.round(s._topExpenseAmt || 590));
+      return `${cat} hit ${amt} — 3× your usual.
+Cutting back now could recover ~$90 before month-end.`;
     },
-    p:     "Reduce spending",     // contextual CTA for warning
-    pMsg:  "Category limit set",
+    p:     "Reduce spending",
+    pMsg:  "Spending limit set",
     pType: "warning",
     s1:    "View breakdown",
     s2:    "Exclude this item",
     s2Msg: "Excluded from budget",
   },
   {
-    // Opportunity: surplus available
-    type: "opportunity", accent: "#2F80FF", icon: "zap", label: "Opportunity",
+    type: "opportunity",
+    priority: 2,
+    accent: "#2F80FF", icon: "zap", label: "Opportunity",
     show: s => s.surplus >= 20 && s.income > s.expense,
-    compactHeadline: s => `You have ${fmtMoney(s.surplus)} to save this month`,
-    headline: s => `You have ${fmtMoney(s.surplus)} available to save`,
-    // expanded body: short, clear action
-    body: s => `You're under budget this month. Move ${fmtMoney(s.surplus)} to savings now.`,
-    p:     s => `Move ${fmtMoney(s.surplus)} to savings`,  // contextual CTA
-    pMsg:  s => `${fmtMoney(s.surplus)} moved to savings`,
+    // Auto-expand when surplus >= $100 (strong opportunity)
+    autoExpand: s => s.surplus >= 100,
+    compactHeadline: s => `You can save ${fmtMoney(Math.round(s.surplus))} this month`,
+    headline:        s => `You can save ${fmtMoney(Math.round(s.surplus))} this month`,
+    body: s => `You're under budget this month.
+Move ${fmtMoney(Math.round(s.surplus))} to savings now.`,
+    p:     "Move to savings",
+    pMsg:  s => `${fmtMoney(Math.round(s.surplus))} moved to savings`,
     pType: "success",
     s1:    "View projection",
     s2:    "Adjust my goal",
   },
   {
-    // Positive: ahead of target
-    type: "positive", accent: "#12D18E", icon: "trending-up", label: "On track",
+    type: "positive",
+    priority: 3,
+    accent: "#12D18E", icon: "trending-up", label: "On track",
     show: s => (s.netVsPrev ?? 0) >= 0 && s.net > 0,
+    autoExpand: () => false,  // never auto-expand positive — not urgent
     compactHeadline: s => s.netVsPrev > 0
-      ? `You're ${fmtMoney(s.netVsPrev)} ahead this month 🎯`
-      : "3-week saving streak 🔥",
+      ? `You're ${fmtMoney(Math.round(s.netVsPrev))} ahead this month`
+      : "You're on a 3-week saving streak",
     headline: s => s.netVsPrev > 0
-      ? `You're ${fmtMoney(s.netVsPrev)} ahead of last month`
-      : "3-week saving streak — keep going",
-    // expanded body: rewarding, motivating, short
-    body: s => s.netVsPrev > 0
-      ? `You're on your best run this quarter. Increase your savings target now while you're ahead.`
-      : `Under budget for 21 days straight. A great time to increase your savings goal.`,
-    p:     "Boost savings goal",   // contextual CTA for positive
+      ? `You're ${fmtMoney(Math.round(s.netVsPrev))} ahead this month`
+      : "You're on a 3-week saving streak",
+    body: () => `You're ahead this month.
+Boost your savings.`,
+    p:     "Boost savings",
     pMsg:  "Savings goal updated",
     pType: "success",
     s1:    "View trend",
@@ -1173,7 +1180,14 @@ const INSIGHT_DEFS = [
   },
 ];
 
+// Determine whether an insight should auto-expand based on data + type rules
+function shouldAutoExpand(def, enriched) {
+  if (def.type === "positive") return false;           // never auto-expand positive
+  return def.autoExpand ? def.autoExpand(enriched) : false;
+}
+
 function AIInsightCard({ summary, transactions, onAction }) {
+  // Enrich summary with top expense category
   const enriched = { ...summary };
   if (transactions && transactions.length > 0) {
     const bycat = transactions.filter(t => t.type === "expense").reduce((a, t) => {
@@ -1185,19 +1199,23 @@ function AIInsightCard({ summary, transactions, onAction }) {
     if (top) { enriched._topExpenseCat = top[0]; enriched._topExpenseAmt = top[1]; }
   }
 
-  const active    = INSIGHT_DEFS.filter(d => d.show(enriched));
-  const [idx,     setIdx]     = useState(0);
-  const [cardKey, setCardKey] = useState(0);
-  const [paused,  setPaused]  = useState(false);
+  // Show only single highest-priority qualifying insight
+  const def = INSIGHT_DEFS
+    .filter(d => d.show(enriched))
+    .sort((a, b) => a.priority - b.priority)[0] || null;
+
+  const autoExp  = def ? shouldAutoExpand(def, enriched) : false;
+  const [expanded,  setExpanded]  = useState(autoExp);
+  const [cardKey,   setCardKey]   = useState(0);
+  const [paused,    setPaused]    = useState(false);
   const rotRef    = useRef(null);
   const resumeRef = useRef(null);
-  const safeIdx   = active.length > 0 ? idx % active.length : 0;
-  const def       = active[safeIdx];
 
+  // Fallback card
   if (!def) {
     return (
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "13px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 28, height: 28, minWidth: 28, borderRadius: 8, background: "rgba(18,209,142,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "13px 14px", marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ width: 26, height: 26, minWidth: 26, borderRadius: 8, background: "rgba(18,209,142,0.14)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Icon name="check-circle" size={13} color="#12D18E" strokeWidth={2} />
         </div>
         <div>
@@ -1215,20 +1233,6 @@ function AIInsightCard({ summary, transactions, onAction }) {
     resumeRef.current = setTimeout(() => setPaused(false), 15000);
   }
 
-  function goTo(i) {
-    if (i === safeIdx) return;
-    pause(); setIdx(i); setCardKey(k => k + 1);
-  }
-
-  useEffect(() => {
-    if (paused || active.length <= 1) return;
-    rotRef.current = setTimeout(() => {
-      setIdx(i => (i + 1) % active.length);
-      setCardKey(k => k + 1);
-    }, 9000);
-    return () => clearTimeout(rotRef.current);
-  }, [safeIdx, paused, active.length, cardKey]);
-
   const resolve = v => typeof v === "function" ? v(enriched) : v;
 
   function handleCTA(msgField, type) {
@@ -1237,83 +1241,83 @@ function AIInsightCard({ summary, transactions, onAction }) {
     if (msg) onAction(msg, type);
   }
 
-  const accent = def.accent;
+  const accent             = def.accent;
+  const compactHeadlineText = resolve(def.compactHeadline) || resolve(def.headline);
 
-  const [expanded, setExpanded] = useState(false);
-
-  // Compact headline from per-insight definition (type-specific, direct)
-  const compactHeadlineText = def.compactHeadline
-    ? resolve(def.compactHeadline)
-    : resolve(def.headline);
+  // CTA label map — strict 2-word standard
+  const compactCtaLabel = {
+    warning:     "Reduce spending",
+    opportunity: "Move to savings",
+    positive:    "Boost savings",
+  }[def.type] || "Take action";
 
   return (
     <div style={{ marginBottom: 10 }}>
       <style>{`.ins-anim{animation:insIn 0.28s ease forwards}@keyframes insIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}`}</style>
       <div key={cardKey} className="ins-anim"
-        style={{ background: accent + "0D", border: `1px solid ${accent}26`, borderRadius: 14, overflow: "hidden", transition: "all 0.24s ease" }}>
+        style={{ background: accent + "0D", border: `1px solid ${accent}26`, borderRadius: 14, overflow: "hidden" }}>
 
-        {/* ── Compact state (always visible) ── */}
+        {/* ── Compact row (always visible, tap to toggle) ── */}
         <div
           onClick={() => { setExpanded(e => !e); pause(); }}
           style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", cursor: "pointer" }}>
-          {/* Badge */}
+
+          {/* Type icon */}
           <div style={{ width: 22, height: 22, minWidth: 22, borderRadius: 7, background: accent + "20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Icon name={def.icon} size={11} color={accent} strokeWidth={2.2} />
           </div>
-          {/* Text */}
+
+          {/* Label + headline */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: accent, letterSpacing: 0.6, textTransform: "uppercase", fontFamily: FONT }}>{def.label}</span>
-              {active.length > 1 && (
-                <div style={{ display: "flex", gap: 3 }}>
-                  {active.map((_, i) => (
-                    <div key={i} onClick={ev => { ev.stopPropagation(); goTo(i); }}
-                      style={{ width: i === safeIdx ? 12 : 4, height: 4, borderRadius: i === safeIdx ? 2 : 99, background: i === safeIdx ? accent : "rgba(255,255,255,0.14)", cursor: "pointer", transition: "all 0.25s" }} />
-                  ))}
-                </div>
-              )}
-            </div>
+            <span style={{ fontSize: 10, fontWeight: 700, color: accent, letterSpacing: 0.6, textTransform: "uppercase", fontFamily: FONT, display: "block", marginBottom: 2 }}>{def.label}</span>
             <div style={{ fontSize: 13, fontWeight: 600, color: C.text, letterSpacing: -0.15, fontFamily: FONT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {compactHeadlineText}
             </div>
           </div>
-          {/* Quick fix CTA */}
+
+          {/* Primary CTA — inline in compact */}
           <button
             onClick={ev => { ev.stopPropagation(); handleCTA(def.pMsg, def.pType); }}
-            style={{ flexShrink: 0, padding: "7px 14px", background: `linear-gradient(135deg,${accent},${accent}CC)`, border: "none", borderRadius: 8, color: "#fff", fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 36, boxShadow: `0 2px 8px ${accent}30`, whiteSpace: "nowrap", transition: "filter 0.12s" }}
+            style={{ flexShrink: 0, padding: "7px 12px", background: `linear-gradient(135deg,${accent},${accent}CC)`, border: "none", borderRadius: 8, color: "#fff", fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT, minHeight: 34, letterSpacing: -0.1, whiteSpace: "nowrap", boxShadow: `0 2px 6px ${accent}28`, transition: "filter 0.12s" }}
             onPointerDown={e => e.currentTarget.style.filter = "brightness(0.82)"}
             onPointerUp={e => e.currentTarget.style.filter = ""}
             onPointerLeave={e => e.currentTarget.style.filter = ""}
-          >{def.type === "warning" ? "Reduce" : def.type === "opportunity" ? "Save now" : "Boost"}</button>
-          {/* Chevron */}
-          <div style={{ color: C.faint, fontSize: 14, marginLeft: 2, transition: "transform 0.22s", transform: expanded ? "rotate(180deg)" : "rotate(0deg)", flexShrink: 0 }}>▾</div>
+          >{compactCtaLabel}</button>
+
+          {/* Chevron — hidden when auto-expanded (no need to signal expandability) */}
+          {!autoExp && (
+            <div style={{ color: C.faint, fontSize: 13, marginLeft: 2, flexShrink: 0, transition: "transform 0.22s", transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>▾</div>
+          )}
         </div>
 
-        {/* ── Expanded state ── */}
+        {/* ── Expanded detail (auto or manual) ── */}
         {expanded && (
-          <div style={{ padding: "10px 13px 12px", borderTop: `1px solid ${accent}18` }}>
-            <div style={{ fontSize: 12, color: "rgba(168,198,228,0.82)", lineHeight: 1.55, marginBottom: 11, fontFamily: FONT }}>{resolve(def.body)}</div>
+          <div style={{ padding: "10px 13px 13px", borderTop: `1px solid ${accent}18` }}>
+            {/* Body — 2 lines max, pre-wrap for newline rendering */}
+            <div style={{ fontSize: 12, color: "rgba(168,198,228,0.82)", lineHeight: 1.6, marginBottom: 12, fontFamily: FONT, whiteSpace: "pre-line" }}>
+              {resolve(def.body)}
+            </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-              {/* Primary — full-width */}
+              {/* Primary */}
               <button onClick={() => handleCTA(def.pMsg, def.pType)}
-                style={{ width: "100%", padding: "11px 16px", background: `linear-gradient(135deg,${accent},${accent}CC)`, border: "none", borderRadius: 10, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, minHeight: 44, boxShadow: `0 3px 10px ${accent}38`, transition: "filter 0.12s" }}
+                style={{ width: "100%", padding: "11px 16px", background: `linear-gradient(135deg,${accent},${accent}CC)`, border: "none", borderRadius: 10, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, minHeight: 44, letterSpacing: -0.1, boxShadow: `0 3px 10px ${accent}32`, transition: "filter 0.12s" }}
                 onPointerDown={e => e.currentTarget.style.filter = "brightness(0.84)"}
                 onPointerUp={e => e.currentTarget.style.filter = ""}
                 onPointerLeave={e => e.currentTarget.style.filter = ""}
               >{resolve(def.p)}</button>
-              {/* Secondary row */}
+              {/* Secondary */}
               <div style={{ display: "flex", gap: 7 }}>
                 <button onClick={() => handleCTA(null, "info")}
-                  style={{ flex: 1, padding: "9px 8px", background: accent + "14", border: `1.5px solid ${accent}40`, borderRadius: 10, color: accent, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 40, transition: "background 0.12s" }}
-                  onPointerDown={e => { e.currentTarget.style.background = accent + "24"; }}
-                  onPointerUp={e => { e.currentTarget.style.background = accent + "14"; }}
-                  onPointerLeave={e => { e.currentTarget.style.background = accent + "14"; }}
+                  style={{ flex: 1, padding: "9px 8px", background: accent + "12", border: `1.5px solid ${accent}38`, borderRadius: 10, color: accent, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 40, transition: "background 0.12s" }}
+                  onPointerDown={e => e.currentTarget.style.background = accent + "22"}
+                  onPointerUp={e => e.currentTarget.style.background = accent + "12"}
+                  onPointerLeave={e => e.currentTarget.style.background = accent + "12"}
                 >{def.s1}</button>
                 <button onClick={() => handleCTA(def.s2Msg || null, "info")}
-                  style={{ flex: 1, padding: "9px 8px", background: "transparent", border: `1.5px solid ${accent}22`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 40, opacity: 0.72, transition: "opacity 0.12s" }}
+                  style={{ flex: 1, padding: "9px 8px", background: "transparent", border: `1.5px solid ${accent}20`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, minHeight: 40, opacity: 0.68, transition: "opacity 0.12s" }}
                   onPointerDown={e => e.currentTarget.style.opacity = "1"}
-                  onPointerUp={e => e.currentTarget.style.opacity = "0.72"}
-                  onPointerLeave={e => e.currentTarget.style.opacity = "0.72"}
+                  onPointerUp={e => e.currentTarget.style.opacity = "0.68"}
+                  onPointerLeave={e => e.currentTarget.style.opacity = "0.68"}
                 >{def.s2}</button>
               </div>
             </div>
