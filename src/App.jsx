@@ -1701,7 +1701,7 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
 
       <InsightCard insight={insight} onAction={onInsightAction} />
 
-      <AIInsightCard summary={summary} transactions={curTxs} onAction={(msg, type) => { if (msg) toast(msg, type); }} />
+      
 
       {catFilter && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: (CAT_COLORS[catFilter] || C.cyan) + "18", borderRadius: 12, border: `1px solid ${(CAT_COLORS[catFilter] || C.cyan)}33` }}>
