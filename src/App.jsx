@@ -29,14 +29,84 @@ function useInsights(screen, userId) {
   };
 }
 
-// ─── AI Brain: InsightCard component ─────────────────────────
-const INSIGHT_COLORS = {
-  cash_risk:           { bg: "#2D1515", border: "#FF5C7A", icon: "⚠️" },
-  category_spike:      { bg: "#2A1F0E", border: "#FFB800", icon: "📈" },
-  overspending:        { bg: "#2A1F0E", border: "#FFB800", icon: "📊" },
-  savings_opportunity: { bg: "#0E2A1A", border: "#12D18E", icon: "💡" },
-  goal_off_track:      { bg: "#1A1A2E", border: "#A78BFA", icon: "🎯" },
-  positive_progress:   { bg: "#0E2A1A", border: "#00C2FF", icon: "✅" },
+// ─── AI Brain: InsightCard ────────────────────────────────────
+
+const INSIGHT_CONFIG = {
+  cash_risk: {
+    bg: "rgba(255,92,122,0.06)",
+    border: "#FF5C7A",
+    accent: "#FF5C7A",
+    label: "Cash Risk",
+    // SVG icon: alert triangle
+    Icon: ({ color }) => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    ),
+  },
+  category_spike: {
+    bg: "rgba(255,184,0,0.06)",
+    border: "#FFB800",
+    accent: "#FFB800",
+    label: "Spending Spike",
+    Icon: ({ color }) => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+        <polyline points="17 6 23 6 23 12"/>
+      </svg>
+    ),
+  },
+  overspending: {
+    bg: "rgba(255,184,0,0.06)",
+    border: "#FFB800",
+    accent: "#FFB800",
+    label: "Over Budget",
+    Icon: ({ color }) => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    ),
+  },
+  savings_opportunity: {
+    bg: "rgba(18,209,142,0.06)",
+    border: "#12D18E",
+    accent: "#12D18E",
+    label: "Smart Suggestion",
+    Icon: ({ color }) => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+        <polyline points="17 6 23 6 23 12"/>
+      </svg>
+    ),
+  },
+  goal_off_track: {
+    bg: "rgba(167,139,250,0.06)",
+    border: "#A78BFA",
+    accent: "#A78BFA",
+    label: "Goal Alert",
+    Icon: ({ color }) => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <circle cx="12" cy="12" r="6"/>
+        <circle cx="12" cy="12" r="2"/>
+      </svg>
+    ),
+  },
+  positive_progress: {
+    bg: "rgba(0,194,255,0.06)",
+    border: "#00C2FF",
+    accent: "#00C2FF",
+    label: "On Track",
+    Icon: ({ color }) => (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+    ),
+  },
 };
 
 function InsightCard({ insight, onAction }) {
@@ -48,34 +118,117 @@ function InsightCard({ insight, onAction }) {
 
   if (!insight) return null;
 
-  const c = INSIGHT_COLORS[insight.type] ?? INSIGHT_COLORS.overspending;
-  const { headline, body, cta, action } = insight.rendered;
+  const cfg = INSIGHT_CONFIG[insight.type] ?? INSIGHT_CONFIG.overspending;
+  const { headline, body, cta, action, range } = insight.rendered;
+  const { accent, border, bg, label } = cfg;
 
   return (
-    <div onClick={() => setExpanded(e => !e)} style={{
-      background: c.bg, border: `1px solid ${c.border}`,
-      borderRadius: 14, padding: "13px 14px", marginBottom: 10, cursor: "pointer",
-      fontFamily: "'Inter', -apple-system, sans-serif",
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 15 }}>{c.icon}</span>
-          <span style={{ color: "#fff", fontWeight: 600, fontSize: 13, letterSpacing: -0.1 }}>{headline}</span>
+    <div
+      onClick={() => setExpanded(e => !e)}
+      style={{
+        background: bg,
+        border: `1px solid ${border}28`,
+        borderRadius: 16,
+        padding: "14px 16px",
+        marginBottom: 10,
+        cursor: "pointer",
+        fontFamily: "'Inter', -apple-system, sans-serif",
+        transition: "border-color 0.2s",
+      }}
+    >
+      {/* Row 1: label + chevron */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{
+            width: 20, height: 20, borderRadius: 6,
+            background: accent + "20",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
+          }}>
+            <cfg.Icon color={accent} />
+          </div>
+          <span style={{
+            fontSize: 10, fontWeight: 700, color: accent,
+            letterSpacing: 0.8, textTransform: "uppercase",
+          }}>
+            {label}
+          </span>
         </div>
-        <span style={{ color: "#4A5E7A", fontSize: 11, flexShrink: 0, marginLeft: 8 }}>{expanded ? "▲" : "▼"}</span>
+        <div style={{
+          width: 20, height: 20, borderRadius: 6,
+          background: "rgba(255,255,255,0.04)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+        }}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#4A5E7A" strokeWidth="2.5" strokeLinecap="round">
+            {expanded
+              ? <polyline points="18 15 12 9 6 15"/>
+              : <polyline points="6 9 12 15 18 9"/>
+            }
+          </svg>
+        </div>
       </div>
+
+      {/* Row 2: headline */}
+      <div style={{
+        fontSize: 17, fontWeight: 700, color: "#FFFFFF",
+        letterSpacing: -0.4, lineHeight: 1.25, marginBottom: expanded ? 10 : 0,
+      }}>
+        {headline}
+      </div>
+
+      {/* Expanded content */}
       {expanded && (
-        <div style={{ marginTop: 10, borderTop: `1px solid ${c.border}22`, paddingTop: 10 }}>
-          <p style={{ color: "rgba(168,198,228,0.82)", fontSize: 12, lineHeight: 1.6, margin: "0 0 12px", whiteSpace: "pre-line" }}>{body}</p>
-          <button onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
-            style={{ width: "100%", padding: "11px 16px", background: `linear-gradient(135deg,${c.border},${c.border}CC)`, border: "none", borderRadius: 10, color: insight.type === "savings_opportunity" ? "#000" : "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif", boxShadow: `0 3px 10px ${c.border}32` }}>
+        <div style={{ borderTop: `1px solid ${border}18`, paddingTop: 10 }}>
+
+          {/* Body */}
+          <p style={{
+            color: "rgba(154,164,178,0.9)",
+            fontSize: 13, lineHeight: 1.6,
+            margin: "0 0 14px",
+          }}>
+            {body}
+          </p>
+
+          {/* CTA button */}
+          <button
+            onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
+            style={{
+              width: "100%",
+              padding: "12px 16px",
+              background: `linear-gradient(135deg, ${accent}, ${accent}BB)`,
+              border: "none",
+              borderRadius: 11,
+              color: insight.type === "savings_opportunity" ? "#051A0F" : "#fff",
+              fontWeight: 700,
+              fontSize: 14,
+              cursor: "pointer",
+              fontFamily: "'Inter', -apple-system, sans-serif",
+              letterSpacing: -0.2,
+              boxShadow: `0 4px 14px ${accent}30`,
+            }}
+          >
             {cta}
           </button>
+
+          {/* Secondary range line */}
+          {range && (
+            <div style={{
+              textAlign: "center",
+              marginTop: 8,
+              fontSize: 11,
+              color: "rgba(74,94,122,0.8)",
+              letterSpacing: 0.1,
+            }}>
+              {range}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
+
 
 const fontLink = document.createElement("link");
 fontLink.rel = "stylesheet";
