@@ -885,7 +885,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
       </div>
 
      {/* 2 ── AI Check-In */}
-      <CheckInCard data={checkInData} onAskAI={() => onNavigate("chat")} />
+      
 
       {/* 2b ── AI Brain Insight */}
       <InsightCard insight={insight} onAction={onInsightAction} />
