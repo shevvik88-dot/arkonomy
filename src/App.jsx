@@ -33,37 +33,36 @@ function useInsights(screen, userId) {
 
 const INSIGHT_CONFIG = {
   cash_risk: {
-    bg: "rgba(255,92,122,0.06)",
+    bg: "rgba(255,92,122,0.04)",
     border: "#FF5C7A",
     accent: "#FF5C7A",
-    label: "Cash Risk",
-    // SVG icon: alert triangle
+    label: "AI Insight",
     Icon: ({ color }) => (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
         <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
       </svg>
     ),
   },
   category_spike: {
-    bg: "rgba(255,184,0,0.06)",
+    bg: "rgba(255,184,0,0.04)",
     border: "#FFB800",
     accent: "#FFB800",
-    label: "Spending Spike",
+    label: "AI Insight",
     Icon: ({ color }) => (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
         <polyline points="17 6 23 6 23 12"/>
       </svg>
     ),
   },
   overspending: {
-    bg: "rgba(255,184,0,0.06)",
+    bg: "rgba(255,184,0,0.04)",
     border: "#FFB800",
     accent: "#FFB800",
-    label: "Over Budget",
+    label: "AI Insight",
     Icon: ({ color }) => (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10"/>
         <line x1="12" y1="8" x2="12" y2="12"/>
         <line x1="12" y1="16" x2="12.01" y2="16"/>
@@ -71,24 +70,24 @@ const INSIGHT_CONFIG = {
     ),
   },
   savings_opportunity: {
-    bg: "rgba(18,209,142,0.06)",
+    bg: "rgba(18,209,142,0.04)",
     border: "#12D18E",
     accent: "#12D18E",
-    label: "Smart Suggestion",
+    label: "AI Insight",
     Icon: ({ color }) => (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-        <polyline points="17 6 23 6 23 12"/>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="12" y1="1" x2="12" y2="23"/>
+        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
       </svg>
     ),
   },
   goal_off_track: {
-    bg: "rgba(167,139,250,0.06)",
+    bg: "rgba(167,139,250,0.04)",
     border: "#A78BFA",
     accent: "#A78BFA",
-    label: "Goal Alert",
+    label: "AI Insight",
     Icon: ({ color }) => (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10"/>
         <circle cx="12" cy="12" r="6"/>
         <circle cx="12" cy="12" r="2"/>
@@ -96,18 +95,126 @@ const INSIGHT_CONFIG = {
     ),
   },
   positive_progress: {
-    bg: "rgba(0,194,255,0.06)",
+    bg: "rgba(0,194,255,0.04)",
     border: "#00C2FF",
     accent: "#00C2FF",
-    label: "On Track",
+    label: "AI Insight",
     Icon: ({ color }) => (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
         <polyline points="22 4 12 14.01 9 11.01"/>
       </svg>
     ),
   },
 };
+
+function InsightCard({ insight, onAction }) {
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (insight?.autoExpand) setExpanded(true);
+  }, [insight?.type]);
+
+  if (!insight) return null;
+
+  const cfg = INSIGHT_CONFIG[insight.type] ?? INSIGHT_CONFIG.overspending;
+  const { headline, body, cta, action, range } = insight.rendered;
+  const { accent, border, bg, label } = cfg;
+
+  return (
+    <div
+      onClick={() => setExpanded(e => !e)}
+      style={{
+        background: bg,
+        border: `1px solid ${border}22`,
+        borderRadius: 16,
+        padding: "14px 16px",
+        marginBottom: 10,
+        cursor: "pointer",
+        fontFamily: "'Inter', -apple-system, sans-serif",
+      }}
+    >
+      {/* Row 1: label + chevron */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <cfg.Icon color={accent + "99"} />
+          <span style={{
+            fontSize: 10, fontWeight: 600,
+            color: accent + "99",
+            letterSpacing: 0.5,
+          }}>
+            {label}
+          </span>
+        </div>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#4A5E7A" strokeWidth="2.5" strokeLinecap="round">
+          {expanded
+            ? <polyline points="18 15 12 9 6 15"/>
+            : <polyline points="6 9 12 15 18 9"/>
+          }
+        </svg>
+      </div>
+
+      {/* Row 2: headline */}
+      <div style={{
+        fontSize: 16, fontWeight: 700, color: "#FFFFFF",
+        letterSpacing: -0.35, lineHeight: 1.3,
+        marginBottom: expanded ? 12 : 0,
+      }}>
+        {headline}
+      </div>
+
+      {/* Expanded content */}
+      {expanded && (
+        <div style={{ borderTop: `1px solid ${border}14`, paddingTop: 12 }}>
+
+          {/* Body */}
+          <p style={{
+            color: "rgba(154,164,178,0.85)",
+            fontSize: 13, lineHeight: 1.6,
+            margin: "0 0 14px",
+          }}>
+            {body}
+          </p>
+
+          {/* CTA button */}
+          <button
+            onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
+            style={{
+              width: "100%",
+              padding: "12px 16px",
+              background: accent,
+              border: "none",
+              borderRadius: 11,
+              color: insight.type === "savings_opportunity" ? "#061A10" : "#fff",
+              fontWeight: 700,
+              fontSize: 14,
+              cursor: "pointer",
+              fontFamily: "'Inter', -apple-system, sans-serif",
+              letterSpacing: -0.2,
+              boxShadow: `0 2px 12px ${accent}28`,
+            }}
+          >
+            {cta}
+          </button>
+
+          {/* Secondary range line */}
+          {range && (
+            <div style={{
+              textAlign: "center",
+              marginTop: 9,
+              fontSize: 11,
+              color: "rgba(74,94,122,0.65)",
+              letterSpacing: 0.1,
+            }}>
+              {range}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function InsightCard({ insight, onAction }) {
   const [expanded, setExpanded] = useState(false);
