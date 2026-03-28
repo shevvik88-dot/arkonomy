@@ -200,18 +200,17 @@ function InsightCard({ insight, onAction }) {
                   ${Number(breakdown.available || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                 </span>
               </div>
-              {/* Row 2: Safe to move */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", minWidth: 110 }}>Safe to move</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: accent }}>
-                  ${Number(breakdown.suggestedSave || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                </span>
-              </div>
-              {/* Row 3: Buffer — indented under value, grouped with Safe to move */}
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: -2 }}>
-                <span style={{ fontSize: 11, color: "rgba(154,164,178,0.62)", letterSpacing: 0.1 }}>
-                  keeps ~${Number(breakdown.bufferAmount || 1000).toLocaleString("en-US", { maximumFractionDigits: 0 })} buffer
-                </span>
+              {/* Row 2+3: Safe to move + buffer grouped */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", minWidth: 110, paddingTop: 1 }}>Safe to move</span>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: accent }}>
+                    ${Number(breakdown.suggestedSave || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                  </span>
+                  <span style={{ fontSize: 11, color: "rgba(154,164,178,0.62)", marginTop: 2, letterSpacing: 0.1 }}>
+                    keeps ~${Number(breakdown.bufferAmount || 1000).toLocaleString("en-US", { maximumFractionDigits: 0 })} buffer
+                  </span>
+                </div>
               </div>
             </div>
           )}
@@ -257,7 +256,7 @@ function InsightCard({ insight, onAction }) {
             </div>
           )}
 
-          {/* Fix 1+6: "or automate it" — 80% opacity, feels actionable not disabled */}
+          {/* S1-2: secondary action — arrow signals clickability, opacity 80% */}
           {isSavings && roundUpPrompt && (
             <div style={{
               marginTop: 6,
@@ -265,8 +264,9 @@ function InsightCard({ insight, onAction }) {
               fontSize: 12,
               color: "rgba(154,164,178,0.80)",
               letterSpacing: 0.1,
+              cursor: "pointer",
             }}>
-              or automate it with round-ups
+              or automate with round-ups →
             </div>
           )}
 
@@ -2267,13 +2267,21 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
 
           {/* Toggle + state label */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{
-              fontSize: 11, fontWeight: 500,
-              color: roundupEnabled ? C.green : C.faint,
-              transition: "color 0.2s",
-            }}>
-              {roundupEnabled ? "Saving automatically" : "Auto-saving is OFF"}
-            </span>
+            <div style={{ textAlign: "right" }}>
+              <div style={{
+                fontSize: 11, fontWeight: 600,
+                color: roundupEnabled ? C.green : C.muted,
+                transition: "color 0.2s",
+                lineHeight: 1.3,
+              }}>
+                {roundupEnabled ? "Saving automatically" : "Auto-saving is OFF"}
+              </div>
+              {!roundupEnabled && (
+                <div style={{ fontSize: 10, color: C.faint, marginTop: 1 }}>
+                  Start saving automatically
+                </div>
+              )}
+            </div>
             <div
               onClick={() => setRoundupEnabled(v => !v)}
               style={{
@@ -2310,13 +2318,16 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
 
         {/* Projection line — строгая логика ON/OFF */}
         <div style={{
-          display: "flex", alignItems: "center", gap: 6,
+          display: "flex", alignItems: "flex-start", gap: 7,
           marginBottom: 12,
           fontSize: 12,
           transition: "opacity 0.2s",
           opacity: 1,
         }}>
-          <span style={{ fontSize: 13 }}>📈</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={roundupEnabled ? "#12D18E" : "#4A5E7A"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+            <polyline points="17 6 23 6 23 12"/>
+          </svg>
           {roundupEnabled ? (
             /* ON state: одна строка */
             <span style={{ color: C.muted }}>
@@ -2331,7 +2342,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
               </span>
               <br />
               <span style={{ fontSize: 11, color: C.faint }}>
-                ≈ ${currentProjYearly}/year automatically, without thinking
+                ≈ ${currentProjYearly}/year automatically, without thinking about it
               </span>
             </span>
           )}
@@ -2410,18 +2421,25 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
       {/* ── EMPTY STATE → 3 quick-goal кнопки ── */}
       {savings.length === 0 ? (
         <GlassCard style={{ padding: "24px 20px", textAlign: "center" }}>
-          {/* Анимированная иконка */}
+          {/* SVG icon — animated float, replaces 🎯 emoji */}
           <div style={{
-            fontSize: 32, marginBottom: 10,
-            display: "inline-block",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 56, height: 56, borderRadius: 18,
+            background: `linear-gradient(135deg, ${C.green}22, ${C.cyan}18)`,
+            border: `1px solid ${C.green}33`,
+            marginBottom: 14,
             animation: "goalFloat 3s ease-in-out infinite",
           }}>
-            🎯
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <circle cx="12" cy="12" r="6"/>
+              <circle cx="12" cy="12" r="2"/>
+            </svg>
           </div>
           <style>{`@keyframes goalFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}`}</style>
 
           <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-            Start your first goal 🚀
+            Start your first goal
           </div>
           <div style={{ fontSize: 13, color: C.muted, marginBottom: 20, lineHeight: 1.5 }}>
             Build your first $1,000.<br />
@@ -2431,13 +2449,12 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
           {/* Quick-action кнопки */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8, textAlign: "left" }}>
 
-            {/* Emergency Fund */}
+            {/* Emergency Fund — shield SVG вместо 🛡️ */}
             <div
               onClick={() => { onAdd({ name: "Emergency Fund", target: 1000, current: 0, icon: "lock", color: C.green }); }}
               style={{
                 display: "flex", justifyContent: "space-between", alignItems: "center",
-                background: C.bgSecondary,
-                border: `1px solid ${C.border}`,
+                background: C.bgSecondary, border: `1px solid ${C.border}`,
                 borderRadius: 12, padding: "13px 14px",
                 cursor: "pointer", transition: "border-color 0.15s, background 0.15s",
               }}
@@ -2445,22 +2462,27 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
               onPointerLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bgSecondary; }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 20 }}>🛡️</span>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: C.green + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                </div>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Emergency Fund</div>
                   <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Target: $1,000</div>
                 </div>
               </div>
-              <span style={{ color: C.faint, fontSize: 16 }}>›</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
             </div>
 
-            {/* Vacation */}
+            {/* Vacation — airplane SVG вместо ✈️ */}
             <div
               onClick={() => { onAdd({ name: "Vacation", target: 2000, current: 0, icon: "target", color: C.cyan }); }}
               style={{
                 display: "flex", justifyContent: "space-between", alignItems: "center",
-                background: C.bgSecondary,
-                border: `1px solid ${C.border}`,
+                background: C.bgSecondary, border: `1px solid ${C.border}`,
                 borderRadius: 12, padding: "13px 14px",
                 cursor: "pointer", transition: "border-color 0.15s, background 0.15s",
               }}
@@ -2468,22 +2490,27 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
               onPointerLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bgSecondary; }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 20 }}>✈️</span>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: C.cyan + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                  </svg>
+                </div>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Vacation</div>
                   <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Target: $2,000</div>
                 </div>
               </div>
-              <span style={{ color: C.faint, fontSize: 16 }}>›</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
             </div>
 
-            {/* Custom goal */}
+            {/* Custom goal — plus SVG вместо ＋ символа */}
             <div
               onClick={() => setShowAdd(true)}
               style={{
-                display: "flex", justifyContent: "center", alignItems: "center", gap: 6,
-                background: C.bgSecondary,
-                border: `1px dashed ${C.border}`,
+                display: "flex", justifyContent: "center", alignItems: "center", gap: 8,
+                background: C.bgSecondary, border: `1px dashed ${C.border}`,
                 borderRadius: 12, padding: "13px 14px",
                 cursor: "pointer", color: C.muted, fontSize: 14, fontWeight: 500,
                 transition: "color 0.15s, border-color 0.15s",
@@ -2491,7 +2518,10 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
               onPointerEnter={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = C.muted; }}
               onPointerLeave={e => { e.currentTarget.style.color = C.muted; e.currentTarget.style.borderColor = C.border; }}
             >
-              ＋ Custom goal
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Custom goal
             </div>
           </div>
         </GlassCard>
@@ -2514,6 +2544,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
     </div>
   );
 }
+
 
 // ─── Chat ─────────────────────────────────────────────────────
 function Chat({ messages, input, setInput, onSend }) {
