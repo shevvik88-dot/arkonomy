@@ -655,9 +655,17 @@ export default function App() {
   const lastMonth = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === prevMonth.getMonth() && d.getFullYear() === prevMonth.getFullYear(); });
 
   const totalSpent = thisMonth.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
-  const totalIncome = thisMonth.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
-  const lastSpent = lastMonth.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
-  const lastIncome = lastMonth.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
+const totalIncome = thisMonth.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
+const lastSpent = lastMonth.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
+const lastIncome = lastMonth.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
+
+// Fallback: если зарплата пришла в конце прошлого месяца — берём её как доход текущего
+const effectiveIncome = totalIncome > 0 ? totalIncome :
+  [...transactions]
+    .filter(t => t.type === "income")
+    .sort((a, b) => new Date(b.date) - new Date(a.date))[0]
+    ? Number([...transactions].filter(t => t.type === "income").sort((a, b) => new Date(b.date) - new Date(a.date))[0].amount)
+    : 0;
 
   const spendingByCategory = {};
   thisMonth.filter(t => t.type === "expense").forEach(t => { const k = t.category_name || "Other"; spendingByCategory[k] = (spendingByCategory[k] || 0) + Number(t.amount); });
@@ -685,7 +693,7 @@ export default function App() {
 
   if (!user) return <AuthScreen onAuth={setUser} />;
 
-  const shared = { transactions, categories, savings, profile, totalSpent, totalIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory };
+  const shared = { transactions, categories, savings, profile, totalSpent, totalIncome: effectiveIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory };
 
   function handleInsightAction(action, _data) {
     if (action === "review_spending" || action === "reduce_category") setScreen("transactions");
@@ -705,7 +713,7 @@ export default function App() {
       metrics: {
         currentBalance: totalIncome - totalSpent,
         currentMonthSpend: totalSpent,
-        currentMonthIncome: totalIncome,
+        currentMonthIncome: effectiveIncome,
         monthlyBudget: Number(profile?.monthly_budget) || 3000,
         budgetUsedPct: Math.round((totalSpent / (Number(profile?.monthly_budget) || 3000)) * 100),
       },
