@@ -1794,19 +1794,18 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
   const now    = new Date();
   const prevMo = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const curTxs  = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === now.getMonth()    && d.getFullYear() === now.getFullYear(); });
-  const prevTxs = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === prevMo.getMonth() && d.getFullYear() === prevMo.getFullYear(); });
-  const summary = calcSummary(curTxs, prevTxs);
+const prevTxs = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === prevMo.getMonth() && d.getFullYear() === prevMo.getFullYear(); });
 
-// Fallback income если зарплата пришла в конце прошлого месяца
-if (summary.income === 0) {
-  const lastIncomeTx = [...transactions]
+// Если в текущем месяце нет income — добавляем последнюю зарплату из предыдущего
+const hasCurrentIncome = curTxs.some(t => t.type === "income");
+const effectiveCurTxs = hasCurrentIncome ? curTxs : (() => {
+  const lastIncome = [...transactions]
     .filter(t => t.type === "income")
     .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-  if (lastIncomeTx) {
-    summary.income = Number(lastIncomeTx.amount);
-    summary.net = summary.income - summary.expense; // ← добавь эту строку
-  }
-}
+  return lastIncome ? [...curTxs, lastIncome] : curTxs;
+})();
+
+const summary = calcSummary(effectiveCurTxs, prevTxs);
 
   let filtered = filter === "all" ? transactions : transactions.filter(t => t.type === filter);
   if (catFilter) filtered = filtered.filter(t => t.category_name === catFilter);
