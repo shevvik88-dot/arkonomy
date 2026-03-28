@@ -207,9 +207,9 @@ function InsightCard({ insight, onAction }) {
                   ${Number(breakdown.suggestedSave || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                 </span>
               </div>
-              {/* Row 3: Buffer explanation — separate line, lower opacity */}
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                <span style={{ fontSize: 11, color: "rgba(154,164,178,0.42)", fontStyle: "italic" }}>
+              {/* Row 3: Buffer — indented under value, grouped with Safe to move */}
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: -2 }}>
+                <span style={{ fontSize: 11, color: "rgba(154,164,178,0.62)", letterSpacing: 0.1 }}>
                   keeps ~${Number(breakdown.bufferAmount || 1000).toLocaleString("en-US", { maximumFractionDigits: 0 })} buffer
                 </span>
               </div>
@@ -219,6 +219,9 @@ function InsightCard({ insight, onAction }) {
           {/* CTA button */}
           <button
             onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
+            onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; e.currentTarget.style.boxShadow = `0 2px 10px ${accent}22`; }}
+            onPointerUp={e => { e.currentTarget.style.transform = "scale(1.03)"; e.currentTarget.style.boxShadow = `0 6px 24px ${accent}44`; setTimeout(() => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 4px 20px ${accent}32`; }, 150); }}
+            onPointerLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 4px 20px ${accent}32`; }}
             style={{
               width: "100%",
               padding: "13px 16px",
@@ -232,9 +235,9 @@ function InsightCard({ insight, onAction }) {
               fontFamily: "'Inter', -apple-system, sans-serif",
               letterSpacing: -0.3,
               boxShadow: `0 4px 20px ${accent}32`,
+              transition: "transform 0.12s ease, box-shadow 0.12s ease",
             }}
           >
-            {/* "Move $950 now →" для savings, иначе обычный CTA */}
             {isSavings && breakdown?.suggestedSave
               ? `Move $${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} now →`
               : cleanCta
@@ -254,16 +257,16 @@ function InsightCard({ insight, onAction }) {
             </div>
           )}
 
-          {/* Fix 4: AI ↔ Round-up connection — "or automate" feels like system extension */}
+          {/* Fix 1+6: "or automate it" — 80% opacity, feels actionable not disabled */}
           {isSavings && roundUpPrompt && (
             <div style={{
-              marginTop: 7,
+              marginTop: 6,
               textAlign: "center",
-              fontSize: 11,
-              color: "rgba(74,94,122,0.45)",
+              fontSize: 12,
+              color: "rgba(154,164,178,0.80)",
               letterSpacing: 0.1,
             }}>
-              or automate this with round-ups
+              or automate it with round-ups
             </div>
           )}
 
@@ -272,6 +275,7 @@ function InsightCard({ insight, onAction }) {
     </div>
   );
 }
+
 
 const fontLink = document.createElement("link");
 fontLink.rel = "stylesheet";
@@ -2327,7 +2331,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
               </span>
               <br />
               <span style={{ fontSize: 11, color: C.faint }}>
-                ≈ ${currentProjYearly}/year automatically
+                ≈ ${currentProjYearly}/year automatically, without thinking
               </span>
             </span>
           )}
@@ -2358,7 +2362,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
           ))}
         </div>
 
-        {/* Fix 3: Inline feedback — ТОЛЬКО когда ON, обновляется мгновенно */}
+        {/* Fix 4: Inline feedback — ТОЛЬКО когда ON, обновляется мгновенно */}
         {roundupEnabled && (
           <div style={{
             marginTop: 10,
