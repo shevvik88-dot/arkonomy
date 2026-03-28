@@ -191,21 +191,26 @@ function InsightCard({ insight, onAction }) {
               marginBottom: 14,
               display: "flex",
               flexDirection: "column",
-              gap: 5,
+              gap: 4,
             }}>
+              {/* Row 1: Available */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)" }}>Available</span>
+                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", minWidth: 110 }}>Available</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "#FFFFFF" }}>
                   ${Number(breakdown.available || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                 </span>
               </div>
+              {/* Row 2: Safe to move */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)" }}>Safe to move</span>
+                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", minWidth: 110 }}>Safe to move</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: accent }}>
                   ${Number(breakdown.suggestedSave || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                  <span style={{ fontWeight: 400, fontSize: 11, color: "rgba(154,164,178,0.55)", marginLeft: 4 }}>
-                    (keeps ~${Number(breakdown.bufferAmount || 1000).toLocaleString("en-US", { maximumFractionDigits: 0 })} buffer)
-                  </span>
+                </span>
+              </div>
+              {/* Row 3: Buffer explanation — separate line, lower opacity */}
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <span style={{ fontSize: 11, color: "rgba(154,164,178,0.42)", fontStyle: "italic" }}>
+                  keeps ~${Number(breakdown.bufferAmount || 1000).toLocaleString("en-US", { maximumFractionDigits: 0 })} buffer
                 </span>
               </div>
             </div>
@@ -229,36 +234,36 @@ function InsightCard({ insight, onAction }) {
               boxShadow: `0 4px 20px ${accent}32`,
             }}
           >
-            {/* "Move $950 now" для savings, иначе обычный CTA */}
+            {/* "Move $950 now →" для savings, иначе обычный CTA */}
             {isSavings && breakdown?.suggestedSave
-              ? `Move $${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} now`
+              ? `Move $${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} now →`
               : cleanCta
             }
           </button>
 
-          {/* Safe range (только для savings) — без дублирующего subtext */}
+          {/* Safe range — reduced opacity, clearly secondary */}
           {range && (
             <div style={{
               textAlign: "center",
-              marginTop: 9,
+              marginTop: 7,
               fontSize: 11,
-              color: "rgba(74,94,122,0.65)",
+              color: "rgba(74,94,122,0.55)",
               letterSpacing: 0.1,
             }}>
-              {/* "Safe range:" вместо "Suggested range:" */}
               {range.replace("Suggested range:", "Safe range:").replace("Flexible:", "Safe range:")}
             </div>
           )}
 
-          {/* Round-up подсказка (вторичная, только когда roundUpPrompt=true) */}
+          {/* Fix 4: AI ↔ Round-up connection — "or automate" feels like system extension */}
           {isSavings && roundUpPrompt && (
             <div style={{
-              marginTop: 8,
+              marginTop: 7,
               textAlign: "center",
               fontSize: 11,
-              color: "rgba(74,94,122,0.5)",
+              color: "rgba(74,94,122,0.45)",
+              letterSpacing: 0.1,
             }}>
-              Turn on auto-saving to build this passively
+              or automate this with round-ups
             </div>
           )}
 
@@ -2304,15 +2309,28 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
           display: "flex", alignItems: "center", gap: 6,
           marginBottom: 12,
           fontSize: 12,
-          color: roundupEnabled ? C.muted : C.faint,
-          opacity: roundupEnabled ? 1 : 0.5,
           transition: "opacity 0.2s",
+          opacity: 1,
         }}>
           <span style={{ fontSize: 13 }}>📈</span>
-          {roundupEnabled
-            ? <span>≈ <strong style={{ color: C.green }}>${currentProjMonthly}/month</strong> → ~${currentProjYearly}/year at current pace</span>
-            : <span>Turn on to start saving <strong style={{ color: C.cyan }}>${currentProjMonthly}/month</strong></span>
-          }
+          {roundupEnabled ? (
+            /* ON state: одна строка */
+            <span style={{ color: C.muted }}>
+              ≈ <strong style={{ color: C.green }}>${currentProjMonthly}/month</strong>
+              {" "}→ ~${currentProjYearly}/year at current pace
+            </span>
+          ) : (
+            /* OFF state: две строки, вторая dimmed */
+            <span>
+              <span style={{ color: C.muted }}>
+                Turn on to start saving <strong style={{ color: C.cyan }}>~${currentProjMonthly}/month</strong>
+              </span>
+              <br />
+              <span style={{ fontSize: 11, color: C.faint }}>
+                ≈ ${currentProjYearly}/year automatically
+              </span>
+            </span>
+          )}
         </div>
 
         {/* Multiplier */}
@@ -2328,7 +2346,11 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
                 background: roundupMultiplier === m ? C.cyan + "22" : "transparent",
                 color: roundupMultiplier === m ? C.cyan : C.muted,
                 cursor: "pointer", fontSize: 13, fontWeight: 700,
-                fontFamily: FONT, transition: "all 0.15s",
+                fontFamily: FONT,
+                /* Fix 3: subtle scale feedback on active */
+                transform: roundupMultiplier === m ? "scale(1.04)" : "scale(1)",
+                boxShadow: roundupMultiplier === m ? `0 0 10px ${C.cyan}33` : "none",
+                transition: "all 0.15s",
               }}
             >
               {m}x
@@ -2336,15 +2358,14 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
           ))}
         </div>
 
-        {/* Inline feedback — показывается ТОЛЬКО когда ON */}
+        {/* Fix 3: Inline feedback — ТОЛЬКО когда ON, обновляется мгновенно */}
         {roundupEnabled && (
           <div style={{
             marginTop: 10,
             fontSize: 12, color: C.muted,
-            minHeight: 18,
           }}>
             At {roundupMultiplier}x you save{" "}
-            <strong style={{ color: C.cyan }}>${currentProjMonthly}/month</strong>
+            <strong style={{ color: C.cyan }}>~${currentProjMonthly}/month</strong>
           </div>
         )}
 
@@ -2399,7 +2420,8 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
             Start your first goal 🚀
           </div>
           <div style={{ fontSize: 13, color: C.muted, marginBottom: 20, lineHeight: 1.5 }}>
-            Build your first $1,000.<br />We'll track it automatically.
+            Build your first $1,000.<br />
+            <span style={{ color: C.faint, fontSize: 12 }}>Start with small automatic savings</span>
           </div>
 
           {/* Quick-action кнопки */}
