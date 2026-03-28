@@ -248,8 +248,8 @@ function InsightCard({ insight, onAction }) {
             <div style={{
               textAlign: "center",
               marginTop: 7,
-              fontSize: 11,
-              color: "rgba(74,94,122,0.55)",
+              fontSize: 12,
+              color: "rgba(154,164,178,0.65)",
               letterSpacing: 0.1,
             }}>
               {range.replace("Suggested range:", "Safe range:").replace("Flexible:", "Safe range:")}
