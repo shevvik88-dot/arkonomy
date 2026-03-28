@@ -118,8 +118,14 @@ function InsightCard({ insight, onAction }) {
   if (!insight) return null;
 
   const cfg = INSIGHT_CONFIG[insight.type] ?? INSIGHT_CONFIG.overspending;
-  const { headline, body, cta, action, range } = insight.rendered;
+  const { headline, body, cta, action, range, breakdown, roundUpPrompt } = insight.rendered;
   const { accent, border, bg, label } = cfg;
+
+  // Очищаем тильду если вдруг пришла со старого сервера
+  const cleanCta      = (cta || "").replace(/~/g, "").trim();
+  const cleanHeadline = (headline || "").replace(/~\$/, "$").trim();
+
+  const isSavings = insight.type === "savings_opportunity";
 
   return (
     <div
@@ -137,7 +143,8 @@ function InsightCard({ insight, onAction }) {
       {/* Row 1: label + chevron */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                    <span style={{
+          <cfg.Icon color={accent} />
+          <span style={{
             fontSize: 10, fontWeight: 600,
             color: accent + "99",
             letterSpacing: 0.5,
@@ -159,7 +166,7 @@ function InsightCard({ insight, onAction }) {
         letterSpacing: -0.35, lineHeight: 1.3,
         marginBottom: expanded ? 12 : 0,
       }}>
-        {headline}
+        {cleanHeadline}
       </div>
 
       {/* Expanded content */}
@@ -170,33 +177,66 @@ function InsightCard({ insight, onAction }) {
           <p style={{
             color: "rgba(154,164,178,0.85)",
             fontSize: 13, lineHeight: 1.6,
-            margin: "0 0 14px",
+            margin: "0 0 12px",
           }}>
             {body}
           </p>
+
+          {/* ── BREAKDOWN БЛОК (только для savings_opportunity) ── */}
+          {isSavings && breakdown && (
+            <div style={{
+              background: "rgba(255,255,255,0.04)",
+              borderRadius: 10,
+              padding: "10px 12px",
+              marginBottom: 14,
+              display: "flex",
+              flexDirection: "column",
+              gap: 5,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)" }}>Available</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#FFFFFF" }}>
+                  ${Number(breakdown.available || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)" }}>Safe to move</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: accent }}>
+                  ${Number(breakdown.suggestedSave || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                  <span style={{ fontWeight: 400, fontSize: 11, color: "rgba(154,164,178,0.55)", marginLeft: 4 }}>
+                    (keeps ~${Number(breakdown.bufferAmount || 1000).toLocaleString("en-US", { maximumFractionDigits: 0 })} buffer)
+                  </span>
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* CTA button */}
           <button
             onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
             style={{
               width: "100%",
-              padding: "12px 16px",
+              padding: "13px 16px",
               background: accent,
               border: "none",
               borderRadius: 11,
               color: insight.type === "savings_opportunity" ? "#061A10" : "#fff",
-              fontWeight: 700,
-              fontSize: 14,
+              fontWeight: 800,
+              fontSize: 15,
               cursor: "pointer",
               fontFamily: "'Inter', -apple-system, sans-serif",
-              letterSpacing: -0.2,
-              boxShadow: `0 2px 12px ${accent}28`,
+              letterSpacing: -0.3,
+              boxShadow: `0 4px 20px ${accent}32`,
             }}
           >
-            {cta}
+            {/* "Move $950 now" для savings, иначе обычный CTA */}
+            {isSavings && breakdown?.suggestedSave
+              ? `Move $${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} now`
+              : cleanCta
+            }
           </button>
 
-          {/* Secondary range line */}
+          {/* Safe range (только для savings) — без дублирующего subtext */}
           {range && (
             <div style={{
               textAlign: "center",
@@ -205,9 +245,23 @@ function InsightCard({ insight, onAction }) {
               color: "rgba(74,94,122,0.65)",
               letterSpacing: 0.1,
             }}>
-              {range}
+              {/* "Safe range:" вместо "Suggested range:" */}
+              {range.replace("Suggested range:", "Safe range:").replace("Flexible:", "Safe range:")}
             </div>
           )}
+
+          {/* Round-up подсказка (вторичная, только когда roundUpPrompt=true) */}
+          {isSavings && roundUpPrompt && (
+            <div style={{
+              marginTop: 8,
+              textAlign: "center",
+              fontSize: 11,
+              color: "rgba(74,94,122,0.5)",
+            }}>
+              Turn on auto-saving to build this passively
+            </div>
+          )}
+
         </div>
       )}
     </div>
@@ -2093,24 +2147,34 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
 
 // ─── Savings ──────────────────────────────────────────────────
 function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, onInsightAction }) {
-  const [showAdd, setShowAdd] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newTarget, setNewTarget] = useState("");
+  const [showAdd, setShowAdd]             = useState(false);
+  const [newName, setNewName]             = useState("");
+  const [newTarget, setNewTarget]         = useState("");
   const [roundupEnabled, setRoundupEnabled] = useState(false);
   const [roundupMultiplier, setRoundupMultiplier] = useState(1);
 
-  const roundupMonth = totalSpent > 0 ? Math.floor(totalSpent * 0.03 * roundupMultiplier * 100) / 100 : 0;
+  // Проекция: базовая сумма roundup в месяц
+  const BASE_MONTHLY = totalSpent > 0 ? Math.floor(totalSpent * 0.03 * 100) / 100 : 26;
+  const roundupMonth = parseFloat((BASE_MONTHLY * roundupMultiplier).toFixed(2));
   const roundupTotal = parseFloat((roundupMonth * 3.2).toFixed(2));
-  const inp = { width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box", marginBottom: 10, fontFamily: FONT };
-  const totalSaved = savings.reduce((s, sv) => s + Number(sv.current), 0);
+  const roundupYearly = Math.round(roundupMonth * 12 / 10) * 10; // округление до $10
+
+  const inp = {
+    width: "100%", padding: "12px 14px", background: C.bg,
+    border: `1px solid ${C.border}`, borderRadius: 12,
+    color: C.text, fontSize: 14, outline: "none",
+    boxSizing: "border-box", marginBottom: 10, fontFamily: FONT,
+  };
+
+  const totalSaved     = savings.reduce((s, sv) => s + Number(sv.current), 0);
   const monthlySurplus = totalIncome - totalSpent;
 
   function getGoalIcon(name) {
     const n = (name || "").toLowerCase();
     if (n.includes("vacat") || n.includes("trip")) return "target";
-    if (n.includes("car") || n.includes("vehicle")) return "car";
-    if (n.includes("house") || n.includes("home")) return "bank";
-    if (n.includes("phone") || n.includes("tech")) return "phone";
+    if (n.includes("car")   || n.includes("vehicle")) return "car";
+    if (n.includes("house") || n.includes("home"))    return "bank";
+    if (n.includes("phone") || n.includes("tech"))    return "phone";
     if (n.includes("emergency") || n.includes("fund")) return "lock";
     return "star";
   }
@@ -2121,22 +2185,41 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
     return Math.ceil(remaining / (monthlySurplus * 0.5));
   }
 
+  // Мультипликатор → проекция (для feedback строки)
+  const projMap = { 1: roundupMonth, 2: roundupMonth * 2, 5: roundupMonth * 5, 10: roundupMonth * 10 };
+  const currentProjMonthly = Math.round(projMap[roundupMultiplier]);
+  const currentProjYearly  = Math.round(currentProjMonthly * 12 / 10) * 10;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h2 style={{ margin: "0 0 2px", fontSize: 26, fontWeight: 700 }}>Savings Goals</h2>
           <div style={{ fontSize: 13, color: C.muted }}>Track your progress</div>
         </div>
-        <button onClick={() => setShowAdd(!showAdd)} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, padding: "9px 16px", color: "#fff", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontFamily: FONT }}>
-          <Icon name="plus" size={14} color="#fff" strokeWidth={2.5} /> Goal
+        <button onClick={() => setShowAdd(!showAdd)} style={{
+          background: C.green, border: "none", borderRadius: 22,
+          padding: "9px 16px", color: "#000", fontWeight: 700,
+          cursor: "pointer", display: "flex", alignItems: "center",
+          gap: 5, fontSize: 14, fontFamily: FONT,
+          boxShadow: `0 0 20px ${C.green}44`,
+        }}>
+          <Icon name="plus" size={14} color="#000" strokeWidth={2.5} /> Goal
         </button>
       </div>
 
+      {/* AI Insight карточка */}
       <InsightCard insight={insight} onAction={onInsightAction} />
 
+      {/* Итого */}
       {(totalSaved > 0 || monthlySurplus > 0) && (
-        <div style={{ background: "linear-gradient(135deg,#0D2A1F,#0B1426)", borderRadius: 20, padding: 20, border: `1px solid ${C.green}30` }}>
+        <div style={{
+          background: "linear-gradient(135deg,#0D2A1F,#0B1426)",
+          borderRadius: 20, padding: 20,
+          border: `1px solid ${C.green}30`,
+        }}>
           <div style={{ display: "flex" }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, letterSpacing: 0.5, marginBottom: 4 }}>TOTAL SAVED</div>
@@ -2144,14 +2227,24 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
             </div>
             <div style={{ flex: 1, paddingLeft: 20, borderLeft: `1px solid ${C.sep}` }}>
               <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, letterSpacing: 0.5, marginBottom: 4 }}>MONTHLY SURPLUS</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: monthlySurplus >= 0 ? C.cyan : C.red }}>${fmt(Math.abs(monthlySurplus), 0)}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: monthlySurplus >= 0 ? C.cyan : C.red }}>
+                ${fmt(Math.abs(monthlySurplus), 0)}
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ background: "linear-gradient(135deg,#0D2233,#0B1426)", borderRadius: 20, padding: 20, border: `1px solid ${C.cyan}30`, position: "relative", overflow: "hidden" }}>
+      {/* ── AUTO ROUND-UP CARD ── */}
+      <div style={{
+        background: "linear-gradient(135deg,#0D2233,#0B1426)",
+        borderRadius: 20, padding: 20,
+        border: `1px solid ${C.cyan}30`,
+        position: "relative", overflow: "hidden",
+      }}>
         <div style={{ position: "absolute", top: -20, right: -20, width: 100, height: 100, borderRadius: "50%", background: C.cyan + "0A", pointerEvents: "none" }} />
+
+        {/* Header row */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 40, height: 40, borderRadius: 12, background: C.cyan + "22", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 12px ${C.cyan}33` }}>
@@ -2162,11 +2255,40 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
               <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Round purchases to nearest $1</div>
             </div>
           </div>
-          <div onClick={() => setRoundupEnabled(v => !v)} style={{ width: 44, height: 26, borderRadius: 99, background: roundupEnabled ? C.cyan + "33" : C.bgTertiary, border: `1px solid ${roundupEnabled ? C.cyan + "66" : C.border}`, position: "relative", cursor: "pointer", transition: "all 0.2s", flexShrink: 0 }}>
-            <div style={{ position: "absolute", top: 3, left: roundupEnabled ? 20 : 3, width: 18, height: 18, borderRadius: 99, background: roundupEnabled ? C.cyan : C.faint, transition: "left 0.2s" }} />
+
+          {/* Toggle + state label */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{
+              fontSize: 11, fontWeight: 500,
+              color: roundupEnabled ? C.green : C.faint,
+              transition: "color 0.2s",
+            }}>
+              {roundupEnabled ? "Saving automatically" : "Auto-saving is OFF"}
+            </span>
+            <div
+              onClick={() => setRoundupEnabled(v => !v)}
+              style={{
+                width: 44, height: 26, borderRadius: 99,
+                background: roundupEnabled ? C.cyan + "33" : C.bgTertiary,
+                border: `1px solid ${roundupEnabled ? C.cyan + "66" : C.border}`,
+                position: "relative", cursor: "pointer",
+                transition: "all 0.22s", flexShrink: 0,
+              }}
+            >
+              <div style={{
+                position: "absolute", top: 3,
+                left: roundupEnabled ? 20 : 3,
+                width: 18, height: 18, borderRadius: 99,
+                background: roundupEnabled ? C.cyan : C.faint,
+                transition: "left 0.2s",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
+              }} />
+            </div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 0, marginBottom: 14 }}>
+
+        {/* Stats */}
+        <div style={{ display: "flex", gap: 0, marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${C.sep}` }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, letterSpacing: 0.5, marginBottom: 3 }}>THIS MONTH</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: C.cyan }}>${fmt(roundupMonth, 2)}</div>
@@ -2176,46 +2298,193 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
             <div style={{ fontSize: 20, fontWeight: 800, color: C.green }}>${fmt(roundupTotal, 2)}</div>
           </div>
         </div>
+
+        {/* Projection line — строгая логика ON/OFF */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6,
+          marginBottom: 12,
+          fontSize: 12,
+          color: roundupEnabled ? C.muted : C.faint,
+          opacity: roundupEnabled ? 1 : 0.5,
+          transition: "opacity 0.2s",
+        }}>
+          <span style={{ fontSize: 13 }}>📈</span>
+          {roundupEnabled
+            ? <span>≈ <strong style={{ color: C.green }}>${currentProjMonthly}/month</strong> → ~${currentProjYearly}/year at current pace</span>
+            : <span>Turn on to start saving <strong style={{ color: C.cyan }}>${currentProjMonthly}/month</strong></span>
+          }
+        </div>
+
+        {/* Multiplier */}
         <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Multiplier</div>
         <div style={{ display: "flex", gap: 6 }}>
           {[1, 2, 5, 10].map(m => (
-            <button key={m} onClick={() => setRoundupMultiplier(m)} style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${roundupMultiplier === m ? C.cyan : C.border}`, background: roundupMultiplier === m ? C.cyan + "22" : "transparent", color: roundupMultiplier === m ? C.cyan : C.muted, cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: FONT }}>{m}x</button>
+            <button
+              key={m}
+              onClick={() => setRoundupMultiplier(m)}
+              style={{
+                flex: 1, padding: "8px 0", borderRadius: 10,
+                border: `1px solid ${roundupMultiplier === m ? C.cyan : C.border}`,
+                background: roundupMultiplier === m ? C.cyan + "22" : "transparent",
+                color: roundupMultiplier === m ? C.cyan : C.muted,
+                cursor: "pointer", fontSize: 13, fontWeight: 700,
+                fontFamily: FONT, transition: "all 0.15s",
+              }}
+            >
+              {m}x
+            </button>
           ))}
         </div>
+
+        {/* Inline feedback — показывается ТОЛЬКО когда ON */}
         {roundupEnabled && (
-          <div style={{ marginTop: 12, padding: "10px 14px", background: C.cyan + "10", borderRadius: 12, border: `1px solid ${C.cyan}20` }}>
-            <div style={{ fontSize: 12, color: C.cyan, fontWeight: 500 }}>Active — rounding up every purchase {roundupMultiplier}x. Savings go to your top goal automatically.</div>
+          <div style={{
+            marginTop: 10,
+            fontSize: 12, color: C.muted,
+            minHeight: 18,
+          }}>
+            At {roundupMultiplier}x you save{" "}
+            <strong style={{ color: C.cyan }}>${currentProjMonthly}/month</strong>
+          </div>
+        )}
+
+        {/* Active status banner */}
+        {roundupEnabled && (
+          <div style={{
+            marginTop: 12, padding: "10px 14px",
+            background: C.cyan + "10",
+            borderRadius: 12,
+            border: `1px solid ${C.cyan}20`,
+          }}>
+            <div style={{ fontSize: 12, color: C.cyan, fontWeight: 500 }}>
+              Active — rounding up every purchase {roundupMultiplier}x. Savings go to your top goal automatically.
+            </div>
           </div>
         )}
       </div>
 
+      {/* Add goal form */}
       {showAdd && (
         <GlassCard>
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>New Savings Goal</div>
           <input style={inp} placeholder="Goal name (e.g. Vacation, Emergency Fund)" value={newName} onChange={e => setNewName(e.target.value)} />
           <input style={inp} type="number" placeholder="Target amount ($)" value={newTarget} onChange={e => setNewTarget(e.target.value)} />
-          <button onClick={() => { if (!newName || !newTarget) return; onAdd({ name: newName, target: parseFloat(newTarget), current: 0, icon: "star", color: C.green }); setShowAdd(false); setNewName(""); setNewTarget(""); }}
-            style={{ width: "100%", padding: 13, background: `linear-gradient(90deg,${C.green},#00A67E)`, border: "none", borderRadius: 12, color: C.bg, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+          <button
+            onClick={() => {
+              if (!newName || !newTarget) return;
+              onAdd({ name: newName, target: parseFloat(newTarget), current: 0, icon: "star", color: C.green });
+              setShowAdd(false); setNewName(""); setNewTarget("");
+            }}
+            style={{ width: "100%", padding: 13, background: `linear-gradient(90deg,${C.green},#00A67E)`, border: "none", borderRadius: 12, color: C.bg, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}
+          >
             Create Goal
           </button>
         </GlassCard>
       )}
 
+      {/* ── EMPTY STATE → 3 quick-goal кнопки ── */}
       {savings.length === 0 ? (
-        <GlassCard style={{ textAlign: "center", padding: "40px 20px" }}>
-          <div style={{ width: 56, height: 56, borderRadius: 18, background: C.bgTertiary, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-            <Icon name="target" size={24} color={C.faint} />
+        <GlassCard style={{ padding: "24px 20px", textAlign: "center" }}>
+          {/* Анимированная иконка */}
+          <div style={{
+            fontSize: 32, marginBottom: 10,
+            display: "inline-block",
+            animation: "goalFloat 3s ease-in-out infinite",
+          }}>
+            🎯
           </div>
-          <div style={{ color: C.text, fontWeight: 600, fontSize: 16, marginBottom: 6 }}>No savings goals yet</div>
-          <div style={{ color: C.muted, fontSize: 13 }}>Tap "+ Goal" to start tracking</div>
+          <style>{`@keyframes goalFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}`}</style>
+
+          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
+            Start your first goal 🚀
+          </div>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 20, lineHeight: 1.5 }}>
+            Build your first $1,000.<br />We'll track it automatically.
+          </div>
+
+          {/* Quick-action кнопки */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, textAlign: "left" }}>
+
+            {/* Emergency Fund */}
+            <div
+              onClick={() => { onAdd({ name: "Emergency Fund", target: 1000, current: 0, icon: "lock", color: C.green }); }}
+              style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                background: C.bgSecondary,
+                border: `1px solid ${C.border}`,
+                borderRadius: 12, padding: "13px 14px",
+                cursor: "pointer", transition: "border-color 0.15s, background 0.15s",
+              }}
+              onPointerEnter={e => { e.currentTarget.style.borderColor = C.green + "55"; e.currentTarget.style.background = C.green + "08"; }}
+              onPointerLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bgSecondary; }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 20 }}>🛡️</span>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Emergency Fund</div>
+                  <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Target: $1,000</div>
+                </div>
+              </div>
+              <span style={{ color: C.faint, fontSize: 16 }}>›</span>
+            </div>
+
+            {/* Vacation */}
+            <div
+              onClick={() => { onAdd({ name: "Vacation", target: 2000, current: 0, icon: "target", color: C.cyan }); }}
+              style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                background: C.bgSecondary,
+                border: `1px solid ${C.border}`,
+                borderRadius: 12, padding: "13px 14px",
+                cursor: "pointer", transition: "border-color 0.15s, background 0.15s",
+              }}
+              onPointerEnter={e => { e.currentTarget.style.borderColor = C.cyan + "55"; e.currentTarget.style.background = C.cyan + "08"; }}
+              onPointerLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bgSecondary; }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 20 }}>✈️</span>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Vacation</div>
+                  <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Target: $2,000</div>
+                </div>
+              </div>
+              <span style={{ color: C.faint, fontSize: 16 }}>›</span>
+            </div>
+
+            {/* Custom goal */}
+            <div
+              onClick={() => setShowAdd(true)}
+              style={{
+                display: "flex", justifyContent: "center", alignItems: "center", gap: 6,
+                background: C.bgSecondary,
+                border: `1px dashed ${C.border}`,
+                borderRadius: 12, padding: "13px 14px",
+                cursor: "pointer", color: C.muted, fontSize: 14, fontWeight: 500,
+                transition: "color 0.15s, border-color 0.15s",
+              }}
+              onPointerEnter={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = C.muted; }}
+              onPointerLeave={e => { e.currentTarget.style.color = C.muted; e.currentTarget.style.borderColor = C.border; }}
+            >
+              ＋ Custom goal
+            </div>
+          </div>
         </GlassCard>
-      ) : savings.map(sv => {
-        const pct = sv.target > 0 ? Math.min((Number(sv.current) / Number(sv.target)) * 100, 100) : 0;
-        const goalColor = sv.color || C.green;
-        const remaining = Math.max(Number(sv.target) - Number(sv.current), 0);
-        const months = monthsToGoal(sv);
-        return <SavingsGoalCard key={sv.id} sv={sv} pct={pct} goalColor={goalColor} remaining={remaining} months={months} onUpdate={onUpdate} getGoalIcon={getGoalIcon} />;
-      })}
+      ) : (
+        savings.map(sv => {
+          const pct       = sv.target > 0 ? Math.min((Number(sv.current) / Number(sv.target)) * 100, 100) : 0;
+          const goalColor = sv.color || C.green;
+          const remaining = Math.max(Number(sv.target) - Number(sv.current), 0);
+          const months    = monthsToGoal(sv);
+          return (
+            <SavingsGoalCard
+              key={sv.id}
+              sv={sv} pct={pct} goalColor={goalColor}
+              remaining={remaining} months={months}
+              onUpdate={onUpdate} getGoalIcon={getGoalIcon}
+            />
+          );
+        })
+      )}
     </div>
   );
 }
