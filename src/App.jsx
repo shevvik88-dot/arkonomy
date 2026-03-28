@@ -1802,7 +1802,10 @@ if (summary.income === 0) {
   const lastIncomeTx = [...transactions]
     .filter(t => t.type === "income")
     .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-  if (lastIncomeTx) summary.income = Number(lastIncomeTx.amount);
+  if (lastIncomeTx) {
+    summary.income = Number(lastIncomeTx.amount);
+    summary.net = summary.income - summary.expense; // ← добавь эту строку
+  }
 }
 
   let filtered = filter === "all" ? transactions : transactions.filter(t => t.type === filter);
