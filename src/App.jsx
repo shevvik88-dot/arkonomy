@@ -1797,6 +1797,14 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
   const prevTxs = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === prevMo.getMonth() && d.getFullYear() === prevMo.getFullYear(); });
   const summary = calcSummary(curTxs, prevTxs);
 
+// Fallback income если зарплата пришла в конце прошлого месяца
+if (summary.income === 0) {
+  const lastIncomeTx = [...transactions]
+    .filter(t => t.type === "income")
+    .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+  if (lastIncomeTx) summary.income = Number(lastIncomeTx.amount);
+}
+
   let filtered = filter === "all" ? transactions : transactions.filter(t => t.type === filter);
   if (catFilter) filtered = filtered.filter(t => t.category_name === catFilter);
 
