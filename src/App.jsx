@@ -278,7 +278,6 @@ function InsightCard({ insight, onAction }) {
 
 
 
-
 const fontLink = document.createElement("link");
 fontLink.rel = "stylesheet";
 fontLink.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap";
@@ -2151,14 +2150,14 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
           onPointerLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
         >
           Add ${aiContribution} now
-          {/* S4: "Recommended" pill */}
+          {/* S3: "Recommended • Keeps your buffer safe" */}
           <span style={{
-            fontSize: 10, fontWeight: 700,
-            background: "rgba(255,255,255,0.22)",
+            fontSize: 10, fontWeight: 600,
+            background: "rgba(255,255,255,0.20)",
             borderRadius: 20, padding: "2px 8px",
-            letterSpacing: 0.3,
+            letterSpacing: 0.2, whiteSpace: "nowrap",
           }}>
-            Recommended
+            Recommended · Keeps your buffer safe
           </span>
         </button>
       )}
@@ -2396,7 +2395,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
               </span>
               <br />
               <span style={{ fontSize: 11, color: C.faint }}>
-                ≈ ${currentProjYearly}/year automatically, without thinking about it
+                ≈ ${currentProjYearly}/year automatically, without noticing
               </span>
             </span>
           )}
