@@ -277,6 +277,7 @@ function InsightCard({ insight, onAction }) {
 }
 
 
+
 const fontLink = document.createElement("link");
 fontLink.rel = "stylesheet";
 fontLink.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap";
@@ -2073,9 +2074,22 @@ function AddTransactionModal({ categories, onAdd, onClose, existing }) {
 }
 
 // ─── Savings Goal Card ────────────────────────────────────────
-function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getGoalIcon }) {
+function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getGoalIcon, insight }) {
   const [mode, setMode] = useState(null);
   const [customAmt, setCustomAmt] = useState("");
+
+  // S4: extract recommended contribution from AI insight if it's for this goal
+  const aiContribution = (() => {
+    if (!insight || insight.type !== 'goal_off_track') return null;
+    if (insight.data?.goalId !== sv.id) return null;
+    return insight.rendered?.contribution?.recommended ?? null;
+  })();
+
+  // Preset buttons — reorder so AI recommendation comes first
+  const presets = [10, 25, 50, 100];
+  const aiAmt = aiContribution && !presets.includes(aiContribution) ? aiContribution : null;
+  // If AI suggests something not in presets, prepend it; otherwise just highlight matching preset
+  const displayPresets = aiAmt ? [aiAmt, ...presets] : presets;
 
   function confirm() {
     const val = parseFloat(customAmt);
@@ -2093,6 +2107,8 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
   return (
     <GlassCard>
       <style>{`input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}input[type=number]{-moz-appearance:textfield}`}</style>
+
+      {/* Goal header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <div style={{ width: 44, height: 44, borderRadius: 14, background: goalColor + "22", border: `1px solid ${goalColor}44`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 12px ${goalColor}33` }}>
@@ -2110,6 +2126,8 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
           <span style={{ color: goalColor, fontWeight: 700, fontSize: 13 }}>{pct.toFixed(0)}%</span>
         </div>
       </div>
+
+      {/* Progress bar */}
       <div style={{ height: 10, background: C.bgTertiary, borderRadius: 99, marginBottom: 8, overflow: "hidden" }}>
         <div style={{ height: 10, borderRadius: 99, width: `${pct}%`, background: `linear-gradient(90deg,${goalColor},${goalColor}BB)`, transition: "width 0.6s", boxShadow: `0 0 12px ${goalColor}55` }} />
       </div>
@@ -2117,14 +2135,48 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
         <span style={{ color: C.text, fontWeight: 600 }}>${fmt(sv.current, 0)} saved</span>
         <span style={{ color: C.muted }}>${fmt(remaining, 0)} remaining</span>
       </div>
+
+      {/* S4: Quick deposit buttons — AI-recommended amount highlighted */}
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-        {[10, 25, 50, 100].map(amt => (
-          <button key={amt} onClick={() => onUpdate(sv.id, Number(sv.current) + amt)}
-            style={{ flex: 1, padding: "8px 0", background: goalColor + "15", border: `1px solid ${goalColor}40`, borderRadius: 10, color: goalColor, cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: FONT }}>
-            +${amt}
-          </button>
-        ))}
+        {displayPresets.map(amt => {
+          const isAiRecommended = aiContribution !== null && amt === aiContribution;
+          return (
+            <button
+              key={amt}
+              onClick={() => onUpdate(sv.id, Number(sv.current) + amt)}
+              style={{
+                flex: 1, padding: "8px 0",
+                // S4: AI-recommended button gets accent border + glow
+                background: isAiRecommended ? goalColor + "28" : goalColor + "15",
+                border: isAiRecommended
+                  ? `1.5px solid ${goalColor}88`
+                  : `1px solid ${goalColor}40`,
+                borderRadius: 10,
+                color: isAiRecommended ? goalColor : goalColor + "CC",
+                cursor: "pointer", fontSize: 12, fontWeight: isAiRecommended ? 700 : 600,
+                fontFamily: FONT,
+                boxShadow: isAiRecommended ? `0 0 8px ${goalColor}33` : "none",
+                transition: "all 0.15s",
+                position: "relative",
+              }}
+            >
+              +${amt}
+              {/* S4: subtle "AI" dot on recommended button */}
+              {isAiRecommended && (
+                <span style={{
+                  position: "absolute", top: -4, right: -4,
+                  width: 8, height: 8, borderRadius: "50%",
+                  background: goalColor,
+                  border: `1.5px solid ${C.card}`,
+                  boxShadow: `0 0 4px ${goalColor}`,
+                }} />
+              )}
+            </button>
+          );
+        })}
       </div>
+
+      {/* Deposit / Withdraw buttons */}
       <div style={{ display: "flex", gap: 8, marginBottom: mode ? 10 : 0 }}>
         <button onClick={() => { setMode(mode === "deposit" ? null : "deposit"); setCustomAmt(""); }}
           style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${mode === "deposit" ? C.green : C.border}`, background: mode === "deposit" ? C.green + "20" : C.bgTertiary, color: mode === "deposit" ? C.green : C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
@@ -2135,6 +2187,8 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
           <Icon name="trending-down" size={14} color={mode === "withdraw" ? C.red : C.muted} strokeWidth={2.5} /> Withdraw
         </button>
       </div>
+
+      {/* Custom amount input */}
       {mode && (
         <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
           <div style={{ flex: 1, position: "relative" }}>
@@ -2153,6 +2207,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
     </GlassCard>
   );
 }
+
 
 // ─── Savings ──────────────────────────────────────────────────
 function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, onInsightAction }) {
@@ -2529,6 +2584,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
               sv={sv} pct={pct} goalColor={goalColor}
               remaining={remaining} months={months}
               onUpdate={onUpdate} getGoalIcon={getGoalIcon}
+              insight={insight}
             />
           );
         })
