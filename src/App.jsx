@@ -200,17 +200,17 @@ function InsightCard({ insight, onAction }) {
                   ${Number(breakdown.available || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                 </span>
               </div>
-              {/* Row 2+3: Safe to move + buffer grouped */}
+              {/* Row 2+3: Safe to move + buffer — buffer indented under label */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", minWidth: 110, paddingTop: 1 }}>Safe to move</span>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: accent }}>
-                    ${Number(breakdown.suggestedSave || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                  </span>
-                  <span style={{ fontSize: 11, color: "rgba(154,164,178,0.62)", marginTop: 2, letterSpacing: 0.1 }}>
+                <div>
+                  <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", display: "block", paddingTop: 1 }}>Safe to move</span>
+                  <span style={{ fontSize: 11, color: "rgba(154,164,178,0.60)", display: "block", marginTop: 3, paddingLeft: 2 }}>
                     keeps ~${Number(breakdown.bufferAmount || 1000).toLocaleString("en-US", { maximumFractionDigits: 0 })} buffer
                   </span>
                 </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: accent, paddingTop: 1 }}>
+                  ${Number(breakdown.suggestedSave || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                </span>
               </div>
             </div>
           )}
@@ -243,20 +243,20 @@ function InsightCard({ insight, onAction }) {
             }
           </button>
 
-          {/* Safe range — reduced opacity, clearly secondary */}
+          {/* S5: Safe range — secondary, 60% opacity, small */}
           {range && (
             <div style={{
               textAlign: "center",
               marginTop: 7,
-              fontSize: 12,
-              color: "rgba(154,164,178,0.65)",
+              fontSize: 11,
+              color: "rgba(154,164,178,0.60)",
               letterSpacing: 0.1,
             }}>
               {range.replace("Suggested range:", "Safe range:").replace("Flexible:", "Safe range:")}
             </div>
           )}
 
-          {/* S1-2: secondary action — arrow signals clickability, opacity 80% */}
+          {/* S3: secondary action — refers clearly to the money action */}
           {isSavings && roundUpPrompt && (
             <div style={{
               marginTop: 6,
@@ -266,7 +266,7 @@ function InsightCard({ insight, onAction }) {
               letterSpacing: 0.1,
               cursor: "pointer",
             }}>
-              or automate with round-ups →
+              or automate this with round-ups →
             </div>
           )}
 
@@ -2254,53 +2254,44 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
         <div style={{ position: "absolute", top: -20, right: -20, width: 100, height: 100, borderRadius: "50%", background: C.cyan + "0A", pointerEvents: "none" }} />
 
         {/* Header row */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: C.cyan + "22", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 12px ${C.cyan}33` }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: C.cyan + "22", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 8px ${C.cyan}22` }}>
               <Icon name="zap" size={18} color={C.cyan} />
             </div>
             <div>
               <div style={{ fontWeight: 700, fontSize: 15 }}>Auto Round-up</div>
-              <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Round purchases to nearest $1</div>
-            </div>
-          </div>
-
-          {/* Toggle + state label */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ textAlign: "right" }}>
-              <div style={{
-                fontSize: 11, fontWeight: 600,
-                color: roundupEnabled ? C.green : C.muted,
-                transition: "color 0.2s",
-                lineHeight: 1.3,
-              }}>
-                {roundupEnabled ? "Saving automatically" : "Auto-saving is OFF"}
-              </div>
-              {!roundupEnabled && (
-                <div style={{ fontSize: 10, color: C.faint, marginTop: 1 }}>
-                  Start saving automatically
+              {/* S1: state text lives under title on left — not near toggle */}
+              {roundupEnabled ? (
+                <div style={{ fontSize: 12, color: C.green, marginTop: 2, fontWeight: 500 }}>Saving automatically</div>
+              ) : (
+                <div style={{ marginTop: 2 }}>
+                  <div style={{ fontSize: 12, color: C.muted, fontWeight: 500 }}>Auto-saving is OFF</div>
+                  <div style={{ fontSize: 11, color: C.faint, marginTop: 1, opacity: 0.7 }}>Start saving automatically</div>
                 </div>
               )}
             </div>
-            <div
-              onClick={() => setRoundupEnabled(v => !v)}
-              style={{
-                width: 44, height: 26, borderRadius: 99,
-                background: roundupEnabled ? C.cyan + "33" : C.bgTertiary,
-                border: `1px solid ${roundupEnabled ? C.cyan + "66" : C.border}`,
-                position: "relative", cursor: "pointer",
-                transition: "all 0.22s", flexShrink: 0,
-              }}
-            >
-              <div style={{
-                position: "absolute", top: 3,
-                left: roundupEnabled ? 20 : 3,
-                width: 18, height: 18, borderRadius: 99,
-                background: roundupEnabled ? C.cyan : C.faint,
-                transition: "left 0.2s",
-                boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
-              }} />
-            </div>
+          </div>
+
+          {/* Toggle only — no text next to it */}
+          <div
+            onClick={() => setRoundupEnabled(v => !v)}
+            style={{
+              width: 44, height: 26, borderRadius: 99,
+              background: roundupEnabled ? C.cyan + "33" : C.bgTertiary,
+              border: `1px solid ${roundupEnabled ? C.cyan + "66" : C.border}`,
+              position: "relative", cursor: "pointer",
+              transition: "all 0.22s", flexShrink: 0,
+            }}
+          >
+            <div style={{
+              position: "absolute", top: 3,
+              left: roundupEnabled ? 20 : 3,
+              width: 18, height: 18, borderRadius: 99,
+              background: roundupEnabled ? C.cyan : C.faint,
+              transition: "left 0.2s",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
+            }} />
           </div>
         </div>
 
@@ -2373,16 +2364,17 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
           ))}
         </div>
 
-        {/* Fix 4: Inline feedback — ТОЛЬКО когда ON, обновляется мгновенно */}
-        {roundupEnabled && (
-          <div style={{
-            marginTop: 10,
-            fontSize: 12, color: C.muted,
-          }}>
-            At {roundupMultiplier}x you save{" "}
-            <strong style={{ color: C.cyan }}>~${currentProjMonthly}/month</strong>
-          </div>
-        )}
+        {/* S2: Multiplier feedback — always visible, updates instantly on tap */}
+        <div style={{
+          marginTop: 10,
+          fontSize: 12, color: C.muted,
+          minHeight: 18,
+        }}>
+          {roundupEnabled
+            ? <>At {roundupMultiplier}x you save <strong style={{ color: C.cyan }}>~${currentProjMonthly}/month</strong></>
+            : <>At {roundupMultiplier}x you'd save <strong style={{ color: "rgba(154,164,178,0.55)" }}>~${currentProjMonthly}/month</strong></>
+          }
+        </div>
 
         {/* Active status banner */}
         {roundupEnabled && (
@@ -2421,16 +2413,16 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
       {/* ── EMPTY STATE → 3 quick-goal кнопки ── */}
       {savings.length === 0 ? (
         <GlassCard style={{ padding: "24px 20px", textAlign: "center" }}>
-          {/* SVG icon — animated float, replaces 🎯 emoji */}
+          {/* S6: Goal icon — lighter, consistent stroke, no gradient border */}
           <div style={{
             display: "inline-flex", alignItems: "center", justifyContent: "center",
-            width: 56, height: 56, borderRadius: 18,
-            background: `linear-gradient(135deg, ${C.green}22, ${C.cyan}18)`,
-            border: `1px solid ${C.green}33`,
+            width: 52, height: 52, borderRadius: 16,
+            background: C.green + "14",
+            border: `1px solid ${C.green}22`,
             marginBottom: 14,
             animation: "goalFloat 3s ease-in-out infinite",
           }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/>
               <circle cx="12" cy="12" r="6"/>
               <circle cx="12" cy="12" r="2"/>
