@@ -215,22 +215,17 @@ function InsightCard({ insight, onAction }) {
             </div>
           )}
 
-          {/* CTA button */}
+          {/* S3: PRIMARY action — goal */}
           <button
             onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
             onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; e.currentTarget.style.boxShadow = `0 2px 10px ${accent}22`; }}
             onPointerUp={e => { e.currentTarget.style.transform = "scale(1.03)"; e.currentTarget.style.boxShadow = `0 6px 24px ${accent}44`; setTimeout(() => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 4px 20px ${accent}32`; }, 150); }}
             onPointerLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 4px 20px ${accent}32`; }}
             style={{
-              width: "100%",
-              padding: "13px 16px",
-              background: accent,
-              border: "none",
-              borderRadius: 11,
+              width: "100%", padding: "13px 16px",
+              background: accent, border: "none", borderRadius: 11,
               color: insight.type === "savings_opportunity" ? "#061A10" : "#fff",
-              fontWeight: 800,
-              fontSize: 15,
-              cursor: "pointer",
+              fontWeight: 800, fontSize: 15, cursor: "pointer",
               fontFamily: "'Inter', -apple-system, sans-serif",
               letterSpacing: -0.3,
               boxShadow: `0 4px 20px ${accent}32`,
@@ -238,33 +233,51 @@ function InsightCard({ insight, onAction }) {
             }}
           >
             {isSavings && breakdown?.suggestedSave
-              ? `Move $${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} now →`
+              ? `Add $${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} to savings →`
               : cleanCta
             }
           </button>
 
-          {/* S5: Safe range — secondary, 60% opacity, small */}
+          {/* Safe range */}
           {range && (
             <div style={{
-              textAlign: "center",
-              marginTop: 7,
-              fontSize: 11,
-              color: "rgba(154,164,178,0.60)",
-              letterSpacing: 0.1,
+              textAlign: "center", marginTop: 7, fontSize: 11,
+              color: "rgba(154,164,178,0.60)", letterSpacing: 0.1,
             }}>
               {range.replace("Suggested range:", "Safe range:").replace("Flexible:", "Safe range:")}
             </div>
           )}
 
-          {/* S3: secondary action — refers clearly to the money action */}
-          {isSavings && roundUpPrompt && (
+          {/* S3: SECONDARY action — Invest spare change via Alpaca (when round-up data exists) */}
+          {isSavings && insight.data?.roundUpMonthly > 0 && (
+            <button
+              onClick={e => { e.stopPropagation(); onAction?.("invest_alpaca", insight.data); }}
+              style={{
+                width: "100%", marginTop: 8, padding: "11px 16px",
+                background: "rgba(75,108,183,0.15)",
+                border: "1px solid rgba(75,108,183,0.35)",
+                borderRadius: 11, color: "#8BA7E8",
+                fontWeight: 600, fontSize: 13,
+                cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif",
+                letterSpacing: -0.1,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                transition: "background 0.15s",
+              }}
+              onPointerEnter={e => { e.currentTarget.style.background = "rgba(75,108,183,0.25)"; }}
+              onPointerLeave={e => { e.currentTarget.style.background = "rgba(75,108,183,0.15)"; }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+              Invest ${Math.floor(insight.data.roundUpMonthly)} in spare change via Alpaca
+            </button>
+          )}
+
+          {/* Fallback: automate nudge when no round-up data */}
+          {isSavings && roundUpPrompt && !(insight.data?.roundUpMonthly > 0) && (
             <div style={{
-              marginTop: 6,
-              textAlign: "center",
-              fontSize: 12,
-              color: "rgba(154,164,178,0.80)",
-              letterSpacing: 0.1,
-              cursor: "pointer",
+              marginTop: 6, textAlign: "center", fontSize: 12,
+              color: "rgba(154,164,178,0.80)", letterSpacing: 0.1, cursor: "pointer",
             }}>
               or automate this with round-ups →
             </div>
@@ -275,6 +288,7 @@ function InsightCard({ insight, onAction }) {
     </div>
   );
 }
+
 
 
 
@@ -764,6 +778,7 @@ const effectiveIncome = totalIncome > 0 ? totalIncome :
     if (action === "move_to_savings" || action === "catch_up_goal")   setScreen("savings");
     if (action === "view_progress")                                    setScreen("insights");
     if (action === "view_bills")                                       setScreen("transactions");
+    if (action === "invest_alpaca") setScreen("savings"); // или открыть Alpaca sheet напрямую
   }
 
   async function sendChat(input) {
@@ -2216,6 +2231,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
 }
 
 
+
 // ─── Savings ──────────────────────────────────────────────────
 function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, onInsightAction }) {
   const [showAdd, setShowAdd]             = useState(false);
@@ -2223,6 +2239,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
   const [newTarget, setNewTarget]         = useState("");
   const [roundupEnabled, setRoundupEnabled] = useState(false);
   const [roundupMultiplier, setRoundupMultiplier] = useState(1);
+  const [showAlpacaSheet, setShowAlpacaSheet] = useState(false); // S8: Alpaca confirm
 
   // Проекция: базовая сумма roundup в месяц
   const BASE_MONTHLY = totalSpent > 0 ? Math.floor(totalSpent * 0.03 * 100) / 100 : 26;
@@ -2306,7 +2323,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
         </div>
       )}
 
-      {/* ── AUTO ROUND-UP CARD ── */}
+      {/* ── SPARE CHANGE CARD (was: Auto Round-up) ── */}
       <div style={{
         background: "linear-gradient(135deg,#0D2233,#0B1426)",
         borderRadius: 20, padding: 20,
@@ -2319,23 +2336,27 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 40, height: 40, borderRadius: 12, background: C.cyan + "22", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 8px ${C.cyan}22` }}>
-              <Icon name="zap" size={18} color={C.cyan} />
+              {/* coin/spare change icon */}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v2m0 8v2M9.5 9.5C9.5 8.1 10.6 7 12 7s2.5 1.1 2.5 2.5c0 2.5-5 2.5-5 5C9.5 15.9 10.6 17 12 17s2.5-1.1 2.5-2.5"/>
+              </svg>
             </div>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>Auto Round-up</div>
-              {/* S1: state text lives under title on left — not near toggle */}
+              {/* S4: honest title — no "auto" claims */}
+              <div style={{ fontWeight: 700, fontSize: 15 }}>Spare change from your spending</div>
               {roundupEnabled ? (
-                <div style={{ fontSize: 12, color: C.green, marginTop: 2, fontWeight: 500 }}>Saving automatically</div>
+                <div style={{ fontSize: 12, color: C.green, marginTop: 2, fontWeight: 500 }}>Round-up tracking is ON</div>
               ) : (
                 <div style={{ marginTop: 2 }}>
-                  <div style={{ fontSize: 12, color: C.muted, fontWeight: 500 }}>Auto-saving is OFF</div>
-                  <div style={{ fontSize: 11, color: C.faint, marginTop: 1, opacity: 0.7 }}>Start saving automatically</div>
+                  <div style={{ fontSize: 12, color: C.muted, fontWeight: 500 }}>Round-up tracking is OFF</div>
+                  <div style={{ fontSize: 11, color: C.faint, marginTop: 1 }}>Turn on to track spare change</div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Toggle only — no text next to it */}
+          {/* Toggle only */}
           <div
             onClick={() => setRoundupEnabled(v => !v)}
             style={{
@@ -2360,8 +2381,10 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
         {/* Stats */}
         <div style={{ display: "flex", gap: 0, marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${C.sep}` }}>
           <div style={{ flex: 1 }}>
+            {/* S5: "This month" label */}
             <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, letterSpacing: 0.5, marginBottom: 3 }}>THIS MONTH</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: C.cyan }}>${fmt(roundupMonth, 2)}</div>
+            <div style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>Based on your purchases</div>
           </div>
           <div style={{ flex: 1, paddingLeft: 16, borderLeft: `1px solid ${C.sep}` }}>
             <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, letterSpacing: 0.5, marginBottom: 3 }}>ALL TIME</div>
@@ -2369,33 +2392,60 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
           </div>
         </div>
 
-        {/* Projection line — строгая логика ON/OFF */}
+        {/* S5: Primary CTA — Invest via Alpaca */}
+        {roundupMonth >= 1 && (
+          <button
+            onClick={() => setShowAlpacaSheet(true)}
+            style={{
+              width: "100%", padding: "12px 16px", marginBottom: 12,
+              background: `linear-gradient(135deg, #7B5EA7, #4B6CB7)`,
+              border: "none", borderRadius: 11,
+              color: "#fff", fontWeight: 700, fontSize: 14,
+              cursor: "pointer", fontFamily: FONT,
+              letterSpacing: -0.2,
+              boxShadow: "0 4px 16px rgba(75,108,183,0.35)",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              transition: "transform 0.12s ease",
+            }}
+            onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; }}
+            onPointerUp={e => { e.currentTarget.style.transform = "scale(1.02)"; setTimeout(() => { e.currentTarget.style.transform = ""; }, 120); }}
+            onPointerLeave={e => { e.currentTarget.style.transform = ""; }}
+          >
+            {/* Alpaca-style chart icon */}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            Invest ${Math.floor(roundupMonth)} via Alpaca
+          </button>
+        )}
+
+        {/* S5: helper text */}
+        <div style={{ fontSize: 11, color: C.faint, marginBottom: 12 }}>
+          Small amounts like this are easiest to invest regularly.
+        </div>
+
+        {/* Projection */}
         <div style={{
           display: "flex", alignItems: "flex-start", gap: 7,
-          marginBottom: 12,
-          fontSize: 12,
-          transition: "opacity 0.2s",
-          opacity: 1,
+          marginBottom: 12, fontSize: 12, opacity: 1,
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={roundupEnabled ? "#12D18E" : "#4A5E7A"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
             <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
             <polyline points="17 6 23 6 23 12"/>
           </svg>
           {roundupEnabled ? (
-            /* ON state: одна строка */
             <span style={{ color: C.muted }}>
               ≈ <strong style={{ color: C.green }}>${currentProjMonthly}/month</strong>
               {" "}→ ~${currentProjYearly}/year at current pace
             </span>
           ) : (
-            /* OFF state: две строки, вторая dimmed */
             <span>
               <span style={{ color: C.muted }}>
-                Turn on to start saving <strong style={{ color: C.cyan }}>~${currentProjMonthly}/month</strong>
+                Turn on to track <strong style={{ color: C.cyan }}>~${currentProjMonthly}/month</strong> in spare change
               </span>
               <br />
               <span style={{ fontSize: 11, color: C.faint }}>
-                ≈ ${currentProjYearly}/year automatically, without noticing
+                ≈ ${currentProjYearly}/year, without noticing
               </span>
             </span>
           )}
@@ -2415,7 +2465,6 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
                 color: roundupMultiplier === m ? C.cyan : C.muted,
                 cursor: "pointer", fontSize: 13, fontWeight: 700,
                 fontFamily: FONT,
-                /* Fix 3: subtle scale feedback on active */
                 transform: roundupMultiplier === m ? "scale(1.04)" : "scale(1)",
                 boxShadow: roundupMultiplier === m ? `0 0 10px ${C.cyan}33` : "none",
                 transition: "all 0.15s",
@@ -2426,32 +2475,90 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
           ))}
         </div>
 
-        {/* S2: Multiplier feedback — always visible, updates instantly on tap */}
-        <div style={{
-          marginTop: 10,
-          fontSize: 12, color: C.muted,
-          minHeight: 18,
-        }}>
+        {/* Multiplier feedback */}
+        <div style={{ marginTop: 10, fontSize: 12, color: C.muted, minHeight: 18 }}>
           {roundupEnabled
-            ? <>At {roundupMultiplier}x you save <strong style={{ color: C.cyan }}>~${currentProjMonthly}/month</strong></>
-            : <>At {roundupMultiplier}x you'd save <strong style={{ color: "rgba(154,164,178,0.55)" }}>~${currentProjMonthly}/month</strong></>
+            ? <>At {roundupMultiplier}x you track <strong style={{ color: C.cyan }}>~${currentProjMonthly}/month</strong> in spare change</>
+            : <>At {roundupMultiplier}x you'd track <strong style={{ color: "rgba(154,164,178,0.45)" }}>~${currentProjMonthly}/month</strong></>
           }
         </div>
-
-        {/* Active status banner */}
-        {roundupEnabled && (
-          <div style={{
-            marginTop: 12, padding: "10px 14px",
-            background: C.cyan + "10",
-            borderRadius: 12,
-            border: `1px solid ${C.cyan}20`,
-          }}>
-            <div style={{ fontSize: 12, color: C.cyan, fontWeight: 500 }}>
-              Active — rounding up every purchase {roundupMultiplier}x. Savings go to your top goal automatically.
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* ── S8: ALPACA INVEST CONFIRM SHEET ── */}
+      {showAlpacaSheet && (
+        <div
+          onClick={() => setShowAlpacaSheet(false)}
+          style={{
+            position: "fixed", inset: 0,
+            background: "rgba(0,0,0,0.72)", zIndex: 150,
+            display: "flex", alignItems: "flex-end",
+            maxWidth: 430, margin: "0 auto",
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: "100%", background: C.card,
+              borderRadius: "22px 22px 0 0",
+              border: `1px solid ${C.border}`,
+              padding: 24, fontFamily: FONT,
+            }}
+          >
+            {/* Handle */}
+            <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.11)", borderRadius: 2, margin: "0 auto 20px" }} />
+
+            {/* Amount */}
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 36, fontWeight: 800, color: C.text, letterSpacing: -1 }}>
+                ${Math.floor(roundupMonth)}
+              </div>
+              <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>to invest via Alpaca</div>
+            </div>
+
+            {/* S8: honest explanation */}
+            <div style={{
+              background: C.bgSecondary, borderRadius: 14,
+              padding: "14px 16px", marginBottom: 20,
+              border: `1px solid ${C.border}`,
+            }}>
+              <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.65 }}>
+                This amount comes from your round-ups, tracked based on your purchases.
+                {" "}<strong style={{ color: C.text, fontWeight: 600 }}>Money stays in your account</strong> until you confirm — we don't move anything automatically.
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <button
+              onClick={() => {
+                // TODO: call Alpaca API
+                setShowAlpacaSheet(false);
+              }}
+              style={{
+                width: "100%", padding: 15, marginBottom: 10,
+                background: `linear-gradient(135deg, #7B5EA7, #4B6CB7)`,
+                border: "none", borderRadius: 14,
+                color: "#fff", fontWeight: 700, fontSize: 15,
+                cursor: "pointer", fontFamily: FONT,
+                boxShadow: "0 4px 20px rgba(75,108,183,0.35)",
+              }}
+            >
+              Confirm investment
+            </button>
+            <button
+              onClick={() => setShowAlpacaSheet(false)}
+              style={{
+                width: "100%", padding: 14,
+                background: C.bgSecondary, border: `1px solid ${C.border}`,
+                borderRadius: 14, color: C.muted,
+                fontWeight: 500, fontSize: 14,
+                cursor: "pointer", fontFamily: FONT,
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add goal form */}
       {showAdd && (
@@ -2599,6 +2706,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
     </div>
   );
 }
+
 
 
 
