@@ -278,6 +278,7 @@ function InsightCard({ insight, onAction }) {
 
 
 
+
 const fontLink = document.createElement("link");
 fontLink.rel = "stylesheet";
 fontLink.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap";
@@ -2085,12 +2086,6 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
     return insight.rendered?.contribution?.recommended ?? null;
   })();
 
-  // Preset buttons — reorder so AI recommendation comes first
-  const presets = [10, 25, 50, 100];
-  const aiAmt = aiContribution && !presets.includes(aiContribution) ? aiContribution : null;
-  // If AI suggests something not in presets, prepend it; otherwise just highlight matching preset
-  const displayPresets = aiAmt ? [aiAmt, ...presets] : presets;
-
   function confirm() {
     const val = parseFloat(customAmt);
     if (!val || val <= 0) return;
@@ -2136,44 +2131,57 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
         <span style={{ color: C.muted }}>${fmt(remaining, 0)} remaining</span>
       </div>
 
-      {/* S4: Quick deposit buttons — AI-recommended amount highlighted */}
+      {/* S3: AI primary CTA — large button when AI has a recommendation */}
+      {aiContribution && (
+        <button
+          onClick={() => onUpdate(sv.id, Number(sv.current) + aiContribution)}
+          style={{
+            width: "100%", padding: "12px 16px", marginBottom: 10,
+            background: goalColor,
+            border: "none", borderRadius: 11,
+            color: "#fff", fontWeight: 800, fontSize: 14,
+            cursor: "pointer", fontFamily: FONT,
+            letterSpacing: -0.2,
+            boxShadow: `0 4px 16px ${goalColor}44`,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            transition: "transform 0.12s ease, box-shadow 0.12s ease",
+          }}
+          onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; }}
+          onPointerUp={e => { e.currentTarget.style.transform = "scale(1.02)"; setTimeout(() => { e.currentTarget.style.transform = "scale(1)"; }, 120); }}
+          onPointerLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
+        >
+          Add ${aiContribution} now
+          {/* S4: "Recommended" pill */}
+          <span style={{
+            fontSize: 10, fontWeight: 700,
+            background: "rgba(255,255,255,0.22)",
+            borderRadius: 20, padding: "2px 8px",
+            letterSpacing: 0.3,
+          }}>
+            Recommended
+          </span>
+        </button>
+      )}
+
+      {/* S3: Small quick-deposit presets — standard amounts, never include AI amount */}
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-        {displayPresets.map(amt => {
-          const isAiRecommended = aiContribution !== null && amt === aiContribution;
-          return (
-            <button
-              key={amt}
-              onClick={() => onUpdate(sv.id, Number(sv.current) + amt)}
-              style={{
-                flex: 1, padding: "8px 0",
-                // S4: AI-recommended button gets accent border + glow
-                background: isAiRecommended ? goalColor + "28" : goalColor + "15",
-                border: isAiRecommended
-                  ? `1.5px solid ${goalColor}88`
-                  : `1px solid ${goalColor}40`,
-                borderRadius: 10,
-                color: isAiRecommended ? goalColor : goalColor + "CC",
-                cursor: "pointer", fontSize: 12, fontWeight: isAiRecommended ? 700 : 600,
-                fontFamily: FONT,
-                boxShadow: isAiRecommended ? `0 0 8px ${goalColor}33` : "none",
-                transition: "all 0.15s",
-                position: "relative",
-              }}
-            >
-              +${amt}
-              {/* S4: subtle "AI" dot on recommended button */}
-              {isAiRecommended && (
-                <span style={{
-                  position: "absolute", top: -4, right: -4,
-                  width: 8, height: 8, borderRadius: "50%",
-                  background: goalColor,
-                  border: `1.5px solid ${C.card}`,
-                  boxShadow: `0 0 4px ${goalColor}`,
-                }} />
-              )}
-            </button>
-          );
-        })}
+        {[10, 25, 50, 100].map(amt => (
+          <button
+            key={amt}
+            onClick={() => onUpdate(sv.id, Number(sv.current) + amt)}
+            style={{
+              flex: 1, padding: "8px 0",
+              background: goalColor + "15",
+              border: `1px solid ${goalColor}40`,
+              borderRadius: 10,
+              color: goalColor + "CC",
+              cursor: "pointer", fontSize: 12, fontWeight: 600,
+              fontFamily: FONT, transition: "all 0.15s",
+            }}
+          >
+            +${amt}
+          </button>
+        ))}
       </div>
 
       {/* Deposit / Withdraw buttons */}
@@ -2592,6 +2600,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
     </div>
   );
 }
+
 
 
 // ─── Chat ─────────────────────────────────────────────────────
