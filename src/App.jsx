@@ -30,6 +30,107 @@ function useInsights(screen, userId) {
   };
 }
 
+// ─── InsightCardGroup: только один insight expanded за раз ───
+function InsightCardGroup({ insights, onAction }) {
+  // Первый insight открыт по умолчанию (top priority)
+  const [expandedIdx, setExpandedIdx] = useState(0);
+
+  return (
+    <div>
+      {insights.map((ins, i) => (
+        <InsightCardControlled
+          key={ins.type + i}
+          insight={ins}
+          expanded={expandedIdx === i}
+          onToggle={() => setExpandedIdx(expandedIdx === i ? -1 : i)}
+          onAction={onAction}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── InsightCardControlled: controlled expand версия ─────────
+// Санитизация AI текста — убираем misleading фразы глобально
+function sanitizeAiBody(text) {
+  return (text || "")
+    .replace(/likely won't repeat/gi, "appears to be a one-time event")
+    .replace(/no action needed\./gi, "No changes needed right now, but monitor next month to confirm stability.")
+    .replace(/You can safely move \$?([\d,]+)/gi, (_, n) => `You can move up to $${n}, but a safer amount keeps your buffer stable`)
+    .replace(/safely move/gi, "move");
+}
+
+function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
+  if (!insight) return null;
+
+  const cfg = INSIGHT_CONFIG[insight.type] ?? INSIGHT_CONFIG.overspending;
+  const { headline, body: rawBody, cta, action, range, breakdown, roundUpPrompt } = insight.rendered;
+  const body = sanitizeAiBody(rawBody);
+  const { accent, border, bg, label } = cfg;
+
+  const cleanCta      = (cta || "").replace(/~/g, "").trim();
+  const cleanHeadline = (headline || "").replace(/~\$/, "$").trim();
+  const isSavings     = insight.type === "savings_opportunity";
+    <div
+      onClick={onToggle}
+      style={{ background: bg, border: `1px solid ${border}22`, borderRadius: 16, padding: "14px 16px", marginBottom: 10, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif" }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <cfg.Icon color={accent} />
+          <span style={{ fontSize: 10, fontWeight: 600, color: accent + "99", letterSpacing: 0.5 }}>{label}</span>
+        </div>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#4A5E7A" strokeWidth="2.5" strokeLinecap="round">
+          {expanded ? <polyline points="18 15 12 9 6 15"/> : <polyline points="6 9 12 15 18 9"/>}
+        </svg>
+      </div>
+
+      <div style={{ fontSize: 16, fontWeight: 700, color: "#FFFFFF", letterSpacing: -0.35, lineHeight: 1.3, marginBottom: expanded ? 12 : 0 }}>
+        {cleanHeadline}
+      </div>
+
+      {expanded && (
+        <div style={{ borderTop: `1px solid ${border}14`, paddingTop: 12 }}>
+          <p style={{ color: "rgba(154,164,178,0.85)", fontSize: 13, lineHeight: 1.6, margin: "0 0 12px", whiteSpace: "pre-line" }}>
+            {body}
+          </p>
+          {isSavings && breakdown && (
+            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 12px", marginBottom: 14, display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", minWidth: 110 }}>Available</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#FFFFFF" }}>${Number(breakdown.available || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", display: "block", paddingTop: 1 }}>Safe to move</span>
+                  <span style={{ fontSize: 11, color: "rgba(154,164,178,0.60)", display: "block", marginTop: 3, paddingLeft: 2 }}>keeps ~${Number(breakdown.bufferAmount || 1000).toLocaleString("en-US", { maximumFractionDigits: 0 })} buffer</span>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: accent, paddingTop: 1 }}>${Number(breakdown.suggestedSave || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
+              </div>
+            </div>
+          )}
+          <button
+            onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
+            style={{ width: "100%", padding: "13px 16px", background: accent, border: "none", borderRadius: 11, color: insight.type === "savings_opportunity" ? "#061A10" : "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif", letterSpacing: -0.3, boxShadow: `0 4px 20px ${accent}32`, transition: "transform 0.12s ease" }}
+            onPointerDown={e => { e.stopPropagation(); e.currentTarget.style.transform = "scale(0.98)"; }}
+            onPointerUp={e => { e.currentTarget.style.transform = ""; }}
+            onPointerLeave={e => { e.currentTarget.style.transform = ""; }}
+          >
+            {isSavings && breakdown?.suggestedSave
+              ? `Add $${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} to savings →`
+              : cleanCta}
+          </button>
+          {range && (
+            <div style={{ textAlign: "center", marginTop: 7, fontSize: 11, color: "rgba(154,164,178,0.60)", letterSpacing: 0.1 }}>
+              {range.replace("Suggested range:", "Safe range:").replace("Flexible:", "Safe range:")}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── AI Brain: InsightCard ────────────────────────────────────
 
 const INSIGHT_CONFIG = {
@@ -119,7 +220,8 @@ function InsightCard({ insight, onAction }) {
   if (!insight) return null;
 
   const cfg = INSIGHT_CONFIG[insight.type] ?? INSIGHT_CONFIG.overspending;
-  const { headline, body, cta, action, range, breakdown, roundUpPrompt } = insight.rendered;
+  const { headline, body: rawBody, cta, action, range, breakdown, roundUpPrompt } = insight.rendered;
+  const body = sanitizeAiBody(rawBody);
   const { accent, border, bg, label } = cfg;
 
   const cleanCta      = (cta || "").replace(/~/g, "").trim();
@@ -1328,11 +1430,7 @@ function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByC
       </div>
 
       {allInsights && allInsights.length > 0 && (
-        <div>
-          {allInsights.map((ins, i) => (
-            <InsightCard key={ins.type + i} insight={ins} onAction={onInsightAction} />
-          ))}
-        </div>
+        <InsightCardGroup insights={allInsights} onAction={onInsightAction} />
       )}
 
       <HealthScore totalSpent={totalSpent} totalIncome={totalIncome} budget={Number(profile?.monthly_budget) || 3000} savingsGoals={savings || []} />
@@ -2201,9 +2299,11 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
   const [customAmt, setCustomAmt] = useState("");
 
   const aiContribution = (() => {
-    // Если есть AI insight — используем его. Иначе — safeSavingsAmount из логики
+    // Если есть AI insight с рекомендацией — берём её, но ограничиваем safeSavingsAmount
     if (insight && insight.type === 'goal_off_track' && insight.data?.goalId === sv.id) {
-      return insight.rendered?.contribution?.recommended ?? null;
+      const fromInsight = insight.rendered?.contribution?.recommended ?? null;
+      if (fromInsight && safeSavingsAmount > 0) return Math.min(fromInsight, safeSavingsAmount);
+      if (fromInsight) return fromInsight;
     }
     if (safeSavingsAmount > 0) return safeSavingsAmount;
     return null;
