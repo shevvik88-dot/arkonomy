@@ -54,16 +54,24 @@ function InsightCardGroup({ insights, onAction }) {
 // Санитизация AI текста — убираем misleading фразы глобально
 function sanitizeAiBody(text) {
   return (text || "")
+    // Savings full gap — заменяем на безопасную формулировку
+    .replace(/You can cover the full gap[^.]*\./gi,
+      "You can cover the full gap using your available balance.\n→ A safer contribution is $400–$500 to keep your buffer stable.\n→ Larger deposits are possible, but may reduce your safety cushion.")
+    // Слабые слова
     .replace(/appears to be a one-time event/gi, "is a one-time expense, not a trend")
     .replace(/appears to be/gi, "is")
-    .replace(/likely won't repeat/gi, "is a one-time expense, not a trend")
-    .replace(/likely\s/gi, "")
+    .replace(/\bappears\b/gi, "is")
+    .replace(/\blikely\b\s*/gi, "")
     .replace(/unless it does\./gi, "Monitor next month to confirm stability.")
     .replace(/unless it does/gi, "")
     .replace(/no action needed\./gi, "No changes needed now, but monitor next month to confirm stability.")
     .replace(/no action needed/gi, "No changes needed now — monitor next month to confirm stability")
+    // Unsafe savings claims
     .replace(/You can safely move \$?([\d,]+)/gi, (_, n) => `You can move up to $${n}, but a safer amount is $400–$500 to keep your buffer stable`)
-    .replace(/safely move/gi, "move");
+    .replace(/safely move/gi, "move")
+    // Cleanup двойных пробелов после замен
+    .replace(/  +/g, " ")
+    .trim();
 }
 
 function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
