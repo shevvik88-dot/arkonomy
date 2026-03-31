@@ -470,26 +470,32 @@ const sw = 22;
 }
 
 function HealthScore({ totalSpent, totalIncome, budget, savingsGoals }) {
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const savingsRate = totalIncome > 0 ? (totalIncome - totalSpent) / totalIncome : 0;
   const budgetAdherence = budget > 0 ? Math.max(0, 1 - (totalSpent / budget)) : 0;
   const hasGoals = savingsGoals.length > 0;
   const goalProgress = hasGoals ? savingsGoals.reduce((s, g) => s + Math.min(g.current / (g.target || 1), 1), 0) / savingsGoals.length : 0;
 
-  const score = Math.round(
-    Math.min(savingsRate, 0.3) / 0.3 * 40 +
-    budgetAdherence * 35 +
-    goalProgress * 25
-  );
+  const savingsScore  = Math.round(Math.min(savingsRate, 0.3) / 0.3 * 40);
+  const budgetScore   = Math.round(budgetAdherence * 35);
+  const goalScore     = Math.round(goalProgress * 25);
+  const score = Math.min(savingsScore + budgetScore + goalScore, 100);
 
   const color = score >= 75 ? C.green : score >= 50 ? C.yellow : C.red;
   const label = score >= 75 ? "Excellent" : score >= 60 ? "Good" : score >= 40 ? "Fair" : "Needs Work";
   const circumference = 2 * Math.PI * 28;
   const dash = (score / 100) * circumference;
 
+  const breakdown = [
+    { label: "Savings Rate", score: savingsScore, max: 40, color: C.cyan, desc: savingsRate >= 0.2 ? "On target (20%+)" : `Currently ${Math.round(savingsRate * 100)}%` },
+    { label: "Budget Control", score: budgetScore, max: 35, color: C.blue, desc: budgetAdherence >= 0.5 ? "Within budget" : "Over budget" },
+    { label: "Goals Progress", score: goalScore, max: 25, color: C.purple, desc: hasGoals ? `${Math.round(goalProgress * 100)}% avg` : "No goals set" },
+  ];
+
   return (
     <GlassCard>
-      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-        <div style={{ position: "relative", width: 72, height: 72, flexShrink: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }} onClick={() => setShowBreakdown(v => !v)} >
+        <div style={{ position: "relative", width: 72, height: 72, flexShrink: 0, cursor: "pointer" }}>
           <svg width={72} height={72} style={{ filter: `drop-shadow(0 0 8px ${color}55)` }}>
             <circle cx={36} cy={36} r={28} fill="none" stroke={C.bgTertiary} strokeWidth={6} />
             <circle cx={36} cy={36} r={28} fill="none" stroke={color} strokeWidth={6}
@@ -506,8 +512,25 @@ function HealthScore({ totalSpent, totalIncome, budget, savingsGoals }) {
           <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
             {score >= 75 ? "Great habits! Keep it up." : score >= 50 ? "Decent — small improvements can help." : "Focus on saving more and staying in budget."}
           </div>
+          <div style={{ fontSize: 11, color: C.faint, marginTop: 4 }}>Tap for breakdown ›</div>
         </div>
       </div>
+
+      {showBreakdown && (
+        <div style={{ marginTop: 14, borderTop: `1px solid ${C.sep}`, paddingTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+          {breakdown.map(item => (
+            <div key={item.label}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 12, color: C.muted }}>{item.label}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: item.color }}>{item.score}/{item.max} pts · {item.desc}</span>
+              </div>
+              <div style={{ height: 4, background: C.bgTertiary, borderRadius: 99 }}>
+                <div style={{ height: 4, borderRadius: 99, width: `${(item.score / item.max) * 100}%`, background: item.color, transition: "width 0.6s" }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
         {[
@@ -530,10 +553,22 @@ function WeeklySummary({ transactions }) {
   const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay());
   const startOfLastWeek = new Date(startOfWeek); startOfLastWeek.setDate(startOfWeek.getDate() - 7);
 
-  const thisWeek = transactions.filter(t => t.type === "expense" && new Date(t.date) >= startOfWeek).reduce((s, t) => s + Number(t.amount), 0);
-  const lastWeek = transactions.filter(t => t.type === "expense" && new Date(t.date) >= startOfLastWeek && new Date(t.date) < startOfWeek).reduce((s, t) => s + Number(t.amount), 0);
+  const thisWeek = transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer" && new Date(t.date) >= startOfWeek).reduce((s, t) => s + Number(t.amount), 0);
+  const lastWeek = transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer" && new Date(t.date) >= startOfLastWeek && new Date(t.date) < startOfWeek).reduce((s, t) => s + Number(t.amount), 0);
   const change = lastWeek > 0 ? ((thisWeek - lastWeek) / lastWeek) * 100 : 0;
   const pos = change <= 0;
+
+  if (thisWeek === 0 && lastWeek === 0) return (
+    <GlassCard style={{ background: `linear-gradient(135deg,${C.blue}10,${C.card})`, border: `1px solid ${C.blue}30` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 10, background: C.blue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon name="calendar" size={15} color={C.blue} />
+        </div>
+        <span style={{ fontWeight: 600, fontSize: 14, color: C.blue }}>Weekly Summary</span>
+      </div>
+      <div style={{ fontSize: 13, color: C.faint }}>No activity yet this week.</div>
+    </GlassCard>
+  );
 
   return (
     <GlassCard style={{ background: `linear-gradient(135deg,${C.blue}10,${C.card})`, border: `1px solid ${C.blue}30` }}>
@@ -783,9 +818,11 @@ export default function App() {
   const thisMonth = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
   const lastMonth = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === prevMonth.getMonth() && d.getFullYear() === prevMonth.getFullYear(); });
 
-  const totalSpent = thisMonth.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
+  const isRealExpense = t => t.type === "expense" && t.category_name !== "Transfer";
+  const totalSpent = thisMonth.filter(isRealExpense).reduce((s, t) => s + Number(t.amount), 0);
   const totalIncome = thisMonth.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
-  const lastSpent = lastMonth.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
+  const totalTransfers = thisMonth.filter(t => t.category_name === "Transfer").reduce((s, t) => s + Number(t.amount), 0);
+  const lastSpent = lastMonth.filter(isRealExpense).reduce((s, t) => s + Number(t.amount), 0);
   const lastIncome = lastMonth.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
 
   const effectiveIncome = totalIncome > 0 ? totalIncome :
@@ -796,9 +833,9 @@ export default function App() {
       : 0;
 
   const spendingByCategory = {};
-  thisMonth.filter(t => t.type === "expense").forEach(t => { const k = t.category_name || "Other"; spendingByCategory[k] = (spendingByCategory[k] || 0) + Number(t.amount); });
+  thisMonth.filter(isRealExpense).forEach(t => { const k = t.category_name || "Other"; spendingByCategory[k] = (spendingByCategory[k] || 0) + Number(t.amount); });
   const prevSpendingByCategory = {};
-  lastMonth.filter(t => t.type === "expense").forEach(t => { const k = t.category_name || "Other"; prevSpendingByCategory[k] = (prevSpendingByCategory[k] || 0) + Number(t.amount); });
+  lastMonth.filter(isRealExpense).forEach(t => { const k = t.category_name || "Other"; prevSpendingByCategory[k] = (prevSpendingByCategory[k] || 0) + Number(t.amount); });
 
   const insightScreen =
     screen === "dashboard"    ? "home" :
@@ -820,7 +857,7 @@ export default function App() {
 
   if (!user) return <AuthScreen onAuth={setUser} />;
 
-  const shared = { transactions, categories, savings, profile, totalSpent, totalIncome: effectiveIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory };
+  const shared = { transactions, categories, savings, profile, totalSpent, totalIncome: effectiveIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, totalTransfers };
 
   function handleInsightAction(action, _data) {
     if (action === "review_spending" || action === "reduce_category") setScreen("transactions");
@@ -1216,6 +1253,7 @@ function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByC
   const insights = [];
 
   Object.entries(spendingByCategory).forEach(([cat, amount]) => {
+    if (cat === "Transfer") return; // Transfer не анализируем
     const prev = prevSpendingByCategory[cat] || 0;
     if (prev > 0) {
       const change = ((amount - prev) / prev) * 100;
@@ -1338,15 +1376,16 @@ function normalizeTxName(t) {
 }
 
 function calcSummary(txs, prevTxs = []) {
-  const byType = (arr, type) => arr.filter(t => t.type === type).reduce((s, t) => s + Number(t.amount), 0);
-  const income  = byType(txs, "income");
-  const expense = byType(txs, "expense");
+  const realExpense = arr => arr.filter(t => t.type === "expense" && t.category_name !== "Transfer").reduce((s, t) => s + Number(t.amount), 0);
+  const byIncome = arr => arr.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
+  const income  = byIncome(txs);
+  const expense = realExpense(txs);
   const net     = income - expense;
-  const pIncome  = byType(prevTxs, "income");
-  const pExpense = byType(prevTxs, "expense");
+  const pIncome  = byIncome(prevTxs);
+  const pExpense = realExpense(prevTxs);
   const pNet     = pIncome - pExpense;
   const monthlyGap = Math.max(pExpense - expense, 0);
-  const foodSpend  = byType(txs.filter(t => t.category_name === "Food & Dining"), "expense");
+  const foodSpend  = txs.filter(t => t.type === "expense" && t.category_name === "Food & Dining").reduce((s, t) => s + Number(t.amount), 0);
   const foodGap    = Math.max(300 - foodSpend, 0);
   const surplus    = Math.min(Math.round(Math.max(monthlyGap, foodGap)), 200);
   return {
@@ -1888,7 +1927,7 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
     income:  transactions.filter(t => t.type === "income").length,
   };
 
-  const expenseMap  = transactions.filter(t => t.type === "expense").reduce((a, t) => { const k = t.category_name || "Other"; a[k] = (a[k] || 0) + Number(t.amount); return a; }, {});
+  const expenseMap  = transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer").reduce((a, t) => { const k = t.category_name || "Other"; a[k] = (a[k] || 0) + Number(t.amount); return a; }, {});
   const expenseRows = Object.entries(expenseMap).sort((a, b) => b[1] - a[1]).map(([name, total], _, arr) => ({
     name, amount: fmtMoney(total), color: CAT_COLORS[name] || C.blue, icon: CAT_ICONS_MAP[name] || "credit",
     pct: Math.round((total / arr.reduce((s, [, v]) => s + v, 0)) * 100),
@@ -2075,14 +2114,17 @@ function AddTransactionModal({ categories, onAdd, onClose, existing }) {
   );
 }
 
-function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getGoalIcon, insight }) {
+function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getGoalIcon, insight, safeSavingsAmount, maxSavingsAmount }) {
   const [mode, setMode] = useState(null);
   const [customAmt, setCustomAmt] = useState("");
 
   const aiContribution = (() => {
-    if (!insight || insight.type !== 'goal_off_track') return null;
-    if (insight.data?.goalId !== sv.id) return null;
-    return insight.rendered?.contribution?.recommended ?? null;
+    // Если есть AI insight — используем его. Иначе — safeSavingsAmount из логики
+    if (insight && insight.type === 'goal_off_track' && insight.data?.goalId === sv.id) {
+      return insight.rendered?.contribution?.recommended ?? null;
+    }
+    if (safeSavingsAmount > 0) return safeSavingsAmount;
+    return null;
   })();
 
   function confirm() {
@@ -2199,6 +2241,14 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
 
   const totalSaved     = savings.reduce((s, sv) => s + Number(sv.current), 0);
   const monthlySurplus = totalIncome - totalSpent;
+  const availableBalance = Math.max(monthlySurplus, 0);
+  const safetyBuffer = Math.max(500, availableBalance * 0.5);
+  const safeSavingsAmount = Math.min(
+    Math.round(availableBalance * 0.3),
+    monthlySurplus,
+    400
+  );
+  const maxSavingsAmount = Math.max(availableBalance - safetyBuffer, 0);
 
   function getGoalIcon(name) {
     const n = (name || "").toLowerCase();
@@ -2408,7 +2458,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
           const goalColor = sv.color || C.green;
           const remaining = Math.max(Number(sv.target) - Number(sv.current), 0);
           const months    = monthsToGoal(sv);
-          return <SavingsGoalCard key={sv.id} sv={sv} pct={pct} goalColor={goalColor} remaining={remaining} months={months} onUpdate={onUpdate} getGoalIcon={getGoalIcon} insight={insight} />;
+          return <SavingsGoalCard key={sv.id} sv={sv} pct={pct} goalColor={goalColor} remaining={remaining} months={months} onUpdate={onUpdate} getGoalIcon={getGoalIcon} insight={insight} safeSavingsAmount={safeSavingsAmount} maxSavingsAmount={maxSavingsAmount} />;
         })
       )}
     </div>
