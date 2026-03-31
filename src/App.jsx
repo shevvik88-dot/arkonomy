@@ -1295,11 +1295,26 @@ function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByC
     }
   });
 
-  if (savingsRate < 10 && totalIncome > 0) insights.push({ id: "savings-low", icon: "target", title: "Low Savings Rate", desc: `Saving ${savingsRate.toFixed(1)}% of income. The target is 20% for long-term stability.`, severity: "warning", value: `${savingsRate.toFixed(1)}%`, context: `My savings rate is only ${savingsRate.toFixed(1)}%. How do I reach 20%?` });
-  else if (savingsRate >= 20) insights.push({ id: "savings-good", icon: "star", title: "Excellent Savings Rate!", desc: `Saving ${savingsRate.toFixed(1)}% — above the 20% recommended target.`, severity: "good", value: `${savingsRate.toFixed(1)}%`, context: `My savings rate is ${savingsRate.toFixed(1)}%. How should I best invest this surplus?` });
+  if (savingsRate < 10 && totalIncome > 0) insights.push({
+    id: "savings-low", icon: "target", title: "Low Savings Rate",
+    desc: `You're saving ${savingsRate.toFixed(1)}% of income — well below the 20% target.\n\n→ This puts long-term financial stability at risk.\n→ Start with automating a small fixed amount each month to build the habit.`,
+    severity: "warning", value: `${savingsRate.toFixed(1)}%`,
+    context: `My savings rate is only ${savingsRate.toFixed(1)}%. How do I reach 20%?`
+  });
+  else if (savingsRate >= 20) insights.push({
+    id: "savings-good", icon: "star", title: "Excellent Savings Rate",
+    desc: `You're saving ${savingsRate.toFixed(1)}% of income — above the 20% recommended target.\n\n→ This is a strong financial habit.\n→ Consider putting part of this surplus into an investment account to grow it further.`,
+    severity: "good", value: `${savingsRate.toFixed(1)}%`,
+    context: `My savings rate is ${savingsRate.toFixed(1)}%. How should I best invest this surplus?`
+  });
 
   const shopping = spendingByCategory["Shopping"] || 0;
-  if (shopping > 300) insights.push({ id: "shopping", icon: "shopping", title: "High Shopping Spend", desc: `$${fmt(shopping, 0)} on shopping. A 30-day waiting rule for non-essentials can reduce impulse buys.`, severity: "info", value: `$${fmt(shopping, 0)}`, context: `I spent $${fmt(shopping, 0)} on shopping. Help me build habits to reduce impulse purchases.` });
+  if (shopping > 300) insights.push({
+    id: "shopping", icon: "shopping", title: "High Shopping Spend",
+    desc: `You spent $${fmt(shopping, 0)} on shopping this month.\n\n→ This is above a healthy threshold for discretionary spending.\n→ A 30-day rule for non-essential purchases can reduce impulse buys by 20–40%.`,
+    severity: "info", value: `$${fmt(shopping, 0)}`,
+    context: `I spent $${fmt(shopping, 0)} on shopping. Help me build habits to reduce impulse purchases.`
+  });
 
   if (insights.length === 0) insights.push({ id: "all-good", icon: "check-circle", title: "You're on track!", desc: "Your spending looks healthy this month. Keep it up!", severity: "good", context: "My finances look healthy. What should I focus on to build long-term wealth?" });
 
@@ -1323,7 +1338,8 @@ function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByC
       <HealthScore totalSpent={totalSpent} totalIncome={totalIncome} budget={Number(profile?.monthly_budget) || 3000} savingsGoals={savings || []} />
       <WeeklySummary transactions={transactions || []} />
 
-      {insights.map(ins => {
+      {/* Локальные инсайты — только если Edge Function не вернул данные */}
+      {(!allInsights || allInsights.length === 0) && insights.map(ins => {
         const color = colors[ins.severity];
         return (
           <GlassCard key={ins.id}>
@@ -1529,7 +1545,7 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
     { label: "Expenses", value: fmtMoney(summary.expense),       valColor: "#FF5C7A",                                     ctx: expenseCtx, ctxColor: expenseCtxClr, badge: isOverBudget ? "over budget" : "within budget", badgeOk: !isOverBudget, onClick: onExpenseClick },
     { label: "Net",      value: fmtMoney(summary.net, true),     valColor: summary.net >= 0 ? "#12D18E" : "#FF5C7A",      ctx: netCtx,     ctxColor: netCtxClr,     badge: summary.net >= 0 ? "on track" : "deficit",      badgeOk: summary.net >= 0, highlight: true, onClick: onNetClick,
       safeAction: summary.net > 0
-        ? `Save ${fmtMoney(summary.surplus)} safely`
+        ? `Surplus available this month`
         : `Overspending by ${fmtMoney(Math.abs(summary.net))}`,
       safeActionOk: summary.net >= 0,
     },
@@ -1584,7 +1600,13 @@ const INSIGHT_DEFS = [
     body: s => {
       const cat = s._topExpenseCat || "Transport";
       const amt = fmtMoney(Math.round(s._topExpenseAmt || 590));
-      return `You spent ${amt} on ${cat} — 3× your usual.\nCutting back now could save ~$90 this month.`;
+      const isSpike = s._topExpenseAmt > 400;
+      const cause = `This increase was driven by ${amt} in ${cat}.`;
+      const interpretation = isSpike
+        ? `→ This appears to be a one-time event, not a spending trend.`
+        : `→ Your ${cat} spending is running above typical levels.`;
+      const guidance = `→ No immediate changes needed, but monitor next month to confirm stability.`;
+      return `${cause}\n\n${interpretation}\n${guidance}`;
     },
     p:     "Reduce spending",
     pMsg:  "Spending limit set",
@@ -1601,7 +1623,11 @@ const INSIGHT_DEFS = [
     autoExpand: s => s.surplus >= 100,
     compactHeadline: s => `You can save ${fmtMoney(Math.round(s.surplus))} this month`,
     headline:        s => `You can save ${fmtMoney(Math.round(s.surplus))} this month`,
-    body: s => `You're under budget this month.\nMove ${fmtMoney(Math.round(s.surplus))} to savings now.`,
+    body: s => {
+      const safe = Math.min(Math.round(s.surplus * 0.3), 400);
+      const max = Math.round(s.surplus);
+      return `You finished under budget this month — a good sign.\n\nYou can move up to $${max}, but a safer amount is $${safe}–$${Math.min(safe + 100, max)} to keep your buffer stable.\n\n→ Moving even a small amount builds long-term momentum.`;
+    },
     p:     "Move to savings",
     pMsg:  s => `${fmtMoney(Math.round(s.surplus))} moved to savings`,
     pType: "success",
@@ -1620,7 +1646,12 @@ const INSIGHT_DEFS = [
     headline: s => s.netVsPrev > 0
       ? `You're ${fmtMoney(Math.round(s.netVsPrev))} ahead this month`
       : "You're on a 3-week saving streak",
-    body: () => `You're ahead this month.\nBoost your savings.`,
+    body: s => {
+      const ahead = s.netVsPrev > 0 ? fmtMoney(Math.round(s.netVsPrev)) : null;
+      return ahead
+        ? `You're ${ahead} ahead compared to last month — your spending discipline is working.\n\n→ Consider moving part of this surplus to savings to lock in the progress.`
+        : `Your spending is stable and within budget this month.\n\n→ A consistent pattern like this is the foundation of financial health. Keep it up.`;
+    },
     p:     "Boost savings",
     pMsg:  "Savings goal updated",
     pType: "success",
@@ -1998,7 +2029,10 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
         onNetClick={() => setSheet({ title: "Net summary", subtitle: monthLabel, rows: [{ name: "Total income", amount: fmtMoney(summary.income, true), color: "#12D18E", icon: "trending-up", pct: 100 }, { name: "Total expenses", amount: fmtMoney(summary.expense), color: "#FF5C7A", icon: "trending-down", pct: Math.round(summary.expense / Math.max(summary.income, 1) * 100) }, { name: "Net balance", amount: fmtMoney(summary.net, true), color: "#12D18E", icon: "award", pct: Math.round(summary.net / Math.max(summary.income, 1) * 100) }], actionLabel: "Boost savings goal", actionColor: "#12D18E", onAction: () => toast("Savings goal updated", "success") })}
       />
 
-      <InsightCard insight={insight} onAction={onInsightAction} />
+      {/* InsightCard только если связан с транзакциями */}
+      {insight && ['category_spike', 'overspending', 'cash_risk'].includes(insight.type) && (
+        <InsightCard insight={insight} onAction={onInsightAction} />
+      )}
 
       {/* Top expense this month */}
       {(() => {
@@ -2219,18 +2253,32 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
       </div>
 
       {aiContribution && (
-        <button
-          onClick={() => onUpdate(sv.id, Number(sv.current) + aiContribution)}
-          style={{ width: "100%", padding: "12px 16px", marginBottom: 10, background: goalColor, border: "none", borderRadius: 11, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: FONT, letterSpacing: -0.2, boxShadow: `0 4px 16px ${goalColor}44`, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "transform 0.12s ease, box-shadow 0.12s ease" }}
-          onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; }}
-          onPointerUp={e => { e.currentTarget.style.transform = "scale(1.02)"; setTimeout(() => { e.currentTarget.style.transform = "scale(1)"; }, 120); }}
-          onPointerLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-        >
-          Add ${aiContribution} now
-          <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(255,255,255,0.20)", borderRadius: 20, padding: "2px 8px", letterSpacing: 0.2, whiteSpace: "nowrap" }}>
-            Recommended · Keeps your buffer safe
-          </span>
-        </button>
+        <div style={{ marginBottom: 10 }}>
+          {/* Primary — SAFE amount */}
+          <button
+            onClick={() => onUpdate(sv.id, Number(sv.current) + aiContribution)}
+            style={{ width: "100%", padding: "12px 16px", marginBottom: 6, background: goalColor, border: "none", borderRadius: 11, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: FONT, letterSpacing: -0.2, boxShadow: `0 4px 16px ${goalColor}44`, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "transform 0.12s ease, box-shadow 0.12s ease" }}
+            onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; }}
+            onPointerUp={e => { e.currentTarget.style.transform = "scale(1.02)"; setTimeout(() => { e.currentTarget.style.transform = "scale(1)"; }, 120); }}
+            onPointerLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
+          >
+            Add ${aiContribution} to savings
+            <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(255,255,255,0.20)", borderRadius: 20, padding: "2px 8px", letterSpacing: 0.2, whiteSpace: "nowrap" }}>
+              Recommended · Keeps your buffer safe
+            </span>
+          </button>
+          {/* Secondary — MAX amount */}
+          {maxSavingsAmount > aiContribution && (
+            <button
+              onClick={() => onUpdate(sv.id, Number(sv.current) + Math.round(maxSavingsAmount))}
+              style={{ width: "100%", padding: "9px 16px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 10, color: C.muted, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: FONT, transition: "border-color 0.15s" }}
+              onPointerEnter={e => e.currentTarget.style.borderColor = C.faint}
+              onPointerLeave={e => e.currentTarget.style.borderColor = C.border}
+            >
+              Add ${Math.round(maxSavingsAmount)} (max)
+            </button>
+          )}
+        </div>
       )}
 
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
@@ -2330,7 +2378,9 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
         </button>
       </div>
 
-      <InsightCard insight={insight} onAction={onInsightAction} />
+      {insight && ['savings_opportunity', 'goal_off_track'].includes(insight.type) && (
+        <InsightCard insight={insight} onAction={onInsightAction} />
+      )}
 
       {(totalSaved > 0 || monthlySurplus > 0) && (
         <div style={{ background: "linear-gradient(135deg,#0D2A1F,#0B1426)", borderRadius: 20, padding: 20, border: `1px solid ${C.green}30` }}>
