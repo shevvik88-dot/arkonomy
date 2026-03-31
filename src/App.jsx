@@ -54,9 +54,15 @@ function InsightCardGroup({ insights, onAction }) {
 // Санитизация AI текста — убираем misleading фразы глобально
 function sanitizeAiBody(text) {
   return (text || "")
-    .replace(/likely won't repeat/gi, "appears to be a one-time event")
-    .replace(/no action needed\./gi, "No changes needed right now, but monitor next month to confirm stability.")
-    .replace(/You can safely move \$?([\d,]+)/gi, (_, n) => `You can move up to $${n}, but a safer amount keeps your buffer stable`)
+    .replace(/appears to be a one-time event/gi, "is a one-time expense, not a trend")
+    .replace(/appears to be/gi, "is")
+    .replace(/likely won't repeat/gi, "is a one-time expense, not a trend")
+    .replace(/likely\s/gi, "")
+    .replace(/unless it does\./gi, "Monitor next month to confirm stability.")
+    .replace(/unless it does/gi, "")
+    .replace(/no action needed\./gi, "No changes needed now, but monitor next month to confirm stability.")
+    .replace(/no action needed/gi, "No changes needed now — monitor next month to confirm stability")
+    .replace(/You can safely move \$?([\d,]+)/gi, (_, n) => `You can move up to $${n}, but a safer amount is $400–$500 to keep your buffer stable`)
     .replace(/safely move/gi, "move");
 }
 
@@ -1432,7 +1438,7 @@ function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByC
         const cause = `$${fmt(amount, 0)} this month vs $${fmt(prev, 0)} last month.`;
         const guidance = change > 100
           ? `→ This is a significant jump. Review recent ${cat} transactions to identify the cause and decide if action is needed.`
-          : `→ This appears to be elevated spending. Monitor next month to confirm if it's a trend.`;
+          : `→ This is elevated spending — not yet a confirmed trend. Monitor next month to decide if action is needed.`;
         insights.push({
           id: `u-${cat}`, icon: "trending-up",
           title: `${cat} up ${change.toFixed(0)}%`,
@@ -1747,11 +1753,11 @@ const INSIGHT_DEFS = [
       const cat = s._topExpenseCat || "Transport";
       const amt = fmtMoney(Math.round(s._topExpenseAmt || 590));
       const isSpike = s._topExpenseAmt > 400;
-      const cause = `This increase was driven by ${amt} in ${cat}.`;
+      const cause = `This increase was caused by ${amt} in ${cat}. Your usual ${cat.toLowerCase()} spending is much lower.`;
       const interpretation = isSpike
-        ? `→ This appears to be a one-time event, not a spending trend.`
-        : `→ Your ${cat} spending is running above typical levels.`;
-      const guidance = `→ No immediate changes needed, but monitor next month to confirm stability.`;
+        ? `→ This is a one-time expense, not a trend.`
+        : `→ Your ${cat} spending is running above typical levels this month.`;
+      const guidance = `→ No changes needed now, but monitor next month to confirm stability.`;
       return `${cause}\n\n${interpretation}\n${guidance}`;
     },
     p:     "Reduce spending",
