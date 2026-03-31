@@ -64,14 +64,23 @@ function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
   if (!insight) return null;
 
   const cfg = INSIGHT_CONFIG[insight.type] ?? INSIGHT_CONFIG.overspending;
-  const { headline, body: rawBody, cta, action, range, breakdown, roundUpPrompt } = insight.rendered;
+  const { headline, body: rawBody, cta, action, range, breakdown: rawBreakdown, roundUpPrompt } = insight.rendered;
   const body = sanitizeAiBody(rawBody);
   const { accent, border, bg, label } = cfg;
+
+  const SAFE_CAP = 400;
+  const breakdown = rawBreakdown ? {
+    ...rawBreakdown,
+    suggestedSave: rawBreakdown.suggestedSave
+      ? Math.min(Number(rawBreakdown.suggestedSave), SAFE_CAP)
+      : rawBreakdown.suggestedSave,
+  } : rawBreakdown;
 
   const cleanCta      = (cta || "").replace(/~/g, "").trim();
   const cleanHeadline = (headline || "").replace(/~\$/, "$").trim();
   const isSavings     = insight.type === "savings_opportunity";
-    <div
+
+  return (
       onClick={onToggle}
       style={{ background: bg, border: `1px solid ${border}22`, borderRadius: 16, padding: "14px 16px", marginBottom: 10, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif" }}
     >
@@ -111,15 +120,28 @@ function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
           )}
           <button
             onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
-            style={{ width: "100%", padding: "13px 16px", background: accent, border: "none", borderRadius: 11, color: insight.type === "savings_opportunity" ? "#061A10" : "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif", letterSpacing: -0.3, boxShadow: `0 4px 20px ${accent}32`, transition: "transform 0.12s ease" }}
+            style={{ width: "100%", padding: "13px 16px", background: accent, border: "none", borderRadius: 11, color: insight.type === "savings_opportunity" ? "#061A10" : "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif", letterSpacing: -0.3, boxShadow: `0 4px 20px ${accent}32`, transition: "transform 0.12s ease", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
             onPointerDown={e => { e.stopPropagation(); e.currentTarget.style.transform = "scale(0.98)"; }}
             onPointerUp={e => { e.currentTarget.style.transform = ""; }}
             onPointerLeave={e => { e.currentTarget.style.transform = ""; }}
           >
             {isSavings && breakdown?.suggestedSave
-              ? `Add $${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} to savings →`
+              ? <>
+                  Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} to savings
+                  <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
+                    Recommended · safe amount
+                  </span>
+                </>
               : cleanCta}
           </button>
+          {isSavings && rawBreakdown?.suggestedSave && Number(rawBreakdown.suggestedSave) > SAFE_CAP && (
+            <button
+              onClick={e => { e.stopPropagation(); onAction?.(action, { ...insight.data, _useMax: true }); }}
+              style={{ width: "100%", marginTop: 6, padding: "9px 16px", background: "transparent", border: `1px solid ${accent}33`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif", opacity: 0.7 }}
+            >
+              Add ${Number(rawBreakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} (max)
+            </button>
+          )}
           {range && (
             <div style={{ textAlign: "center", marginTop: 7, fontSize: 11, color: "rgba(154,164,178,0.60)", letterSpacing: 0.1 }}>
               {range.replace("Suggested range:", "Safe range:").replace("Flexible:", "Safe range:")}
@@ -220,9 +242,18 @@ function InsightCard({ insight, onAction }) {
   if (!insight) return null;
 
   const cfg = INSIGHT_CONFIG[insight.type] ?? INSIGHT_CONFIG.overspending;
-  const { headline, body: rawBody, cta, action, range, breakdown, roundUpPrompt } = insight.rendered;
+  const { headline, body: rawBody, cta, action, range, breakdown: rawBreakdown, roundUpPrompt } = insight.rendered;
   const body = sanitizeAiBody(rawBody);
   const { accent, border, bg, label } = cfg;
+
+  // Принудительно ограничиваем suggestedSave — никогда больше $400 (safe лимит)
+  const SAFE_CAP = 400;
+  const breakdown = rawBreakdown ? {
+    ...rawBreakdown,
+    suggestedSave: rawBreakdown.suggestedSave
+      ? Math.min(Number(rawBreakdown.suggestedSave), SAFE_CAP)
+      : rawBreakdown.suggestedSave,
+  } : rawBreakdown;
 
   const cleanCta      = (cta || "").replace(/~/g, "").trim();
   const cleanHeadline = (headline || "").replace(/~\$/, "$").trim();
@@ -323,13 +354,29 @@ function InsightCard({ insight, onAction }) {
               letterSpacing: -0.3,
               boxShadow: `0 4px 20px ${accent}32`,
               transition: "transform 0.12s ease, box-shadow 0.12s ease",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             }}
           >
             {isSavings && breakdown?.suggestedSave
-              ? `Add $${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} to savings →`
+              ? <>
+                  Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} to savings
+                  <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
+                    Recommended · safe amount
+                  </span>
+                </>
               : cleanCta
             }
           </button>
+
+          {/* Max amount secondary CTA — только для savings если было обрезано */}
+          {isSavings && rawBreakdown?.suggestedSave && Number(rawBreakdown.suggestedSave) > SAFE_CAP && (
+            <button
+              onClick={e => { e.stopPropagation(); onAction?.(action, { ...insight.data, _useMax: true }); }}
+              style={{ width: "100%", marginTop: 6, padding: "9px 16px", background: "transparent", border: `1px solid ${accent}33`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif", opacity: 0.7 }}
+            >
+              Add ${Number(rawBreakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} (max)
+            </button>
+          )}
 
           {range && (
             <div style={{
