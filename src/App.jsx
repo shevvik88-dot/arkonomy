@@ -81,6 +81,7 @@ function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
   const isSavings     = insight.type === "savings_opportunity";
 
   return (
+    <div
       onClick={onToggle}
       style={{ background: bg, border: `1px solid ${border}22`, borderRadius: 16, padding: "14px 16px", marginBottom: 10, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif" }}
     >
