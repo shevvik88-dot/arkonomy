@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { usePlaidLink } from "react-plaid-link";
 import CheckInCard from "./components/CheckInCard";
 
 // ─── AI Brain: useInsights hook ───────────────────────────────
@@ -121,7 +122,6 @@ function InsightCard({ insight, onAction }) {
   const { headline, body, cta, action, range, breakdown, roundUpPrompt } = insight.rendered;
   const { accent, border, bg, label } = cfg;
 
-  // Очищаем тильду если вдруг пришла со старого сервера
   const cleanCta      = (cta || "").replace(/~/g, "").trim();
   const cleanHeadline = (headline || "").replace(/~\$/, "$").trim();
 
@@ -140,7 +140,6 @@ function InsightCard({ insight, onAction }) {
         fontFamily: "'Inter', -apple-system, sans-serif",
       }}
     >
-      {/* Row 1: label + chevron */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
           <cfg.Icon color={accent} />
@@ -160,7 +159,6 @@ function InsightCard({ insight, onAction }) {
         </svg>
       </div>
 
-      {/* Row 2: headline */}
       <div style={{
         fontSize: 16, fontWeight: 700, color: "#FFFFFF",
         letterSpacing: -0.35, lineHeight: 1.3,
@@ -169,11 +167,8 @@ function InsightCard({ insight, onAction }) {
         {cleanHeadline}
       </div>
 
-      {/* Expanded content */}
       {expanded && (
         <div style={{ borderTop: `1px solid ${border}14`, paddingTop: 12 }}>
-
-          {/* Body */}
           <p style={{
             color: "rgba(154,164,178,0.85)",
             fontSize: 13, lineHeight: 1.6,
@@ -182,7 +177,6 @@ function InsightCard({ insight, onAction }) {
             {body}
           </p>
 
-          {/* ── BREAKDOWN БЛОК (только для savings_opportunity) ── */}
           {isSavings && breakdown && (
             <div style={{
               background: "rgba(255,255,255,0.04)",
@@ -193,14 +187,12 @@ function InsightCard({ insight, onAction }) {
               flexDirection: "column",
               gap: 4,
             }}>
-              {/* Row 1: Available */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", minWidth: 110 }}>Available</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "#FFFFFF" }}>
                   ${Number(breakdown.available || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                 </span>
               </div>
-              {/* Row 2+3: Safe to move + buffer — buffer indented under label */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
                   <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", display: "block", paddingTop: 1 }}>Safe to move</span>
@@ -215,7 +207,6 @@ function InsightCard({ insight, onAction }) {
             </div>
           )}
 
-          {/* S3: PRIMARY action — goal */}
           <button
             onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
             onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; e.currentTarget.style.boxShadow = `0 2px 10px ${accent}22`; }}
@@ -238,7 +229,6 @@ function InsightCard({ insight, onAction }) {
             }
           </button>
 
-          {/* Safe range */}
           {range && (
             <div style={{
               textAlign: "center", marginTop: 7, fontSize: 11,
@@ -248,7 +238,6 @@ function InsightCard({ insight, onAction }) {
             </div>
           )}
 
-          {/* S3: SECONDARY action — Invest spare change via Alpaca (when round-up data exists) */}
           {isSavings && insight.data?.roundUpMonthly > 0 && (
             <button
               onClick={e => { e.stopPropagation(); onAction?.("invest_alpaca", insight.data); }}
@@ -273,7 +262,6 @@ function InsightCard({ insight, onAction }) {
             </button>
           )}
 
-          {/* Fallback: automate nudge when no round-up data */}
           {isSavings && roundUpPrompt && !(insight.data?.roundUpMonthly > 0) && (
             <div style={{
               marginTop: 6, textAlign: "center", fontSize: 12,
@@ -282,15 +270,11 @@ function InsightCard({ insight, onAction }) {
               or automate this with round-ups →
             </div>
           )}
-
         </div>
       )}
     </div>
   );
 }
-
-
-
 
 const fontLink = document.createElement("link");
 fontLink.rel = "stylesheet";
@@ -303,7 +287,6 @@ const SUPABASE_URL = "https://hvnkxxazjfesbxdkzuba.supabase.co";
 const SUPABASE_KEY = "sb_publishable_z4Mh9KZLXS_6ZZJyJ-pE7A_ClkhUDt9";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ─── Updated color palette ─────────────────────────────────────
 const C = {
   bg: "#0B1426", bgSecondary: "#0F1A2E", bgTertiary: "#162035",
   card: "#111E33", border: "#1E2D4A", sep: "#192840",
@@ -328,7 +311,6 @@ function fmtDate(dateStr) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-// ─── Icon Library ─────────────────────────────────────────────
 function Icon({ name, size = 20, color = C.muted, strokeWidth = 1.8 }) {
   const p = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth, strokeLinecap: "round", strokeLinejoin: "round" };
   const icons = {
@@ -371,7 +353,6 @@ function Icon({ name, size = 20, color = C.muted, strokeWidth = 1.8 }) {
   return icons[name] || icons["dollar"];
 }
 
-// ─── GlassCard ────────────────────────────────────────────────
 function GlassCard({ children, style = {} }) {
   return (
     <div style={{ background: C.card, borderRadius: 20, border: `1px solid ${C.border}`, padding: 20, fontFamily: FONT, ...style }}>
@@ -380,7 +361,6 @@ function GlassCard({ children, style = {} }) {
   );
 }
 
-// ─── StatBadge ────────────────────────────────────────────────
 function StatBadge({ value, suffix = "vs last month" }) {
   const pos = value >= 0;
   const color = pos ? C.green : C.red;
@@ -392,7 +372,6 @@ function StatBadge({ value, suffix = "vs last month" }) {
   );
 }
 
-// ─── Donut Chart with glow ─────────────────────────────────────
 function DonutChart({ data, size = 196, onCatClick }) {
   const cx = size / 2, cy = size / 2;
   const outerR = size / 2 - 8;
@@ -432,7 +411,7 @@ const sw = 22;
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, fontFamily: FONT }}>
       <div style={{ position: "relative", width: size, height: size }}>
-        <svg width={size} height={size} sstyle={{ display: "block" }}>
+        <svg width={size} height={size} style={{ display: "block" }}>
           <defs>
             <radialGradient id="cg" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor={C.cyan} stopOpacity="0.10" />
@@ -490,7 +469,6 @@ const sw = 22;
   );
 }
 
-// ─── Financial Health Score ────────────────────────────────────
 function HealthScore({ totalSpent, totalIncome, budget, savingsGoals }) {
   const savingsRate = totalIncome > 0 ? (totalIncome - totalSpent) / totalIncome : 0;
   const budgetAdherence = budget > 0 ? Math.max(0, 1 - (totalSpent / budget)) : 0;
@@ -547,7 +525,6 @@ function HealthScore({ totalSpent, totalIncome, budget, savingsGoals }) {
   );
 }
 
-// ─── Weekly Summary ────────────────────────────────────────────
 function WeeklySummary({ transactions }) {
   const now = new Date();
   const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay());
@@ -578,7 +555,6 @@ function WeeklySummary({ transactions }) {
   );
 }
 
-// ─── Auth Screen ──────────────────────────────────────────────
 function AuthScreen({ onAuth }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
@@ -654,13 +630,19 @@ export default function App() {
   const [chatInput, setChatInput] = useState("");
   const [autopilot, setAutopilot] = useState({ overspendAlerts: true, largeTxAlerts: true, unusualSpending: true, largeTxThreshold: 200 });
 
+  // ─── Plaid state ──────────────────────────────────────────────
+  const [linkToken, setLinkToken] = useState(null);
+  const [bankConnected, setBankConnected] = useState(false);
+  const [bankName, setBankName] = useState(null);
+  const [syncingBank, setSyncingBank] = useState(false);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setUser(session?.user ?? null); setLoading(false); });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setUser(session?.user ?? null));
     return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => { if (user) loadAll(); }, [user]);
+  useEffect(() => { if (user) { loadAll(); checkBankConnection(); } }, [user]);
 
   async function loadAll() {
     setLoading(true);
@@ -675,6 +657,75 @@ export default function App() {
     if (sv.data) setSavings(sv.data);
     if (c.data) { setCategories(c.data); if (c.data.length === 0) await seedCategories(); }
     setLoading(false);
+  }
+
+  async function checkBankConnection() {
+    const { data } = await supabase
+      .from("plaid_items")
+      .select("institution_name")
+      .eq("user_id", user.id)
+      .limit(1);
+    if (data && data.length > 0) {
+      setBankConnected(true);
+      setBankName(data[0].institution_name);
+    }
+  }
+
+  async function getLinkToken() {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(
+      `${SUPABASE_URL}/functions/v1/plaid-link-token`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+      }
+    );
+    const data = await res.json();
+    if (data.link_token) setLinkToken(data.link_token);
+  }
+
+  const onPlaidSuccess = useCallback(async (public_token, metadata) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    await fetch(
+      `${SUPABASE_URL}/functions/v1/plaid-exchange-token`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          public_token,
+          institution_name: metadata.institution.name,
+          institution_id: metadata.institution.institution_id,
+        }),
+      }
+    );
+    setBankConnected(true);
+    setBankName(metadata.institution.name);
+    setLinkToken(null);
+    await syncBankTransactions();
+  }, []);
+
+  async function syncBankTransactions() {
+    setSyncingBank(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(
+      `${SUPABASE_URL}/functions/v1/plaid-sync-transactions`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+      }
+    );
+    const data = await res.json();
+    if (data.synced > 0) await loadAll();
+    setSyncingBank(false);
   }
 
   async function seedCategories() {
@@ -733,24 +784,22 @@ export default function App() {
   const lastMonth = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === prevMonth.getMonth() && d.getFullYear() === prevMonth.getFullYear(); });
 
   const totalSpent = thisMonth.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
-const totalIncome = thisMonth.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
-const lastSpent = lastMonth.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
-const lastIncome = lastMonth.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
+  const totalIncome = thisMonth.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
+  const lastSpent = lastMonth.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount), 0);
+  const lastIncome = lastMonth.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
 
-// Fallback: если зарплата пришла в конце прошлого месяца — берём её как доход текущего
-const effectiveIncome = totalIncome > 0 ? totalIncome :
-  [...transactions]
-    .filter(t => t.type === "income")
-    .sort((a, b) => new Date(b.date) - new Date(a.date))[0]
-    ? Number([...transactions].filter(t => t.type === "income").sort((a, b) => new Date(b.date) - new Date(a.date))[0].amount)
-    : 0;
+  const effectiveIncome = totalIncome > 0 ? totalIncome :
+    [...transactions]
+      .filter(t => t.type === "income")
+      .sort((a, b) => new Date(b.date) - new Date(a.date))[0]
+      ? Number([...transactions].filter(t => t.type === "income").sort((a, b) => new Date(b.date) - new Date(a.date))[0].amount)
+      : 0;
 
   const spendingByCategory = {};
   thisMonth.filter(t => t.type === "expense").forEach(t => { const k = t.category_name || "Other"; spendingByCategory[k] = (spendingByCategory[k] || 0) + Number(t.amount); });
   const prevSpendingByCategory = {};
   lastMonth.filter(t => t.type === "expense").forEach(t => { const k = t.category_name || "Other"; prevSpendingByCategory[k] = (prevSpendingByCategory[k] || 0) + Number(t.amount); });
 
-  // ── AI Brain insights — must be before any conditional return ──
   const insightScreen =
     screen === "dashboard"    ? "home" :
     screen === "transactions" ? "transactions" :
@@ -778,7 +827,7 @@ const effectiveIncome = totalIncome > 0 ? totalIncome :
     if (action === "move_to_savings" || action === "catch_up_goal")   setScreen("savings");
     if (action === "view_progress")                                    setScreen("insights");
     if (action === "view_bills")                                       setScreen("transactions");
-    if (action === "invest_alpaca") setScreen("savings"); // или открыть Alpaca sheet напрямую
+    if (action === "invest_alpaca") setScreen("savings");
   }
 
   async function sendChat(input) {
@@ -860,7 +909,7 @@ const effectiveIncome = totalIncome > 0 ? totalIncome :
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} insight={insight} onInsightAction={handleInsightAction} />}
             {screen === "insights" && <Insights {...shared} onNavigateChat={msg => { setChatMessages(prev => [...prev, { role: "user", text: msg }]); setScreen("chat"); }} allInsights={allInsights} onInsightAction={handleInsightAction} />}
             {screen === "chat" && <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={() => sendChat(chatInput)} />}
-            {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} autopilot={autopilot} setAutopilot={setAutopilot} />}
+            {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} />}
           </>
         )}
       </div>
@@ -890,14 +939,14 @@ function MarketOverview() {
       const headers = {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${session?.access_token ?? ""}`,
-        "apikey": "sb_publishable_z4Mh9KZLXS_6ZZJyJ-pE7A_ClkhUDt9",
+        "apikey": SUPABASE_KEY,
       };
 
       const [mRes, nRes] = await Promise.all([
-        fetch("https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/market-data", {
+        fetch(`${SUPABASE_URL}/functions/v1/market-data`, {
           method: "POST", headers, body: JSON.stringify({ type: "overview" }),
         }),
-        fetch("https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/market-data", {
+        fetch(`${SUPABASE_URL}/functions/v1/market-data`, {
           method: "POST", headers, body: JSON.stringify({ type: "news" }),
         }),
       ]);
@@ -976,9 +1025,6 @@ function MarketOverview() {
             <span style={{ fontSize: 12, color: C.red, fontWeight: 600 }}>Could not load market data</span>
           </div>
           <div style={{ fontSize: 11, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>{error}</div>
-          <div style={{ fontSize: 11, color: C.faint, lineHeight: 1.6 }}>
-            Check: <span style={{ color: C.text }}>1)</span> Edge Function <code style={{ color: C.cyan }}>market-data</code> is deployed in Supabase <span style={{ color: C.text }}>2)</span> <code style={{ color: C.cyan }}>FINNHUB_API_KEY</code> secret is set
-          </div>
           <button onClick={load} style={{ marginTop: 10, padding: "7px 14px", background: C.blue + "22", border: `1px solid ${C.blue}44`, borderRadius: 8, color: C.blue, cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: FONT }}>
             Retry
           </button>
@@ -1049,7 +1095,6 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
   const expenseChange = lastSpent > 0 ? ((totalSpent - lastSpent) / lastSpent) * 100 : 0;
   const balColor = balance >= 0 ? C.green : C.red;
 
-  // ── Compute CheckInCard data ──────────────────────────────────
   const checkInData = {
     spent:       totalSpent,
     budget:      budget,
@@ -1108,9 +1153,6 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
         </div>
       </div>
 
-     {/* 2 ── AI Check-In */}
-      
-
       {/* 2b ── AI Brain Insight */}
       <InsightCard insight={insight} onAction={onInsightAction} />
 
@@ -1141,7 +1183,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
         </div>
       </GlassCard>
 
-      {/* 5 ── Market Overview (last) */}
+      {/* 5 ── Market Overview */}
       <MarketOverview />
 
       {/* 6 ── Recent Transactions */}
@@ -1198,7 +1240,6 @@ function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByC
         <div style={{ fontSize: 13, color: C.muted }}>AI-powered spending analysis</div>
       </div>
 
-      {/* AI Brain insights — top of screen */}
       {allInsights && allInsights.length > 0 && (
         <div>
           {allInsights.map((ins, i) => (
@@ -1268,20 +1309,15 @@ function CatIcon({ name, type, size = 18 }) {
   );
 }
 
-// ─── Transactions – helpers ────────────────────────────────────
-
 const TX_NAME_MAP = {
-  // expenses
   "repair": "Car Repair", "car repair": "Car Repair", "repiar": "Car Repair",
   "coffe": "Coffee & Dining", "coffee": "Coffee & Dining", "cofee": "Coffee & Dining",
   "gym": "Gym", "groceries": "Groceries", "pharmacy": "Pharmacy",
   "uber": "Uber", "lyft": "Lyft", "amazon": "Amazon",
   "netflix": "Netflix", "spotify": "Spotify", "apple": "Apple",
-  // income
   "salary": "Salary", "paycheck": "Salary", "payroll": "Salary",
   "freelance": "Freelance Income", "transfer": "Bank Transfer",
   "dividends": "Dividends", "refund": "Refund",
-  // generic labels that add no info — fall through to smart fallback
   "transaction": null, "payment": null, "deposit": null, "debit": null, "credit": null,
 };
 
@@ -1292,7 +1328,6 @@ function normalizeTxName(t) {
   if (TX_NAME_MAP[lower] !== undefined) {
     const mapped = TX_NAME_MAP[lower];
     if (mapped) return mapped;
-    // null = generic label, fall through to smart fallback
   } else if (raw && lower !== cat.toLowerCase()) {
     return raw.replace(/\b\w/g, c => c.toUpperCase());
   }
@@ -1358,7 +1393,6 @@ const CAT_ICONS_MAP = {
   "Entertainment": "film", "Health": "heart", "Bills": "file", "Subscriptions": "repeat",
 };
 
-// ─── Toast ─────────────────────────────────────────────────────
 function useToasts() {
   const [toasts, setToasts] = useState([]);
   const timers = useRef({});
@@ -1397,19 +1431,14 @@ function ToastStack({ toasts }) {
   );
 }
 
-// ─── Summary Cards ─────────────────────────────────────────────
 function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
-  // Always show a real number. When prev-month data exists, show delta.
-  // When it doesn't (first month or filtered view), derive context from current data.
   const hasIncPrev  = summary.incomeVsPrev  !== null;
   const hasExpPrev  = summary.expenseVsPrev !== null;
   const hasNetPrev  = summary.netVsPrev     !== null;
 
-  // Income context
   const incomeCtx     = hasIncPrev ? fmtPct(summary.incomeVsPrev) + " vs last mo." : null;
   const incomeCtxClr  = hasIncPrev ? ((summary.incomeVsPrev ?? 0) >= 0 ? "#12D18E" : "#FF5C7A") : C.faint;
 
-  // Expense context — if no prev data, compare to income (budget proxy)
   const expVsBudgetPct = summary.income > 0 ? Math.round((summary.expense / summary.income) * 100) : null;
   const isOverBudget  = hasExpPrev ? (summary.expenseVsPrev ?? 0) > 10 : (expVsBudgetPct !== null && expVsBudgetPct > 80);
   const expenseCtx    = hasExpPrev
@@ -1417,7 +1446,6 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
     : expVsBudgetPct !== null ? expVsBudgetPct + "% of income" : null;
   const expenseCtxClr = isOverBudget ? "#FF5C7A" : "#12D18E";
 
-  // Net context
   const netCtx    = hasNetPrev
     ? fmtMoney(summary.netVsPrev, true) + " vs last mo."
     : summary.income > 0 ? fmtMoney(summary.income - summary.expense, true) + " net balance" : null;
@@ -1460,17 +1488,12 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
   );
 }
 
-// ─── AI Insight Card ───────────────────────────────────────────
-
-// Priority order: warning > opportunity > positive
-// Only the single highest-priority qualifying insight is shown.
 const INSIGHT_DEFS = [
   {
     type: "warning",
     priority: 1,
     accent: "#FFB800", icon: "alert-circle", label: "Heads up",
     show: s => (s.expenseVsPrev !== null && s.expenseVsPrev > 10) || (s._topExpenseAmt > 400),
-    // Auto-expand for high overspending (>30% over or top cat >$500)
     autoExpand: s => (s.expenseVsPrev > 30) || (s._topExpenseAmt > 500),
     compactHeadline: s => {
       const cat = s._topExpenseCat || "Transport";
@@ -1502,12 +1525,10 @@ const INSIGHT_DEFS = [
     priority: 2,
     accent: "#2F80FF", icon: "zap", label: "Opportunity",
     show: s => s.surplus >= 20 && s.income > s.expense,
-    // Auto-expand when surplus >= $100 (strong opportunity)
     autoExpand: s => s.surplus >= 100,
     compactHeadline: s => `You can save ${fmtMoney(Math.round(s.surplus))} this month`,
     headline:        s => `You can save ${fmtMoney(Math.round(s.surplus))} this month`,
-    body: s => `You're under budget this month.
-Move ${fmtMoney(Math.round(s.surplus))} to savings now.`,
+    body: s => `You're under budget this month.\nMove ${fmtMoney(Math.round(s.surplus))} to savings now.`,
     p:     "Move to savings",
     pMsg:  s => `${fmtMoney(Math.round(s.surplus))} moved to savings`,
     pType: "success",
@@ -1519,15 +1540,14 @@ Move ${fmtMoney(Math.round(s.surplus))} to savings now.`,
     priority: 3,
     accent: "#12D18E", icon: "trending-up", label: "On track",
     show: s => (s.netVsPrev ?? 0) >= 0 && s.net > 0,
-    autoExpand: () => false,  // never auto-expand positive — not urgent
+    autoExpand: () => false,
     compactHeadline: s => s.netVsPrev > 0
       ? `You're ${fmtMoney(Math.round(s.netVsPrev))} ahead this month`
       : "You're on a 3-week saving streak",
     headline: s => s.netVsPrev > 0
       ? `You're ${fmtMoney(Math.round(s.netVsPrev))} ahead this month`
       : "You're on a 3-week saving streak",
-    body: () => `You're ahead this month.
-Boost your savings.`,
+    body: () => `You're ahead this month.\nBoost your savings.`,
     p:     "Boost savings",
     pMsg:  "Savings goal updated",
     pType: "success",
@@ -1537,14 +1557,12 @@ Boost your savings.`,
   },
 ];
 
-// Determine whether an insight should auto-expand based on data + type rules
 function shouldAutoExpand(def, enriched) {
-  if (def.type === "positive") return false;           // never auto-expand positive
+  if (def.type === "positive") return false;
   return def.autoExpand ? def.autoExpand(enriched) : false;
 }
 
 function AIInsightCard({ summary, transactions, onAction }) {
-  // Enrich summary with top expense category
   const enriched = { ...summary };
   if (transactions && transactions.length > 0) {
     const bycat = transactions.filter(t => t.type === "expense").reduce((a, t) => {
@@ -1556,7 +1574,6 @@ function AIInsightCard({ summary, transactions, onAction }) {
     if (top) { enriched._topExpenseCat = top[0]; enriched._topExpenseAmt = top[1]; }
   }
 
-  // Show only single highest-priority qualifying insight
   const def = INSIGHT_DEFS
     .filter(d => d.show(enriched))
     .sort((a, b) => a.priority - b.priority)[0] || null;
@@ -1566,7 +1583,6 @@ function AIInsightCard({ summary, transactions, onAction }) {
   const [paused,   setPaused]   = useState(false);
   const resumeRef = useRef(null);
 
-  // Fallback card
   if (!def) {
     return (
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "13px 14px", marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
@@ -1603,59 +1619,41 @@ function AIInsightCard({ summary, transactions, onAction }) {
       <style>{`.ins-anim{animation:insIn 0.28s ease forwards}@keyframes insIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}`}</style>
       <div className="ins-anim"
         style={{ background: accent + "0D", border: `1px solid ${accent}26`, borderRadius: 14, overflow: "hidden" }}>
-
-        {/* ── Compact row — tappable when not auto-expanded ── */}
         <div
           onClick={autoExp ? undefined : () => { setExpanded(e => !e); pause(); }}
           style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", cursor: autoExp ? "default" : "pointer" }}>
-
-          {/* Type icon */}
           <div style={{ width: 22, height: 22, minWidth: 22, borderRadius: 7, background: accent + "20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Icon name={def.icon} size={11} color={accent} strokeWidth={2.2} />
           </div>
-
-          {/* Label + headline */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: accent, letterSpacing: 0.6, textTransform: "uppercase", fontFamily: FONT, display: "block", marginBottom: 2 }}>{def.label}</span>
             <div style={{ fontSize: 13, fontWeight: 600, color: C.text, letterSpacing: -0.15, fontFamily: FONT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {compactHeadlineText}
             </div>
           </div>
-
-          {/* Chevron — only when not auto-expanded (signals tap-to-expand) */}
           {!autoExp && (
             <div style={{ color: C.faint, fontSize: 13, marginLeft: 2, flexShrink: 0, transition: "transform 0.22s ease", transform: expanded ? "rotate(180deg)" : "rotate(0deg)", opacity: 0.6 }}>▾</div>
           )}
         </div>
 
-        {/* ── Expanded detail (auto or manual) ── */}
         {expanded && (
           <div style={{ padding: "10px 13px 13px", borderTop: `1px solid ${accent}18` }}>
-            {/* Body — 2 lines max, pre-wrap for newline rendering */}
             <div style={{ fontSize: 12, color: "rgba(168,198,228,0.82)", lineHeight: 1.6, marginBottom: 12, fontFamily: FONT, whiteSpace: "pre-line" }}>
               {resolve(def.body)}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-              {/* Primary */}
               <button onClick={() => handleCTA(def.pMsg, def.pType)}
                 style={{ width: "100%", padding: "11px 16px", background: `linear-gradient(135deg,${accent},${accent}CC)`, border: "none", borderRadius: 10, color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, minHeight: 44, letterSpacing: -0.1, boxShadow: `0 3px 10px ${accent}32`, transition: "filter 0.12s" }}
                 onPointerDown={e => e.currentTarget.style.filter = "brightness(0.84)"}
                 onPointerUp={e => e.currentTarget.style.filter = ""}
                 onPointerLeave={e => e.currentTarget.style.filter = ""}
               >{resolve(def.p)}</button>
-              {/* Secondary */}
               <div style={{ display: "flex", gap: 7 }}>
                 <button onClick={() => handleCTA(null, "info")}
-                  style={{ flex: 1, padding: "7px 8px", background: "transparent", border: `1px solid ${accent}28`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 11, cursor: "pointer", fontFamily: FONT, minHeight: 36, opacity: 0.75, transition: "opacity 0.12s" }}
-                  onPointerDown={e => e.currentTarget.style.opacity = "1"}
-                  onPointerUp={e => e.currentTarget.style.opacity = "0.75"}
-                  onPointerLeave={e => e.currentTarget.style.opacity = "0.75"}
+                  style={{ flex: 1, padding: "7px 8px", background: "transparent", border: `1px solid ${accent}28`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 11, cursor: "pointer", fontFamily: FONT, minHeight: 36, opacity: 0.75 }}
                 >{def.s1}</button>
                 <button onClick={() => handleCTA(def.s2Msg || null, "info")}
-                  style={{ flex: 1, padding: "7px 8px", background: "transparent", border: `1px solid ${accent}18`, borderRadius: 10, color: accent, fontWeight: 400, fontSize: 11, cursor: "pointer", fontFamily: FONT, minHeight: 36, opacity: 0.55, transition: "opacity 0.12s" }}
-                  onPointerDown={e => e.currentTarget.style.opacity = "0.9"}
-                  onPointerUp={e => e.currentTarget.style.opacity = "0.55"}
-                  onPointerLeave={e => e.currentTarget.style.opacity = "0.55"}
+                  style={{ flex: 1, padding: "7px 8px", background: "transparent", border: `1px solid ${accent}18`, borderRadius: 10, color: accent, fontWeight: 400, fontSize: 11, cursor: "pointer", fontFamily: FONT, minHeight: 36, opacity: 0.55 }}
                 >{def.s2}</button>
               </div>
             </div>
@@ -1666,7 +1664,6 @@ function AIInsightCard({ summary, transactions, onAction }) {
   );
 }
 
-// ─── Quick Actions Menu ────────────────────────────────────────
 function QuickActionsMenu({ tx, onClose, onEdit, onDelete, onMoveToSavings, onFlag, onDuplicate }) {
   const actions = [
     { label: "Edit transaction",  desc: "Fix amount, category or date", icon: "edit",         color: "#2F80FF", fn: () => { onClose(); onEdit(tx); } },
@@ -1704,7 +1701,6 @@ function QuickActionsMenu({ tx, onClose, onEdit, onDelete, onMoveToSavings, onFl
   );
 }
 
-// ─── Breakdown Sheet ───────────────────────────────────────────
 function BreakdownSheet({ title, subtitle, rows, actionLabel, actionColor, onAction, onClose }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 150, display: "flex", alignItems: "flex-end", maxWidth: 430, margin: "0 auto" }} onClick={onClose}>
@@ -1744,7 +1740,6 @@ function BreakdownSheet({ title, subtitle, rows, actionLabel, actionColor, onAct
   );
 }
 
-// ─── Transaction Row ───────────────────────────────────────────
 function TxRow({ t, onDelete, onEdit, onLongPress }) {
   const rowRef   = useRef(null);
   const bgLRef   = useRef(null);
@@ -1861,7 +1856,6 @@ function TxRow({ t, onDelete, onEdit, onLongPress }) {
   );
 }
 
-// ─── Transactions Screen ───────────────────────────────────────
 function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter, insight, onInsightAction }) {
   const [filter,   setFilter]   = useState("all");
   const [sheet,    setSheet]    = useState(null);
@@ -1873,18 +1867,17 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
   const now    = new Date();
   const prevMo = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const curTxs  = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === now.getMonth()    && d.getFullYear() === now.getFullYear(); });
-const prevTxs = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === prevMo.getMonth() && d.getFullYear() === prevMo.getFullYear(); });
+  const prevTxs = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === prevMo.getMonth() && d.getFullYear() === prevMo.getFullYear(); });
 
-// Если в текущем месяце нет income — добавляем последнюю зарплату из предыдущего
-const hasCurrentIncome = curTxs.some(t => t.type === "income");
-const effectiveCurTxs = hasCurrentIncome ? curTxs : (() => {
-  const lastIncome = [...transactions]
-    .filter(t => t.type === "income")
-    .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-  return lastIncome ? [...curTxs, lastIncome] : curTxs;
-})();
+  const hasCurrentIncome = curTxs.some(t => t.type === "income");
+  const effectiveCurTxs = hasCurrentIncome ? curTxs : (() => {
+    const lastIncome = [...transactions]
+      .filter(t => t.type === "income")
+      .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+    return lastIncome ? [...curTxs, lastIncome] : curTxs;
+  })();
 
-const summary = calcSummary(effectiveCurTxs, prevTxs);
+  const summary = calcSummary(effectiveCurTxs, prevTxs);
 
   let filtered = filter === "all" ? transactions : transactions.filter(t => t.type === filter);
   if (catFilter) filtered = filtered.filter(t => t.category_name === catFilter);
@@ -1910,7 +1903,6 @@ const summary = calcSummary(effectiveCurTxs, prevTxs);
 
   return (
     <div style={{ fontFamily: FONT }}>
-
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
         <div>
           <h2 style={{ margin: "0 0 2px", fontSize: 26, fontWeight: 700, letterSpacing: -0.6, color: C.text, lineHeight: 1.1 }}>Transactions</h2>
@@ -1934,8 +1926,6 @@ const summary = calcSummary(effectiveCurTxs, prevTxs);
       />
 
       <InsightCard insight={insight} onAction={onInsightAction} />
-
-      
 
       {catFilter && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: (CAT_COLORS[catFilter] || C.cyan) + "18", borderRadius: 12, border: `1px solid ${(CAT_COLORS[catFilter] || C.cyan)}33` }}>
@@ -1975,7 +1965,6 @@ const summary = calcSummary(effectiveCurTxs, prevTxs);
         </div>
       )}
 
-      {/* Swipe hint — appears briefly on first load, then auto-hides */}
       {!hintDone && filtered.length > 0 && (
         <div style={{ marginTop: 8, padding: "8px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 10, border: `1px solid rgba(255,255,255,0.05)`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, animation: "hintFade 0.3s ease forwards", animationDelay: "1.2s", opacity: 1 }}>
           <style>{`@keyframes hintFade{0%{opacity:1}100%{opacity:0;visibility:hidden}}`}</style>
@@ -1996,8 +1985,6 @@ const summary = calcSummary(effectiveCurTxs, prevTxs);
   );
 }
 
-
-// ─── Add Transaction Modal ────────────────────────────────────
 const INCOME_CATS = [
   { name: "Salary", icon: "dollar", color: "#00A67E" },
   { name: "Freelance", icon: "star", color: "#00C2FF" },
@@ -2088,12 +2075,10 @@ function AddTransactionModal({ categories, onAdd, onClose, existing }) {
   );
 }
 
-// ─── Savings Goal Card ────────────────────────────────────────
 function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getGoalIcon, insight }) {
   const [mode, setMode] = useState(null);
   const [customAmt, setCustomAmt] = useState("");
 
-  // S4: extract recommended contribution from AI insight if it's for this goal
   const aiContribution = (() => {
     if (!insight || insight.type !== 'goal_off_track') return null;
     if (insight.data?.goalId !== sv.id) return null;
@@ -2117,7 +2102,6 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
     <GlassCard>
       <style>{`input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}input[type=number]{-moz-appearance:textfield}`}</style>
 
-      {/* Goal header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <div style={{ width: 44, height: 44, borderRadius: 14, background: goalColor + "22", border: `1px solid ${goalColor}44`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 12px ${goalColor}33` }}>
@@ -2136,7 +2120,6 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
         </div>
       </div>
 
-      {/* Progress bar */}
       <div style={{ height: 10, background: C.bgTertiary, borderRadius: 99, marginBottom: 8, overflow: "hidden" }}>
         <div style={{ height: 10, borderRadius: 99, width: `${pct}%`, background: `linear-gradient(90deg,${goalColor},${goalColor}BB)`, transition: "width 0.6s", boxShadow: `0 0 12px ${goalColor}55` }} />
       </div>
@@ -2145,60 +2128,30 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
         <span style={{ color: C.muted }}>${fmt(remaining, 0)} remaining</span>
       </div>
 
-      {/* S3: AI primary CTA — large button when AI has a recommendation */}
       {aiContribution && (
         <button
           onClick={() => onUpdate(sv.id, Number(sv.current) + aiContribution)}
-          style={{
-            width: "100%", padding: "12px 16px", marginBottom: 10,
-            background: goalColor,
-            border: "none", borderRadius: 11,
-            color: "#fff", fontWeight: 800, fontSize: 14,
-            cursor: "pointer", fontFamily: FONT,
-            letterSpacing: -0.2,
-            boxShadow: `0 4px 16px ${goalColor}44`,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            transition: "transform 0.12s ease, box-shadow 0.12s ease",
-          }}
+          style={{ width: "100%", padding: "12px 16px", marginBottom: 10, background: goalColor, border: "none", borderRadius: 11, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: FONT, letterSpacing: -0.2, boxShadow: `0 4px 16px ${goalColor}44`, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "transform 0.12s ease, box-shadow 0.12s ease" }}
           onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; }}
           onPointerUp={e => { e.currentTarget.style.transform = "scale(1.02)"; setTimeout(() => { e.currentTarget.style.transform = "scale(1)"; }, 120); }}
           onPointerLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
         >
           Add ${aiContribution} now
-          {/* S3: "Recommended • Keeps your buffer safe" */}
-          <span style={{
-            fontSize: 10, fontWeight: 600,
-            background: "rgba(255,255,255,0.20)",
-            borderRadius: 20, padding: "2px 8px",
-            letterSpacing: 0.2, whiteSpace: "nowrap",
-          }}>
+          <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(255,255,255,0.20)", borderRadius: 20, padding: "2px 8px", letterSpacing: 0.2, whiteSpace: "nowrap" }}>
             Recommended · Keeps your buffer safe
           </span>
         </button>
       )}
 
-      {/* S3: Small quick-deposit presets — standard amounts, never include AI amount */}
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         {[10, 25, 50, 100].map(amt => (
-          <button
-            key={amt}
-            onClick={() => onUpdate(sv.id, Number(sv.current) + amt)}
-            style={{
-              flex: 1, padding: "8px 0",
-              background: goalColor + "15",
-              border: `1px solid ${goalColor}40`,
-              borderRadius: 10,
-              color: goalColor + "CC",
-              cursor: "pointer", fontSize: 12, fontWeight: 600,
-              fontFamily: FONT, transition: "all 0.15s",
-            }}
-          >
+          <button key={amt} onClick={() => onUpdate(sv.id, Number(sv.current) + amt)}
+            style={{ flex: 1, padding: "8px 0", background: goalColor + "15", border: `1px solid ${goalColor}40`, borderRadius: 10, color: goalColor + "CC", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: FONT, transition: "all 0.15s" }}>
             +${amt}
           </button>
         ))}
       </div>
 
-      {/* Deposit / Withdraw buttons */}
       <div style={{ display: "flex", gap: 8, marginBottom: mode ? 10 : 0 }}>
         <button onClick={() => { setMode(mode === "deposit" ? null : "deposit"); setCustomAmt(""); }}
           style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${mode === "deposit" ? C.green : C.border}`, background: mode === "deposit" ? C.green + "20" : C.bgTertiary, color: mode === "deposit" ? C.green : C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
@@ -2210,7 +2163,6 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
         </button>
       </div>
 
-      {/* Custom amount input */}
       {mode && (
         <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
           <div style={{ flex: 1, position: "relative" }}>
@@ -2230,29 +2182,20 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
   );
 }
 
-
-
-// ─── Savings ──────────────────────────────────────────────────
 function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, onInsightAction }) {
   const [showAdd, setShowAdd]             = useState(false);
   const [newName, setNewName]             = useState("");
   const [newTarget, setNewTarget]         = useState("");
   const [roundupEnabled, setRoundupEnabled] = useState(false);
   const [roundupMultiplier, setRoundupMultiplier] = useState(1);
-  const [showAlpacaSheet, setShowAlpacaSheet] = useState(false); // S8: Alpaca confirm
+  const [showAlpacaSheet, setShowAlpacaSheet] = useState(false);
 
-  // Проекция: базовая сумма roundup в месяц
   const BASE_MONTHLY = totalSpent > 0 ? Math.floor(totalSpent * 0.03 * 100) / 100 : 26;
   const roundupMonth = parseFloat((BASE_MONTHLY * roundupMultiplier).toFixed(2));
   const roundupTotal = parseFloat((roundupMonth * 3.2).toFixed(2));
-  const roundupYearly = Math.round(roundupMonth * 12 / 10) * 10; // округление до $10
+  const roundupYearly = Math.round(roundupMonth * 12 / 10) * 10;
 
-  const inp = {
-    width: "100%", padding: "12px 14px", background: C.bg,
-    border: `1px solid ${C.border}`, borderRadius: 12,
-    color: C.text, fontSize: 14, outline: "none",
-    boxSizing: "border-box", marginBottom: 10, fontFamily: FONT,
-  };
+  const inp = { width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box", marginBottom: 10, fontFamily: FONT };
 
   const totalSaved     = savings.reduce((s, sv) => s + Number(sv.current), 0);
   const monthlySurplus = totalIncome - totalSpent;
@@ -2273,41 +2216,26 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
     return Math.ceil(remaining / (monthlySurplus * 0.5));
   }
 
-  // Мультипликатор → проекция (для feedback строки)
   const projMap = { 1: roundupMonth, 2: roundupMonth * 2, 5: roundupMonth * 5, 10: roundupMonth * 10 };
   const currentProjMonthly = Math.round(projMap[roundupMultiplier]);
   const currentProjYearly  = Math.round(currentProjMonthly * 12 / 10) * 10;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-
-      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h2 style={{ margin: "0 0 2px", fontSize: 26, fontWeight: 700 }}>Savings Goals</h2>
           <div style={{ fontSize: 13, color: C.muted }}>Track your progress</div>
         </div>
-        <button onClick={() => setShowAdd(!showAdd)} style={{
-          background: C.green, border: "none", borderRadius: 22,
-          padding: "9px 16px", color: "#000", fontWeight: 700,
-          cursor: "pointer", display: "flex", alignItems: "center",
-          gap: 5, fontSize: 14, fontFamily: FONT,
-          boxShadow: `0 0 20px ${C.green}44`,
-        }}>
+        <button onClick={() => setShowAdd(!showAdd)} style={{ background: C.green, border: "none", borderRadius: 22, padding: "9px 16px", color: "#000", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 14, fontFamily: FONT, boxShadow: `0 0 20px ${C.green}44` }}>
           <Icon name="plus" size={14} color="#000" strokeWidth={2.5} /> Goal
         </button>
       </div>
 
-      {/* AI Insight карточка */}
       <InsightCard insight={insight} onAction={onInsightAction} />
 
-      {/* Итого */}
       {(totalSaved > 0 || monthlySurplus > 0) && (
-        <div style={{
-          background: "linear-gradient(135deg,#0D2A1F,#0B1426)",
-          borderRadius: 20, padding: 20,
-          border: `1px solid ${C.green}30`,
-        }}>
+        <div style={{ background: "linear-gradient(135deg,#0D2A1F,#0B1426)", borderRadius: 20, padding: 20, border: `1px solid ${C.green}30` }}>
           <div style={{ display: "flex" }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, letterSpacing: 0.5, marginBottom: 4 }}>TOTAL SAVED</div>
@@ -2315,35 +2243,24 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
             </div>
             <div style={{ flex: 1, paddingLeft: 20, borderLeft: `1px solid ${C.sep}` }}>
               <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, letterSpacing: 0.5, marginBottom: 4 }}>MONTHLY SURPLUS</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: monthlySurplus >= 0 ? C.cyan : C.red }}>
-                ${fmt(Math.abs(monthlySurplus), 0)}
-              </div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: monthlySurplus >= 0 ? C.cyan : C.red }}>${fmt(Math.abs(monthlySurplus), 0)}</div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── SPARE CHANGE CARD (was: Auto Round-up) ── */}
-      <div style={{
-        background: "linear-gradient(135deg,#0D2233,#0B1426)",
-        borderRadius: 20, padding: 20,
-        border: `1px solid ${C.cyan}30`,
-        position: "relative", overflow: "hidden",
-      }}>
+      <div style={{ background: "linear-gradient(135deg,#0D2233,#0B1426)", borderRadius: 20, padding: 20, border: `1px solid ${C.cyan}30`, position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: -20, right: -20, width: 100, height: 100, borderRadius: "50%", background: C.cyan + "0A", pointerEvents: "none" }} />
 
-        {/* Header row */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 40, height: 40, borderRadius: 12, background: C.cyan + "22", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 8px ${C.cyan}22` }}>
-              {/* coin/spare change icon */}
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"/>
                 <path d="M12 6v2m0 8v2M9.5 9.5C9.5 8.1 10.6 7 12 7s2.5 1.1 2.5 2.5c0 2.5-5 2.5-5 5C9.5 15.9 10.6 17 12 17s2.5-1.1 2.5-2.5"/>
               </svg>
             </div>
             <div>
-              {/* S4: honest title — no "auto" claims */}
               <div style={{ fontWeight: 700, fontSize: 15 }}>Spare change from your spending</div>
               {roundupEnabled ? (
                 <div style={{ fontSize: 12, color: C.green, marginTop: 2, fontWeight: 500 }}>Round-up tracking is ON</div>
@@ -2355,33 +2272,13 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
               )}
             </div>
           </div>
-
-          {/* Toggle only */}
-          <div
-            onClick={() => setRoundupEnabled(v => !v)}
-            style={{
-              width: 44, height: 26, borderRadius: 99,
-              background: roundupEnabled ? C.cyan + "33" : C.bgTertiary,
-              border: `1px solid ${roundupEnabled ? C.cyan + "66" : C.border}`,
-              position: "relative", cursor: "pointer",
-              transition: "all 0.22s", flexShrink: 0,
-            }}
-          >
-            <div style={{
-              position: "absolute", top: 3,
-              left: roundupEnabled ? 20 : 3,
-              width: 18, height: 18, borderRadius: 99,
-              background: roundupEnabled ? C.cyan : C.faint,
-              transition: "left 0.2s",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
-            }} />
+          <div onClick={() => setRoundupEnabled(v => !v)} style={{ width: 44, height: 26, borderRadius: 99, background: roundupEnabled ? C.cyan + "33" : C.bgTertiary, border: `1px solid ${roundupEnabled ? C.cyan + "66" : C.border}`, position: "relative", cursor: "pointer", transition: "all 0.22s", flexShrink: 0 }}>
+            <div style={{ position: "absolute", top: 3, left: roundupEnabled ? 20 : 3, width: 18, height: 18, borderRadius: 99, background: roundupEnabled ? C.cyan : C.faint, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.4)" }} />
           </div>
         </div>
 
-        {/* Stats */}
         <div style={{ display: "flex", gap: 0, marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${C.sep}` }}>
           <div style={{ flex: 1 }}>
-            {/* S5: "This month" label */}
             <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, letterSpacing: 0.5, marginBottom: 3 }}>THIS MONTH</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: C.cyan }}>${fmt(roundupMonth, 2)}</div>
             <div style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>Based on your purchases</div>
@@ -2392,90 +2289,41 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
           </div>
         </div>
 
-        {/* S5: Primary CTA — Invest via Alpaca */}
         {roundupMonth >= 1 && (
-          <button
-            onClick={() => setShowAlpacaSheet(true)}
-            style={{
-              width: "100%", padding: "12px 16px", marginBottom: 12,
-              background: `linear-gradient(135deg, #7B5EA7, #4B6CB7)`,
-              border: "none", borderRadius: 11,
-              color: "#fff", fontWeight: 700, fontSize: 14,
-              cursor: "pointer", fontFamily: FONT,
-              letterSpacing: -0.2,
-              boxShadow: "0 4px 16px rgba(75,108,183,0.35)",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              transition: "transform 0.12s ease",
-            }}
+          <button onClick={() => setShowAlpacaSheet(true)}
+            style={{ width: "100%", padding: "12px 16px", marginBottom: 12, background: `linear-gradient(135deg, #7B5EA7, #4B6CB7)`, border: "none", borderRadius: 11, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT, letterSpacing: -0.2, boxShadow: "0 4px 16px rgba(75,108,183,0.35)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "transform 0.12s ease" }}
             onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; }}
             onPointerUp={e => { e.currentTarget.style.transform = "scale(1.02)"; setTimeout(() => { e.currentTarget.style.transform = ""; }, 120); }}
             onPointerLeave={e => { e.currentTarget.style.transform = ""; }}
           >
-            {/* Alpaca-style chart icon */}
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-            </svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
             Invest ${Math.floor(roundupMonth)} via Alpaca
           </button>
         )}
 
-        {/* S5: helper text */}
-        <div style={{ fontSize: 11, color: C.faint, marginBottom: 12 }}>
-          Small amounts like this are easiest to invest regularly.
-        </div>
+        <div style={{ fontSize: 11, color: C.faint, marginBottom: 12 }}>Small amounts like this are easiest to invest regularly.</div>
 
-        {/* Projection */}
-        <div style={{
-          display: "flex", alignItems: "flex-start", gap: 7,
-          marginBottom: 12, fontSize: 12, opacity: 1,
-        }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 7, marginBottom: 12, fontSize: 12, opacity: 1 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={roundupEnabled ? "#12D18E" : "#4A5E7A"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
-            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-            <polyline points="17 6 23 6 23 12"/>
+            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
           </svg>
           {roundupEnabled ? (
-            <span style={{ color: C.muted }}>
-              ≈ <strong style={{ color: C.green }}>${currentProjMonthly}/month</strong>
-              {" "}→ ~${currentProjYearly}/year at current pace
-            </span>
+            <span style={{ color: C.muted }}>≈ <strong style={{ color: C.green }}>${currentProjMonthly}/month</strong>{" "}→ ~${currentProjYearly}/year at current pace</span>
           ) : (
-            <span>
-              <span style={{ color: C.muted }}>
-                Turn on to track <strong style={{ color: C.cyan }}>~${currentProjMonthly}/month</strong> in spare change
-              </span>
-              <br />
-              <span style={{ fontSize: 11, color: C.faint }}>
-                ≈ ${currentProjYearly}/year, without noticing
-              </span>
-            </span>
+            <span><span style={{ color: C.muted }}>Turn on to track <strong style={{ color: C.cyan }}>~${currentProjMonthly}/month</strong> in spare change</span><br /><span style={{ fontSize: 11, color: C.faint }}>≈ ${currentProjYearly}/year, without noticing</span></span>
           )}
         </div>
 
-        {/* Multiplier */}
         <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Multiplier</div>
         <div style={{ display: "flex", gap: 6 }}>
           {[1, 2, 5, 10].map(m => (
-            <button
-              key={m}
-              onClick={() => setRoundupMultiplier(m)}
-              style={{
-                flex: 1, padding: "8px 0", borderRadius: 10,
-                border: `1px solid ${roundupMultiplier === m ? C.cyan : C.border}`,
-                background: roundupMultiplier === m ? C.cyan + "22" : "transparent",
-                color: roundupMultiplier === m ? C.cyan : C.muted,
-                cursor: "pointer", fontSize: 13, fontWeight: 700,
-                fontFamily: FONT,
-                transform: roundupMultiplier === m ? "scale(1.04)" : "scale(1)",
-                boxShadow: roundupMultiplier === m ? `0 0 10px ${C.cyan}33` : "none",
-                transition: "all 0.15s",
-              }}
-            >
+            <button key={m} onClick={() => setRoundupMultiplier(m)}
+              style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${roundupMultiplier === m ? C.cyan : C.border}`, background: roundupMultiplier === m ? C.cyan + "22" : "transparent", color: roundupMultiplier === m ? C.cyan : C.muted, cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: FONT, transform: roundupMultiplier === m ? "scale(1.04)" : "scale(1)", boxShadow: roundupMultiplier === m ? `0 0 10px ${C.cyan}33` : "none", transition: "all 0.15s" }}>
               {m}x
             </button>
           ))}
         </div>
 
-        {/* Multiplier feedback */}
         <div style={{ marginTop: 10, fontSize: 12, color: C.muted, minHeight: 18 }}>
           {roundupEnabled
             ? <>At {roundupMultiplier}x you track <strong style={{ color: C.cyan }}>~${currentProjMonthly}/month</strong> in spare change</>
@@ -2484,204 +2332,72 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
         </div>
       </div>
 
-      {/* ── S8: ALPACA INVEST CONFIRM SHEET ── */}
       {showAlpacaSheet && (
-        <div
-          onClick={() => setShowAlpacaSheet(false)}
-          style={{
-            position: "fixed", inset: 0,
-            background: "rgba(0,0,0,0.72)", zIndex: 150,
-            display: "flex", alignItems: "flex-end",
-            maxWidth: 430, margin: "0 auto",
-          }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: "100%", background: C.card,
-              borderRadius: "22px 22px 0 0",
-              border: `1px solid ${C.border}`,
-              padding: 24, fontFamily: FONT,
-            }}
-          >
-            {/* Handle */}
+        <div onClick={() => setShowAlpacaSheet(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 150, display: "flex", alignItems: "flex-end", maxWidth: 430, margin: "0 auto" }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", background: C.card, borderRadius: "22px 22px 0 0", border: `1px solid ${C.border}`, padding: 24, fontFamily: FONT }}>
             <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.11)", borderRadius: 2, margin: "0 auto 20px" }} />
-
-            {/* Amount */}
             <div style={{ textAlign: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 36, fontWeight: 800, color: C.text, letterSpacing: -1 }}>
-                ${Math.floor(roundupMonth)}
-              </div>
+              <div style={{ fontSize: 36, fontWeight: 800, color: C.text, letterSpacing: -1 }}>${Math.floor(roundupMonth)}</div>
               <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>to invest via Alpaca</div>
             </div>
-
-            {/* S8: honest explanation */}
-            <div style={{
-              background: C.bgSecondary, borderRadius: 14,
-              padding: "14px 16px", marginBottom: 20,
-              border: `1px solid ${C.border}`,
-            }}>
+            <div style={{ background: C.bgSecondary, borderRadius: 14, padding: "14px 16px", marginBottom: 20, border: `1px solid ${C.border}` }}>
               <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.65 }}>
-                This amount comes from your round-ups, tracked based on your purchases.
-                {" "}<strong style={{ color: C.text, fontWeight: 600 }}>Money stays in your account</strong> until you confirm — we don't move anything automatically.
+                This amount comes from your round-ups, tracked based on your purchases.{" "}<strong style={{ color: C.text, fontWeight: 600 }}>Money stays in your account</strong> until you confirm — we don't move anything automatically.
               </div>
             </div>
-
-            {/* Buttons */}
-            <button
-              onClick={() => {
-                // TODO: call Alpaca API
-                setShowAlpacaSheet(false);
-              }}
-              style={{
-                width: "100%", padding: 15, marginBottom: 10,
-                background: `linear-gradient(135deg, #7B5EA7, #4B6CB7)`,
-                border: "none", borderRadius: 14,
-                color: "#fff", fontWeight: 700, fontSize: 15,
-                cursor: "pointer", fontFamily: FONT,
-                boxShadow: "0 4px 20px rgba(75,108,183,0.35)",
-              }}
-            >
+            <button onClick={() => setShowAlpacaSheet(false)} style={{ width: "100%", padding: 15, marginBottom: 10, background: `linear-gradient(135deg, #7B5EA7, #4B6CB7)`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, boxShadow: "0 4px 20px rgba(75,108,183,0.35)" }}>
               Confirm investment
             </button>
-            <button
-              onClick={() => setShowAlpacaSheet(false)}
-              style={{
-                width: "100%", padding: 14,
-                background: C.bgSecondary, border: `1px solid ${C.border}`,
-                borderRadius: 14, color: C.muted,
-                fontWeight: 500, fontSize: 14,
-                cursor: "pointer", fontFamily: FONT,
-              }}
-            >
+            <button onClick={() => setShowAlpacaSheet(false)} style={{ width: "100%", padding: 14, background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 14, color: C.muted, fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
               Cancel
             </button>
           </div>
         </div>
       )}
 
-      {/* Add goal form */}
       {showAdd && (
         <GlassCard>
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>New Savings Goal</div>
           <input style={inp} placeholder="Goal name (e.g. Vacation, Emergency Fund)" value={newName} onChange={e => setNewName(e.target.value)} />
           <input style={inp} type="number" placeholder="Target amount ($)" value={newTarget} onChange={e => setNewTarget(e.target.value)} />
-          <button
-            onClick={() => {
-              if (!newName || !newTarget) return;
-              onAdd({ name: newName, target: parseFloat(newTarget), current: 0, icon: "star", color: C.green });
-              setShowAdd(false); setNewName(""); setNewTarget("");
-            }}
-            style={{ width: "100%", padding: 13, background: `linear-gradient(90deg,${C.green},#00A67E)`, border: "none", borderRadius: 12, color: C.bg, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}
-          >
+          <button onClick={() => { if (!newName || !newTarget) return; onAdd({ name: newName, target: parseFloat(newTarget), current: 0, icon: "star", color: C.green }); setShowAdd(false); setNewName(""); setNewTarget(""); }}
+            style={{ width: "100%", padding: 13, background: `linear-gradient(90deg,${C.green},#00A67E)`, border: "none", borderRadius: 12, color: C.bg, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
             Create Goal
           </button>
         </GlassCard>
       )}
 
-      {/* ── EMPTY STATE → 3 quick-goal кнопки ── */}
       {savings.length === 0 ? (
         <GlassCard style={{ padding: "24px 20px", textAlign: "center" }}>
-          {/* S6: Goal icon — lighter, consistent stroke, no gradient border */}
-          <div style={{
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            width: 52, height: 52, borderRadius: 16,
-            background: C.green + "14",
-            border: `1px solid ${C.green}22`,
-            marginBottom: 14,
-            animation: "goalFloat 3s ease-in-out infinite",
-          }}>
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 52, height: 52, borderRadius: 16, background: C.green + "14", border: `1px solid ${C.green}22`, marginBottom: 14, animation: "goalFloat 3s ease-in-out infinite" }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <circle cx="12" cy="12" r="6"/>
-              <circle cx="12" cy="12" r="2"/>
+              <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
             </svg>
           </div>
           <style>{`@keyframes goalFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}`}</style>
-
-          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-            Start your first goal
-          </div>
-          <div style={{ fontSize: 13, color: C.muted, marginBottom: 20, lineHeight: 1.5 }}>
-            Build your first $1,000.<br />
-            <span style={{ color: C.faint, fontSize: 12 }}>Start with small automatic savings</span>
-          </div>
-
-          {/* Quick-action кнопки */}
+          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Start your first goal</div>
+          <div style={{ fontSize: 13, color: C.muted, marginBottom: 20, lineHeight: 1.5 }}>Build your first $1,000.<br /><span style={{ color: C.faint, fontSize: 12 }}>Start with small automatic savings</span></div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, textAlign: "left" }}>
-
-            {/* Emergency Fund — shield SVG вместо 🛡️ */}
-            <div
-              onClick={() => { onAdd({ name: "Emergency Fund", target: 1000, current: 0, icon: "lock", color: C.green }); }}
-              style={{
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                background: C.bgSecondary, border: `1px solid ${C.border}`,
-                borderRadius: 12, padding: "13px 14px",
-                cursor: "pointer", transition: "border-color 0.15s, background 0.15s",
-              }}
-              onPointerEnter={e => { e.currentTarget.style.borderColor = C.green + "55"; e.currentTarget.style.background = C.green + "08"; }}
-              onPointerLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bgSecondary; }}
-            >
+            <div onClick={() => { onAdd({ name: "Emergency Fund", target: 1000, current: 0, icon: "lock", color: C.green }); }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 12, padding: "13px 14px", cursor: "pointer", transition: "border-color 0.15s, background 0.15s" }} onPointerEnter={e => { e.currentTarget.style.borderColor = C.green + "55"; e.currentTarget.style.background = C.green + "08"; }} onPointerLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bgSecondary; }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: C.green + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                  </svg>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 </div>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Emergency Fund</div>
-                  <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Target: $1,000</div>
-                </div>
+                <div><div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Emergency Fund</div><div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Target: $1,000</div></div>
               </div>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 18 15 12 9 6"/>
-              </svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
             </div>
-
-            {/* Vacation — airplane SVG вместо ✈️ */}
-            <div
-              onClick={() => { onAdd({ name: "Vacation", target: 2000, current: 0, icon: "target", color: C.cyan }); }}
-              style={{
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                background: C.bgSecondary, border: `1px solid ${C.border}`,
-                borderRadius: 12, padding: "13px 14px",
-                cursor: "pointer", transition: "border-color 0.15s, background 0.15s",
-              }}
-              onPointerEnter={e => { e.currentTarget.style.borderColor = C.cyan + "55"; e.currentTarget.style.background = C.cyan + "08"; }}
-              onPointerLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bgSecondary; }}
-            >
+            <div onClick={() => { onAdd({ name: "Vacation", target: 2000, current: 0, icon: "target", color: C.cyan }); }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 12, padding: "13px 14px", cursor: "pointer", transition: "border-color 0.15s, background 0.15s" }} onPointerEnter={e => { e.currentTarget.style.borderColor = C.cyan + "55"; e.currentTarget.style.background = C.cyan + "08"; }} onPointerLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bgSecondary; }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: C.cyan + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-                  </svg>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
                 </div>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Vacation</div>
-                  <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Target: $2,000</div>
-                </div>
+                <div><div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Vacation</div><div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Target: $2,000</div></div>
               </div>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 18 15 12 9 6"/>
-              </svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
             </div>
-
-            {/* Custom goal — plus SVG вместо ＋ символа */}
-            <div
-              onClick={() => setShowAdd(true)}
-              style={{
-                display: "flex", justifyContent: "center", alignItems: "center", gap: 8,
-                background: C.bgSecondary, border: `1px dashed ${C.border}`,
-                borderRadius: 12, padding: "13px 14px",
-                cursor: "pointer", color: C.muted, fontSize: 14, fontWeight: 500,
-                transition: "color 0.15s, border-color 0.15s",
-              }}
-              onPointerEnter={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = C.muted; }}
-              onPointerLeave={e => { e.currentTarget.style.color = C.muted; e.currentTarget.style.borderColor = C.border; }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
+            <div onClick={() => setShowAdd(true)} style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, background: C.bgSecondary, border: `1px dashed ${C.border}`, borderRadius: 12, padding: "13px 14px", cursor: "pointer", color: C.muted, fontSize: 14, fontWeight: 500, transition: "color 0.15s, border-color 0.15s" }} onPointerEnter={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = C.muted; }} onPointerLeave={e => { e.currentTarget.style.color = C.muted; e.currentTarget.style.borderColor = C.border; }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Custom goal
             </div>
           </div>
@@ -2692,25 +2408,13 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
           const goalColor = sv.color || C.green;
           const remaining = Math.max(Number(sv.target) - Number(sv.current), 0);
           const months    = monthsToGoal(sv);
-          return (
-            <SavingsGoalCard
-              key={sv.id}
-              sv={sv} pct={pct} goalColor={goalColor}
-              remaining={remaining} months={months}
-              onUpdate={onUpdate} getGoalIcon={getGoalIcon}
-              insight={insight}
-            />
-          );
+          return <SavingsGoalCard key={sv.id} sv={sv} pct={pct} goalColor={goalColor} remaining={remaining} months={months} onUpdate={onUpdate} getGoalIcon={getGoalIcon} insight={insight} />;
         })
       )}
     </div>
   );
 }
 
-
-
-
-// ─── Chat ─────────────────────────────────────────────────────
 function Chat({ messages, input, setInput, onSend }) {
   const bottomRef = useRef(null);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -2750,8 +2454,45 @@ function Chat({ messages, input, setInput, onSend }) {
   );
 }
 
+// ─── Plaid Link Button ────────────────────────────────────────
+function PlaidLinkButton({ linkToken, onSuccess, onExit }) {
+  const { open, ready } = usePlaidLink({
+    token: linkToken,
+    onSuccess,
+    onExit,
+  });
+
+  return (
+    <button
+      onClick={() => open()}
+      disabled={!ready}
+      style={{
+        width: "100%", padding: 14,
+        background: ready ? "linear-gradient(135deg,#1A56DB,#2F80FF)" : "rgba(26,86,219,0.4)",
+        border: "none", borderRadius: 14,
+        color: "#fff", fontWeight: 700, fontSize: 15,
+        cursor: ready ? "pointer" : "not-allowed",
+        fontFamily: FONT,
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+        boxShadow: ready ? "0 4px 20px rgba(26,86,219,0.4)" : "none",
+        transition: "all 0.2s",
+      }}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="3" y1="22" x2="21" y2="22"/>
+        <line x1="6" y1="18" x2="6" y2="11"/>
+        <line x1="10" y1="18" x2="10" y2="11"/>
+        <line x1="14" y1="18" x2="14" y2="11"/>
+        <line x1="18" y1="18" x2="18" y2="11"/>
+        <polygon points="12 2 20 7 4 7"/>
+      </svg>
+      {ready ? "Connect Your Bank" : "Loading..."}
+    </button>
+  );
+}
+
 // ─── Profile / Settings ───────────────────────────────────────
-function Profile({ profile, user, onSave, autopilot, setAutopilot }) {
+function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected, bankName, linkToken, getLinkToken, onPlaidSuccess, syncBankTransactions, syncingBank }) {
   const [budget, setBudget] = useState(profile?.monthly_budget || 3000);
   const [goal, setGoal] = useState(profile?.savings_goal || 10000);
   const [saved, setSaved] = useState(false);
@@ -2780,6 +2521,51 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot }) {
             <div style={{ color: C.muted, fontSize: 13 }}>{user.email}</div>
           </div>
         </div>
+      </GlassCard>
+
+      {/* ── PLAID BANK CONNECTION ── */}
+      <GlassCard style={{ border: `1px solid ${bankConnected ? C.green + "44" : "#1A56DB44"}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: bankConnected ? C.green + "22" : "#1A56DB22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="bank" size={18} color={bankConnected ? C.green : "#1A56DB"} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>
+              {bankConnected ? bankName || "Bank Connected" : "Connect Your Bank"}
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+              {bankConnected ? "✓ Transactions syncing automatically" : "Sync real transactions via Plaid"}
+            </div>
+          </div>
+          {bankConnected && (
+            <div style={{ background: C.green + "22", border: `1px solid ${C.green}44`, borderRadius: 100, padding: "3px 10px" }}>
+              <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>Active</span>
+            </div>
+          )}
+        </div>
+
+        {bankConnected ? (
+          <button onClick={syncBankTransactions} disabled={syncingBank}
+            style={{ width: "100%", padding: 13, background: syncingBank ? C.bgTertiary : C.green + "22", border: `1px solid ${C.green}44`, borderRadius: 14, color: C.green, fontWeight: 600, fontSize: 14, cursor: syncingBank ? "not-allowed" : "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <Icon name="repeat" size={15} color={C.green} strokeWidth={2} />
+            {syncingBank ? "Syncing..." : "Sync Transactions"}
+          </button>
+        ) : linkToken ? (
+          <PlaidLinkButton linkToken={linkToken} onSuccess={onPlaidSuccess} onExit={() => {}} />
+        ) : (
+          <button onClick={getLinkToken}
+            style={{ width: "100%", padding: 14, background: "linear-gradient(135deg,#1A56DB,#2F80FF)", border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: "0 4px 20px rgba(26,86,219,0.4)" }}>
+            <Icon name="bank" size={17} color="#fff" strokeWidth={2} />
+            Connect Your Bank
+          </button>
+        )}
+
+        {!bankConnected && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, justifyContent: "center" }}>
+            <Icon name="lock" size={11} color={C.faint} />
+            <span style={{ fontSize: 11, color: C.faint }}>256-bit encryption · Read-only access</span>
+          </div>
+        )}
       </GlassCard>
 
       <GlassCard>
@@ -2844,7 +2630,6 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot }) {
       <GlassCard>
         <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>Coming Next</div>
         {[
-          { label: "Connect Bank (Plaid)", color: "#1A56DB", icon: "bank" },
           { label: "Auto-Invest (Alpaca)", color: "#059669", icon: "activity" },
           { label: "Subscription Tracker", color: "#7C3AED", icon: "repeat" },
           { label: "Mobile App", color: "#0891B2", icon: "phone" },
