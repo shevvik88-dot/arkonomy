@@ -553,8 +553,14 @@ function WeeklySummary({ transactions }) {
   const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay());
   const startOfLastWeek = new Date(startOfWeek); startOfLastWeek.setDate(startOfWeek.getDate() - 7);
 
-  const thisWeek = transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer" && new Date(t.date) >= startOfWeek).reduce((s, t) => s + Number(t.amount), 0);
+  const thisWeekTxs = transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer" && new Date(t.date) >= startOfWeek);
+  const thisWeek = thisWeekTxs.reduce((s, t) => s + Number(t.amount), 0);
   const lastWeek = transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer" && new Date(t.date) >= startOfLastWeek && new Date(t.date) < startOfWeek).reduce((s, t) => s + Number(t.amount), 0);
+
+  // Топ категория за неделю
+  const weekCatMap = {};
+  thisWeekTxs.forEach(t => { const k = t.category_name || "Other"; weekCatMap[k] = (weekCatMap[k] || 0) + Number(t.amount); });
+  const topWeekCat = Object.entries(weekCatMap).sort((a, b) => b[1] - a[1])[0];
   const change = lastWeek > 0 ? ((thisWeek - lastWeek) / lastWeek) * 100 : 0;
   const pos = change <= 0;
 
@@ -580,7 +586,8 @@ function WeeklySummary({ transactions }) {
       </div>
       <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 4 }}>${fmt(thisWeek, 0)}</div>
       <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
-        Spent this week — {lastWeek > 0 ? (
+        Spent this week{topWeekCat ? ` — mostly on ${topWeekCat[0]} ($${fmt(topWeekCat[1], 0)})` : ""}.{" "}
+        {lastWeek > 0 ? (
           <span style={{ color: pos ? C.green : C.red, fontWeight: 600 }}>
             {pos ? "↓" : "↑"}{Math.abs(change).toFixed(0)}% {pos ? "less" : "more"} than last week
           </span>
@@ -1203,22 +1210,36 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
       </GlassCard>
 
       {/* 4 ── Monthly Budget */}
-      <GlassCard style={{ padding: "14px 16px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>Monthly Budget</div>
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>Spent ${fmt(totalSpent, 0)} of ${fmt(budget, 0)}</div>
-          </div>
-          <span style={{ color: pct > 90 ? C.red : pct > 70 ? C.yellow : C.cyan, fontSize: 15, fontWeight: 800 }}>{pct.toFixed(0)}%</span>
-        </div>
-        <div style={{ height: 7, background: C.bgTertiary, borderRadius: 99, marginBottom: 6 }}>
-          <div style={{ height: 7, borderRadius: 99, width: `${pct}%`, background: pct > 90 ? C.red : pct > 70 ? C.yellow : `linear-gradient(90deg,${C.cyan},${C.blue})`, transition: "width 0.6s", boxShadow: pct <= 70 ? `0 0 8px ${C.cyan}44` : "none" }} />
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <span style={{ color: C.green, fontSize: 11, fontWeight: 600 }}>${fmt(Math.max(budget - totalSpent, 0))} remaining</span>
-          <span style={{ color: C.faint, fontSize: 11 }}>of ${fmt(budget, 0)}</span>
-        </div>
-      </GlassCard>
+      {(() => {
+        const isOver = totalSpent > budget;
+        const overBy = totalSpent - budget;
+        const remaining = budget - totalSpent;
+        const barPct = isOver ? 100 : pct;
+        const barColor = isOver ? C.red : pct > 70 ? C.yellow : `linear-gradient(90deg,${C.cyan},${C.blue})`;
+        return (
+          <GlassCard style={{ padding: "14px 16px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Monthly Budget</div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>Spent ${fmt(totalSpent, 0)} of ${fmt(budget, 0)}</div>
+              </div>
+              <span style={{ color: isOver ? C.red : pct > 70 ? C.yellow : C.cyan, fontSize: 15, fontWeight: 800 }}>
+                {isOver ? "Over" : `${pct.toFixed(0)}%`}
+              </span>
+            </div>
+            <div style={{ height: 7, background: C.bgTertiary, borderRadius: 99, marginBottom: 6 }}>
+              <div style={{ height: 7, borderRadius: 99, width: `${barPct}%`, background: barColor, transition: "width 0.6s", boxShadow: !isOver && pct <= 70 ? `0 0 8px ${C.cyan}44` : "none" }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              {isOver
+                ? <span style={{ color: C.red, fontSize: 11, fontWeight: 600 }}>Over by ${fmt(overBy, 0)}</span>
+                : <span style={{ color: C.green, fontSize: 11, fontWeight: 600 }}>${fmt(remaining, 0)} remaining</span>
+              }
+              <span style={{ color: C.faint, fontSize: 11 }}>of ${fmt(budget, 0)}</span>
+            </div>
+          </GlassCard>
+        );
+      })()}
 
       {/* 5 ── Market Overview */}
       <MarketOverview />
@@ -1257,7 +1278,20 @@ function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByC
     const prev = prevSpendingByCategory[cat] || 0;
     if (prev > 0) {
       const change = ((amount - prev) / prev) * 100;
-      if (change > 25) insights.push({ id: `u-${cat}`, icon: "trending-up", title: `${cat} up ${change.toFixed(0)}%`, desc: `$${fmt(amount, 0)} this month vs $${fmt(prev, 0)} last month. Reducing could save ~$${fmt(amount - prev, 0)}/month.`, severity: change > 50 ? "danger" : "warning", value: `+${change.toFixed(0)}%`, context: `My ${cat} spending is ${change.toFixed(0)}% higher than last month. What's driving this and how do I cut back?` });
+      if (change > 25) {
+        const cause = `$${fmt(amount, 0)} this month vs $${fmt(prev, 0)} last month.`;
+        const guidance = change > 100
+          ? `→ This is a significant jump. Review recent ${cat} transactions to identify the cause and decide if action is needed.`
+          : `→ This appears to be elevated spending. Monitor next month to confirm if it's a trend.`;
+        insights.push({
+          id: `u-${cat}`, icon: "trending-up",
+          title: `${cat} up ${change.toFixed(0)}%`,
+          desc: `${cause} Reducing could save ~$${fmt(amount - prev, 0)}/month.\n\n${guidance}`,
+          severity: change > 50 ? "danger" : "warning",
+          value: `+${change.toFixed(0)}%`,
+          context: `My ${cat} spending is ${change.toFixed(0)}% higher than last month. What's driving this and how do I cut back?`
+        });
+      }
     }
   });
 
@@ -1966,7 +2000,21 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
 
       <InsightCard insight={insight} onAction={onInsightAction} />
 
-      {catFilter && (
+      {/* Top expense this month */}
+      {(() => {
+        const topTx = curTxs.filter(t => t.type === "expense" && t.category_name !== "Transfer").sort((a, b) => Number(b.amount) - Number(a.amount))[0];
+        if (!topTx) return null;
+        return (
+          <div style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 14px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 6, height: 6, borderRadius: 99, background: C.yellow, flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: C.muted }}>Top expense this month:</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{normalizeTxName(topTx)}</span>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 700, color: C.red }}>{fmtMoney(Number(topTx.amount))}</span>
+          </div>
+        );
+      })()}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: (CAT_COLORS[catFilter] || C.cyan) + "18", borderRadius: 12, border: `1px solid ${(CAT_COLORS[catFilter] || C.cyan)}33` }}>
           <div style={{ width: 8, height: 8, borderRadius: 99, background: CAT_COLORS[catFilter] || C.cyan }} />
           <span style={{ fontSize: 13, color: CAT_COLORS[catFilter] || C.cyan, fontWeight: 600, flex: 1 }}>{catFilter}</span>
@@ -2286,7 +2334,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
 
       {(totalSaved > 0 || monthlySurplus > 0) && (
         <div style={{ background: "linear-gradient(135deg,#0D2A1F,#0B1426)", borderRadius: 20, padding: 20, border: `1px solid ${C.green}30` }}>
-          <div style={{ display: "flex" }}>
+          <div style={{ display: "flex", marginBottom: safeSavingsAmount > 0 ? 14 : 0 }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, letterSpacing: 0.5, marginBottom: 4 }}>TOTAL SAVED</div>
               <div style={{ fontSize: 22, fontWeight: 800, color: C.green }}>${fmt(totalSaved, 0)}</div>
@@ -2296,6 +2344,11 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
               <div style={{ fontSize: 22, fontWeight: 800, color: monthlySurplus >= 0 ? C.cyan : C.red }}>${fmt(Math.abs(monthlySurplus), 0)}</div>
             </div>
           </div>
+          {safeSavingsAmount > 0 && (
+            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: "10px 14px", fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
+              💡 You can move up to <strong style={{ color: C.text }}>${fmt(maxSavingsAmount, 0)}</strong>, but a safer amount is <strong style={{ color: C.green }}>${fmt(safeSavingsAmount, 0)}–${fmt(Math.min(safeSavingsAmount + 100, maxSavingsAmount), 0)}</strong> to keep your buffer stable.
+            </div>
+          )}
         </div>
       )}
 
