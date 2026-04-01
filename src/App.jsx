@@ -72,7 +72,7 @@ function sanitizeAiBody(text) {
     // Unsafe "Add $X now" когда X > 500 — заменяем на safe диапазон
     .replace(/Add \$?([\d,]+)\s*now/gi, (match, n) => {
       const num = Number(n.replace(/,/g, ""));
-      return num > 400 ? `Add $200–$400 safely` : match;
+      return num > 200 ? `Add $200–$400 safely` : match;
     })
     .replace(/  +/g, " ")
     .trim();
@@ -1788,8 +1788,8 @@ const INSIGHT_DEFS = [
     compactHeadline: s => `You can save ${fmtMoney(Math.round(s.surplus))} this month`,
     headline:        s => `You can save ${fmtMoney(Math.round(s.surplus))} this month`,
     body: s => {
-      const raw = Math.round(s.surplus * 0.3);
-      const safe = s.surplus < 300
+      const raw = Math.round(s.surplus * 0.6);
+      const safe = s.surplus < 1000
         ? Math.min(Math.max(raw, 50), 100)
         : Math.min(Math.max(raw, 200), 400);
       const max = Math.round(s.surplus);
@@ -2511,12 +2511,13 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
   const availableBalance = Math.max(monthlySurplus, 0);
   const safetyBuffer = Math.max(500, availableBalance * 0.5);
 
-  // Новая логика: значимая но безопасная рекомендация
+  // Recommendation logic: CLAMP(safeAmount * 0.6, safeMin, safeMax)
+  // Fallback если баланс < $1000 — не форсируем $200+
   const SAFE_MIN = 200;
   const SAFE_MAX = 400;
-  const rawSafe = Math.round(availableBalance * 0.3);
-  const safeSavingsAmount = availableBalance < 300
-    ? Math.min(Math.max(rawSafe, 50), 100)   // низкий баланс → fallback $50–$100
+  const rawSafe = Math.round(availableBalance * 0.6);
+  const safeSavingsAmount = availableBalance < 1000
+    ? Math.min(Math.max(rawSafe, 50), 100)          // низкий баланс → $50–$100
     : Math.min(Math.max(rawSafe, SAFE_MIN), SAFE_MAX); // нормальный → $200–$400
 
   const maxSavingsAmount = Math.max(availableBalance - safetyBuffer, 0);
