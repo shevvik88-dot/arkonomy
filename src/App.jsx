@@ -69,7 +69,11 @@ function sanitizeAiBody(text) {
     // Unsafe savings claims
     .replace(/You can safely move \$?([\d,]+)/gi, (_, n) => `You can move up to $${n}, but a safer amount is $400–$500 to keep your buffer stable`)
     .replace(/safely move/gi, "move")
-    // Cleanup двойных пробелов после замен
+    // Unsafe "Add $X now" когда X > 500 — заменяем на safe диапазон
+    .replace(/Add \$?([\d,]+)\s*now/gi, (match, n) => {
+      const num = Number(n.replace(/,/g, ""));
+      return num > 500 ? `Add $400–$500 safely` : match;
+    })
     .replace(/  +/g, " ")
     .trim();
 }
@@ -142,7 +146,7 @@ function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
           >
             {isSavings && breakdown?.suggestedSave
               ? <>
-                  Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} to savings
+                  Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })}–${Number(breakdown.suggestedSave) + 100} safely
                   <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
                     Recommended · safe amount
                   </span>
@@ -374,7 +378,7 @@ function InsightCard({ insight, onAction }) {
           >
             {isSavings && breakdown?.suggestedSave
               ? <>
-                  Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} to savings
+                  Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })}–${Number(breakdown.suggestedSave) + 100} safely
                   <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
                     Recommended · safe amount
                   </span>
