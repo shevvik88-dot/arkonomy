@@ -56,7 +56,7 @@ function sanitizeAiBody(text) {
   return (text || "")
     // Savings full gap — заменяем на безопасную формулировку
     .replace(/You can cover the full gap[^.]*\./gi,
-      "You can cover the full gap using your available balance.\n→ A safer contribution is $400–$500 to keep your buffer stable.\n→ Larger deposits are possible, but may reduce your safety cushion.")
+      "You can cover the full gap using your available balance.\n→ A safer contribution is $200–$400 to keep your buffer stable.\n→ Larger deposits are possible, but may reduce your safety cushion.")
     // Слабые слова
     .replace(/appears to be a one-time event/gi, "is a one-time expense, not a trend")
     .replace(/appears to be/gi, "is")
@@ -67,12 +67,12 @@ function sanitizeAiBody(text) {
     .replace(/no action needed\./gi, "No changes needed now, but monitor next month to confirm stability.")
     .replace(/no action needed/gi, "No changes needed now — monitor next month to confirm stability")
     // Unsafe savings claims
-    .replace(/You can safely move \$?([\d,]+)/gi, (_, n) => `You can move up to $${n}, but a safer amount is $400–$500 to keep your buffer stable`)
+    .replace(/You can safely move \$?([\d,]+)/gi, (_, n) => `You can move up to $${n}, but a safer amount is $200–$400 to keep your buffer stable`)
     .replace(/safely move/gi, "move")
     // Unsafe "Add $X now" когда X > 500 — заменяем на safe диапазон
     .replace(/Add \$?([\d,]+)\s*now/gi, (match, n) => {
       const num = Number(n.replace(/,/g, ""));
-      return num > 500 ? `Add $400–$500 safely` : match;
+      return num > 400 ? `Add $200–$400 safely` : match;
     })
     .replace(/  +/g, " ")
     .trim();
@@ -146,7 +146,7 @@ function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
           >
             {isSavings && breakdown?.suggestedSave
               ? <>
-                  Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })}–${Number(breakdown.suggestedSave) + 100} safely
+                  Add $200–$400 safely
                   <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
                     Recommended · safe amount
                   </span>
@@ -378,7 +378,7 @@ function InsightCard({ insight, onAction }) {
           >
             {isSavings && breakdown?.suggestedSave
               ? <>
-                  Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })}–${Number(breakdown.suggestedSave) + 100} safely
+                  Add $200–$400 safely
                   <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
                     Recommended · safe amount
                   </span>
@@ -1788,7 +1788,10 @@ const INSIGHT_DEFS = [
     compactHeadline: s => `You can save ${fmtMoney(Math.round(s.surplus))} this month`,
     headline:        s => `You can save ${fmtMoney(Math.round(s.surplus))} this month`,
     body: s => {
-      const safe = Math.min(Math.round(s.surplus * 0.3), 400);
+      const raw = Math.round(s.surplus * 0.3);
+      const safe = s.surplus < 300
+        ? Math.min(Math.max(raw, 50), 100)
+        : Math.min(Math.max(raw, 200), 400);
       const max = Math.round(s.surplus);
       return `You finished under budget this month — a good sign.\n\nYou can move up to $${max}, but a safer amount is $${safe}–$${Math.min(safe + 100, max)} to keep your buffer stable.\n\n→ Moving even a small amount builds long-term momentum.`;
     },
@@ -2507,11 +2510,15 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
   const monthlySurplus = totalIncome - totalSpent;
   const availableBalance = Math.max(monthlySurplus, 0);
   const safetyBuffer = Math.max(500, availableBalance * 0.5);
-  const safeSavingsAmount = Math.min(
-    Math.round(availableBalance * 0.3),
-    monthlySurplus,
-    400
-  );
+
+  // Новая логика: значимая но безопасная рекомендация
+  const SAFE_MIN = 200;
+  const SAFE_MAX = 400;
+  const rawSafe = Math.round(availableBalance * 0.3);
+  const safeSavingsAmount = availableBalance < 300
+    ? Math.min(Math.max(rawSafe, 50), 100)   // низкий баланс → fallback $50–$100
+    : Math.min(Math.max(rawSafe, SAFE_MIN), SAFE_MAX); // нормальный → $200–$400
+
   const maxSavingsAmount = Math.max(availableBalance - safetyBuffer, 0);
 
   function getGoalIcon(name) {
