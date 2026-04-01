@@ -1118,7 +1118,7 @@ export default function App() {
           <>
             {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} />}
-            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} insight={insight} onInsightAction={handleInsightAction} />}
+            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} />}
             {screen === "insights" && <Insights {...shared} onNavigateChat={msg => { setChatMessages(prev => [...prev, { role: "user", text: msg }]); setScreen("chat"); }} allInsights={allInsights} onInsightAction={handleInsightAction} />}
             {screen === "chat" && <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={() => sendChat(chatInput)} />}
             {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} />}
@@ -2491,7 +2491,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
   );
 }
 
-function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, onInsightAction }) {
+function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactions, insight, onInsightAction }) {
   const [showAdd, setShowAdd]             = useState(false);
   const [newName, setNewName]             = useState("");
   const [newTarget, setNewTarget]         = useState("");
@@ -2508,17 +2508,23 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, insight, o
 
   const totalSaved     = savings.reduce((s, sv) => s + Number(sv.current), 0);
   const monthlySurplus = totalIncome - totalSpent;
-  const availableBalance = Math.max(monthlySurplus, 0);
+
+  // Реальный доступный баланс = все доходы минус все расходы за историю
+  const allTimeIncome  = (transactions || []).filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
+  const allTimeSpent   = (transactions || []).filter(t => t.type === "expense" && t.category_name !== "Transfer").reduce((s, t) => s + Number(t.amount), 0);
+  const realBalance    = Math.max(allTimeIncome - allTimeSpent - totalSaved, 0);
+
+  // Используем лучший из двух: реальный баланс или месячный surplus
+  const availableBalance = realBalance > 0 ? realBalance : Math.max(monthlySurplus, 0);
   const safetyBuffer = Math.max(500, availableBalance * 0.5);
 
-  // Recommendation logic: CLAMP(safeAmount * 0.6, safeMin, safeMax)
-  // Fallback если баланс < $1000 — не форсируем $200+
+  // CLAMP(safeAmount * 0.6, safeMin, safeMax) — fallback только если реально мало денег
   const SAFE_MIN = 200;
   const SAFE_MAX = 400;
   const rawSafe = Math.round(availableBalance * 0.6);
   const safeSavingsAmount = availableBalance < 1000
-    ? Math.min(Math.max(rawSafe, 50), 100)          // низкий баланс → $50–$100
-    : Math.min(Math.max(rawSafe, SAFE_MIN), SAFE_MAX); // нормальный → $200–$400
+    ? Math.min(Math.max(rawSafe, 50), 100)             // мало денег → $50–$100
+    : Math.min(Math.max(rawSafe, SAFE_MIN), SAFE_MAX); // нормально → $200–$400
 
   const maxSavingsAmount = Math.max(availableBalance - safetyBuffer, 0);
 
