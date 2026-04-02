@@ -69,10 +69,11 @@ function sanitizeAiBody(text) {
     // Unsafe savings claims
     .replace(/You can safely move \$?([\d,]+)/gi, (_, n) => `You can move up to $${n}, but a safer amount is $200–$400 to keep your buffer stable`)
     .replace(/safely move/gi, "move")
-    // Unsafe "Add $X now" когда X > 500 — заменяем на safe диапазон
+    // Unsafe "Add $X now" когда X вне диапазона $200–$400 и баланс позволяет
     .replace(/Add \$?([\d,]+)\s*now/gi, (match, n) => {
       const num = Number(n.replace(/,/g, ""));
-      return num > 200 ? `Add $200–$400 safely` : match;
+      // Оставляем суммы в диапазоне $50–$400 как есть, заменяем только >$400
+      return num > 400 ? `Add $200–$400 safely` : match;
     })
     .replace(/  +/g, " ")
     .trim();
@@ -1788,12 +1789,12 @@ const INSIGHT_DEFS = [
     compactHeadline: s => `You can save ${fmtMoney(Math.round(s.surplus))} this month`,
     headline:        s => `You can save ${fmtMoney(Math.round(s.surplus))} this month`,
     body: s => {
-      const raw = Math.round(s.surplus * 0.6);
-      const safe = s.surplus < 1000
-        ? Math.min(Math.max(raw, 50), 100)
-        : Math.min(Math.max(raw, 200), 400);
+      const safeAmt = Math.max(s.income - s.expense, 0);
+      const rec = safeAmt < 800
+        ? Math.min(Math.max(Math.round(safeAmt * 0.6), 50), 100)
+        : Math.min(Math.max(Math.round(safeAmt * 0.6), 200), 400);
       const max = Math.round(s.surplus);
-      return `You finished under budget this month — a good sign.\n\nYou can move up to $${max}, but a safer amount is $${safe}–$${Math.min(safe + 100, max)} to keep your buffer stable.\n\n→ Moving even a small amount builds long-term momentum.`;
+      return `You finished under budget this month — a good sign.\n\nA safe contribution this month is $${rec}–$${Math.min(rec + 100, max)} to keep your buffer stable.\n\n→ Moving even a small amount builds long-term momentum.`;
     },
     p:     "Move to savings",
     pMsg:  s => `${fmtMoney(Math.round(s.surplus))} moved to savings`,
@@ -2514,19 +2515,23 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
   const allTimeSpent   = (transactions || []).filter(t => t.type === "expense" && t.category_name !== "Transfer").reduce((s, t) => s + Number(t.amount), 0);
   const realBalance    = Math.max(allTimeIncome - allTimeSpent - totalSaved, 0);
 
-  // Используем лучший из двух: реальный баланс или месячный surplus
   const availableBalance = realBalance > 0 ? realBalance : Math.max(monthlySurplus, 0);
   const safetyBuffer = Math.max(500, availableBalance * 0.5);
 
-  // CLAMP(safeAmount * 0.6, safeMin, safeMax) — fallback только если реально мало денег
+  // safeAmount = сколько можно безопасно отложить
+  const safeAmount = Math.max(availableBalance - safetyBuffer, 0);
+
+  // recommendedAmount = CLAMP(safeAmount * 0.6, safeMin, safeMax)
+  // Fallback $50–$100 только если safeAmount реально мал (< $800)
   const SAFE_MIN = 200;
   const SAFE_MAX = 400;
-  const rawSafe = Math.round(availableBalance * 0.6);
-  const safeSavingsAmount = availableBalance < 1000
-    ? Math.min(Math.max(rawSafe, 50), 100)             // мало денег → $50–$100
-    : Math.min(Math.max(rawSafe, SAFE_MIN), SAFE_MAX); // нормально → $200–$400
+  const recommendedAmount = safeAmount < 800
+    ? Math.min(Math.max(Math.round(safeAmount * 0.6), 50), 100)
+    : Math.min(Math.max(Math.round(safeAmount * 0.6), SAFE_MIN), SAFE_MAX);
 
-  const maxSavingsAmount = Math.max(availableBalance - safetyBuffer, 0);
+  // safeSavingsAmount = то что передаётся в SavingsGoalCard как primary CTA
+  const safeSavingsAmount = recommendedAmount;
+  const maxSavingsAmount  = Math.round(safeAmount);
 
   function getGoalIcon(name) {
     const n = (name || "").toLowerCase();
