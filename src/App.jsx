@@ -991,8 +991,16 @@ export default function App() {
 
   const now = new Date();
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const thisMonth = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
-  const lastMonth = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === prevMonth.getMonth() && d.getFullYear() === prevMonth.getFullYear(); });
+
+  // Если текущий месяц пустой — показываем последний активный месяц
+  const rawThisMonth = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
+  const lastMonthTxs = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === prevMonth.getMonth() && d.getFullYear() === prevMonth.getFullYear(); });
+
+  const thisMonth = rawThisMonth.length > 0 ? rawThisMonth : lastMonthTxs;
+  const lastMonth = rawThisMonth.length > 0 ? lastMonthTxs : (() => {
+    const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+    return transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === twoMonthsAgo.getMonth() && d.getFullYear() === twoMonthsAgo.getFullYear(); });
+  })();
 
   const isRealExpense = t => t.type === "expense" && t.category_name !== "Transfer";
   const totalSpent = thisMonth.filter(isRealExpense).reduce((s, t) => s + Number(t.amount), 0);
@@ -1033,7 +1041,8 @@ export default function App() {
 
   if (!user) return <AuthScreen onAuth={setUser} />;
 
-  const shared = { transactions, categories, savings, profile, totalSpent, totalIncome: effectiveIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, totalTransfers };
+  const isShowingLastMonth = rawThisMonth.length === 0 && lastMonthTxs.length > 0;
+  const shared = { transactions, categories, savings, profile, totalSpent, totalIncome: effectiveIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, totalTransfers, isShowingLastMonth };
 
   function handleInsightAction(action, _data) {
     if (action === "review_spending" || action === "reduce_category") setScreen("transactions");
@@ -1299,7 +1308,7 @@ function MarketOverview() {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────
-function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, insight, onInsightAction }) {
+function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, insight, onInsightAction, isShowingLastMonth }) {
   const [balanceVisible, setBalanceVisible] = useState(true);
   const budget = Number(profile?.monthly_budget) || 3000;
   const balance = totalIncome - totalSpent;
@@ -1336,9 +1345,14 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
           <span style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>Net Balance</span>
-          <button onClick={() => setBalanceVisible(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex" }}>
-            <Icon name={balanceVisible ? "eye" : "eye-off"} size={15} color={C.faint} />
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {isShowingLastMonth && (
+              <span style={{ fontSize: 9, color: C.yellow, fontWeight: 600, background: C.yellow + "18", padding: "2px 7px", borderRadius: 99, letterSpacing: 0.3 }}>Mar data</span>
+            )}
+            <button onClick={() => setBalanceVisible(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex" }}>
+              <Icon name={balanceVisible ? "eye" : "eye-off"} size={15} color={C.faint} />
+            </button>
+          </div>
         </div>
 
         <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? balColor : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${balColor}44` : "none" }}>
@@ -2371,13 +2385,13 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
   const [customAmt, setCustomAmt] = useState("");
 
   const aiContribution = (() => {
-    // Если есть AI insight с рекомендацией — берём её, но ограничиваем safeSavingsAmount
-    if (insight && insight.type === 'goal_off_track' && insight.data?.goalId === sv.id) {
-      const fromInsight = insight.rendered?.contribution?.recommended ?? null;
-      if (fromInsight && safeSavingsAmount > 0) return Math.min(fromInsight, safeSavingsAmount);
-      if (fromInsight) return fromInsight;
-    }
+    // safeSavingsAmount — главный источник истины, всегда использовать его
+    // fromInsight из Edge Function может быть устаревшим/неправильным ($50)
     if (safeSavingsAmount > 0) return safeSavingsAmount;
+    // Fallback на insight только если safeSavingsAmount не определён
+    if (insight && insight.type === 'goal_off_track' && insight.data?.goalId === sv.id) {
+      return insight.rendered?.contribution?.recommended ?? null;
+    }
     return null;
   })();
 
