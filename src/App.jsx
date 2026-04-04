@@ -2524,12 +2524,8 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
   const totalSaved     = savings.reduce((s, sv) => s + Number(sv.current), 0);
   const monthlySurplus = totalIncome - totalSpent;
 
-  // Реальный доступный баланс = все доходы минус все расходы за историю
-  const allTimeIncome  = (transactions || []).filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
-  const allTimeSpent   = (transactions || []).filter(t => t.type === "expense" && t.category_name !== "Transfer").reduce((s, t) => s + Number(t.amount), 0);
-  const realBalance    = Math.max(allTimeIncome - allTimeSpent - totalSaved, 0);
-
-  const availableBalance = realBalance > 0 ? realBalance : Math.max(monthlySurplus, 0);
+  // Доступный баланс = месячный профицит (что реально можно отложить в этом месяце)
+  const availableBalance = Math.max(monthlySurplus, 0);
   const safetyBuffer = Math.max(500, availableBalance * 0.5);
 
   // safeAmount = сколько можно безопасно отложить
