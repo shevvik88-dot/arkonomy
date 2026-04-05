@@ -846,6 +846,7 @@ export default function App() {
   const [bankConnected, setBankConnected] = useState(false);
   const [bankName, setBankName] = useState(null);
   const [syncingBank, setSyncingBank] = useState(false);
+  const [alpacaToast, setAlpacaToast] = useState(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setUser(session?.user ?? null); setLoading(false); });
@@ -1049,7 +1050,30 @@ export default function App() {
     if (action === "move_to_savings" || action === "catch_up_goal")   setScreen("savings");
     if (action === "view_progress")                                    setScreen("insights");
     if (action === "view_bills")                                       setScreen("transactions");
-    if (action === "invest_alpaca") setScreen("savings");
+    if (action === "invest_alpaca") { investAlpaca(_data); setScreen("savings"); }
+  }
+
+  async function investAlpaca(data) {
+    const amount = data?.roundUpMonthly;
+    if (!amount || Number(amount) < 1) {
+      setAlpacaToast({ error: "No round-up amount available" });
+      setTimeout(() => setAlpacaToast(null), 4000);
+      return;
+    }
+    setAlpacaToast({ loading: true, message: `Investing $${amount} in SPY…` });
+    try {
+      const { data: result, error } = await supabase.functions.invoke("alpaca-invest", {
+        body: { amount: Number(amount), symbol: "SPY" },
+      });
+      if (error || result?.error) {
+        setAlpacaToast({ error: result?.error || error?.message || "Investment failed" });
+      } else {
+        setAlpacaToast({ success: true, message: result.message || `$${amount} invested in SPY` });
+      }
+    } catch (err) {
+      setAlpacaToast({ error: String(err) });
+    }
+    setTimeout(() => setAlpacaToast(null), 5000);
   }
 
   async function sendChat(input) {
@@ -1138,6 +1162,20 @@ export default function App() {
 
       {showAddTx && <AddTransactionModal categories={categories} onAdd={addTransaction} onClose={() => setShowAddTx(false)} />}
       {editTx && <AddTransactionModal categories={categories} existing={editTx} onAdd={data => updateTransaction(editTx.id, data)} onClose={() => setEditTx(null)} />}
+
+      {alpacaToast && (
+        <div style={{
+          position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)",
+          background: alpacaToast.error ? "#2D1515" : alpacaToast.loading ? "#0D1F2D" : "#0D2A1F",
+          border: `1px solid ${alpacaToast.error ? "#E05C5C44" : alpacaToast.loading ? "#4B6CB744" : "#12D18E44"}`,
+          borderRadius: 14, padding: "12px 18px", zIndex: 9999,
+          color: alpacaToast.error ? "#E05C5C" : alpacaToast.loading ? "#8BA7E8" : "#12D18E",
+          fontSize: 13, fontWeight: 600, fontFamily: FONT,
+          boxShadow: "0 4px 24px rgba(0,0,0,0.5)", whiteSpace: "nowrap",
+        }}>
+          {alpacaToast.error ? `❌ ${alpacaToast.error}` : alpacaToast.loading ? `⏳ ${alpacaToast.message}` : `✅ ${alpacaToast.message}`}
+        </div>
+      )}
 
       <BottomNav screen={screen} setScreen={setScreen} />
     </div>
