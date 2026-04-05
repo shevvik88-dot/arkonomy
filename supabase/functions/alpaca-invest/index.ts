@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
   try {
     const ALPACA_API_KEY    = Deno.env.get('ALPACA_API_KEY')!;
     const ALPACA_SECRET_KEY = Deno.env.get('ALPACA_SECRET_KEY')!;
-    const BASE_URL          = 'https://api.alpaca.markets';
+    const BASE_URL          = 'https://paper-api.alpaca.markets';
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -55,6 +55,7 @@ Deno.serve(async (req) => {
     const account = await accountRes.json();
 
     if (!accountRes.ok) {
+      console.error('Alpaca account error:', JSON.stringify(account));
       return new Response(JSON.stringify({ error: 'Alpaca account error', details: account }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -91,6 +92,7 @@ Deno.serve(async (req) => {
     const order = await orderRes.json();
 
     if (!orderRes.ok) {
+      console.error('Alpaca order error:', JSON.stringify(order));
       return new Response(JSON.stringify({ error: 'Order failed', details: order }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
