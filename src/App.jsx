@@ -1065,10 +1065,19 @@ export default function App() {
       const { data: result, error } = await supabase.functions.invoke("alpaca-invest", {
         body: { amount: Number(amount), symbol: "SPY" },
       });
-      console.log('Alpaca response:', result);
+      console.log('Alpaca response:', result, 'error:', error);
       if (error || result?.error) {
-        const details = result?.details ? ` | ${JSON.stringify(result.details)}` : '';
-        setAlpacaToast({ error: (result?.error || error?.message || "Investment failed") + details });
+        let errMsg = result?.error || error?.message || "Investment failed";
+        let details = result?.details ? JSON.stringify(result.details) : '';
+        if (error?.context) {
+          try {
+            const errBody = await error.context.json();
+            console.log('Alpaca error body:', errBody);
+            errMsg = errBody?.error || errMsg;
+            details = errBody?.details ? JSON.stringify(errBody.details) : details;
+          } catch {}
+        }
+        setAlpacaToast({ error: errMsg + (details ? ` | ${details}` : '') });
       } else {
         setAlpacaToast({ success: true, message: result.message || `$${amount} invested in SPY` });
       }
