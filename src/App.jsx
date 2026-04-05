@@ -1077,7 +1077,11 @@ export default function App() {
             details = errBody?.details ? JSON.stringify(errBody.details) : details;
           } catch {}
         }
-        setAlpacaToast({ error: errMsg + (details ? ` | ${details}` : '') });
+        if (errMsg.includes('Insufficient buying power')) {
+          setAlpacaToast({ addFunds: true });
+        } else {
+          setAlpacaToast({ error: errMsg + (details ? ` | ${details}` : '') });
+        }
       } else {
         setAlpacaToast({ success: true, message: result.message || `$${amount} invested in SPY` });
       }
@@ -1177,14 +1181,29 @@ export default function App() {
       {alpacaToast && (
         <div style={{
           position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)",
-          background: alpacaToast.error ? "#2D1515" : alpacaToast.loading ? "#0D1F2D" : "#0D2A1F",
-          border: `1px solid ${alpacaToast.error ? "#E05C5C44" : alpacaToast.loading ? "#4B6CB744" : "#12D18E44"}`,
-          borderRadius: 14, padding: "12px 18px", zIndex: 9999,
-          color: alpacaToast.error ? "#E05C5C" : alpacaToast.loading ? "#8BA7E8" : "#12D18E",
+          background: alpacaToast.addFunds ? "#1A1A0D" : alpacaToast.error ? "#2D1515" : alpacaToast.loading ? "#0D1F2D" : "#0D2A1F",
+          border: `1px solid ${alpacaToast.addFunds ? "#F5C84244" : alpacaToast.error ? "#E05C5C44" : alpacaToast.loading ? "#4B6CB744" : "#12D18E44"}`,
+          borderRadius: 14, padding: "14px 18px", zIndex: 9999,
+          color: alpacaToast.addFunds ? "#F5C842" : alpacaToast.error ? "#E05C5C" : alpacaToast.loading ? "#8BA7E8" : "#12D18E",
           fontSize: 13, fontWeight: 600, fontFamily: FONT,
           boxShadow: "0 4px 24px rgba(0,0,0,0.5)", whiteSpace: "pre-wrap", maxWidth: 340,
+          display: "flex", flexDirection: "column", gap: 10, alignItems: "center",
         }}>
-          {alpacaToast.error ? `❌ ${alpacaToast.error}` : alpacaToast.loading ? `⏳ ${alpacaToast.message}` : `✅ ${alpacaToast.message}`}
+          {alpacaToast.addFunds ? (
+            <>
+              <span>💰 Your Alpaca account needs funds. Add money first, then come back to invest.</span>
+              <a
+                href="https://app.alpaca.markets/brokerage/banking"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  background: "#F5C842", color: "#000", borderRadius: 8,
+                  padding: "6px 16px", fontSize: 13, fontWeight: 700,
+                  textDecoration: "none", display: "inline-block",
+                }}
+              >Add funds to Alpaca</a>
+            </>
+          ) : alpacaToast.error ? `❌ ${alpacaToast.error}` : alpacaToast.loading ? `⏳ ${alpacaToast.message}` : `✅ ${alpacaToast.message}`}
         </div>
       )}
 
