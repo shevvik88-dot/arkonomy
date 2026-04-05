@@ -3061,6 +3061,12 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected
           </div>
         ))}
       </GlassCard>
+
+      <div style={{ textAlign: "center", padding: "24px 0 8px", fontSize: 12, color: C.faint, fontFamily: FONT }}>
+        <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ color: C.faint, textDecoration: "none" }}>Privacy Policy</a>
+        <span style={{ margin: "0 8px" }}>·</span>
+        <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: C.faint, textDecoration: "none" }}>Terms of Service</a>
+      </div>
     </div>
   );
 }
