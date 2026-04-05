@@ -1193,7 +1193,7 @@ export default function App() {
             <>
               <span>💰 Your Alpaca account needs funds. Add money first, then come back to invest.</span>
               <a
-                href="https://app.alpaca.markets/brokerage/banking"
+                href="https://app.alpaca.markets/brokerage/funding/deposit"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
