@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
   try {
     const ALPACA_API_KEY    = Deno.env.get('ALPACA_API_KEY')!;
     const ALPACA_SECRET_KEY = Deno.env.get('ALPACA_SECRET_KEY')!;
-    const BASE_URL          = 'https://paper-api.alpaca.markets';
+    const BASE_URL          = Deno.env.get('ALPACA_BASE_URL') || 'https://api.alpaca.markets';
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
