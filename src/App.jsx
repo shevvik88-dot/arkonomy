@@ -1152,7 +1152,7 @@ export default function App() {
           <>
             {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} />}
-            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} />}
+            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} />}
             {screen === "insights" && <Insights {...shared} onNavigateChat={msg => { setChatMessages(prev => [...prev, { role: "user", text: msg }]); setScreen("chat"); }} allInsights={allInsights} onInsightAction={handleInsightAction} />}
             {screen === "chat" && <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={() => sendChat(chatInput)} />}
             {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} />}
@@ -2544,7 +2544,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
   );
 }
 
-function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactions, insight, onInsightAction }) {
+function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactions, insight, onInsightAction, onInvestAlpaca }) {
   const [showAdd, setShowAdd]             = useState(false);
   const [newName, setNewName]             = useState("");
   const [newTarget, setNewTarget]         = useState("");
@@ -2733,7 +2733,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
                 This amount comes from your round-ups, tracked based on your purchases.{" "}<strong style={{ color: C.text, fontWeight: 600 }}>Money stays in your account</strong> until you confirm — we don't move anything automatically.
               </div>
             </div>
-            <button onClick={() => setShowAlpacaSheet(false)} style={{ width: "100%", padding: 15, marginBottom: 10, background: `linear-gradient(135deg, #7B5EA7, #4B6CB7)`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, boxShadow: "0 4px 20px rgba(75,108,183,0.35)" }}>
+            <button onClick={() => { setShowAlpacaSheet(false); onInvestAlpaca?.({ roundUpMonthly: roundupMonth }); }} style={{ width: "100%", padding: 15, marginBottom: 10, background: `linear-gradient(135deg, #7B5EA7, #4B6CB7)`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, boxShadow: "0 4px 20px rgba(75,108,183,0.35)" }}>
               Confirm investment
             </button>
             <button onClick={() => setShowAlpacaSheet(false)} style={{ width: "100%", padding: 14, background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 14, color: C.muted, fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
