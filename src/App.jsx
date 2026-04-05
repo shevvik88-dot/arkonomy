@@ -1065,8 +1065,10 @@ export default function App() {
       const { data: result, error } = await supabase.functions.invoke("alpaca-invest", {
         body: { amount: Number(amount), symbol: "SPY" },
       });
+      console.log('Alpaca response:', result);
       if (error || result?.error) {
-        setAlpacaToast({ error: result?.error || error?.message || "Investment failed" });
+        const details = result?.details ? ` | ${JSON.stringify(result.details)}` : '';
+        setAlpacaToast({ error: (result?.error || error?.message || "Investment failed") + details });
       } else {
         setAlpacaToast({ success: true, message: result.message || `$${amount} invested in SPY` });
       }
@@ -1171,7 +1173,7 @@ export default function App() {
           borderRadius: 14, padding: "12px 18px", zIndex: 9999,
           color: alpacaToast.error ? "#E05C5C" : alpacaToast.loading ? "#8BA7E8" : "#12D18E",
           fontSize: 13, fontWeight: 600, fontFamily: FONT,
-          boxShadow: "0 4px 24px rgba(0,0,0,0.5)", whiteSpace: "nowrap",
+          boxShadow: "0 4px 24px rgba(0,0,0,0.5)", whiteSpace: "pre-wrap", maxWidth: 340,
         }}>
           {alpacaToast.error ? `❌ ${alpacaToast.error}` : alpacaToast.loading ? `⏳ ${alpacaToast.message}` : `✅ ${alpacaToast.message}`}
         </div>
