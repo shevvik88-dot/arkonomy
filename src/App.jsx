@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { usePlaidLink } from "react-plaid-link";
 import CheckInCard from "./components/CheckInCard";
+import UpgradeModal from "./components/UpgradeModal";
+import { usePlan } from "./hooks/usePlan";
 
 // ─── AI Brain: useInsights hook ───────────────────────────────
 function useInsights(screen, userId) {
@@ -845,8 +847,10 @@ export default function App() {
   const [linkToken, setLinkToken] = useState(null);
   const [bankConnected, setBankConnected] = useState(false);
   const [bankName, setBankName] = useState(null);
+  const [bankCount, setBankCount] = useState(0);
   const [syncingBank, setSyncingBank] = useState(false);
   const [alpacaToast, setAlpacaToast] = useState(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setUser(session?.user ?? null); setLoading(false); });
@@ -875,11 +879,11 @@ export default function App() {
     const { data } = await supabase
       .from("plaid_items")
       .select("institution_name")
-      .eq("user_id", user.id)
-      .limit(1);
+      .eq("user_id", user.id);
     if (data && data.length > 0) {
       setBankConnected(true);
       setBankName(data[0].institution_name);
+      setBankCount(data.length);
     }
   }
 
@@ -1043,7 +1047,9 @@ export default function App() {
   if (!user) return <AuthScreen onAuth={setUser} />;
 
   const isShowingLastMonth = rawThisMonth.length === 0 && lastMonthTxs.length > 0;
-  const shared = { transactions, categories, savings, profile, totalSpent, totalIncome: effectiveIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, totalTransfers, isShowingLastMonth };
+  const { isPro } = usePlan(profile);
+  const onUpgrade = () => setShowUpgradeModal(true);
+  const shared = { transactions, categories, savings, profile, totalSpent, totalIncome: effectiveIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, totalTransfers, isShowingLastMonth, isPro, onUpgrade };
 
   function handleInsightAction(action, _data) {
     if (action === "review_spending" || action === "reduce_category") setScreen("transactions");
@@ -1054,6 +1060,7 @@ export default function App() {
   }
 
   async function investAlpaca(data) {
+    if (profile?.plan !== 'pro') { setShowUpgradeModal(true); return; }
     const amount = data?.roundUpMonthly;
     if (!amount || Number(amount) < 1) {
       setAlpacaToast({ error: "No round-up amount available" });
@@ -1147,7 +1154,10 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <img src="https://i.postimg.cc/k4tv1XgB/Remove-the-dark-background-completely-make-it-tran-delpmaspu-removebg-preview.png" alt="Arkonomy" style={{ width: 72, height: 36, objectFit: "contain" }} />
           <div>
-            <div style={{ color: C.muted, fontSize: 12, fontWeight: 500 }}>{profile?.full_name || user.email?.split("@")[0]}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ color: C.muted, fontSize: 12, fontWeight: 500 }}>{profile?.full_name || user.email?.split("@")[0]}</span>
+              {isPro && <span style={{ fontSize: 9, fontWeight: 700, color: "#7C6BFF", background: "#7C6BFF18", border: "1px solid #7C6BFF44", borderRadius: 99, padding: "1px 6px", letterSpacing: 0.5 }}>PRO</span>}
+            </div>
             <div style={{ color: C.faint, fontSize: 10 }}>AI Financial Autopilot</div>
           </div>
         </div>
@@ -1167,16 +1177,17 @@ export default function App() {
           <>
             {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} />}
-            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} />}
-            {screen === "insights" && <Insights {...shared} onNavigateChat={msg => { setChatMessages(prev => [...prev, { role: "user", text: msg }]); setScreen("chat"); }} allInsights={allInsights} onInsightAction={handleInsightAction} />}
+            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} onUpgrade={onUpgrade} />}
+            {screen === "insights" && <Insights {...shared} onNavigateChat={msg => { setChatMessages(prev => [...prev, { role: "user", text: msg }]); setScreen("chat"); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
             {screen === "chat" && <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={() => sendChat(chatInput)} />}
-            {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} />}
+            {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} isPro={isPro} onUpgrade={onUpgrade} />}
           </>
         )}
       </div>
 
       {showAddTx && <AddTransactionModal categories={categories} onAdd={addTransaction} onClose={() => setShowAddTx(false)} />}
       {editTx && <AddTransactionModal categories={categories} existing={editTx} onAdd={data => updateTransaction(editTx.id, data)} onClose={() => setEditTx(null)} />}
+      {showUpgradeModal && <UpgradeModal onClose={() => setShowUpgradeModal(false)} />}
 
       {alpacaToast && (
         <div style={{
@@ -1376,7 +1387,7 @@ function MarketOverview() {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────
-function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, insight, onInsightAction, isShowingLastMonth }) {
+function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade }) {
   const [balanceVisible, setBalanceVisible] = useState(true);
   const budget = Number(profile?.monthly_budget) || 3000;
   const balance = totalIncome - totalSpent;
@@ -1457,7 +1468,26 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
           <span style={{ fontWeight: 600, fontSize: 14 }}>Spending by Category</span>
           <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: 99 }}>Tap to filter</span>
         </div>
-        <DonutChart data={spendingByCategory} size={152} onCatClick={onCatClick} />
+        <div style={{ position: "relative" }}>
+          <DonutChart data={spendingByCategory} size={152} onCatClick={onCatClick} />
+          {!isPro && (
+            <div
+              onClick={onUpgrade}
+              style={{
+                position: "absolute", inset: 0,
+                backdropFilter: "blur(6px)",
+                background: "rgba(11,20,38,0.55)",
+                borderRadius: 12,
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                cursor: "pointer", gap: 6,
+              }}
+            >
+              <span style={{ fontSize: 22 }}>🔒</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#E8EDF5" }}>Pro feature</span>
+              <span style={{ fontSize: 11, color: "#7A8BA8" }}>Upgrade to see full chart</span>
+            </div>
+          )}
+        </div>
       </GlassCard>
 
       {/* 4 ── Monthly Budget */}
@@ -1519,7 +1549,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
 }
 
 // ─── Insights ─────────────────────────────────────────────────
-function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByCategory, onNavigateChat, transactions, savings, profile, allInsights, onInsightAction }) {
+function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByCategory, onNavigateChat, transactions, savings, profile, allInsights, onInsightAction, isPro, onUpgrade }) {
   const monthlySavings = totalIncome - totalSpent;
   const savingsRate = totalIncome > 0 ? (monthlySavings / totalIncome) * 100 : 0;
   const insights = [];
@@ -1579,7 +1609,25 @@ function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByC
       </div>
 
       {allInsights && allInsights.length > 0 && (
-        <InsightCardGroup insights={allInsights} onAction={onInsightAction} />
+        <div>
+          <InsightCardGroup insights={isPro ? allInsights : allInsights.slice(0, 2)} onAction={onInsightAction} />
+          {!isPro && allInsights.length > 2 && (
+            <div
+              onClick={onUpgrade}
+              style={{
+                marginTop: 8, padding: "18px 16px",
+                background: "linear-gradient(180deg, rgba(11,20,38,0) 0%, rgba(11,20,38,0.9) 40%)",
+                borderRadius: 14, textAlign: "center", cursor: "pointer",
+                border: `1px solid #1E2D45`,
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+              }}
+            >
+              <span style={{ fontSize: 20 }}>🔒</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#E8EDF5" }}>{allInsights.length - 2} more insights locked</span>
+              <span style={{ fontSize: 12, color: "#7A8BA8" }}>Upgrade to Pro to see all AI insights</span>
+            </div>
+          )}
+        </div>
       )}
 
       <HealthScore totalSpent={totalSpent} totalIncome={totalIncome} budget={Number(profile?.monthly_budget) || 3000} savingsGoals={savings || []} />
@@ -2574,7 +2622,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
   );
 }
 
-function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactions, insight, onInsightAction, onInvestAlpaca }) {
+function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactions, insight, onInsightAction, onInvestAlpaca, isPro, onUpgrade }) {
   const [showAdd, setShowAdd]             = useState(false);
   const [newName, setNewName]             = useState("");
   const [newTarget, setNewTarget]         = useState("");
@@ -2690,7 +2738,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
               )}
             </div>
           </div>
-          <div onClick={() => setRoundupEnabled(v => !v)} style={{ width: 44, height: 26, borderRadius: 99, background: roundupEnabled ? C.cyan + "33" : C.bgTertiary, border: `1px solid ${roundupEnabled ? C.cyan + "66" : C.border}`, position: "relative", cursor: "pointer", transition: "all 0.22s", flexShrink: 0 }}>
+          <div onClick={() => { if (!isPro) { onUpgrade(); return; } setRoundupEnabled(v => !v); }} style={{ width: 44, height: 26, borderRadius: 99, background: roundupEnabled ? C.cyan + "33" : C.bgTertiary, border: `1px solid ${roundupEnabled ? C.cyan + "66" : C.border}`, position: "relative", cursor: "pointer", transition: "all 0.22s", flexShrink: 0 }}>
             <div style={{ position: "absolute", top: 3, left: roundupEnabled ? 20 : 3, width: 18, height: 18, borderRadius: 99, background: roundupEnabled ? C.cyan : C.faint, transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.4)" }} />
           </div>
         </div>
@@ -2708,14 +2756,16 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
         </div>
 
         {roundupMonth >= 1 && (
-          <button onClick={() => setShowAlpacaSheet(true)}
-            style={{ width: "100%", padding: "12px 16px", marginBottom: 12, background: `linear-gradient(135deg, #7B5EA7, #4B6CB7)`, border: "none", borderRadius: 11, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT, letterSpacing: -0.2, boxShadow: "0 4px 16px rgba(75,108,183,0.35)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "transform 0.12s ease" }}
+          <button onClick={() => { if (!isPro) { onUpgrade(); return; } setShowAlpacaSheet(true); }}
+            style={{ width: "100%", padding: "12px 16px", marginBottom: 12, background: isPro ? `linear-gradient(135deg, #7B5EA7, #4B6CB7)` : "#1E2D45", border: isPro ? "none" : `1px solid #2D3F58`, borderRadius: 11, color: isPro ? "#fff" : "#7A8BA8", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT, letterSpacing: -0.2, boxShadow: isPro ? "0 4px 16px rgba(75,108,183,0.35)" : "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "transform 0.12s ease" }}
             onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; }}
             onPointerUp={e => { e.currentTarget.style.transform = "scale(1.02)"; setTimeout(() => { e.currentTarget.style.transform = ""; }, 120); }}
             onPointerLeave={e => { e.currentTarget.style.transform = ""; }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            Invest ${Math.floor(roundupMonth)} via Alpaca
+            {isPro
+              ? <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Invest ${Math.floor(roundupMonth)} via Alpaca</>
+              : <><span>🔒</span> Invest via Alpaca — Pro only</>
+            }
           </button>
         )}
 
@@ -2910,7 +2960,7 @@ function PlaidLinkButton({ linkToken, onSuccess, onExit }) {
 }
 
 // ─── Profile / Settings ───────────────────────────────────────
-function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected, bankName, linkToken, getLinkToken, onPlaidSuccess, syncBankTransactions, syncingBank }) {
+function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected, bankName, bankCount, linkToken, getLinkToken, onPlaidSuccess, syncBankTransactions, syncingBank, isPro, onUpgrade }) {
   const [budget, setBudget] = useState(profile?.monthly_budget || 3000);
   const [goal, setGoal] = useState(profile?.savings_goal || 10000);
   const [saved, setSaved] = useState(false);
@@ -2963,11 +3013,19 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected
         </div>
 
         {bankConnected ? (
-          <button onClick={syncBankTransactions} disabled={syncingBank}
-            style={{ width: "100%", padding: 13, background: syncingBank ? C.bgTertiary : C.green + "22", border: `1px solid ${C.green}44`, borderRadius: 14, color: C.green, fontWeight: 600, fontSize: 14, cursor: syncingBank ? "not-allowed" : "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            <Icon name="repeat" size={15} color={C.green} strokeWidth={2} />
-            {syncingBank ? "Syncing..." : "Sync Transactions"}
-          </button>
+          <>
+            <button onClick={syncBankTransactions} disabled={syncingBank}
+              style={{ width: "100%", padding: 13, background: syncingBank ? C.bgTertiary : C.green + "22", border: `1px solid ${C.green}44`, borderRadius: 14, color: C.green, fontWeight: 600, fontSize: 14, cursor: syncingBank ? "not-allowed" : "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
+              <Icon name="repeat" size={15} color={C.green} strokeWidth={2} />
+              {syncingBank ? "Syncing..." : "Sync Transactions"}
+            </button>
+            <button
+              onClick={() => { if (!isPro) { onUpgrade(); return; } getLinkToken(); }}
+              style={{ width: "100%", padding: 12, background: isPro ? "#1A56DB22" : C.bgTertiary, border: `1px solid ${isPro ? "#1A56DB44" : C.border}`, borderRadius: 14, color: isPro ? "#4B8EFF" : C.faint, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
+              {isPro ? <Icon name="plus" size={13} color="#4B8EFF" strokeWidth={2.5} /> : <span>🔒</span>}
+              {isPro ? `Add Another Bank (${bankCount} connected)` : "Add Another Bank — Pro only"}
+            </button>
+          </>
         ) : linkToken ? (
           <PlaidLinkButton linkToken={linkToken} onSuccess={onPlaidSuccess} onExit={() => {}} />
         ) : (
