@@ -3,6 +3,12 @@
 
 const TOTAL_DAYS = 30;
 
+// ── UPCOMING CHARGES STATE ────────────────────────────────────────────────────
+// Highest-priority state — overrides all budget signals when recurring charges
+// are due within 7 days. Added via the `upcomingCharges` param in getCheckIn.
+// Shape of each charge: { merchant, amount, daysUntil, expectedDate }
+export const UPCOMING_CHARGES_PRIORITY = 110; // above all other signals
+
 // ── STEP 1: METRICS ──────────────────────────────────────────────────────────
 export function calcMetrics(spent, budget, income, savingsRate, day, spikePct, catSpend) {
   const spentRatio       = budget > 0 ? spent / budget : 0;
@@ -50,7 +56,7 @@ export function calcMetrics(spent, budget, income, savingsRate, day, spikePct, c
 // ── STEP 2: STATE ─────────────────────────────────────────────────────────────
 // Warning states — never show reassuring helper labels
 export const WARNING_STATES = new Set([
-  'CRITICAL', 'DANGER', 'NEEDS_ATTENTION', 'WATCH_CATEGORY',
+  'CRITICAL', 'DANGER', 'NEEDS_ATTENTION', 'WATCH_CATEGORY', 'UPCOMING_CHARGES',
 ]);
 
 export function determineState(m, spent, budget, day, spikePct) {
@@ -194,6 +200,20 @@ export function buildContent(state, m, spent, budget, income, day, spikePct, cat
         earlyLabel: null, confidence,
       };
 
+    case 'UPCOMING_CHARGES': {
+      // upcomingCharges are passed through the state; content built in getCheckIn
+      const count = m._upcomingCount || 1;
+      const total = m._upcomingTotal || 0;
+      return {
+        insight:    `${count} recurring charge${count > 1 ? 's' : ''} expected in the next 7 days — totalling $${total.toFixed(2)}.`,
+        projection: 'Make sure you have enough balance to cover these automatic payments.',
+        action:     'Review your upcoming charges and confirm you have sufficient funds.',
+        secondary:  null, timeCtx: null,
+        showSafe: false, safeMin: 0, safeMax: 0, safeHint: '',
+        earlyLabel: null, confidence,
+      };
+    }
+
     case 'STRONG_PROGRESS':
       return {
         insight:   'You\'re well below your planned spending for this point in the month.',
@@ -217,10 +237,22 @@ export function buildContent(state, m, spent, budget, income, day, spikePct, cat
 }
 
 // ── PUBLIC API ────────────────────────────────────────────────────────────────
-// Single entry point — call this from your component
-export function getCheckIn({ spent, budget, income, savingsRate, day, spikePct, catSpend, cat }) {
-  const m      = calcMetrics(spent, budget, income, savingsRate, day, spikePct, catSpend);
-  const state  = determineState(m, spent, budget, day, spikePct);
+// Single entry point — call this from your component.
+// Optional `upcomingCharges` array from recurringDetector — when provided and
+// non-empty, UPCOMING_CHARGES state takes highest priority over all others.
+export function getCheckIn({ spent, budget, income, savingsRate, day, spikePct, catSpend, cat, upcomingCharges = [] }) {
+  const m     = calcMetrics(spent, budget, income, savingsRate, day, spikePct, catSpend);
+
+  // Inject upcoming charge metadata so buildContent can reference it
+  if (upcomingCharges.length > 0) {
+    m._upcomingCount = upcomingCharges.length;
+    m._upcomingTotal = upcomingCharges.reduce((s, c) => s + c.amount, 0);
+  }
+
+  const state  = upcomingCharges.length > 0
+    ? 'UPCOMING_CHARGES'
+    : determineState(m, spent, budget, day, spikePct);
+
   const content = buildContent(state, m, spent, budget, income, day, spikePct, cat);
-  return { state, ...content };
+  return { state, ...content, upcomingCharges };
 }

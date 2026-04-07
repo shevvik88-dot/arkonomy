@@ -3,7 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 import { usePlaidLink } from "react-plaid-link";
 import CheckInCard from "./components/CheckInCard";
 import UpgradeModal from "./components/UpgradeModal";
+import UpcomingChargesCard from "./components/UpcomingChargesCard";
 import { usePlan } from "./hooks/usePlan";
+import { usePushNotifications } from "./hooks/usePushNotifications";
+import { detectRecurringCharges } from "./recurringDetector";
 
 // ─── AI Brain: useInsights hook ───────────────────────────────
 function useInsights(screen, userId) {
@@ -851,6 +854,7 @@ export default function App() {
   const [syncingBank, setSyncingBank] = useState(false);
   const [alpacaToast, setAlpacaToast] = useState(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upcomingCharges, setUpcomingCharges] = useState([]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setUser(session?.user ?? null); setLoading(false); });
@@ -859,6 +863,9 @@ export default function App() {
   }, []);
 
   useEffect(() => { if (user) { loadAll(); checkBankConnection(); } }, [user]);
+
+  // Register push notifications (no-op until VAPID key is configured)
+  usePushNotifications(supabase, user?.id);
 
   async function loadAll() {
     setLoading(true);
@@ -869,7 +876,15 @@ export default function App() {
       supabase.from("savings").select("*").eq("user_id", user.id),
     ]);
     if (p.data) setProfile(p.data);
-    if (t.data) setTransactions(t.data);
+    if (t.data) {
+      setTransactions(t.data);
+      // Detect recurring charges from loaded transactions
+      const detected = detectRecurringCharges(t.data);
+      setUpcomingCharges(detected);
+      if (detected.length > 0) {
+        console.log('[Arkonomy] Detected recurring charges:', detected);
+      }
+    }
     if (sv.data) setSavings(sv.data);
     if (c.data) { setCategories(c.data); if (c.data.length === 0) await seedCategories(); }
     setLoading(false);
@@ -1175,7 +1190,7 @@ export default function App() {
           <div style={{ color: C.muted, textAlign: "center", padding: 40 }}>Loading...</div>
         ) : (
           <>
-            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} />}
+            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} onUpgrade={onUpgrade} />}
             {screen === "insights" && <Insights {...shared} onNavigateChat={msg => { setChatMessages(prev => [...prev, { role: "user", text: msg }]); setScreen("chat"); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
@@ -1387,7 +1402,7 @@ function MarketOverview() {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────
-function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade }) {
+function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [] }) {
   const [balanceVisible, setBalanceVisible] = useState(true);
   const budget = Number(profile?.monthly_budget) || 3000;
   const balance = totalIncome - totalSpent;
@@ -1417,6 +1432,19 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
 
   return (
    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+
+      {/* 0 ── Upcoming Recurring Charges (highest priority) */}
+      {upcomingCharges.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 2px" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#FF9320", letterSpacing: 0.4 }}>UPCOMING CHARGES</span>
+            <span style={{ fontSize: 10, color: "#4A5E7A", background: "#FF932018", border: "1px solid #FF932033", borderRadius: 4, padding: "1px 6px", fontWeight: 600 }}>{upcomingCharges.length}</span>
+          </div>
+          {upcomingCharges.map((charge, i) => (
+            <UpcomingChargesCard key={`${charge.merchant}-${i}`} charge={charge} />
+          ))}
+        </div>
+      )}
 
       {/* 1 ── Net Balance Card */}
       <div style={{ background: "linear-gradient(145deg,#0D1F3C,#0B1426)", borderRadius: 20, padding: "16px 18px", border: `1px solid #1E2D4A`, position: "relative", overflow: "hidden", boxShadow: "0 4px 32px rgba(0,194,255,0.08)" }}>

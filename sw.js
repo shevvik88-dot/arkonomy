@@ -22,7 +22,52 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Fetch — network first, fallback to cache
+// ── Push notifications ────────────────────────────────────────────────────────
+// Triggered by the push-notify Supabase Edge Function.
+// Payload shape: { title, body, icon?, tag?, url? }
+self.addEventListener('push', event => {
+  if (!event.data) return;
+
+  let payload;
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { title: 'Arkonomy', body: event.data.text() };
+  }
+
+  const { title = 'Arkonomy', body = '', icon, tag, url } = payload;
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon:      icon || '/icon-192.png',
+      badge:     '/icon-192.png',
+      tag:       tag || 'arkonomy-reminder',
+      renotify:  true,
+      vibrate:   [200, 100, 200],
+      data:      { url: url || '/' },
+    })
+  );
+});
+
+// Open app on notification click
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      // Focus existing window if open
+      for (const client of list) {
+        if (client.url === self.location.origin + '/' && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // Otherwise open a new window
+      return clients.openWindow(event.notification.data?.url || '/');
+    })
+  );
+});
+
+// ── Fetch — network first, fallback to cache ──────────────────────────────────
 self.addEventListener('fetch', event => {
   // Skip non-GET and Supabase API calls
   if (event.request.method !== 'GET') return;

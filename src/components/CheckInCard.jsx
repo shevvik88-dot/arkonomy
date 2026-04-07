@@ -2,14 +2,15 @@
 import { getCheckIn } from '../engine/checkInEngine';
 
 const THEME = {
-  CRITICAL:        { label:'Critical',        accent:'#e03535', cardBorder:'#3d0808', cardBg:'#0e0606' },
-  DANGER:          { label:'Danger',           accent:'#e06020', cardBorder:'#3d1804', cardBg:'#0e0904' },
-  NEEDS_ATTENTION: { label:'Needs Attention',  accent:'#d4a020', cardBorder:'#3a2804', cardBg:'#0e0c04' },
-  WATCH_CATEGORY:  { label:'Watch Category',   accent:'#9060d0', cardBorder:'#28104a', cardBg:'#0a080e' },
-  STRONG_PROGRESS: { label:'Strong Progress',  accent:'#4e9eff', cardBorder:'#0c2844', cardBg:'#070d1c' },
-  ON_TRACK:        { label:'On Track',         accent:'#00c98a', cardBorder:'#082c1c', cardBg:'#060e0a' },
-  EARLY_STABLE:    { label:'Early Month',      accent:'#4a6080', cardBorder:'#1a2840', cardBg:'#080c14' },
-  NO_DATA:         { label:'No Data',          accent:'#304060', cardBorder:'#162030', cardBg:'#060a10' },
+  CRITICAL:          { label:'Critical',           accent:'#e03535', cardBorder:'#3d0808', cardBg:'#0e0606' },
+  DANGER:            { label:'Danger',              accent:'#e06020', cardBorder:'#3d1804', cardBg:'#0e0904' },
+  NEEDS_ATTENTION:   { label:'Needs Attention',     accent:'#d4a020', cardBorder:'#3a2804', cardBg:'#0e0c04' },
+  WATCH_CATEGORY:    { label:'Watch Category',      accent:'#9060d0', cardBorder:'#28104a', cardBg:'#0a080e' },
+  UPCOMING_CHARGES:  { label:'Upcoming Charges',    accent:'#FF9320', cardBorder:'#3d2000', cardBg:'#0e0900' },
+  STRONG_PROGRESS:   { label:'Strong Progress',     accent:'#4e9eff', cardBorder:'#0c2844', cardBg:'#070d1c' },
+  ON_TRACK:          { label:'On Track',            accent:'#00c98a', cardBorder:'#082c1c', cardBg:'#060e0a' },
+  EARLY_STABLE:      { label:'Early Month',         accent:'#4a6080', cardBorder:'#1a2840', cardBg:'#080c14' },
+  NO_DATA:           { label:'No Data',             accent:'#304060', cardBorder:'#162030', cardBg:'#060a10' },
 };
 
 const SUBTLE = new Set(['NO_DATA','EARLY_STABLE']);
