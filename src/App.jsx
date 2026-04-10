@@ -7,6 +7,7 @@ import UpcomingChargesCard from "./components/UpcomingChargesCard";
 import { usePlan } from "./hooks/usePlan";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import { detectRecurringCharges } from "./recurringDetector";
+import { calculateHealthScore, generateHealthComment } from "./healthScore";
 
 // ─── AI Brain: useInsights hook ───────────────────────────────
 function useInsights(screen, userId) {
@@ -525,6 +526,158 @@ function Icon({ name, size = 20, color = C.muted, strokeWidth = 1.8 }) {
     edit:            <svg {...p}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
   };
   return icons[name] || icons["dollar"];
+}
+
+// ─── Health Score Gauge ──────────────────────────────────────────────────────
+// ─── Health Score Bar (compact, inline, expandable) ─────────────────────────
+function HealthScoreBar({ score, color, comment, breakdown }) {
+  const [open, setOpen] = useState(false);
+  const label = score <= 40 ? "Needs work" : score <= 70 ? "Fair" : "Good";
+
+  const rows = [
+    {
+      key: "savings",
+      label: "Savings rate",
+      pts: breakdown?.savings?.points ?? 0,
+      max: 30,
+      detail: breakdown?.savings?.rate != null
+        ? `${Math.round(breakdown.savings.rate * 100)}% of income saved`
+        : null,
+    },
+    {
+      key: "budget",
+      label: "Budget adherence",
+      pts: breakdown?.budget?.points ?? 0,
+      max: 25,
+      detail: null,
+    },
+    {
+      key: "recurring",
+      label: "Recurring charges",
+      pts: breakdown?.recurring?.points ?? 0,
+      max: 20,
+      detail: breakdown?.recurring?.ratio != null
+        ? `${Math.round(breakdown.recurring.ratio * 100)}% of income`
+        : null,
+    },
+    {
+      key: "trend",
+      label: "Balance trend",
+      pts: breakdown?.trend?.points ?? 0,
+      max: 25,
+      detail: (() => {
+        const d = breakdown?.trend;
+        if (!d) return null;
+        const delta = d.thisBalance - d.lastBalance;
+        return delta >= 0
+          ? `+$${Math.round(delta)} vs last month`
+          : `-$${Math.round(Math.abs(delta))} vs last month`;
+      })(),
+    },
+  ];
+
+  return (
+    <div
+      onClick={() => setOpen(o => !o)}
+      style={{
+        background: C.card,
+        border: `1px solid ${C.border}`,
+        borderRadius: 14,
+        padding: "10px 14px",
+        cursor: "pointer",
+        fontFamily: FONT,
+        userSelect: "none",
+      }}
+    >
+      {/* ── Collapsed row ── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {/* Colored dot */}
+        <div style={{
+          width: 8, height: 8, borderRadius: "50%",
+          background: color,
+          boxShadow: `0 0 6px ${color}88`,
+          flexShrink: 0,
+        }} />
+
+        {/* Label */}
+        <span style={{ fontSize: 12, fontWeight: 500, color: C.muted, flexShrink: 0 }}>
+          Health Score
+        </span>
+
+        {/* Score number */}
+        <span style={{ fontSize: 14, fontWeight: 800, color, letterSpacing: -0.3, flexShrink: 0 }}>
+          {score}
+        </span>
+
+        {/* Divider */}
+        <span style={{ fontSize: 12, color: C.faint, flexShrink: 0 }}>·</span>
+
+        {/* Comment — truncated, muted */}
+        <span style={{
+          fontSize: 12, color: C.faint,
+          overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
+          flex: 1, minWidth: 0,
+        }}>
+          {label} — {comment}
+        </span>
+
+        {/* Chevron */}
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+          stroke={C.faint} strokeWidth="2.5" strokeLinecap="round"
+          style={{ flexShrink: 0, transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "none" }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </div>
+
+      {/* ── Expanded breakdown ── */}
+      {open && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ marginTop: 12, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}
+        >
+          {rows.map(row => {
+            const pct = Math.round((row.pts / row.max) * 100);
+            const barColor = pct >= 75 ? C.green : pct >= 40 ? C.yellow : C.red;
+            return (
+              <div key={row.key} style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, color: C.muted }}>{row.label}</span>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+                    {row.detail && (
+                      <span style={{ fontSize: 10, color: C.faint }}>{row.detail}</span>
+                    )}
+                    <span style={{ fontSize: 11, fontWeight: 700, color: barColor }}>
+                      {row.pts}<span style={{ fontWeight: 400, color: C.faint }}>/{row.max}</span>
+                    </span>
+                  </div>
+                </div>
+                <div style={{ height: 3, background: "#1E2D4A", borderRadius: 99 }}>
+                  <div style={{
+                    height: 3, borderRadius: 99,
+                    width: `${pct}%`,
+                    background: barColor,
+                    transition: "width 0.5s ease",
+                  }} />
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Total */}
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.border}`,
+          }}>
+            <span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>Total score</span>
+            <span style={{ fontSize: 13, fontWeight: 800, color }}>
+              {score}<span style={{ fontSize: 11, fontWeight: 400, color: C.faint }}>/100</span>
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function GlassCard({ children, style = {} }) {
@@ -1411,6 +1564,24 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
   const expenseChange = lastSpent > 0 ? ((totalSpent - lastSpent) / lastSpent) * 100 : 0;
   const balColor = balance >= 0 ? C.green : C.red;
 
+  // ── Health Score ──────────────────────────────────────────────────────────
+  const SUB_CATS = ['Subscriptions', 'Bills', 'Utilities', 'Phone', 'Internet', 'Insurance'];
+  const subscriptionSpend = SUB_CATS.reduce((s, cat) => s + (spendingByCategory[cat] || 0), 0);
+  const { score: healthScore, color: scoreColor, breakdown: scoreBreakdown } = calculateHealthScore({
+    totalIncome,
+    totalSpent,
+    lastIncome,
+    lastSpent,
+    budget,
+    subscriptionSpend,
+  });
+  const healthComment = generateHealthComment({
+    score: healthScore,
+    breakdown: scoreBreakdown,
+    spendingByCategory,
+    prevSpendingByCategory,
+  });
+
   const checkInData = {
     spent:       totalSpent,
     budget:      budget,
@@ -1486,6 +1657,9 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
           ))}
         </div>
       </div>
+
+      {/* 2 ── Financial Health Score */}
+      <HealthScoreBar score={healthScore} color={scoreColor} comment={healthComment} breakdown={scoreBreakdown} />
 
       {/* 2b ── AI Brain Insight */}
       <InsightCard insight={insight} onAction={onInsightAction} />
@@ -3040,7 +3214,9 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected
           )}
         </div>
 
-        {bankConnected ? (
+        {bankConnected && linkToken ? (
+          <PlaidLinkButton linkToken={linkToken} onSuccess={onPlaidSuccess} onExit={() => {}} />
+        ) : bankConnected ? (
           <>
             <button onClick={syncBankTransactions} disabled={syncingBank}
               style={{ width: "100%", padding: 13, background: syncingBank ? C.bgTertiary : C.green + "22", border: `1px solid ${C.green}44`, borderRadius: 14, color: C.green, fontWeight: 600, fontSize: 14, cursor: syncingBank ? "not-allowed" : "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
