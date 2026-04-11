@@ -2514,6 +2514,7 @@ function TxRow({ t, onDelete, onEdit, onLongPress }) {
   const moved    = useRef(false);
   const lpTimer  = useRef(null);
   const [swiped, setSwiped] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const signal      = deriveSignal(t);
   const isIncome    = t.type === "income";
@@ -2576,20 +2577,33 @@ function TxRow({ t, onDelete, onEdit, onLongPress }) {
   }
 
   function handleClick() {
-    if (swiped) { resetSwipe(); return; }
+    if (swiped === "right") { resetSwipe(); onEdit(t); return; }
+    if (swiped === "left")  { resetSwipe(); setConfirmDelete(true); return; }
     onLongPress && onLongPress(t);
   }
 
   return (
     <div style={{ position: "relative", overflow: "hidden", borderRadius: 14, marginBottom: 2 }}>
-      <div ref={bgLRef} style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 76, background: C.blue, borderRadius: "14px 0 0 14px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, opacity: 0, transition: "opacity 0.14s" }}>
+      <div ref={bgLRef} onClick={() => { resetSwipe(); onEdit(t); }} style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 76, background: C.blue, borderRadius: "14px 0 0 14px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, opacity: 0, transition: "opacity 0.14s", cursor: "pointer" }}>
         <Icon name="edit" size={16} color="#fff" strokeWidth={1.8} />
         <span style={{ fontSize: 10, fontWeight: 600, color: "#fff", fontFamily: FONT }}>Edit</span>
       </div>
-      <div ref={bgRRef} style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 76, background: C.red, borderRadius: "0 14px 14px 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, opacity: 0, transition: "opacity 0.14s" }}>
+      <div ref={bgRRef} onClick={() => { resetSwipe(); setConfirmDelete(true); }} style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 76, background: C.red, borderRadius: "0 14px 14px 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, opacity: 0, transition: "opacity 0.14s", cursor: "pointer" }}>
         <Icon name="x" size={16} color="#fff" strokeWidth={2} />
         <span style={{ fontSize: 10, fontWeight: 600, color: "#fff", fontFamily: FONT }}>Delete</span>
       </div>
+      {confirmDelete && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }} onClick={e => { if (e.target === e.currentTarget) setConfirmDelete(false); }}>
+          <div style={{ background: "#111E33", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 18, padding: "24px 20px", width: "100%", maxWidth: 360, fontFamily: FONT }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 8 }}>Delete this transaction?</div>
+            <div style={{ fontSize: 13, color: C.faint, marginBottom: 24 }}>This will permanently remove <strong style={{ color: C.text }}>{displayName}</strong> from your records.</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: "12px 0", borderRadius: 12, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: C.text, fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>Cancel</button>
+              <button onClick={() => { setConfirmDelete(false); onDelete(t.id); }} style={{ flex: 1, padding: "12px 0", borderRadius: 12, border: "none", background: C.red, color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div ref={rowRef} onClick={handleClick} onPointerDown={onPD} onPointerMove={onPM} onPointerUp={onPU} onPointerLeave={e => { if (dragging.current) onPU(e); }}
         style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 13px", display: "flex", alignItems: "center", gap: 11, cursor: "pointer", userSelect: "none", willChange: "transform", position: "relative", zIndex: 1, touchAction: "pan-y", minHeight: 64 }}>
         <div style={{ width: 40, height: 40, minWidth: 40, borderRadius: 11, background: catColor + "20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
