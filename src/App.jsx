@@ -1133,6 +1133,7 @@ export default function App() {
     return { overspendAlerts: true, largeTxAlerts: true, unusualSpending: true, largeTxThreshold: 200, lowBalanceAlerts: true, lowBalanceThreshold: 500 };
   });
   const { toasts: alertToasts, show: showAlert, dismiss: dismissAlert } = useToasts();
+  window.__showAlert = showAlert; // DEBUG: expose for console testing
 
   // ─── Plaid state ──────────────────────────────────────────────
   const [linkToken, setLinkToken] = useState(null);
@@ -1291,7 +1292,9 @@ export default function App() {
 
         // 1. Large Transaction
         if (autopilot.largeTxAlerts && Number(tx.amount) > autopilot.largeTxThreshold) {
+          console.warn('[Toast] Calling showAlert, type:', typeof showAlert);
           showAlert(`⚠️ Large transaction: ${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, "warning");
+          console.warn('[Toast] showAlert returned');
         }
         // 2. Overspending Alert
         if (autopilot.overspendAlerts && monthlyExpenses > budget) {
