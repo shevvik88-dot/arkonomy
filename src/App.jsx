@@ -481,9 +481,24 @@ function fmt(n, decimals = 2) {
   return Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
+// Parse a YYYY-MM-DD date string in LOCAL time (not UTC).
+// new Date("2026-04-11") is parsed as UTC midnight, which shifts to the
+// previous day for any UTC+ timezone. Appending T00:00:00 forces local time.
+function parseDate(dateStr) {
+  if (!dateStr) return new Date();
+  return new Date(dateStr + "T00:00:00");
+}
+
+function localDateString(d = new Date()) {
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, "0"),
+    String(d.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
 function fmtDate(dateStr) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return parseDate(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function Icon({ name, size = 20, color = C.muted, strokeWidth = 1.8 }) {
@@ -530,9 +545,21 @@ function Icon({ name, size = 20, color = C.muted, strokeWidth = 1.8 }) {
 
 // ─── Health Score Gauge ──────────────────────────────────────────────────────
 // ─── Health Score Bar (compact, inline, expandable) ─────────────────────────
-function HealthScoreBar({ score, color, comment, breakdown }) {
+function HealthScoreBar({ score, color, comment, breakdown, hasData = true }) {
   const [open, setOpen] = useState(false);
   const label = score <= 40 ? "Needs work" : score <= 70 ? "Fair" : "Good";
+
+  if (!hasData) {
+    return (
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "10px 14px", fontFamily: FONT }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.faint, flexShrink: 0 }} />
+          <span style={{ fontSize: 12, fontWeight: 500, color: C.muted, flexShrink: 0 }}>Health Score</span>
+          <span style={{ fontSize: 12, color: C.faint }}>— Connect your bank to see your score</span>
+        </div>
+      </div>
+    );
+  }
 
   const rows = [
     {
@@ -543,6 +570,7 @@ function HealthScoreBar({ score, color, comment, breakdown }) {
       detail: breakdown?.savings?.rate != null
         ? `${Math.round(breakdown.savings.rate * 100)}% of income saved`
         : null,
+      na: !hasData,
     },
     {
       key: "budget",
@@ -550,6 +578,7 @@ function HealthScoreBar({ score, color, comment, breakdown }) {
       pts: breakdown?.budget?.points ?? 0,
       max: 25,
       detail: null,
+      na: !hasData,
     },
     {
       key: "recurring",
@@ -559,6 +588,7 @@ function HealthScoreBar({ score, color, comment, breakdown }) {
       detail: breakdown?.recurring?.ratio != null
         ? `${Math.round(breakdown.recurring.ratio * 100)}% of income`
         : null,
+      na: !hasData,
     },
     {
       key: "trend",
@@ -573,6 +603,7 @@ function HealthScoreBar({ score, color, comment, breakdown }) {
           ? `+$${Math.round(delta)} vs last month`
           : `-$${Math.round(Math.abs(delta))} vs last month`;
       })(),
+      na: !hasData,
     },
   ];
 
@@ -796,28 +827,74 @@ const sw = 22;
   );
 }
 
-function HealthScore({ totalSpent, totalIncome, budget, savingsGoals }) {
+function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpent = 0, budget = 3000, hasData = true }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
-  const savingsRate = totalIncome > 0 ? (totalIncome - totalSpent) / totalIncome : 0;
-  const budgetAdherence = budget > 0 ? Math.max(0, 1 - (totalSpent / budget)) : 0;
-  const hasGoals = savingsGoals.length > 0;
-  const goalProgress = hasGoals ? savingsGoals.reduce((s, g) => s + Math.min(g.current / (g.target || 1), 1), 0) / savingsGoals.length : 0;
 
-  const savingsScore  = Math.round(Math.min(savingsRate, 0.3) / 0.3 * 40);
-  const budgetScore   = Math.round(budgetAdherence * 35);
-  const goalScore     = Math.round(goalProgress * 25);
-  const score = Math.min(savingsScore + budgetScore + goalScore, 100);
-
-  const color = score >= 75 ? C.green : score >= 50 ? C.yellow : C.red;
   const label = score >= 75 ? "Excellent" : score >= 60 ? "Good" : score >= 40 ? "Fair" : "Needs Work";
   const circumference = 2 * Math.PI * 28;
   const dash = (score / 100) * circumference;
 
+  // Map the shared calculateHealthScore breakdown → display rows
   const breakdown = [
-    { label: "Savings Rate", score: savingsScore, max: 40, color: C.cyan, desc: savingsRate >= 0.2 ? "On target (20%+)" : `Currently ${Math.round(savingsRate * 100)}%` },
-    { label: "Budget Control", score: budgetScore, max: 35, color: C.blue, desc: budgetAdherence >= 0.5 ? "Within budget" : "Over budget" },
-    { label: "Goals Progress", score: goalScore, max: 25, color: C.purple, desc: hasGoals ? `${Math.round(goalProgress * 100)}% avg` : "No goals set" },
+    {
+      label: "Savings Rate",
+      score: rawBreakdown.savings.points,
+      max: 30,
+      color: C.cyan,
+      desc: rawBreakdown.savings.rate >= 0.2
+        ? "On target (20%+)"
+        : `Currently ${Math.round(rawBreakdown.savings.rate * 100)}%`,
+    },
+    {
+      label: "Budget Adherence",
+      score: rawBreakdown.budget.points,
+      max: 25,
+      color: C.blue,
+      desc: rawBreakdown.budget.points >= 20 ? "Within budget" : "Over budget",
+    },
+    {
+      label: "Recurring Charges",
+      score: rawBreakdown.recurring.points,
+      max: 20,
+      color: C.purple,
+      desc: rawBreakdown.recurring.ratio < 0.1
+        ? "< 10% of income"
+        : `${Math.round(rawBreakdown.recurring.ratio * 100)}% of income`,
+    },
+    {
+      label: "Balance Trend",
+      score: rawBreakdown.trend.points,
+      max: 25,
+      color: C.yellow,
+      desc: rawBreakdown.trend.thisBalance >= rawBreakdown.trend.lastBalance
+        ? "Improving vs last month"
+        : "Down vs last month",
+    },
   ];
+
+  if (!hasData) {
+    return (
+      <GlassCard>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ position: "relative", width: 72, height: 72, flexShrink: 0 }}>
+            <svg width={72} height={72}>
+              <circle cx={36} cy={36} r={28} fill="none" stroke={C.bgTertiary} strokeWidth={6} />
+            </svg>
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.faint, textAlign: "center", lineHeight: 1.3 }}>—</div>
+            </div>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, color: C.faint, fontWeight: 600, letterSpacing: 1, marginBottom: 4 }}>FINANCIAL HEALTH</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: C.muted, marginBottom: 4 }}>No data yet</div>
+            <div style={{ fontSize: 12, color: C.faint, lineHeight: 1.5 }}>Connect your bank or add transactions to see your score.</div>
+          </div>
+        </div>
+      </GlassCard>
+    );
+  }
+
+  const budgetUsedPct = budget > 0 ? Math.min(Math.round((totalSpent / budget) * 100), 100) : 0;
 
   return (
     <GlassCard>
@@ -861,9 +938,9 @@ function HealthScore({ totalSpent, totalIncome, budget, savingsGoals }) {
 
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
         {[
-          { label: "Savings Rate", value: Math.round(Math.min(savingsRate / 0.3, 1) * 100), color: C.cyan },
-          { label: "Budget", value: Math.round(budgetAdherence * 100), color: C.blue },
-          { label: "Goals", value: Math.round(goalProgress * 100), color: C.purple },
+          { label: "Savings Rate", value: Math.round(Math.min(rawBreakdown.savings.rate / 0.2, 1) * 100), color: C.cyan },
+          { label: "Budget Used", value: budgetUsedPct, color: budgetUsedPct > 90 ? C.red : budgetUsedPct > 70 ? C.yellow : C.blue },
+          { label: "Recurring", value: Math.round((rawBreakdown.recurring.points / 20) * 100), color: C.purple },
         ].map(item => (
           <div key={item.label} style={{ flex: 1, background: C.bgTertiary, borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: item.color }}>{item.value}%</div>
@@ -880,9 +957,9 @@ function WeeklySummary({ transactions }) {
   const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay());
   const startOfLastWeek = new Date(startOfWeek); startOfLastWeek.setDate(startOfWeek.getDate() - 7);
 
-  const thisWeekTxs = transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer" && new Date(t.date) >= startOfWeek);
+  const thisWeekTxs = transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer" && parseDate(t.date) >= startOfWeek);
   const thisWeek = thisWeekTxs.reduce((s, t) => s + Number(t.amount), 0);
-  const lastWeek = transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer" && new Date(t.date) >= startOfLastWeek && new Date(t.date) < startOfWeek).reduce((s, t) => s + Number(t.amount), 0);
+  const lastWeek = transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer" && parseDate(t.date) >= startOfLastWeek && parseDate(t.date) < startOfWeek).reduce((s, t) => s + Number(t.amount), 0);
 
   // Топ категория за неделю
   const weekCatMap = {};
@@ -932,8 +1009,18 @@ function AuthScreen({ onAuth }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
+  const [resent, setResent] = useState(false);
 
-  async function handleSubmit() {
+  function friendlyError(msg) {
+    if (!msg) return msg;
+    if (msg.toLowerCase().includes("missing email or phone")) return "Email is required.";
+    if (msg.toLowerCase().includes("invalid login credentials")) return "Incorrect email or password.";
+    if (msg.toLowerCase().includes("email not confirmed")) return "Please confirm your email first.";
+    return msg;
+  }
+
+  async function handleSubmit(e) {
+    if (e) e.preventDefault();
     setError(""); setMsg(""); setLoading(true);
     try {
       if (mode === "signup") {
@@ -945,7 +1032,29 @@ function AuthScreen({ onAuth }) {
         if (error) throw error;
         onAuth(data.user);
       }
-    } catch (e) { setError(e.message); }
+    } catch (e) { setError(friendlyError(e.message)); }
+    finally { setLoading(false); }
+  }
+
+  async function handleResend() {
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resend({ type: "signup", email });
+      if (error) throw error;
+      setResent(true);
+    } catch (e) { setError(friendlyError(e.message)); }
+    finally { setLoading(false); }
+  }
+
+  async function handleForgotPassword() {
+    setError(""); setMsg("");
+    if (!email) { setError("Enter your email above, then tap Forgot password."); return; }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) throw error;
+      setMsg("Check your email for reset instructions.");
+    } catch (e) { setError(friendlyError(e.message)); }
     finally { setLoading(false); }
   }
 
@@ -961,19 +1070,38 @@ function AuthScreen({ onAuth }) {
         </div>
         <GlassCard>
           <h2 style={{ color: C.text, margin: "0 0 22px", fontSize: 20, fontWeight: 700 }}>{mode === "login" ? "Welcome back" : "Create account"}</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {mode === "signup" && <input style={inp} placeholder="Full name" value={name} onChange={e => setName(e.target.value)} />}
-            <input style={inp} type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
-            <input style={inp} type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()} />
-          </div>
-          {error && <div style={{ color: C.red, fontSize: 13, marginTop: 12, background: C.red + "18", padding: "10px 14px", borderRadius: 10 }}>{error}</div>}
-          {msg && <div style={{ color: C.green, fontSize: 13, marginTop: 12, background: C.green + "18", padding: "10px 14px", borderRadius: 10 }}>{msg}</div>}
-          <button onClick={handleSubmit} disabled={loading} style={{ width: "100%", marginTop: 20, padding: 15, background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", opacity: loading ? 0.7 : 1, fontFamily: FONT }}>
-            {loading ? "..." : mode === "login" ? "Sign In" : "Create Account"}
-          </button>
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {mode === "signup" && <input style={inp} placeholder="Full name" value={name} onChange={e => setName(e.target.value)} autoComplete="name" />}
+            <input style={inp} type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" />
+            <input style={inp} type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} />
+            {mode === "login" && (
+              <div style={{ textAlign: "right", marginTop: -4 }}>
+                <button type="button" onClick={handleForgotPassword} disabled={loading} style={{ background: "none", border: "none", color: C.cyan, fontSize: 13, cursor: "pointer", padding: 0, fontFamily: FONT, opacity: loading ? 0.5 : 1 }}>
+                  Forgot password?
+                </button>
+              </div>
+            )}
+            {error && <div style={{ color: C.red, fontSize: 13, background: C.red + "18", padding: "10px 14px", borderRadius: 10 }}>{error}</div>}
+            {msg && (
+              <div style={{ color: C.green, fontSize: 13, background: C.green + "18", padding: "10px 14px", borderRadius: 10 }}>
+                {msg}
+                {mode === "signup" && (
+                  <div style={{ marginTop: 8 }}>
+                    {resent
+                      ? <span style={{ color: C.cyan, fontWeight: 600 }}>Email sent!</span>
+                      : <button type="button" onClick={handleResend} disabled={loading} style={{ background: "none", border: "none", color: C.cyan, fontSize: 13, cursor: "pointer", padding: 0, fontFamily: FONT, fontWeight: 600, opacity: loading ? 0.5 : 1 }}>Resend confirmation email</button>
+                    }
+                  </div>
+                )}
+              </div>
+            )}
+            <button type="submit" disabled={loading} style={{ width: "100%", marginTop: 8, padding: 15, background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", opacity: loading ? 0.7 : 1, fontFamily: FONT }}>
+              {loading ? "..." : mode === "login" ? "Sign In" : "Create Account"}
+            </button>
+          </form>
           <div style={{ textAlign: "center", marginTop: 18, color: C.muted, fontSize: 14 }}>
             {mode === "login" ? "No account? " : "Have account? "}
-            <span onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); setMsg(""); }} style={{ color: C.cyan, cursor: "pointer", fontWeight: 600 }}>
+            <span onClick={() => { setMode(mode === "login" ? "signup" : "login"); setEmail(""); setPassword(""); setName(""); setError(""); setMsg(""); }} style={{ color: C.cyan, cursor: "pointer", fontWeight: 600 }}>
               {mode === "login" ? "Sign up free" : "Sign in"}
             </span>
           </div>
@@ -1166,13 +1294,13 @@ export default function App() {
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
   // Если текущий месяц пустой — показываем последний активный месяц
-  const rawThisMonth = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
-  const lastMonthTxs = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === prevMonth.getMonth() && d.getFullYear() === prevMonth.getFullYear(); });
+  const rawThisMonth = transactions.filter(t => { const d = parseDate(t.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
+  const lastMonthTxs = transactions.filter(t => { const d = parseDate(t.date); return d.getMonth() === prevMonth.getMonth() && d.getFullYear() === prevMonth.getFullYear(); });
 
   const thisMonth = rawThisMonth.length > 0 ? rawThisMonth : lastMonthTxs;
   const lastMonth = rawThisMonth.length > 0 ? lastMonthTxs : (() => {
     const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-    return transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === twoMonthsAgo.getMonth() && d.getFullYear() === twoMonthsAgo.getFullYear(); });
+    return transactions.filter(t => { const d = parseDate(t.date); return d.getMonth() === twoMonthsAgo.getMonth() && d.getFullYear() === twoMonthsAgo.getFullYear(); });
   })();
 
   const isRealExpense = t => t.type === "expense" && t.category_name !== "Transfer";
@@ -1333,7 +1461,7 @@ export default function App() {
           <button onClick={() => setScreen("profile")} style={{ background: screen === "profile" ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${screen === "profile" ? C.cyan + "44" : C.border}`, borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <Icon name="settings" size={16} color={screen === "profile" ? C.cyan : C.muted} />
           </button>
-          <button onClick={signOut} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, padding: "7px 13px", color: C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: 500 }}>Out</button>
+          <button onClick={signOut} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, padding: "7px 13px", color: C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: 500 }}>Sign Out</button>
         </div>
       </div>
 
@@ -1642,9 +1770,9 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
 
         <div style={{ display: "flex" }}>
           {[
-            { label: "Income", value: `$${fmt(totalIncome, 0)}`, dot: C.green, change: incomeChange },
-            { label: "Expenses", value: `$${fmt(totalSpent, 0)}`, dot: C.red, change: expenseChange, flip: true },
-            { label: "Saved", value: `$${fmt(Math.max(totalIncome - totalSpent, 0), 0)}`, dot: C.cyan },
+            { label: "Income", value: `$${fmt(totalIncome)}`, dot: C.green, change: incomeChange },
+            { label: "Expenses", value: `$${fmt(totalSpent)}`, dot: C.red, change: expenseChange, flip: true },
+            { label: "Saved", value: `$${fmt(Math.max(totalIncome - totalSpent, 0))}`, dot: C.cyan },
           ].map((item, i) => (
             <div key={item.label} style={{ flex: 1, paddingLeft: i > 0 ? 10 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : "none", marginLeft: i > 0 ? 10 : 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
@@ -1659,7 +1787,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
       </div>
 
       {/* 2 ── Financial Health Score */}
-      <HealthScoreBar score={healthScore} color={scoreColor} comment={healthComment} breakdown={scoreBreakdown} />
+      <HealthScoreBar score={healthScore} color={scoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} />
 
       {/* 2b ── AI Brain Insight */}
       <InsightCard insight={insight} onAction={onInsightAction} />
@@ -1670,26 +1798,32 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
           <span style={{ fontWeight: 600, fontSize: 14 }}>Spending by Category</span>
           <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: 99 }}>Tap to filter</span>
         </div>
-        <div style={{ position: "relative" }}>
-          <DonutChart data={spendingByCategory} size={152} onCatClick={onCatClick} />
-          {!isPro && (
-            <div
-              onClick={onUpgrade}
-              style={{
-                position: "absolute", inset: 0,
-                backdropFilter: "blur(6px)",
-                background: "rgba(11,20,38,0.55)",
-                borderRadius: 12,
-                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", gap: 6,
-              }}
-            >
-              <span style={{ fontSize: 22 }}>🔒</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#E8EDF5" }}>Pro feature</span>
-              <span style={{ fontSize: 11, color: "#7A8BA8" }}>Upgrade to see full chart</span>
-            </div>
-          )}
-        </div>
+        {Object.keys(spendingByCategory).length === 0 ? (
+          <div style={{ textAlign: "center", padding: "24px 0", color: C.faint, fontSize: 13 }}>
+            No spending data yet. Connect your bank to get started.
+          </div>
+        ) : (
+          <div style={{ position: "relative" }}>
+            <DonutChart data={spendingByCategory} size={152} onCatClick={onCatClick} />
+            {!isPro && (
+              <div
+                onClick={onUpgrade}
+                style={{
+                  position: "absolute", inset: 0,
+                  backdropFilter: "blur(6px)",
+                  background: "rgba(11,20,38,0.55)",
+                  borderRadius: 12,
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                  cursor: "pointer", gap: 6,
+                }}
+              >
+                <span style={{ fontSize: 22 }}>🔒</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#E8EDF5" }}>Pro feature</span>
+                <span style={{ fontSize: 11, color: "#7A8BA8" }}>Upgrade to see full chart</span>
+              </div>
+            )}
+          </div>
+        )}
       </GlassCard>
 
       {/* 4 ── Monthly Budget */}
@@ -1704,7 +1838,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>Monthly Budget</div>
-                <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>Spent ${fmt(totalSpent, 0)} of ${fmt(budget, 0)}</div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>Spent ${fmt(totalSpent)} of ${fmt(budget, 0)}</div>
               </div>
               <span style={{ color: isOver ? C.red : pct > 70 ? C.yellow : C.cyan, fontSize: 15, fontWeight: 800 }}>
                 {isOver ? "Over" : `${pct.toFixed(0)}%`}
@@ -1751,9 +1885,28 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
 }
 
 // ─── Insights ─────────────────────────────────────────────────
-function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByCategory, onNavigateChat, transactions, savings, profile, allInsights, onInsightAction, isPro, onUpgrade }) {
+function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, onNavigateChat, transactions, savings, profile, allInsights, onInsightAction, isPro, onUpgrade }) {
   const monthlySavings = totalIncome - totalSpent;
   const savingsRate = totalIncome > 0 ? (monthlySavings / totalIncome) * 100 : 0;
+
+  // ── Health Score (shared calculation — same as Dashboard) ─────
+  const SUB_CATS = ['Subscriptions', 'Bills', 'Utilities', 'Phone', 'Internet', 'Insurance'];
+  const subscriptionSpend = SUB_CATS.reduce((s, cat) => s + (spendingByCategory[cat] || 0), 0);
+  const { score: insightScore, color: insightScoreColor, breakdown: insightScoreBreakdown } = calculateHealthScore({
+    totalIncome,
+    totalSpent,
+    lastIncome,
+    lastSpent,
+    budget: Number(profile?.monthly_budget) || 3000,
+    subscriptionSpend,
+  });
+  const insightScoreComment = generateHealthComment({
+    score: insightScore,
+    breakdown: insightScoreBreakdown,
+    spendingByCategory,
+    prevSpendingByCategory,
+  });
+
   const insights = [];
 
   Object.entries(spendingByCategory).forEach(([cat, amount]) => {
@@ -1799,7 +1952,15 @@ function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByC
     context: `I spent $${fmt(shopping, 0)} on shopping. Help me build habits to reduce impulse purchases.`
   });
 
-  if (insights.length === 0) insights.push({ id: "all-good", icon: "check-circle", title: "You're on track!", desc: "Your spending looks healthy this month. Keep it up!", severity: "good", context: "My finances look healthy. What should I focus on to build long-term wealth?" });
+  if (insights.length === 0) {
+    if (insightScore >= 70) {
+      insights.push({ id: "all-good", icon: "check-circle", title: "You're on track!", desc: "Your spending looks healthy this month. Keep it up!", severity: "good", context: "My finances look healthy. What should I focus on to build long-term wealth?" });
+    } else if (insightScore >= 50) {
+      insights.push({ id: "neutral", icon: "info", title: "Some areas to watch", desc: "Your finances are mostly stable but there's room to improve. Small increases in savings or tighter budget tracking could push your score into the green.", severity: "info", context: "My financial health score is around 50-70. What are the highest-impact changes I can make?" });
+    } else {
+      insights.push({ id: "needs-work", icon: "alert-circle", title: "Attention needed", desc: "Your financial health score is below 50. Focus on reducing discretionary spending and building a consistent savings habit.", severity: "warning", context: "My financial health score is below 50. Where should I start to turn this around?" });
+    }
+  }
 
   const colors = { info: C.cyan, warning: C.yellow, danger: C.red, good: C.green };
 
@@ -1832,7 +1993,7 @@ function Insights({ totalSpent, totalIncome, spendingByCategory, prevSpendingByC
         </div>
       )}
 
-      <HealthScore totalSpent={totalSpent} totalIncome={totalIncome} budget={Number(profile?.monthly_budget) || 3000} savingsGoals={savings || []} />
+      <HealthScore score={insightScore} color={insightScoreColor} breakdown={insightScoreBreakdown} comment={insightScoreComment} totalSpent={totalSpent} budget={Number(profile?.monthly_budget) || 3000} hasData={totalIncome > 0 || totalSpent > 0} />
       <WeeklySummary transactions={transactions || []} />
 
       {/* Локальные инсайты — только если Edge Function не вернул данные */}
@@ -2043,7 +2204,7 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
     { label: "Net",      value: fmtMoney(summary.net, true),     valColor: summary.net >= 0 ? "#12D18E" : "#FF5C7A",      ctx: netCtx,     ctxColor: netCtxClr,     badge: summary.net >= 0 ? "on track" : "deficit",      badgeOk: summary.net >= 0, highlight: true, onClick: onNetClick,
       safeAction: summary.net > 0
         ? `Surplus available this month`
-        : `Overspending by ${fmtMoney(Math.abs(summary.net))}`,
+        : summary.net < 0 ? `Overspending by ${fmtMoney(Math.abs(summary.net))}` : null,
       safeActionOk: summary.net >= 0,
     },
   ];
@@ -2470,8 +2631,8 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
 
   const now    = new Date();
   const prevMo = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const curTxs  = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === now.getMonth()    && d.getFullYear() === now.getFullYear(); });
-  const prevTxs = transactions.filter(t => { const d = new Date(t.date); return d.getMonth() === prevMo.getMonth() && d.getFullYear() === prevMo.getFullYear(); });
+  const curTxs  = transactions.filter(t => { const d = parseDate(t.date); return d.getMonth() === now.getMonth()    && d.getFullYear() === now.getFullYear(); });
+  const prevTxs = transactions.filter(t => { const d = parseDate(t.date); return d.getMonth() === prevMo.getMonth() && d.getFullYear() === prevMo.getFullYear(); });
 
   const hasCurrentIncome = curTxs.some(t => t.type === "income");
   const effectiveCurTxs = hasCurrentIncome ? curTxs : (() => {
@@ -2624,7 +2785,7 @@ function AddTransactionModal({ categories, onAdd, onClose, existing }) {
   const [catId, setCatId] = useState(existing?.category_id || "");
   const [catName, setCatName] = useState(existing?.category_name || "");
   const [type, setType] = useState(existing?.type || "expense");
-  const [date, setDate] = useState(existing?.date || new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(existing?.date || localDateString());
   const [showCats, setShowCats] = useState(false);
   const isEdit = !!existing;
 
@@ -2948,12 +3109,12 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
         <div style={{ display: "flex", gap: 0, marginBottom: 12, paddingBottom: 12, borderBottom: `1px solid ${C.sep}` }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, letterSpacing: 0.5, marginBottom: 3 }}>THIS MONTH</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: C.cyan }}>${fmt(roundupMonth, 2)}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: roundupEnabled ? C.cyan : C.faint }}>{roundupEnabled ? `$${fmt(roundupMonth, 2)}` : "$0.00"}</div>
             <div style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>Based on your purchases</div>
           </div>
           <div style={{ flex: 1, paddingLeft: 16, borderLeft: `1px solid ${C.sep}` }}>
             <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, letterSpacing: 0.5, marginBottom: 3 }}>ALL TIME</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: C.green }}>${fmt(roundupTotal, 2)}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: roundupEnabled ? C.green : C.faint }}>{roundupEnabled ? `$${fmt(roundupTotal, 2)}` : "$0.00"}</div>
           </div>
         </div>
 
@@ -3177,7 +3338,7 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingBottom: 80 }}>
       <h2 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>Settings</h2>
 
       <GlassCard>

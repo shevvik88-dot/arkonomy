@@ -4,7 +4,17 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "Bash(claude mcp:*)",
+      "mcp__supabase__list_projects",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__list_edge_functions",
+      "mcp__supabase__get_edge_function",
+      "Bash(npx supabase:*)",
+      "mcp__supabase__get_logs",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__deploy_edge_function"
     ]
   }
 }

@@ -16,6 +16,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.0",
+    "pdfkit": "^0.18.0",
     "supabase": "^2.87.2",
     "vite": "^4.4.0"
   }
