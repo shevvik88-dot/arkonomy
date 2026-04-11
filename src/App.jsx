@@ -1273,36 +1273,35 @@ export default function App() {
   async function addTransaction(tx) {
     const { data } = await supabase.from("transactions").insert({ user_id: user.id, ...tx }).select().single();
     if (data) {
-      setTransactions(prev => {
-        const updated = [data, ...prev];
-        // ── Alert checks (run after state update with new tx included) ──
-        if (tx.type === "expense") {
-          const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
-          const monthlyExpenses = updated
-            .filter(t => t.type === "expense" && new Date(t.date) >= monthStart)
-            .reduce((s, t) => s + Number(t.amount), 0);
-          const monthlyIncome = updated
-            .filter(t => t.type === "income" && new Date(t.date) >= monthStart)
-            .reduce((s, t) => s + Number(t.amount), 0);
-          const budget = profile?.monthly_budget || 3000;
+      // Update state first (pure — no side effects inside the updater)
+      setTransactions(prev => [data, ...prev]);
 
-          // 1. Large Transaction
-          if (autopilot.largeTxAlerts && Number(tx.amount) > autopilot.largeTxThreshold) {
-            showAlert(`⚠️ Large transaction: ${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, "warning");
-          }
-          // 2. Overspending Alert
-          if (autopilot.overspendAlerts && monthlyExpenses > budget) {
-            const over = monthlyExpenses - budget;
-            showAlert(`🚨 You've exceeded your monthly budget by ${fmtMoney(over)}`, "danger");
-          }
-          // 3. Low Balance Alert (remaining budget < threshold)
-          const remaining = budget - monthlyExpenses;
-          if (autopilot.lowBalanceAlerts && remaining < autopilot.lowBalanceThreshold && remaining >= 0) {
-            showAlert(`💰 Low balance warning: ${fmtMoney(remaining)} remaining in budget`, "warning");
-          }
+      // ── Alert checks (run outside state updater so showAlert fires reliably) ──
+      if (tx.type === "expense") {
+        const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
+        // Use current transactions + newly saved one for accurate totals
+        const allTx = [data, ...transactions];
+        const monthlyExpenses = allTx
+          .filter(t => t.type === "expense" && new Date(t.date) >= monthStart)
+          .reduce((s, t) => s + Number(t.amount), 0);
+        const budget = profile?.monthly_budget || 3000;
+        const remaining = budget - monthlyExpenses;
+
+        console.log('Alert check:', { amount: Number(tx.amount), threshold: autopilot.largeTxThreshold, largeTxEnabled: autopilot.largeTxAlerts, monthlyExpenses, budget, remaining });
+
+        // 1. Large Transaction
+        if (autopilot.largeTxAlerts && Number(tx.amount) > autopilot.largeTxThreshold) {
+          showAlert(`⚠️ Large transaction: ${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, "warning");
         }
-        return updated;
-      });
+        // 2. Overspending Alert
+        if (autopilot.overspendAlerts && monthlyExpenses > budget) {
+          showAlert(`🚨 You've exceeded your monthly budget by ${fmtMoney(monthlyExpenses - budget)}`, "danger");
+        }
+        // 3. Low Balance Alert
+        if (autopilot.lowBalanceAlerts && remaining < autopilot.lowBalanceThreshold && remaining >= 0) {
+          showAlert(`💰 Low balance warning: ${fmtMoney(remaining)} remaining in budget`, "warning");
+        }
+      }
     }
     setShowAddTx(false);
   }
