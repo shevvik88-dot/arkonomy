@@ -1133,7 +1133,9 @@ export default function App() {
     return { overspendAlerts: true, largeTxAlerts: true, unusualSpending: true, largeTxThreshold: 200, lowBalanceAlerts: true, lowBalanceThreshold: 500 };
   });
   const { toasts: alertToasts, show: showAlert, dismiss: dismissAlert } = useToasts();
-  window.__showAlert = showAlert; // DEBUG: expose for console testing
+  // Ref keeps addTransaction (async) from using a stale showAlert closure
+  const showAlertRef = useRef(showAlert);
+  showAlertRef.current = showAlert;
 
   // ─── Plaid state ──────────────────────────────────────────────
   const [linkToken, setLinkToken] = useState(null);
@@ -1288,21 +1290,17 @@ export default function App() {
         const budget = profile?.monthly_budget || 3000;
         const remaining = budget - monthlyExpenses;
 
-        console.log('Alert check:', { amount: Number(tx.amount), threshold: autopilot.largeTxThreshold, largeTxEnabled: autopilot.largeTxAlerts, monthlyExpenses, budget, remaining });
-
         // 1. Large Transaction
         if (autopilot.largeTxAlerts && Number(tx.amount) > autopilot.largeTxThreshold) {
-          console.warn('[Toast] Calling showAlert, type:', typeof showAlert);
-          showAlert(`⚠️ Large transaction: ${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, "warning");
-          console.warn('[Toast] showAlert returned');
+          showAlertRef.current(`⚠️ Large transaction: ${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, "warning");
         }
         // 2. Overspending Alert
         if (autopilot.overspendAlerts && monthlyExpenses > budget) {
-          showAlert(`🚨 You've exceeded your monthly budget by ${fmtMoney(monthlyExpenses - budget)}`, "danger");
+          showAlertRef.current(`🚨 You've exceeded your monthly budget by ${fmtMoney(monthlyExpenses - budget)}`, "danger");
         }
         // 3. Low Balance Alert
         if (autopilot.lowBalanceAlerts && remaining < autopilot.lowBalanceThreshold && remaining >= 0) {
-          showAlert(`💰 Low balance warning: ${fmtMoney(remaining)} remaining in budget`, "warning");
+          showAlertRef.current(`💰 Low balance warning: ${fmtMoney(remaining)} remaining in budget`, "warning");
         }
       }
     }
