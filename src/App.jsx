@@ -988,9 +988,9 @@ function WeeklySummary({ transactions }) {
         </div>
         <span style={{ fontWeight: 600, fontSize: 14, color: C.blue }}>Weekly Summary</span>
       </div>
-      <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 4 }}>${fmt(thisWeek, 0)}</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 4 }}>${fmt(thisWeek)}</div>
       <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
-        Spent this week{topWeekCat ? ` — mostly on ${topWeekCat[0]} ($${fmt(topWeekCat[1], 0)})` : ""}.{" "}
+        Spent this week{topWeekCat ? ` — mostly on ${topWeekCat[0]} ($${fmt(topWeekCat[1])})` : ""}.{" "}
         {lastWeek > 0 ? (
           <span style={{ color: pos ? C.green : C.red, fontWeight: 600 }}>
             {pos ? "↓" : "↑"}{Math.abs(change).toFixed(0)}% {pos ? "less" : "more"} than last week
