@@ -1125,7 +1125,14 @@ export default function App() {
   const [catFilter, setCatFilter] = useState(null);
   const [chatMessages, setChatMessages] = useState([{ role: "assistant", text: "Hi! I'm your Arkonomy AI assistant. Ask me anything about your finances." }]);
   const [chatInput, setChatInput] = useState("");
-  const [autopilot, setAutopilot] = useState({ overspendAlerts: true, largeTxAlerts: true, unusualSpending: true, largeTxThreshold: 200 });
+  const [autopilot, setAutopilot] = useState(() => {
+    try {
+      const saved = localStorage.getItem("arkonomy_autopilot");
+      if (saved) return { overspendAlerts: true, largeTxAlerts: true, unusualSpending: true, largeTxThreshold: 200, lowBalanceAlerts: true, lowBalanceThreshold: 500, ...JSON.parse(saved) };
+    } catch {}
+    return { overspendAlerts: true, largeTxAlerts: true, unusualSpending: true, largeTxThreshold: 200, lowBalanceAlerts: true, lowBalanceThreshold: 500 };
+  });
+  const { toasts: alertToasts, show: showAlert, dismiss: dismissAlert } = useToasts();
 
   // ─── Plaid state ──────────────────────────────────────────────
   const [linkToken, setLinkToken] = useState(null);
@@ -1147,6 +1154,11 @@ export default function App() {
 
   // Register push notifications (no-op until VAPID key is configured)
   usePushNotifications(supabase, user?.id);
+
+  // Persist autopilot toggles across reloads
+  useEffect(() => {
+    try { localStorage.setItem("arkonomy_autopilot", JSON.stringify(autopilot)); } catch {}
+  }, [autopilot]);
 
   async function loadAll() {
     setLoading(true);
@@ -1260,7 +1272,38 @@ export default function App() {
 
   async function addTransaction(tx) {
     const { data } = await supabase.from("transactions").insert({ user_id: user.id, ...tx }).select().single();
-    if (data) setTransactions(prev => [data, ...prev]);
+    if (data) {
+      setTransactions(prev => {
+        const updated = [data, ...prev];
+        // ── Alert checks (run after state update with new tx included) ──
+        if (tx.type === "expense") {
+          const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
+          const monthlyExpenses = updated
+            .filter(t => t.type === "expense" && new Date(t.date) >= monthStart)
+            .reduce((s, t) => s + Number(t.amount), 0);
+          const monthlyIncome = updated
+            .filter(t => t.type === "income" && new Date(t.date) >= monthStart)
+            .reduce((s, t) => s + Number(t.amount), 0);
+          const budget = profile?.monthly_budget || 3000;
+
+          // 1. Large Transaction
+          if (autopilot.largeTxAlerts && Number(tx.amount) > autopilot.largeTxThreshold) {
+            showAlert(`⚠️ Large transaction: ${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, "warning");
+          }
+          // 2. Overspending Alert
+          if (autopilot.overspendAlerts && monthlyExpenses > budget) {
+            const over = monthlyExpenses - budget;
+            showAlert(`🚨 You've exceeded your monthly budget by ${fmtMoney(over)}`, "danger");
+          }
+          // 3. Low Balance Alert (remaining budget < threshold)
+          const remaining = budget - monthlyExpenses;
+          if (autopilot.lowBalanceAlerts && remaining < autopilot.lowBalanceThreshold && remaining >= 0) {
+            showAlert(`💰 Low balance warning: ${fmtMoney(remaining)} remaining in budget`, "warning");
+          }
+        }
+        return updated;
+      });
+    }
     setShowAddTx(false);
   }
 
@@ -1472,7 +1515,7 @@ export default function App() {
         ) : (
           <>
             {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} />}
-            {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} />}
+            {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} onUpgrade={onUpgrade} />}
             {screen === "insights" && <Insights {...shared} onNavigateChat={msg => { setChatMessages(prev => [...prev, { role: "user", text: msg }]); setScreen("chat"); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
             {screen === "chat" && <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={() => sendChat(chatInput)} />}
@@ -1483,6 +1526,7 @@ export default function App() {
 
       {showAddTx && <AddTransactionModal categories={categories} onAdd={addTransaction} onClose={() => setShowAddTx(false)} />}
       {editTx && <AddTransactionModal categories={categories} existing={editTx} onAdd={data => updateTransaction(editTx.id, data)} onClose={() => setEditTx(null)} />}
+      <ToastStack toasts={alertToasts} dismiss={dismissAlert} />
       {showUpgradeModal && <UpgradeModal onClose={() => setShowUpgradeModal(false)} />}
 
       {alpacaToast && (
@@ -2141,36 +2185,57 @@ const CAT_ICONS_MAP = {
 };
 
 function useToasts() {
-  const [toasts, setToasts] = useState([]);
-  const timers = useRef({});
+  const [toasts, setToasts]   = useState([]);
+  const timers                = useRef({});
+
+  const dismiss = (id) => {
+    // Mark as exiting for slide-out animation, then remove after 300ms
+    setToasts(prev => prev.map(x => x.id === id ? { ...x, exiting: true } : x));
+    setTimeout(() => setToasts(prev => prev.filter(x => x.id !== id)), 300);
+    clearTimeout(timers.current[id]);
+    delete timers.current[id];
+  };
+
   const show = (msg, type = "success") => {
     const id = "t" + Date.now() + Math.random().toString(36).slice(2);
-    setToasts(prev => [...prev.slice(-2), { id, msg, type }]);
-    timers.current[id] = setTimeout(() => {
-      setToasts(prev => prev.filter(x => x.id !== id));
-      delete timers.current[id];
-    }, 2600);
+    setToasts(prev => [...prev.slice(-4), { id, msg, type, exiting: false }]);
+    timers.current[id] = setTimeout(() => dismiss(id), 4000);
   };
-  return { toasts, show };
+
+  return { toasts, show, dismiss };
 }
 
-function ToastStack({ toasts }) {
+function ToastStack({ toasts, dismiss }) {
   const cfg = {
-    success: { color: "#12D18E", icon: "✓" },
-    warning: { color: "#FFB800", icon: "⚠" },
-    info:    { color: "#2F80FF", icon: "i" },
+    success: { color: "#12D18E", border: "#12D18E33", icon: "✓" },
+    warning: { color: "#FFB800", border: "#FFB80033", icon: "⚠️" },
+    danger:  { color: "#FF5C7A", border: "#FF5C7A33", icon: "🚨" },
+    info:    { color: "#2F80FF", border: "#2F80FF33", icon: "ℹ️" },
   };
   return (
-    <div style={{ position: "fixed", bottom: 92, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", gap: 6, alignItems: "center", zIndex: 200, pointerEvents: "none", width: "100%", maxWidth: 380 }}>
-      <style>{`@keyframes txIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <div style={{ position: "fixed", bottom: 92, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", gap: 8, alignItems: "center", zIndex: 300, width: "100%", maxWidth: 400, padding: "0 16px", boxSizing: "border-box" }}>
+      <style>{`
+        @keyframes txIn  { from { opacity:0; transform:translateY(12px) scale(0.97) } to { opacity:1; transform:translateY(0) scale(1) } }
+        @keyframes txOut { from { opacity:1; transform:translateY(0) scale(1) }         to { opacity:0; transform:translateY(8px) scale(0.97) } }
+      `}</style>
       {toasts.map(t => {
         const c = cfg[t.type] || cfg.success;
         return (
-          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(9,18,34,0.97)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 22, padding: "9px 15px 9px 10px", whiteSpace: "nowrap", animation: "txIn 0.22s ease", fontFamily: FONT, boxShadow: "0 4px 20px rgba(0,0,0,0.45)" }}>
-            <div style={{ width: 22, height: 22, borderRadius: 11, background: c.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <span style={{ fontSize: 11, color: "#fff", fontWeight: 700 }}>{c.icon}</span>
+          <div key={t.id} style={{
+            display: "flex", alignItems: "flex-start", gap: 10,
+            background: "rgba(9,18,34,0.97)", border: `1px solid ${c.border}`,
+            borderRadius: 16, padding: "11px 12px 11px 12px",
+            animation: `${t.exiting ? "txOut" : "txIn"} 0.25s ease forwards`,
+            fontFamily: FONT, boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
+            width: "100%", boxSizing: "border-box", pointerEvents: "auto",
+          }}>
+            <div style={{ width: 24, height: 24, borderRadius: 12, background: c.color + "22", border: `1px solid ${c.color}55`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+              <span style={{ fontSize: 12 }}>{c.icon}</span>
             </div>
-            <span style={{ fontSize: 13, fontWeight: 500, color: "#fff" }}>{t.msg}</span>
+            <span style={{ fontSize: 13, fontWeight: 500, color: "#fff", flex: 1, lineHeight: 1.4, paddingTop: 3 }}>{t.msg}</span>
+            {dismiss && (
+              <button onClick={() => dismiss(t.id)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "2px 0 0 4px", flexShrink: 0 }}>×</button>
+            )}
           </div>
         );
       })}
@@ -2635,12 +2700,13 @@ function TxRow({ t, onDelete, onEdit, onLongPress }) {
   );
 }
 
-function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter, insight, onInsightAction }) {
+function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter, insight, onInsightAction, onToast }) {
   const [filter,   setFilter]   = useState("all");
   const [sheet,    setSheet]    = useState(null);
   const [quickTx,  setQuickTx]  = useState(null);
   const [hintDone, setHintDone] = useState(false);
-  const { toasts, show: toast } = useToasts();
+  const { toasts, show: _localToast, dismiss } = useToasts();
+  const toast = onToast || _localToast;
   const catFilter = activeCatFilter || null;
 
   const now    = new Date();
@@ -2778,7 +2844,7 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
 
       {sheet && <BreakdownSheet title={sheet.title} subtitle={sheet.subtitle} rows={sheet.rows} actionLabel={sheet.actionLabel} actionColor={sheet.actionColor} onAction={sheet.onAction} onClose={() => setSheet(null)} />}
       {quickTx && <QuickActionsMenu tx={quickTx} onClose={() => setQuickTx(null)} onEdit={tx => { setQuickTx(null); onEdit(tx); }} onDelete={id => { setQuickTx(null); handleDelete(id); }} onMoveToSavings={tx => { setQuickTx(null); handleMoveToSavings(tx); }} onFlag={tx => { setQuickTx(null); handleFlag(tx); }} onDuplicate={tx => { setQuickTx(null); handleDuplicate(tx); }} />}
-      <ToastStack toasts={toasts} />
+      {!onToast && <ToastStack toasts={toasts} dismiss={dismiss} />}
     </div>
   );
 }
@@ -3447,9 +3513,10 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected
           </div>
         </div>
         {[
-          { key: "overspendAlerts", icon: "bell", color: C.yellow, title: "Overspending Alerts", sub: "Alert when category exceeds budget" },
-          { key: "largeTxAlerts", icon: "alert-circle", color: C.red, title: "Large Transactions", sub: `Alert for purchases over $${autopilot.largeTxThreshold}` },
-          { key: "unusualSpending", icon: "activity", color: C.cyan, title: "Unusual Spending", sub: "Alert when category up 25%+ vs last month" },
+          { key: "overspendAlerts",  icon: "bell",         color: C.yellow, title: "Overspending Alerts",  sub: "Alert when monthly spending exceeds budget" },
+          { key: "largeTxAlerts",   icon: "alert-circle", color: C.red,    title: "Large Transactions",   sub: `Alert for purchases over $${autopilot.largeTxThreshold}` },
+          { key: "lowBalanceAlerts",icon: "dollar",       color: C.green,  title: "Low Budget Warning",   sub: `Alert when less than $${autopilot.lowBalanceThreshold} remains in budget` },
+          { key: "unusualSpending", icon: "activity",     color: C.cyan,   title: "Unusual Spending",     sub: "Alert when category up 25%+ vs last month" },
         ].map((rule, i) => (
           <div key={rule.key}>
             {i > 0 && <div style={{ height: 1, background: C.sep, margin: "12px 0" }} />}
