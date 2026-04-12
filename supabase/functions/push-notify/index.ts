@@ -179,6 +179,56 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── Mode 1: direct notification ───────────────────────────────────────────
+    // POST { user_id, title, body, icon } → send push to that user immediately
+    let reqBody: Record<string, unknown> = {};
+    if (req.method === 'POST') {
+      try { reqBody = await req.json(); } catch { /* empty body → fall through to batch mode */ }
+    }
+
+    if (reqBody.user_id) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('push_subscription')
+        .eq('id', reqBody.user_id)
+        .single();
+
+      if (!profile?.push_subscription) {
+        return new Response(JSON.stringify({ sent: 0, reason: 'no_subscription' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      try {
+        await sendPushNotification(
+          profile.push_subscription,
+          {
+            title: String(reqBody.title ?? 'Arkonomy'),
+            body:  String(reqBody.body  ?? ''),
+            icon:  String(reqBody.icon  ?? '/icon-192.png'),
+            tag:   String(reqBody.tag   ?? 'arkonomy-alert'),
+            url:   '/',
+          },
+          vapidPublicKey,
+          vapidPrivateKey,
+          vapidSubject,
+        );
+        return new Response(JSON.stringify({ sent: 1 }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (pushErr) {
+        // Subscription expired — clean it up so we don't retry forever
+        if (String(pushErr).includes('410') || String(pushErr).includes('404')) {
+          await supabase.from('profiles').update({ push_subscription: null }).eq('id', reqBody.user_id);
+          return new Response(JSON.stringify({ sent: 0, reason: 'subscription_expired' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        throw pushErr;
+      }
+    }
+
+    // ── Mode 2: batch recurring-charges scan ──────────────────────────────────
     // Fetch all users with push subscriptions
     const { data: profiles, error } = await supabase
       .from('profiles')

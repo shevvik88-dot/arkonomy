@@ -1293,14 +1293,32 @@ export default function App() {
         // 1. Large Transaction
         if (autopilot.largeTxAlerts && Number(tx.amount) > autopilot.largeTxThreshold) {
           showAlertRef.current(`Large transaction: ${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, "warning", "alert-circle");
+          supabase.functions.invoke("push-notify", { body: {
+            user_id: user?.id,
+            title: "Large Transaction",
+            body: `${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`,
+            icon: "/icon-192.png", tag: "large-tx",
+          }}).catch(() => {});
         }
         // 2. Overspending Alert
         if (autopilot.overspendAlerts && monthlyExpenses > budget) {
           showAlertRef.current(`You've exceeded your monthly budget by ${fmtMoney(monthlyExpenses - budget)}`, "danger", "alert-circle");
+          supabase.functions.invoke("push-notify", { body: {
+            user_id: user?.id,
+            title: "Budget Exceeded",
+            body: `Monthly spending exceeds your ${fmtMoney(budget)} budget by ${fmtMoney(monthlyExpenses - budget)}`,
+            icon: "/icon-192.png", tag: "budget-exceeded",
+          }}).catch(() => {});
         }
         // 3. Low Balance Alert
         if (autopilot.lowBalanceAlerts && remaining < autopilot.lowBalanceThreshold && remaining >= 0) {
           showAlertRef.current(`Low balance warning: ${fmtMoney(remaining)} remaining in budget`, "warning", "dollar");
+          supabase.functions.invoke("push-notify", { body: {
+            user_id: user?.id,
+            title: "Low Balance",
+            body: `${fmtMoney(remaining)} remaining in your monthly budget`,
+            icon: "/icon-192.png", tag: "low-balance",
+          }}).catch(() => {});
         }
       }
     }
