@@ -369,7 +369,7 @@ function InsightCard({ insight, onAction }) {
           <button
             onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
             onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; e.currentTarget.style.boxShadow = `0 2px 10px ${accent}22`; }}
-            onPointerUp={e => { e.currentTarget.style.transform = "scale(1.03)"; e.currentTarget.style.boxShadow = `0 6px 24px ${accent}44`; setTimeout(() => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 4px 20px ${accent}32`; }, 150); }}
+            onPointerUp={e => { const el = e.currentTarget; el.style.transform = "scale(1.03)"; el.style.boxShadow = `0 6px 24px ${accent}44`; setTimeout(() => { el.style.transform = "scale(1)"; el.style.boxShadow = `0 4px 20px ${accent}32`; }, 150); }}
             onPointerLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 4px 20px ${accent}32`; }}
             style={{
               width: "100%", padding: "13px 16px",
@@ -2123,8 +2123,7 @@ function normalizeTxName(t) {
   }
   if (cat) return cat;
   if (t.type === "income")  return "Income";
-  if (t.type === "expense") return "Expense";
-  return "Transaction";
+  return "Unknown";
 }
 
 function calcSummary(txs, prevTxs = []) {
@@ -2265,7 +2264,7 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
 
   const cards = [
     { label: "Income",   value: fmtMoney(summary.income),        valColor: "#12D18E",                                     ctx: incomeCtx,  ctxColor: incomeCtxClr,  badge: null,                                                           onClick: onIncomeClick },
-    { label: "Expenses", value: fmtMoney(summary.expense),       valColor: "#FF5C7A",                                     ctx: expenseCtx, ctxColor: expenseCtxClr, badge: isOverBudget ? "over budget" : "within budget", badgeOk: !isOverBudget, onClick: onExpenseClick },
+    { label: "Expenses", value: fmtMoney(summary.expense),       valColor: "#FF5C7A",                                     ctx: expenseCtx, ctxColor: expenseCtxClr, badge: summary.income === 0 ? "no income" : isOverBudget ? "over budget" : "within budget", badgeOk: summary.income === 0 ? null : !isOverBudget, onClick: onExpenseClick },
     { label: "Net",      value: fmtMoney(summary.net, true),     valColor: summary.net >= 0 ? "#12D18E" : "#FF5C7A",      ctx: netCtx,     ctxColor: netCtxClr,     badge: summary.net >= 0 ? "on track" : "deficit",      badgeOk: summary.net >= 0, highlight: true, onClick: onNetClick,
       safeAction: summary.net > 0
         ? `Surplus available this month`
@@ -2289,7 +2288,7 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
             : <span style={{ fontSize: 10, color: C.faint }}>this month</span>
           }
           {card.badge && (
-            <span style={{ fontSize: 9, fontWeight: 700, color: card.badgeOk ? "#12D18E" : "#FF5C7A", background: card.badgeOk ? "rgba(18,209,142,0.12)" : "rgba(255,92,122,0.12)", padding: "2px 6px", borderRadius: 4, alignSelf: "flex-start", letterSpacing: 0.4, textTransform: "uppercase", marginTop: 2 }}>{card.badge}</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: card.badgeOk === null ? "#FFB800" : card.badgeOk ? "#12D18E" : "#FF5C7A", background: card.badgeOk === null ? "rgba(255,184,0,0.12)" : card.badgeOk ? "rgba(18,209,142,0.12)" : "rgba(255,92,122,0.12)", padding: "2px 6px", borderRadius: 4, alignSelf: "flex-start", letterSpacing: 0.4, textTransform: "uppercase", marginTop: 2 }}>{card.badge}</span>
           )}
           {card.safeAction && (
             <span style={{ fontSize: 9, color: card.safeActionOk ? "rgba(18,209,142,0.65)" : "rgba(255,92,122,0.65)", fontWeight: 500, lineHeight: 1.3, marginTop: 1 }}>{card.safeAction}</span>
@@ -2677,7 +2676,7 @@ function TxRow({ t, onDelete, onEdit, onLongPress }) {
         <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
           <div style={{ fontSize: 14, fontWeight: 500, color: C.text, letterSpacing: -0.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{displayName}</div>
           <div style={{ fontSize: 11, color: C.faint, marginTop: 2, display: "flex", alignItems: "center", gap: 4, overflow: "hidden", fontFamily: FONT }}>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1 }}>{t.category_name} · {fmtDate(t.date)}</span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1 }}>{t.category_name || "Uncategorized"} · {fmtDate(t.date)}</span>
             {signal && (
               <span style={{ fontSize: 10, fontWeight: 700, color: SIGNAL_STYLE[signal].color, background: SIGNAL_STYLE[signal].bg, padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>
                 {SIGNAL_STYLE[signal].label}
@@ -2756,7 +2755,7 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
         <button onClick={onAdd}
           style={{ width: 46, height: 46, minWidth: 46, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 14px rgba(47,128,255,0.32), 0 0 0 5px rgba(47,128,255,0.08)`, transition: "transform 0.16s cubic-bezier(.22,1,.36,1), box-shadow 0.16s ease" }}
           onPointerDown={e => { e.currentTarget.style.transform = "scale(0.86)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(47,128,255,0.25), 0 0 0 2px rgba(47,128,255,0.08)"; }}
-          onPointerUp={e => { e.currentTarget.style.transform = "scale(1.04)"; e.currentTarget.style.boxShadow = "0 4px 18px rgba(47,128,255,0.4), 0 0 0 5px rgba(47,128,255,0.09)"; setTimeout(() => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 20px rgba(47,128,255,0.45), 0 0 0 6px rgba(47,128,255,0.11)"; }, 120); }}
+          onPointerUp={e => { const el = e.currentTarget; el.style.transform = "scale(1.04)"; el.style.boxShadow = "0 4px 18px rgba(47,128,255,0.4), 0 0 0 5px rgba(47,128,255,0.09)"; setTimeout(() => { el.style.transform = ""; el.style.boxShadow = "0 4px 20px rgba(47,128,255,0.45), 0 0 0 6px rgba(47,128,255,0.11)"; }, 120); }}
           onPointerLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 20px rgba(47,128,255,0.45), 0 0 0 6px rgba(47,128,255,0.11)"; }}
         >
           <Icon name="plus" size={18} color="#fff" strokeWidth={2.5} />
