@@ -458,8 +458,8 @@ document.head.appendChild(fontLink);
 
 const FONT = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
 
-const SUPABASE_URL = "https://hvnkxxazjfesbxdkzuba.supabase.co";
-const SUPABASE_KEY = "sb_publishable_z4Mh9KZLXS_6ZZJyJ-pE7A_ClkhUDt9";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const C = {
