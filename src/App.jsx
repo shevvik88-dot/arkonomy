@@ -1292,15 +1292,15 @@ export default function App() {
 
         // 1. Large Transaction
         if (autopilot.largeTxAlerts && Number(tx.amount) > autopilot.largeTxThreshold) {
-          showAlertRef.current(`⚠️ Large transaction: ${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, "warning");
+          showAlertRef.current(`Large transaction: ${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, "warning", "alert-circle");
         }
         // 2. Overspending Alert
         if (autopilot.overspendAlerts && monthlyExpenses > budget) {
-          showAlertRef.current(`🚨 You've exceeded your monthly budget by ${fmtMoney(monthlyExpenses - budget)}`, "danger");
+          showAlertRef.current(`You've exceeded your monthly budget by ${fmtMoney(monthlyExpenses - budget)}`, "danger", "alert-circle");
         }
         // 3. Low Balance Alert
         if (autopilot.lowBalanceAlerts && remaining < autopilot.lowBalanceThreshold && remaining >= 0) {
-          showAlertRef.current(`💰 Low balance warning: ${fmtMoney(remaining)} remaining in budget`, "warning");
+          showAlertRef.current(`Low balance warning: ${fmtMoney(remaining)} remaining in budget`, "warning", "dollar");
         }
       }
     }
@@ -2195,9 +2195,9 @@ function useToasts() {
     delete timers.current[id];
   };
 
-  const show = (msg, type = "success") => {
+  const show = (msg, type = "success", icon = null) => {
     const id = "t" + Date.now() + Math.random().toString(36).slice(2);
-    setToasts(prev => [...prev.slice(-4), { id, msg, type, exiting: false }]);
+    setToasts(prev => [...prev.slice(-4), { id, msg, type, icon, exiting: false }]);
     timers.current[id] = setTimeout(() => dismiss(id), 4000);
   };
 
@@ -2206,10 +2206,10 @@ function useToasts() {
 
 function ToastStack({ toasts, dismiss }) {
   const cfg = {
-    success: { color: "#12D18E", border: "#12D18E33", icon: "✓" },
-    warning: { color: "#FFB800", border: "#FFB80033", icon: "⚠️" },
-    danger:  { color: "#FF5C7A", border: "#FF5C7A33", icon: "🚨" },
-    info:    { color: "#2F80FF", border: "#2F80FF33", icon: "ℹ️" },
+    success: { color: "#12D18E", border: "#12D18E33", icon: "check-circle" },
+    warning: { color: "#FFB800", border: "#FFB80033", icon: "alert-circle" },
+    danger:  { color: "#FF5C7A", border: "#FF5C7A33", icon: "alert-circle" },
+    info:    { color: "#2F80FF", border: "#2F80FF33", icon: "bell" },
   };
   return (
     <div style={{ position: "fixed", bottom: 92, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", gap: 8, alignItems: "center", zIndex: 300, width: "100%", maxWidth: 400, padding: "0 16px", boxSizing: "border-box" }}>
@@ -2229,7 +2229,7 @@ function ToastStack({ toasts, dismiss }) {
             width: "100%", boxSizing: "border-box", pointerEvents: "auto",
           }}>
             <div style={{ width: 24, height: 24, borderRadius: 12, background: c.color + "22", border: `1px solid ${c.color}55`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
-              <span style={{ fontSize: 12 }}>{c.icon}</span>
+              <Icon name={t.icon || c.icon} size={13} color={c.color} strokeWidth={2.2} />
             </div>
             <span style={{ fontSize: 13, fontWeight: 500, color: "#fff", flex: 1, lineHeight: 1.4, paddingTop: 3 }}>{t.msg}</span>
             {dismiss && (
