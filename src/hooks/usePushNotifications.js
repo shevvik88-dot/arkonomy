@@ -14,9 +14,7 @@
 
 import { useEffect, useRef } from 'react';
 
-// TODO: replace with your real VAPID public key after running:
-//   npx web-push generate-vapid-keys
-const VAPID_PUBLIC_KEY = 'REPLACE_WITH_YOUR_VAPID_PUBLIC_KEY';
+const VAPID_PUBLIC_KEY = 'BA0f1fvfHl4nYhqntmNAu0YLc_UXcGz4RSj3X9JSM0DHa075qQpmOCkjln_rhpGlZ1laheNigwpeGmgMOFMgTsw';
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -38,7 +36,6 @@ export function usePushNotifications(supabase, userId) {
 
   useEffect(() => {
     if (!userId || registered.current) return;
-    if (VAPID_PUBLIC_KEY === 'REPLACE_WITH_YOUR_VAPID_PUBLIC_KEY') return; // not configured yet
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
 
     async function register() {
