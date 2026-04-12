@@ -1828,7 +1828,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
         <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? balColor : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${balColor}44` : "none" }}>
           {balanceVisible ? `$${fmt(balance)}` : "••••••"}
         </div>
-        <div style={{ fontSize: 9, color: C.faint, marginBottom: 12, letterSpacing: 0.5 }}>Available balance</div>
+        <div style={{ fontSize: 9, color: balance < 0 ? C.red : C.faint, marginBottom: 12, letterSpacing: 0.5 }}>{balance < 0 ? "You're in deficit" : "Available balance"}</div>
         
         <div style={{ height: 1, background: "rgba(255,255,255,0.05)", marginBottom: 12 }} />
 
@@ -2284,7 +2284,7 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
 
   const cards = [
     { label: "Income",   value: fmtMoney(summary.income),        valColor: "#12D18E",                                     ctx: incomeCtx,  ctxColor: incomeCtxClr,  badge: null,                                                           onClick: onIncomeClick },
-    { label: "Expenses", value: fmtMoney(summary.expense),       valColor: "#FF5C7A",                                     ctx: expenseCtx, ctxColor: expenseCtxClr, badge: summary.income === 0 ? "no income" : isOverBudget ? "over budget" : "within budget", badgeOk: summary.income === 0 ? null : !isOverBudget, onClick: onExpenseClick },
+    { label: "Expenses", value: fmtMoney(summary.expense),       valColor: "#FF5C7A",                                     ctx: expenseCtx, ctxColor: expenseCtxClr, badge: summary.income === 0 ? "no income" : summary.net < 0 ? null : isOverBudget ? "over budget" : "within budget", badgeOk: summary.income === 0 ? null : !isOverBudget, onClick: onExpenseClick },
     { label: "Net",      value: fmtMoney(summary.net, true),     valColor: summary.net >= 0 ? "#12D18E" : "#FF5C7A",      ctx: netCtx,     ctxColor: netCtxClr,     badge: summary.net >= 0 ? "on track" : "deficit",      badgeOk: summary.net >= 0, highlight: true, onClick: onNetClick,
       safeAction: summary.net > 0
         ? `Surplus available this month`
@@ -3169,7 +3169,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
               <div style={{ fontSize: 22, fontWeight: 800, color: C.green }}>${fmt(totalSaved, 0)}</div>
             </div>
             <div style={{ flex: 1, paddingLeft: 20, borderLeft: `1px solid ${C.sep}` }}>
-              <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, letterSpacing: 0.5, marginBottom: 4 }}>MONTHLY SURPLUS</div>
+              <div style={{ fontSize: 10, color: monthlySurplus < 0 ? C.red : C.faint, fontWeight: 500, letterSpacing: 0.5, marginBottom: 4 }}>{monthlySurplus < 0 ? "MONTHLY DEFICIT" : "MONTHLY SURPLUS"}</div>
               <div style={{ fontSize: 22, fontWeight: 800, color: monthlySurplus >= 0 ? C.green : C.red }}>${fmt(Math.abs(monthlySurplus), 0)}</div>
             </div>
           </div>
@@ -3221,7 +3221,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
           </div>
         </div>
 
-        {roundupMonth >= 1 && (
+        {roundupMonth >= 1 && monthlySurplus > 0 && (
           <button onClick={() => { if (!isPro) { onUpgrade(); return; } setShowAlpacaSheet(true); }}
             style={{ width: "100%", padding: "12px 16px", marginBottom: 12, background: isPro ? `linear-gradient(135deg, #7B5EA7, #4B6CB7)` : "#1E2D45", border: isPro ? "none" : `1px solid #2D3F58`, borderRadius: 11, color: isPro ? "#fff" : "#7A8BA8", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT, letterSpacing: -0.2, boxShadow: isPro ? "0 4px 16px rgba(75,108,183,0.35)" : "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "transform 0.12s ease" }}
             onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; }}
