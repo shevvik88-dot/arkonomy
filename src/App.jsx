@@ -993,11 +993,11 @@ function WeeklySummary({ transactions }) {
       <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 4 }}>${fmt(thisWeek)}</div>
       <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
         Spent this week{topWeekCat ? ` — mostly on ${topWeekCat[0]} ($${fmt(topWeekCat[1])})` : ""}.{" "}
-        {lastWeek > 0 ? (
+        {thisWeek > 0 && lastWeek > 0 && (
           <span style={{ color: pos ? C.green : C.red, fontWeight: 600 }}>
             {pos ? "↓" : "↑"}{Math.abs(change).toFixed(0)}% {pos ? "less" : "more"} than last week
           </span>
-        ) : "no data from last week yet"}.
+        )}
       </div>
     </GlassCard>
   );
@@ -1854,7 +1854,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
       <HealthScoreBar score={healthScore} color={scoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} />
 
       {/* 2b ── AI Brain Insight */}
-      <InsightCard insight={insight} onAction={onInsightAction} />
+      <InsightCard insight={insight?.type === 'savings_opportunity' && balance <= 0 ? null : insight} onAction={onInsightAction} />
 
       {/* 3 ── Spending by Category */}
       <GlassCard style={{ padding: "14px 16px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}>
@@ -2037,7 +2037,7 @@ function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCa
 
       {allInsights && allInsights.length > 0 && (
         <div>
-          <InsightCardGroup insights={isPro ? allInsights : allInsights.slice(0, 2)} onAction={onInsightAction} />
+          <InsightCardGroup insights={(isPro ? allInsights : allInsights.slice(0, 2)).filter(i => i.type !== 'savings_opportunity' || monthlySavings > 0)} onAction={onInsightAction} />
           {!isPro && allInsights.length > 2 && (
             <div
               onClick={onUpgrade}
@@ -2080,15 +2080,17 @@ function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCa
         );
       })}
 
-      <GlassCard style={{ background: `linear-gradient(135deg,${C.cyan}0D,${C.card})`, border: `1px solid ${C.cyan}30` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          <Icon name="zap" size={16} color={C.cyan} />
-          <span style={{ fontWeight: 600, fontSize: 15, color: C.cyan }}>Autopilot Tip</span>
-        </div>
-        <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.65 }}>
-          Auto-invest your monthly surplus and let compound interest work. Even $50/month can grow to $30,000+ in 20 years at average market returns.
-        </div>
-      </GlassCard>
+      {monthlySavings > 0 && (
+        <GlassCard style={{ background: `linear-gradient(135deg,${C.cyan}0D,${C.card})`, border: `1px solid ${C.cyan}30` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <Icon name="zap" size={16} color={C.cyan} />
+            <span style={{ fontWeight: 600, fontSize: 15, color: C.cyan }}>Autopilot Tip</span>
+          </div>
+          <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.65 }}>
+            Auto-invest your monthly surplus and let compound interest work. Even $50/month can grow to $30,000+ in 20 years at average market returns.
+          </div>
+        </GlassCard>
+      )}
 
       <div style={{ fontSize: 11, color: C.faint, textAlign: "center", lineHeight: 1.6, padding: "0 8px" }}>
         AI insights are for informational purposes only and should not be considered financial advice.
@@ -2709,9 +2711,7 @@ function TxRow({ t, onDelete, onEdit, onLongPress }) {
             {isIncome ? "+" : "−"}{fmtMoney(Number(t.amount))}
           </span>
           {t._incomeTotal > 0 && !isIncome && Number(t.amount) > 0 && (
-            <span style={{ fontSize: 9, color: "rgba(74,94,122,0.8)", fontWeight: 400, fontFamily: FONT, letterSpacing: 0.1 }}>
-              {(() => { const p = Math.round((Number(t.amount) / t._incomeTotal) * 100); return p > 999 ? "999%+" : p + "%"; })()}
-            </span>
+            (() => { const p = Math.round((Number(t.amount) / t._incomeTotal) * 100); return p >= 1 && p <= 500 ? <span style={{ fontSize: 9, color: "rgba(74,94,122,0.8)", fontWeight: 400, fontFamily: FONT, letterSpacing: 0.1 }}>{p}%</span> : null; })()
           )}
         </div>
       </div>
@@ -3117,9 +3117,11 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
   // Fallback $50–$100 только если safeAmount реально мал (< $800)
   const SAFE_MIN = 200;
   const SAFE_MAX = 400;
-  const recommendedAmount = safeAmount < 800
-    ? Math.min(Math.max(Math.round(safeAmount * 0.6), 50), 100)
-    : Math.min(Math.max(Math.round(safeAmount * 0.6), SAFE_MIN), SAFE_MAX);
+  const recommendedAmount = safeAmount <= 0
+    ? 0
+    : safeAmount < 800
+      ? Math.min(Math.max(Math.round(safeAmount * 0.6), 50), 100)
+      : Math.min(Math.max(Math.round(safeAmount * 0.6), SAFE_MIN), SAFE_MAX);
 
   // safeSavingsAmount = то что передаётся в SavingsGoalCard как primary CTA
   const safeSavingsAmount = recommendedAmount;
@@ -3157,7 +3159,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
         </button>
       </div>
 
-      {insight && ['savings_opportunity', 'goal_off_track'].includes(insight.type) && (
+      {insight && ['savings_opportunity', 'goal_off_track'].includes(insight.type) && monthlySurplus > 0 && (
         <InsightCard insight={insight} onAction={onInsightAction} />
       )}
 
@@ -3606,7 +3608,7 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected
         {[
           { label: "Auto-Invest (Alpaca)", color: "#059669", icon: "activity" },
           { label: "Subscription Tracker", color: "#7C3AED", icon: "repeat" },
-          { label: "Mobile App", color: "#0891B2", icon: "phone" },
+          { label: "Tax Tagging", color: "#0891B2", icon: "tag" },
         ].map((item, i, arr) => (
           <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.sep}` : "none" }}>
             <div style={{ width: 38, height: 38, borderRadius: 12, background: item.color + "22", border: `1px solid ${item.color}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
