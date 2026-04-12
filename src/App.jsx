@@ -154,7 +154,7 @@ function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
           >
             {isSavings && breakdown?.suggestedSave
               ? <>
-                  Add $200–$400 safely
+                  Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} safely
                   <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
                     Recommended · safe amount
                   </span>
@@ -386,7 +386,7 @@ function InsightCard({ insight, onAction }) {
           >
             {isSavings && breakdown?.suggestedSave
               ? <>
-                  Add $200–$400 safely
+                  Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} safely
                   <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
                     Recommended · safe amount
                   </span>
@@ -1828,7 +1828,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
         <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? balColor : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${balColor}44` : "none" }}>
           {balanceVisible ? `$${fmt(balance)}` : "••••••"}
         </div>
-        <div style={{ fontSize: 9, color: balance < 0 ? C.red : C.faint, marginBottom: 12, letterSpacing: 0.5 }}>{balance < 0 ? "You're in deficit" : "Available balance"}</div>
+        <div style={{ fontSize: 9, color: balance <= 0 ? C.red : C.faint, marginBottom: 12, letterSpacing: 0.5 }}>{balance <= 0 ? "You're in deficit" : "Available balance"}</div>
         
         <div style={{ height: 1, background: "rgba(255,255,255,0.05)", marginBottom: 12 }} />
 
@@ -1951,7 +1951,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
 // ─── Insights ─────────────────────────────────────────────────
 function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, onNavigateChat, transactions, savings, profile, allInsights, onInsightAction, isPro, onUpgrade }) {
   const monthlySavings = totalIncome - totalSpent;
-  const savingsRate = totalIncome > 0 ? (monthlySavings / totalIncome) * 100 : 0;
+  const savingsRate = totalIncome > 0 ? Math.round((monthlySavings / totalIncome) * 100) : 0;
 
   // ── Health Score (shared calculation — same as Dashboard) ─────
   const SUB_CATS = ['Subscriptions', 'Bills', 'Utilities', 'Phone', 'Internet', 'Insurance'];
@@ -2080,7 +2080,7 @@ function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCa
         );
       })}
 
-      {monthlySavings > 0 && (
+      {monthlySavings >= 50 && (
         <GlassCard style={{ background: `linear-gradient(135deg,${C.cyan}0D,${C.card})`, border: `1px solid ${C.cyan}30` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <Icon name="zap" size={16} color={C.cyan} />
@@ -2282,12 +2282,12 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
   const netCtx    = hasNetPrev
     ? fmtMoney(summary.netVsPrev, true) + " vs last mo."
     : summary.income > 0 ? fmtMoney(summary.income - summary.expense, true) + " net balance" : null;
-  const netCtxClr = hasNetPrev ? ((summary.netVsPrev ?? 0) >= 0 ? "#12D18E" : "#FF5C7A") : "#12D18E";
+  const netCtxClr = hasNetPrev ? ((summary.netVsPrev ?? 0) >= 0 ? "#12D18E" : "#FF5C7A") : summary.net >= 0 ? "#12D18E" : "#FF5C7A";
 
   const cards = [
     { label: "Income",   value: fmtMoney(summary.income),        valColor: "#12D18E",                                     ctx: incomeCtx,  ctxColor: incomeCtxClr,  badge: null,                                                           onClick: onIncomeClick },
-    { label: "Expenses", value: fmtMoney(summary.expense),       valColor: "#FF5C7A",                                     ctx: expenseCtx, ctxColor: expenseCtxClr, badge: summary.income === 0 ? "no income" : summary.net < 0 ? null : isOverBudget ? "over budget" : "within budget", badgeOk: summary.income === 0 ? null : !isOverBudget, onClick: onExpenseClick },
-    { label: "Net",      value: fmtMoney(summary.net, true),     valColor: summary.net >= 0 ? "#12D18E" : "#FF5C7A",      ctx: netCtx,     ctxColor: netCtxClr,     badge: summary.net >= 0 ? "on track" : "deficit",      badgeOk: summary.net >= 0, highlight: true, onClick: onNetClick,
+    { label: "Expenses", value: fmtMoney(summary.expense),       valColor: "#FF5C7A",                                     ctx: expenseCtx, ctxColor: expenseCtxClr, badge: summary.income === 0 ? "no income" : isOverBudget ? "over budget" : summary.net < 0 ? null : "within budget", badgeOk: summary.income === 0 ? null : !isOverBudget, onClick: onExpenseClick },
+    { label: "Net",      value: fmtMoney(summary.net, true),     valColor: summary.net > 0 ? "#12D18E" : summary.net < 0 ? "#FF5C7A" : "#FFB800", ctx: netCtx,     ctxColor: netCtxClr,     badge: summary.net > 0 ? "on track" : summary.net < 0 ? "deficit" : "balanced", badgeOk: summary.net > 0 ? true : summary.net < 0 ? false : null, highlight: true, highlightColor: summary.net > 0 ? "#12D18E" : summary.net < 0 ? "#FF5C7A" : "#FFB800", onClick: onNetClick,
       safeAction: summary.net > 0
         ? `Surplus available this month`
         : summary.net < 0 ? `Overspending by ${fmtMoney(Math.abs(summary.net))}` : null,
@@ -2298,7 +2298,7 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
     <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 6, marginBottom: 8 }}>
       {cards.map(card => (
         <button key={card.label} onClick={card.onClick}
-          style={{ background: card.highlight ? "rgba(18,209,142,0.07)" : C.card, border: `1px solid ${card.highlight ? "rgba(18,209,142,0.2)" : C.border}`, borderRadius: 14, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 3, cursor: "pointer", textAlign: "left", fontFamily: FONT, minHeight: 90, transition: "transform 0.12s ease" }}
+          style={{ background: card.highlight ? `${card.highlightColor}12` : C.card, border: `1px solid ${card.highlight ? `${card.highlightColor}33` : C.border}`, borderRadius: 14, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 3, cursor: "pointer", textAlign: "left", fontFamily: FONT, minHeight: 90, transition: "transform 0.12s ease" }}
           onPointerDown={e => e.currentTarget.style.transform = "scale(0.96)"}
           onPointerUp={e => e.currentTarget.style.transform = ""}
           onPointerLeave={e => e.currentTarget.style.transform = ""}
@@ -2435,14 +2435,15 @@ function AIInsightCard({ summary, transactions, onAction }) {
   const resumeRef = useRef(null);
 
   if (!def) {
+    const hasPositiveState = summary.net >= 0 && summary.income > 0;
     return (
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "13px 14px", marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 26, height: 26, minWidth: 26, borderRadius: 8, background: "rgba(18,209,142,0.14)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Icon name="check-circle" size={13} color="#12D18E" strokeWidth={2} />
+        <div style={{ width: 26, height: 26, minWidth: 26, borderRadius: 8, background: hasPositiveState ? "rgba(18,209,142,0.14)" : "rgba(74,94,122,0.14)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon name={hasPositiveState ? "check-circle" : "info"} size={13} color={hasPositiveState ? "#12D18E" : C.faint} strokeWidth={2} />
         </div>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: C.text, fontFamily: FONT }}>You're on track this month</div>
-          <div style={{ fontSize: 12, color: C.muted, marginTop: 2, fontFamily: FONT }}>No unusual activity detected</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.text, fontFamily: FONT }}>{hasPositiveState ? "You're on track this month" : "No data yet"}</div>
+          <div style={{ fontSize: 12, color: C.muted, marginTop: 2, fontFamily: FONT }}>{hasPositiveState ? "No unusual activity detected" : "Add transactions to see insights"}</div>
         </div>
       </div>
     );
@@ -3164,7 +3165,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
       )}
 
       {(totalSaved > 0 || monthlySurplus > 0) && (
-        <div style={{ background: "linear-gradient(135deg,#0D2A1F,#0B1426)", borderRadius: 20, padding: 20, border: `1px solid ${C.green}30` }}>
+        <div style={{ background: monthlySurplus < 0 ? "linear-gradient(135deg,#2A0D0D,#261426)" : "linear-gradient(135deg,#0D2A1F,#0B1426)", borderRadius: 20, padding: 20, border: `1px solid ${monthlySurplus < 0 ? C.red : C.green}30` }}>
           <div style={{ display: "flex", marginBottom: safeSavingsAmount > 0 ? 14 : 0 }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, letterSpacing: 0.5, marginBottom: 4 }}>TOTAL SAVED</div>
