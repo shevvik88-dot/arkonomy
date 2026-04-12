@@ -1,3 +1,4 @@
+// arkonomy v1
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { usePlaidLink } from "react-plaid-link";
@@ -456,6 +457,7 @@ fontLink.rel = "stylesheet";
 fontLink.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap";
 document.head.appendChild(fontLink);
 
+const APP_VERSION = "1.0.1";
 const FONT = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -1397,7 +1399,7 @@ export default function App() {
 
   if (loading && !user) return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT }}>
-      <div style={{ color: C.cyan, fontSize: 16, fontWeight: 500 }}>Loading Arkonomy...</div>
+      <div style={{ color: C.cyan, fontSize: 16, fontWeight: 500 }}>Loading Arkonomy {APP_VERSION}...</div>
     </div>
   );
 
