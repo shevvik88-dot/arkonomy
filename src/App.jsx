@@ -940,10 +940,10 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
         {[
           { label: "Savings Rate", value: Math.round(Math.min(rawBreakdown.savings.rate / 0.2, 1) * 100), color: C.cyan },
           { label: "Budget Used", value: budgetUsedPct, color: budgetUsedPct > 90 ? C.red : budgetUsedPct > 70 ? C.yellow : C.blue },
-          { label: "Recurring", value: Math.round((rawBreakdown.recurring.points / 20) * 100), color: C.purple },
+          { label: "Recurring", value: rawBreakdown.recurring.ratio === 0 ? null : Math.round((rawBreakdown.recurring.points / 20) * 100), color: C.purple },
         ].map(item => (
           <div key={item.label} style={{ flex: 1, background: C.bgTertiary, borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: item.color }}>{item.value}%</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: item.color }}>{item.value === null ? "N/A" : item.value + "%"}</div>
             <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{item.label}</div>
           </div>
         ))}
@@ -1518,7 +1518,7 @@ export default function App() {
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} onUpgrade={onUpgrade} />}
             {screen === "insights" && <Insights {...shared} onNavigateChat={msg => { setChatMessages(prev => [...prev, { role: "user", text: msg }]); setScreen("chat"); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
-            {screen === "chat" && <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={() => sendChat(chatInput)} />}
+            {screen === "chat" && <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={msg => sendChat(msg ?? chatInput)} />}
             {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} isPro={isPro} onUpgrade={onUpgrade} />}
           </>
         )}
@@ -2691,7 +2691,7 @@ function TxRow({ t, onDelete, onEdit, onLongPress }) {
           </span>
           {t._incomeTotal > 0 && !isIncome && Number(t.amount) > 0 && (
             <span style={{ fontSize: 9, color: "rgba(74,94,122,0.8)", fontWeight: 400, fontFamily: FONT, letterSpacing: 0.1 }}>
-              {Math.round((Number(t.amount) / t._incomeTotal) * 100)}%
+              {(() => { const p = Math.round((Number(t.amount) / t._incomeTotal) * 100); return p > 999 ? "999%+" : p + "%"; })()}
             </span>
           )}
         </div>
@@ -2997,7 +2997,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
         <span style={{ color: C.muted }}>${fmt(remaining, 0)} remaining</span>
       </div>
 
-      {aiContribution && (
+      {aiContribution > 0 ? (
         <div style={{ marginBottom: 10 }}>
           {/* Primary — SAFE amount */}
           <button
@@ -3023,6 +3023,10 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
               Add ${Math.round(maxSavingsAmount)} (max)
             </button>
           )}
+        </div>
+      ) : (
+        <div style={{ marginBottom: 10, padding: "10px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 10, fontSize: 12, color: C.muted, lineHeight: 1.5, textAlign: "center" }}>
+          💡 Increase your income or reduce spending to start saving
         </div>
       )}
 
@@ -3147,10 +3151,10 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
             </div>
             <div style={{ flex: 1, paddingLeft: 20, borderLeft: `1px solid ${C.sep}` }}>
               <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, letterSpacing: 0.5, marginBottom: 4 }}>MONTHLY SURPLUS</div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: monthlySurplus >= 0 ? C.cyan : C.red }}>${fmt(Math.abs(monthlySurplus), 0)}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: monthlySurplus >= 0 ? C.green : C.red }}>${fmt(Math.abs(monthlySurplus), 0)}</div>
             </div>
           </div>
-          {safeSavingsAmount > 0 && (
+          {safeSavingsAmount > 0 && maxSavingsAmount > 0 && (
             <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: "10px 14px", fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
               💡 You can move up to <strong style={{ color: C.text }}>${fmt(maxSavingsAmount, 0)}</strong>, but a safer amount is <strong style={{ color: C.green }}>${fmt(safeSavingsAmount, 0)}–${fmt(Math.min(safeSavingsAmount + 100, maxSavingsAmount), 0)}</strong> to keep your buffer stable.
             </div>
@@ -3326,9 +3330,23 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
   );
 }
 
+const CHAT_SUGGESTIONS = [
+  "What did I spend most on this month?",
+  "Am I on track with my budget?",
+  "How can I save more money?",
+  "What are my recurring charges?",
+];
+
 function Chat({ messages, input, setInput, onSend }) {
   const bottomRef = useRef(null);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  const isWelcomeOnly = messages.length === 1 && messages[0].role === "assistant";
+
+  function sendSuggestion(text) {
+    setInput(text);
+    onSend(text);
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "72vh" }}>
@@ -3350,6 +3368,21 @@ function Chat({ messages, input, setInput, onSend }) {
               : m.text}
           </div>
         ))}
+        {isWelcomeOnly && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+            {CHAT_SUGGESTIONS.map(q => (
+              <button
+                key={q}
+                onClick={() => sendSuggestion(q)}
+                style={{ alignSelf: "flex-start", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 20, padding: "8px 14px", color: C.muted, fontSize: 13, cursor: "pointer", fontFamily: FONT, textAlign: "left", transition: "border-color 0.15s, color 0.15s" }}
+                onPointerEnter={e => { e.currentTarget.style.borderColor = C.cyan + "66"; e.currentTarget.style.color = C.text; }}
+                onPointerLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
       <div style={{ fontSize: 10, color: C.faint, textAlign: "center", marginBottom: 10, lineHeight: 1.5 }}>
