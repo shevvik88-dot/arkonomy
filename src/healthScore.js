@@ -102,6 +102,9 @@ export function generateHealthComment({ score, breakdown, spendingByCategory, pr
   const trendDrop  = breakdown.trend.thisBalance < breakdown.trend.lastBalance;
   const scoreDelta = breakdown.trend.points - 25; // negative if balance shrank
 
+  if (breakdown.trend.thisBalance < 0) {
+    return "You're spending more than you earn — focus on reducing expenses first.";
+  }
   if (breakdown.savings.rate < 0.05) {
     return "Saving less than 5% of income — try cutting discretionary spend.";
   }

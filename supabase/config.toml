@@ -1,0 +1,14 @@
+# Supabase project configuration
+# Deploy functions with: supabase functions deploy
+
+[api]
+enabled = true
+
+[functions.push-notify]
+verify_jwt = false
+
+[functions.get-insights]
+verify_jwt = false
+
+[functions.ai-chat]
+verify_jwt = false

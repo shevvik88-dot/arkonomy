@@ -829,7 +829,7 @@ const sw = 22;
   );
 }
 
-function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpent = 0, budget = 3000, hasData = true }) {
+function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpent = 0, budget = 3000, hasData = true, actualSavingsRate = null }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
 
   const label = score >= 75 ? "Excellent" : score >= 60 ? "Good" : score >= 40 ? "Fair" : "Needs Work";
@@ -896,7 +896,7 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
     );
   }
 
-  const budgetUsedPct = budget > 0 ? Math.min(Math.round((totalSpent / budget) * 100), 100) : 0;
+  const budgetUsedPct = budget > 0 ? Math.round((totalSpent / budget) * 100) : 0;
 
   return (
     <GlassCard>
@@ -940,8 +940,8 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
 
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
         {[
-          { label: "Savings Rate", value: Math.round(Math.min(rawBreakdown.savings.rate / 0.2, 1) * 100), color: C.cyan },
-          { label: "Budget Used", value: budgetUsedPct, color: budgetUsedPct > 90 ? C.red : budgetUsedPct > 70 ? C.yellow : C.blue },
+          { label: "Savings Rate", value: actualSavingsRate !== null ? actualSavingsRate : Math.round(rawBreakdown.savings.rate * 100), color: (actualSavingsRate !== null ? actualSavingsRate : Math.round(rawBreakdown.savings.rate * 100)) < 0 ? C.red : (actualSavingsRate !== null ? actualSavingsRate : Math.round(rawBreakdown.savings.rate * 100)) < 10 ? C.yellow : C.cyan },
+          { label: "Budget Used", value: budgetUsedPct, color: budgetUsedPct > 100 ? C.red : budgetUsedPct > 70 ? C.yellow : C.cyan },
           { label: "Recurring", value: rawBreakdown.recurring.ratio === 0 ? null : Math.round((rawBreakdown.recurring.points / 20) * 100), color: C.purple },
         ].map(item => (
           <div key={item.label} style={{ flex: 1, background: C.bgTertiary, borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
@@ -956,7 +956,8 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
 
 function WeeklySummary({ transactions }) {
   const now = new Date();
-  const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay());
+  const daysFromMonday = (now.getDay() + 6) % 7; // Mon=0 … Sun=6
+  const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - daysFromMonday); startOfWeek.setHours(0, 0, 0, 0);
   const startOfLastWeek = new Date(startOfWeek); startOfLastWeek.setDate(startOfWeek.getDate() - 7);
 
   const thisWeekTxs = transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer" && parseDate(t.date) >= startOfWeek);
@@ -1135,9 +1136,11 @@ export default function App() {
     return { overspendAlerts: true, largeTxAlerts: true, unusualSpending: true, largeTxThreshold: 200, lowBalanceAlerts: true, lowBalanceThreshold: 500 };
   });
   const { toasts: alertToasts, show: showAlert, dismiss: dismissAlert } = useToasts();
-  // Ref keeps addTransaction (async) from using a stale showAlert closure
+  // Refs keep addTransaction (async) from using stale closures after awaits
   const showAlertRef = useRef(showAlert);
   showAlertRef.current = showAlert;
+  const autopilotRef = useRef(autopilot);
+  autopilotRef.current = autopilot;
 
   // ─── Plaid state ──────────────────────────────────────────────
   const [linkToken, setLinkToken] = useState(null);
@@ -1282,7 +1285,9 @@ export default function App() {
       setTransactions(prev => [data, ...prev]);
 
       // ── Alert checks (run outside state updater so showAlert fires reliably) ──
+      // autopilotRef.current used instead of autopilot to avoid stale closure after await
       if (tx.type === "expense") {
+        const ap = autopilotRef.current;
         const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
         // Use current transactions + newly saved one for accurate totals
         const allTx = [data, ...transactions];
@@ -1292,35 +1297,40 @@ export default function App() {
         const budget = profile?.monthly_budget || 3000;
         const remaining = budget - monthlyExpenses;
 
+        console.log("[Autopilot] largeTxAlerts:", ap.largeTxAlerts, "amount:", Number(tx.amount), "threshold:", ap.largeTxThreshold);
+        console.log("[Autopilot] overspendAlerts:", ap.overspendAlerts, "monthlyExpenses:", monthlyExpenses, "budget:", budget);
+
+        // Helper: send push via fetch with explicit session JWT (avoids SDK auth edge cases)
+        const sendPush = async (payload) => {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token ?? SUPABASE_KEY;
+            await fetch(`${SUPABASE_URL}/functions/v1/push-notify`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+                "apikey": SUPABASE_KEY,
+              },
+              body: JSON.stringify({ user_id: user?.id, ...payload }),
+            });
+          } catch { /* fire-and-forget */ }
+        };
+
         // 1. Large Transaction
-        if (autopilot.largeTxAlerts && Number(tx.amount) > autopilot.largeTxThreshold) {
+        if (ap.largeTxAlerts && Number(tx.amount) > ap.largeTxThreshold) {
           showAlertRef.current(`Large transaction: ${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, "warning", "alert-circle");
-          supabase.functions.invoke("push-notify", { body: {
-            user_id: user?.id,
-            title: "Large Transaction",
-            body: `${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`,
-            icon: "/icon-192.png", tag: "large-tx",
-          }}).catch(() => {});
+          sendPush({ title: "Large Transaction", body: `${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, icon: "/icon-192.png", tag: "large-tx" });
         }
         // 2. Overspending Alert
-        if (autopilot.overspendAlerts && monthlyExpenses > budget) {
+        if (ap.overspendAlerts && monthlyExpenses > budget) {
           showAlertRef.current(`You've exceeded your monthly budget by ${fmtMoney(monthlyExpenses - budget)}`, "danger", "alert-circle");
-          supabase.functions.invoke("push-notify", { body: {
-            user_id: user?.id,
-            title: "Budget Exceeded",
-            body: `Monthly spending exceeds your ${fmtMoney(budget)} budget by ${fmtMoney(monthlyExpenses - budget)}`,
-            icon: "/icon-192.png", tag: "budget-exceeded",
-          }}).catch(() => {});
+          sendPush({ title: "Budget Exceeded", body: `Monthly spending exceeds your ${fmtMoney(budget)} budget by ${fmtMoney(monthlyExpenses - budget)}`, icon: "/icon-192.png", tag: "budget-exceeded" });
         }
         // 3. Low Balance Alert
-        if (autopilot.lowBalanceAlerts && remaining < autopilot.lowBalanceThreshold && remaining >= 0) {
+        if (ap.lowBalanceAlerts && remaining < ap.lowBalanceThreshold && remaining >= 0) {
           showAlertRef.current(`Low balance warning: ${fmtMoney(remaining)} remaining in budget`, "warning", "dollar");
-          supabase.functions.invoke("push-notify", { body: {
-            user_id: user?.id,
-            title: "Low Balance",
-            body: `${fmtMoney(remaining)} remaining in your monthly budget`,
-            icon: "/icon-192.png", tag: "low-balance",
-          }}).catch(() => {});
+          sendPush({ title: "Low Balance", body: `${fmtMoney(remaining)} remaining in your monthly budget`, icon: "/icon-192.png", tag: "low-balance" });
         }
       }
     }
@@ -1751,7 +1761,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
   const [balanceVisible, setBalanceVisible] = useState(true);
   const budget = Number(profile?.monthly_budget) || 3000;
   const balance = totalIncome - totalSpent;
-  const pct = budget > 0 ? Math.min((totalSpent / budget) * 100, 100) : 0;
+  const pct = budget > 0 ? (totalSpent / budget) * 100 : 0;
   const incomeChange = lastIncome > 0 ? ((totalIncome - lastIncome) / lastIncome) * 100 : 0;
   const expenseChange = lastSpent > 0 ? ((totalSpent - lastSpent) / lastSpent) * 100 : 0;
   const balColor = balance >= 0 ? C.green : C.red;
@@ -1796,7 +1806,32 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
   return (
    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
 
-      {/* 0 ── Upcoming Recurring Charges (highest priority) */}
+      {/* 0a ── Onboarding welcome card (shown only when no transactions exist) */}
+      {transactions.length === 0 && (
+        <div style={{ background: "linear-gradient(135deg,#0D2A4A,#0B1A30)", borderRadius: 20, padding: "20px 18px", border: `1px solid ${C.cyan}33`, boxShadow: `0 4px 24px ${C.cyan}12` }}>
+          <div style={{ fontSize: 22, marginBottom: 6 }}>👋</div>
+          <div style={{ fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 4 }}>Welcome to Arkonomy</div>
+          <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>
+            Get started by connecting your bank or adding your first transaction to see your financial health score.
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => onNavigate("profile")}
+              style={{ flex: 1, padding: "11px 0", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 14px ${C.cyan}44` }}
+            >
+              Connect Bank
+            </button>
+            <button
+              onClick={() => onNavigate("transactions")}
+              style={{ flex: 1, padding: "11px 0", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT }}
+            >
+              Add Transaction
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 0b ── Upcoming Recurring Charges (highest priority) */}
       {upcomingCharges.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 2px" }}>
@@ -1904,8 +1939,8 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
                 <div style={{ fontWeight: 600, fontSize: 14 }}>Monthly Budget</div>
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>Spent ${fmt(totalSpent)} of ${fmt(budget, 0)}</div>
               </div>
-              <span style={{ color: isOver ? C.red : pct > 70 ? C.yellow : C.cyan, fontSize: 15, fontWeight: 800 }}>
-                {isOver ? "Over" : `${pct.toFixed(0)}%`}
+              <span style={{ color: isOver ? C.red : pct > 70 ? C.yellow : C.cyan, fontSize: 15, fontWeight: 800, display: "flex", alignItems: "baseline", gap: 4 }}>
+                {`${Math.round(pct)}%`}{isOver && <span style={{ fontSize: 10, fontWeight: 600, color: C.red }}>Over</span>}
               </span>
             </div>
             <div style={{ height: 7, background: C.bgTertiary, borderRadius: 99, marginBottom: 6 }}>
@@ -2057,7 +2092,7 @@ function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCa
         </div>
       )}
 
-      <HealthScore score={insightScore} color={insightScoreColor} breakdown={insightScoreBreakdown} comment={insightScoreComment} totalSpent={totalSpent} budget={Number(profile?.monthly_budget) || 3000} hasData={totalIncome > 0 || totalSpent > 0} />
+      <HealthScore score={insightScore} color={insightScoreColor} breakdown={insightScoreBreakdown} comment={insightScoreComment} totalSpent={totalSpent} budget={Number(profile?.monthly_budget) || 3000} hasData={totalIncome > 0 || totalSpent > 0} actualSavingsRate={savingsRate} />
       <WeeklySummary transactions={transactions || []} />
 
       {/* Локальные инсайты — только если Edge Function не вернул данные */}
@@ -3109,7 +3144,8 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
 
   // Доступный баланс = месячный профицит (что реально можно отложить в этом месяце)
   const availableBalance = Math.max(monthlySurplus, 0);
-  const safetyBuffer = Math.max(500, availableBalance * 0.5);
+  // Keep up to 50% of surplus as buffer (capped at $500), so small surpluses can still generate a savings recommendation
+  const safetyBuffer = Math.min(500, availableBalance * 0.5);
 
   // safeAmount = сколько можно безопасно отложить
   const safeAmount = Math.max(availableBalance - safetyBuffer, 0);
@@ -3238,35 +3274,43 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
           </button>
         )}
 
-        <div style={{ fontSize: 11, color: C.faint, marginBottom: 12 }}>Small amounts like this are easiest to invest regularly.</div>
+        {monthlySurplus >= 0 ? (
+          <>
+            <div style={{ fontSize: 11, color: C.faint, marginBottom: 12 }}>Small amounts like this are easiest to invest regularly.</div>
 
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 7, marginBottom: 12, fontSize: 12, opacity: 1 }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={roundupEnabled ? "#12D18E" : "#4A5E7A"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
-            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-          </svg>
-          {roundupEnabled ? (
-            <span style={{ color: C.muted }}>≈ <strong style={{ color: C.green }}>${currentProjMonthly}/month</strong>{" "}→ ~${currentProjYearly}/year at current pace</span>
-          ) : (
-            <span><span style={{ color: C.muted }}>Turn on to track <strong style={{ color: C.cyan }}>~${currentProjMonthly}/month</strong> in spare change</span><br /><span style={{ fontSize: 11, color: C.faint }}>≈ ${currentProjYearly}/year, without noticing</span></span>
-          )}
-        </div>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 7, marginBottom: 12, fontSize: 12, opacity: 1 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={roundupEnabled ? "#12D18E" : "#4A5E7A"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+              </svg>
+              {roundupEnabled ? (
+                <span style={{ color: C.muted }}>≈ <strong style={{ color: C.green }}>${currentProjMonthly}/month</strong>{" "}→ ~${currentProjYearly}/year at current pace</span>
+              ) : (
+                <span><span style={{ color: C.muted }}>Turn on to track <strong style={{ color: C.cyan }}>~${currentProjMonthly}/month</strong> in spare change</span><br /><span style={{ fontSize: 11, color: C.faint }}>≈ ${currentProjYearly}/year, without noticing</span></span>
+              )}
+            </div>
 
-        <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Multiplier</div>
-        <div style={{ display: "flex", gap: 6 }}>
-          {[1, 2, 5, 10].map(m => (
-            <button key={m} onClick={() => setRoundupMultiplier(m)}
-              style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${roundupMultiplier === m ? C.cyan : C.border}`, background: roundupMultiplier === m ? C.cyan + "22" : "transparent", color: roundupMultiplier === m ? C.cyan : C.muted, cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: FONT, transform: roundupMultiplier === m ? "scale(1.04)" : "scale(1)", boxShadow: roundupMultiplier === m ? `0 0 10px ${C.cyan}33` : "none", transition: "all 0.15s" }}>
-              {m}x
-            </button>
-          ))}
-        </div>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Multiplier</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[1, 2, 5, 10].map(m => (
+                <button key={m} onClick={() => setRoundupMultiplier(m)}
+                  style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${roundupMultiplier === m ? C.cyan : C.border}`, background: roundupMultiplier === m ? C.cyan + "22" : "transparent", color: roundupMultiplier === m ? C.cyan : C.muted, cursor: "pointer", fontSize: 13, fontWeight: 700, fontFamily: FONT, transform: roundupMultiplier === m ? "scale(1.04)" : "scale(1)", boxShadow: roundupMultiplier === m ? `0 0 10px ${C.cyan}33` : "none", transition: "all 0.15s" }}>
+                  {m}x
+                </button>
+              ))}
+            </div>
 
-        <div style={{ marginTop: 10, fontSize: 12, color: C.muted, minHeight: 18 }}>
-          {roundupEnabled
-            ? <>At {roundupMultiplier}x you track <strong style={{ color: C.cyan }}>~${currentProjMonthly}/month</strong> in spare change</>
-            : <>At {roundupMultiplier}x you'd track <strong style={{ color: "rgba(154,164,178,0.45)" }}>~${currentProjMonthly}/month</strong></>
-          }
-        </div>
+            <div style={{ marginTop: 10, fontSize: 12, color: C.muted, minHeight: 18 }}>
+              {roundupEnabled
+                ? <>At {roundupMultiplier}x you track <strong style={{ color: C.cyan }}>~${currentProjMonthly}/month</strong> in spare change</>
+                : <>At {roundupMultiplier}x you'd track <strong style={{ color: "rgba(154,164,178,0.45)" }}>~${currentProjMonthly}/month</strong></>
+              }
+            </div>
+          </>
+        ) : (
+          <div style={{ padding: "10px 14px", background: C.red + "12", border: `1px solid ${C.red}30`, borderRadius: 12, fontSize: 12, color: C.red, lineHeight: 1.5 }}>
+            Fix your deficit first before tracking spare change. Reduce spending or increase income to unlock round-up savings.
+          </div>
+        )}
       </div>
 
       {showAlpacaSheet && (
