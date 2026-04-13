@@ -145,23 +145,26 @@ function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
               </div>
             </div>
           )}
-          <button
-            onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
-            style={{ width: "100%", padding: "13px 16px", background: accent, border: "none", borderRadius: 11, color: insight.type === "savings_opportunity" ? "#061A10" : "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif", letterSpacing: -0.3, boxShadow: `0 4px 20px ${accent}32`, transition: "transform 0.12s ease", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-            onPointerDown={e => { e.stopPropagation(); e.currentTarget.style.transform = "scale(0.98)"; }}
-            onPointerUp={e => { e.currentTarget.style.transform = ""; }}
-            onPointerLeave={e => { e.currentTarget.style.transform = ""; }}
-          >
-            {isSavings && breakdown?.suggestedSave
-              ? <>
-                  Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} safely
-                  <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
-                    Recommended · safe amount
-                  </span>
-                </>
-              : cleanCta}
-          </button>
-          {isSavings && rawBreakdown?.suggestedSave && Number(rawBreakdown.suggestedSave) > SAFE_CAP && (
+          {/* Hide savings CTA entirely when suggestedSave is 0 or missing */}
+          {!(isSavings && !(Number(breakdown?.suggestedSave) > 0)) && (
+            <button
+              onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
+              style={{ width: "100%", padding: "13px 16px", background: accent, border: "none", borderRadius: 11, color: insight.type === "savings_opportunity" ? "#061A10" : "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif", letterSpacing: -0.3, boxShadow: `0 4px 20px ${accent}32`, transition: "transform 0.12s ease", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+              onPointerDown={e => { e.stopPropagation(); e.currentTarget.style.transform = "scale(0.98)"; }}
+              onPointerUp={e => { e.currentTarget.style.transform = ""; }}
+              onPointerLeave={e => { e.currentTarget.style.transform = ""; }}
+            >
+              {isSavings && Number(breakdown?.suggestedSave) > 0
+                ? <>
+                    Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} safely
+                    <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
+                      Recommended · safe amount
+                    </span>
+                  </>
+                : cleanCta}
+            </button>
+          )}
+          {isSavings && Number(rawBreakdown?.suggestedSave) > 0 && Number(rawBreakdown.suggestedSave) > SAFE_CAP && (
             <button
               onClick={e => { e.stopPropagation(); onAction?.(action, { ...insight.data, _useMax: true }); }}
               style={{ width: "100%", marginTop: 6, padding: "9px 16px", background: "transparent", border: `1px solid ${accent}33`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif", opacity: 0.7 }}
@@ -367,36 +370,39 @@ function InsightCard({ insight, onAction }) {
             </div>
           )}
 
-          <button
-            onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
-            onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; e.currentTarget.style.boxShadow = `0 2px 10px ${accent}22`; }}
-            onPointerUp={e => { const el = e.currentTarget; el.style.transform = "scale(1.03)"; el.style.boxShadow = `0 6px 24px ${accent}44`; setTimeout(() => { el.style.transform = "scale(1)"; el.style.boxShadow = `0 4px 20px ${accent}32`; }, 150); }}
-            onPointerLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 4px 20px ${accent}32`; }}
-            style={{
-              width: "100%", padding: "13px 16px",
-              background: accent, border: "none", borderRadius: 11,
-              color: insight.type === "savings_opportunity" ? "#061A10" : "#fff",
-              fontWeight: 800, fontSize: 15, cursor: "pointer",
-              fontFamily: "'Inter', -apple-system, sans-serif",
-              letterSpacing: -0.3,
-              boxShadow: `0 4px 20px ${accent}32`,
-              transition: "transform 0.12s ease, box-shadow 0.12s ease",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            }}
-          >
-            {isSavings && breakdown?.suggestedSave
-              ? <>
-                  Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} safely
-                  <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
-                    Recommended · safe amount
-                  </span>
-                </>
-              : cleanCta
-            }
-          </button>
+          {/* Hide savings CTA entirely when suggestedSave is 0 or missing */}
+          {!(isSavings && !(Number(breakdown?.suggestedSave) > 0)) && (
+            <button
+              onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
+              onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; e.currentTarget.style.boxShadow = `0 2px 10px ${accent}22`; }}
+              onPointerUp={e => { const el = e.currentTarget; el.style.transform = "scale(1.03)"; el.style.boxShadow = `0 6px 24px ${accent}44`; setTimeout(() => { el.style.transform = "scale(1)"; el.style.boxShadow = `0 4px 20px ${accent}32`; }, 150); }}
+              onPointerLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 4px 20px ${accent}32`; }}
+              style={{
+                width: "100%", padding: "13px 16px",
+                background: accent, border: "none", borderRadius: 11,
+                color: insight.type === "savings_opportunity" ? "#061A10" : "#fff",
+                fontWeight: 800, fontSize: 15, cursor: "pointer",
+                fontFamily: "'Inter', -apple-system, sans-serif",
+                letterSpacing: -0.3,
+                boxShadow: `0 4px 20px ${accent}32`,
+                transition: "transform 0.12s ease, box-shadow 0.12s ease",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}
+            >
+              {isSavings && Number(breakdown?.suggestedSave) > 0
+                ? <>
+                    Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} safely
+                    <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
+                      Recommended · safe amount
+                    </span>
+                  </>
+                : cleanCta
+              }
+            </button>
+          )}
 
           {/* Max amount secondary CTA — только для savings если было обрезано */}
-          {isSavings && rawBreakdown?.suggestedSave && Number(rawBreakdown.suggestedSave) > SAFE_CAP && (
+          {isSavings && Number(rawBreakdown?.suggestedSave) > 0 && Number(rawBreakdown.suggestedSave) > SAFE_CAP && (
             <button
               onClick={e => { e.stopPropagation(); onAction?.(action, { ...insight.data, _useMax: true }); }}
               style={{ width: "100%", marginTop: 6, padding: "9px 16px", background: "transparent", border: `1px solid ${accent}33`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif", opacity: 0.7 }}
@@ -939,13 +945,19 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
       )}
 
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-        {[
-          { label: "Savings Rate", value: actualSavingsRate !== null ? actualSavingsRate : Math.round(rawBreakdown.savings.rate * 100), color: (actualSavingsRate !== null ? actualSavingsRate : Math.round(rawBreakdown.savings.rate * 100)) < 0 ? C.red : (actualSavingsRate !== null ? actualSavingsRate : Math.round(rawBreakdown.savings.rate * 100)) < 10 ? C.yellow : C.cyan },
-          { label: "Budget Used", value: budgetUsedPct, color: budgetUsedPct > 100 ? C.red : budgetUsedPct > 70 ? C.yellow : C.cyan },
-          { label: "Recurring", value: rawBreakdown.recurring.ratio === 0 ? null : Math.round((rawBreakdown.recurring.points / 20) * 100), color: C.purple },
-        ].map(item => (
+        {(() => {
+          const rawRate = actualSavingsRate !== null ? actualSavingsRate : Math.round(rawBreakdown.savings.rate * 100);
+          const isDeepDeficit = rawRate < -100;
+          const savingsDisplay = isDeepDeficit ? null : rawRate; // null → custom label
+          const savingsColor = rawRate < 0 ? C.red : rawRate < 10 ? C.yellow : C.cyan;
+          return [
+            { label: "Savings Rate", value: savingsDisplay, display: isDeepDeficit ? "In deficit" : null, color: savingsColor },
+            { label: "Budget Used", value: budgetUsedPct, color: budgetUsedPct > 100 ? C.red : budgetUsedPct > 70 ? C.yellow : C.cyan },
+            { label: "Recurring", value: rawBreakdown.recurring.ratio === 0 ? null : Math.round((rawBreakdown.recurring.points / 20) * 100), color: C.purple },
+          ];
+        })().map(item => (
           <div key={item.label} style={{ flex: 1, background: C.bgTertiary, borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: item.color }}>{item.value === null ? "N/A" : item.value + "%"}</div>
+            <div style={{ fontSize: item.display ? 11 : 16, fontWeight: 700, color: item.color }}>{item.display ?? (item.value === null ? "N/A" : item.value + "%")}</div>
             <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{item.label}</div>
           </div>
         ))}
@@ -2994,7 +3006,7 @@ function AddTransactionModal({ categories, onAdd, onClose, existing }) {
   );
 }
 
-function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getGoalIcon, insight, safeSavingsAmount, maxSavingsAmount }) {
+function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getGoalIcon, insight, safeSavingsAmount, maxSavingsAmount, monthlySurplus }) {
   const [mode, setMode] = useState(null);
   const [customAmt, setCustomAmt] = useState("");
 
@@ -3085,20 +3097,24 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-        {[10, 25, 50, 100].map(amt => (
-          <button key={amt} onClick={() => onUpdate(sv.id, Number(sv.current) + amt)}
-            style={{ flex: 1, padding: "8px 0", background: goalColor + "15", border: `1px solid ${goalColor}40`, borderRadius: 10, color: goalColor + "CC", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: FONT, transition: "all 0.15s" }}>
-            +${amt}
-          </button>
-        ))}
-      </div>
+      {monthlySurplus > 0 && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          {[10, 25, 50, 100].map(amt => (
+            <button key={amt} onClick={() => onUpdate(sv.id, Number(sv.current) + amt)}
+              style={{ flex: 1, padding: "8px 0", background: goalColor + "15", border: `1px solid ${goalColor}40`, borderRadius: 10, color: goalColor + "CC", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: FONT, transition: "all 0.15s" }}>
+              +${amt}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 8, marginBottom: mode ? 10 : 0 }}>
-        <button onClick={() => { setMode(mode === "deposit" ? null : "deposit"); setCustomAmt(""); }}
-          style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${mode === "deposit" ? C.green : C.border}`, background: mode === "deposit" ? C.green + "20" : C.bgTertiary, color: mode === "deposit" ? C.green : C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-          <Icon name="plus" size={14} color={mode === "deposit" ? C.green : C.muted} strokeWidth={2.5} /> Deposit
-        </button>
+        {monthlySurplus > 0 && (
+          <button onClick={() => { setMode(mode === "deposit" ? null : "deposit"); setCustomAmt(""); }}
+            style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${mode === "deposit" ? C.green : C.border}`, background: mode === "deposit" ? C.green + "20" : C.bgTertiary, color: mode === "deposit" ? C.green : C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            <Icon name="plus" size={14} color={mode === "deposit" ? C.green : C.muted} strokeWidth={2.5} /> Deposit
+          </button>
+        )}
         <button onClick={() => { setMode(mode === "withdraw" ? null : "withdraw"); setCustomAmt(""); }}
           style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${mode === "withdraw" ? C.red : C.border}`, background: mode === "withdraw" ? C.red + "20" : C.bgTertiary, color: mode === "withdraw" ? C.red : C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
           <Icon name="trending-down" size={14} color={mode === "withdraw" ? C.red : C.muted} strokeWidth={2.5} /> Withdraw
@@ -3389,7 +3405,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
           const goalColor = sv.color || C.green;
           const remaining = Math.max(Number(sv.target) - Number(sv.current), 0);
           const months    = monthsToGoal(sv);
-          return <SavingsGoalCard key={sv.id} sv={sv} pct={pct} goalColor={goalColor} remaining={remaining} months={months} onUpdate={onUpdate} getGoalIcon={getGoalIcon} insight={insight} safeSavingsAmount={safeSavingsAmount} maxSavingsAmount={maxSavingsAmount} />;
+          return <SavingsGoalCard key={sv.id} sv={sv} pct={pct} goalColor={goalColor} remaining={remaining} months={months} onUpdate={onUpdate} getGoalIcon={getGoalIcon} insight={insight} safeSavingsAmount={safeSavingsAmount} maxSavingsAmount={maxSavingsAmount} monthlySurplus={monthlySurplus} />;
         })
       )}
     </div>
