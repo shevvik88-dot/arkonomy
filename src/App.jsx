@@ -3357,7 +3357,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
           </>
         ) : (
           <div style={{ padding: "10px 14px", background: C.red + "12", border: `1px solid ${C.red}30`, borderRadius: 12, fontSize: 12, color: C.red, lineHeight: 1.5 }}>
-            Fix your deficit first before tracking spare change. Reduce spending or increase income to unlock round-up savings.
+            Once your spending is balanced, round-up savings will unlock automatically.
           </div>
         )}
       </div>
