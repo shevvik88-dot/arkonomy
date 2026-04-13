@@ -105,6 +105,23 @@ function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
   const cleanCta      = (cta || "").replace(/~/g, "").trim();
   const cleanHeadline = (headline || "").replace(/~\$/, "$").trim();
   const isSavings     = insight.type === "savings_opportunity";
+  const isGoalOffTrack = insight.type === "goal_off_track";
+  const goalContribution = isGoalOffTrack
+    ? Number(insight.rendered?.contribution?.recommended ?? 0)
+    : null;
+
+  // Strict guard: hide CTA button when amount would be $0
+  const showCtaButton = (() => {
+    if (isSavings) return Number(breakdown?.suggestedSave) > 0;
+    if (isGoalOffTrack) return goalContribution > 0;
+    return true;
+  })();
+
+  console.log('[InsightCardControlled] type:', insight.type,
+    '| suggestedSave:', breakdown?.suggestedSave,
+    '| goalContribution:', goalContribution,
+    '| showCtaButton:', showCtaButton,
+    '| cleanCta:', cleanCta);
 
   return (
     <div
@@ -145,11 +162,10 @@ function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
               </div>
             </div>
           )}
-          {/* Hide savings CTA entirely when suggestedSave is 0 or missing */}
-          {!(isSavings && !(Number(breakdown?.suggestedSave) > 0)) && (
+          {showCtaButton && (
             <button
               onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
-              style={{ width: "100%", padding: "13px 16px", background: accent, border: "none", borderRadius: 11, color: insight.type === "savings_opportunity" ? "#061A10" : "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif", letterSpacing: -0.3, boxShadow: `0 4px 20px ${accent}32`, transition: "transform 0.12s ease", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+              style={{ width: "100%", padding: "13px 16px", background: accent, border: "none", borderRadius: 11, color: isSavings ? "#061A10" : "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif", letterSpacing: -0.3, boxShadow: `0 4px 20px ${accent}32`, transition: "transform 0.12s ease", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
               onPointerDown={e => { e.stopPropagation(); e.currentTarget.style.transform = "scale(0.98)"; }}
               onPointerUp={e => { e.currentTarget.style.transform = ""; }}
               onPointerLeave={e => { e.currentTarget.style.transform = ""; }}
@@ -289,6 +305,23 @@ function InsightCard({ insight, onAction }) {
   const cleanHeadline = (headline || "").replace(/~\$/, "$").trim();
 
   const isSavings = insight.type === "savings_opportunity";
+  const isGoalOffTrack = insight.type === "goal_off_track";
+  const goalContribution = isGoalOffTrack
+    ? Number(insight.rendered?.contribution?.recommended ?? 0)
+    : null;
+
+  // Strict guard: hide CTA button when amount would be $0
+  const showCtaButton = (() => {
+    if (isSavings) return Number(breakdown?.suggestedSave) > 0;
+    if (isGoalOffTrack) return goalContribution > 0;
+    return true;
+  })();
+
+  console.log('[InsightCard] type:', insight.type,
+    '| suggestedSave:', breakdown?.suggestedSave,
+    '| goalContribution:', goalContribution,
+    '| showCtaButton:', showCtaButton,
+    '| cleanCta:', cleanCta);
 
   return (
     <div
@@ -370,8 +403,8 @@ function InsightCard({ insight, onAction }) {
             </div>
           )}
 
-          {/* Hide savings CTA entirely when suggestedSave is 0 or missing */}
-          {!(isSavings && !(Number(breakdown?.suggestedSave) > 0)) && (
+          {/* Hide CTA when amount is 0 or missing */}
+          {showCtaButton && (
             <button
               onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
               onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; e.currentTarget.style.boxShadow = `0 2px 10px ${accent}22`; }}
