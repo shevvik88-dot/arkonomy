@@ -3125,8 +3125,8 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
           )}
         </div>
       ) : (
-        <div style={{ marginBottom: 10, padding: "10px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 10, fontSize: 12, color: C.muted, lineHeight: 1.5, textAlign: "center" }}>
-          💡 Increase your income or reduce spending to start saving
+        <div style={{ marginBottom: 10, padding: "10px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 10, fontSize: 12, color: C.muted, lineHeight: 1.5, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FFB800" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginRight: 6 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Increase your income or reduce spending to start saving
         </div>
       )}
 
