@@ -18,6 +18,14 @@ const config: CapacitorConfig = {
       // Deep link scheme: arkonomy://
       // Plaid redirect URI (HTTPS, registered in Plaid Dashboard): https://app.arkonomy.com/
     },
+    SplashScreen: {
+      launchShowDuration: 2000,
+      launchAutoHide: true,
+      backgroundColor: '#0B1426',
+      showSpinner: false,
+      iosSpinnerStyle: 'small',
+      spinnerColor: '#2F80FF',
+    },
   },
 };
 
