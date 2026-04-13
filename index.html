@@ -79,6 +79,10 @@
         40% { transform: translateY(-8px); }
       }
       #splash.hidden { opacity: 0; pointer-events: none; }
+      /* Capacitor iOS: bottom nav safe area */
+      .cap-bottom-nav {
+        padding-bottom: env(safe-area-inset-bottom) !important;
+      }
     </style>
   </head>
   <body>

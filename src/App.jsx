@@ -3733,7 +3733,7 @@ function BottomNav({ screen, setScreen, insightCount = 1 }) {
     { id: "chat",         label: "AI",            icon: "message"  },
   ];
   return (
-    <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(11,20,38,0.97)", backdropFilter: "blur(24px)", borderTop: `1px solid ${C.sep}`, display: "flex", padding: "10px 0 20px", zIndex: 50 }}>
+    <div className="cap-bottom-nav" style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(11,20,38,0.97)", backdropFilter: "blur(24px)", borderTop: `1px solid ${C.sep}`, display: "flex", padding: "10px 0 20px", zIndex: 50 }}>
       <style>{`@keyframes aiPulse{0%,100%{opacity:0.55;transform:scale(1)}50%{opacity:1;transform:scale(1.35)}}`}</style>
       {tabs.map(tab => {
         const active = screen === tab.id;
