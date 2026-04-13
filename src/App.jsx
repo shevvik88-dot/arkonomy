@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { usePlaidLink } from "react-plaid-link";
+import { usePlaidOAuth, PLAID_REDIRECT_URI } from "./hooks/usePlaidOAuth";
 import CheckInCard from "./components/CheckInCard";
 import UpgradeModal from "./components/UpgradeModal";
 import UpcomingChargesCard from "./components/UpcomingChargesCard";
@@ -1258,6 +1259,7 @@ export default function App() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session.access_token}`,
         },
+        body: JSON.stringify({ redirect_uri: PLAID_REDIRECT_URI }),
       }
     );
     const data = await res.json();
@@ -3515,10 +3517,22 @@ function Chat({ messages, input, setInput, onSend }) {
 
 // ─── Plaid Link Button ────────────────────────────────────────
 function PlaidLinkButton({ linkToken, onSuccess, onExit }) {
+  const { receivedRedirectUri, clearRedirectUri } = usePlaidOAuth();
+
+  // When resuming after OAuth redirect: token must be null and receivedRedirectUri
+  // is passed instead. Plaid Link uses it to complete the OAuth handshake.
+  const isOAuthResume = Boolean(receivedRedirectUri);
   const { open, ready } = usePlaidLink({
-    token: linkToken,
-    onSuccess,
-    onExit,
+    token: isOAuthResume ? null : linkToken,
+    receivedRedirectUri: receivedRedirectUri ?? undefined,
+    onSuccess: (public_token, metadata) => {
+      clearRedirectUri();
+      onSuccess(public_token, metadata);
+    },
+    onExit: (err, metadata) => {
+      clearRedirectUri();
+      onExit?.(err, metadata);
+    },
   });
 
   return (
