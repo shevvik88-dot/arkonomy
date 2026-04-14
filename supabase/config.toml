@@ -14,10 +14,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.plaid-link-token]
-verify_jwt = true
+verify_jwt = false
 
 [functions.plaid-exchange-token]
-verify_jwt = true
+verify_jwt = false
 
 [functions.plaid-sync-transactions]
-verify_jwt = true
+verify_jwt = false

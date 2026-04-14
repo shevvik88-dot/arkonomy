@@ -1265,6 +1265,7 @@ export default function App() {
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${session.access_token}`,
+            "apikey": SUPABASE_KEY,
           },
           body: JSON.stringify(body),
         }
@@ -1292,6 +1293,7 @@ export default function App() {
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session.access_token}`,
+          "apikey": SUPABASE_KEY,
         },
         body: JSON.stringify({
           public_token,
@@ -1316,6 +1318,7 @@ export default function App() {
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session.access_token}`,
+          "apikey": SUPABASE_KEY,
         },
       }
     );
