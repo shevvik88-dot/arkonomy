@@ -1250,20 +1250,37 @@ export default function App() {
   }
 
   async function getLinkToken() {
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch(
-      `${SUPABASE_URL}/functions/v1/plaid-link-token`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ redirect_uri: PLAID_REDIRECT_URI }),
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      // Only send redirect_uri in native Capacitor context where deep link
+      // OAuth handling is active. In a browser, the URI must be registered
+      // in the Plaid Dashboard before it can be used — omitting it lets the
+      // web flow work for all banks without that prerequisite.
+      const isNative = typeof window !== "undefined" && Boolean(window.Capacitor);
+      const body = isNative ? { redirect_uri: PLAID_REDIRECT_URI } : {};
+      const res = await fetch(
+        `${SUPABASE_URL}/functions/v1/plaid-link-token`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify(body),
+        }
+      );
+      const data = await res.json();
+      if (data.link_token) {
+        setLinkToken(data.link_token);
+      } else {
+        const msg = data.error ?? data.message ?? "Failed to start bank connection";
+        console.error("[Plaid] getLinkToken error:", data);
+        showAlert(msg, "danger", "alert-circle");
       }
-    );
-    const data = await res.json();
-    if (data.link_token) setLinkToken(data.link_token);
+    } catch (err) {
+      console.error("[Plaid] getLinkToken exception:", err);
+      showAlert("Could not connect to bank service. Try again.", "danger", "alert-circle");
+    }
   }
 
   const onPlaidSuccess = useCallback(async (public_token, metadata) => {
@@ -3516,7 +3533,7 @@ function Chat({ messages, input, setInput, onSend }) {
 }
 
 // ─── Plaid Link Button ────────────────────────────────────────
-function PlaidLinkButton({ linkToken, onSuccess, onExit }) {
+function PlaidLinkButton({ linkToken, onSuccess, onExit, autoOpen = false }) {
   const { receivedRedirectUri, clearRedirectUri } = usePlaidOAuth();
 
   // When resuming after OAuth redirect: token must be null and receivedRedirectUri
@@ -3534,6 +3551,13 @@ function PlaidLinkButton({ linkToken, onSuccess, onExit }) {
       onExit?.(err, metadata);
     },
   });
+
+  // Auto-open Plaid Link as soon as the SDK is ready — eliminates the
+  // two-click problem where the user clicks a button, the token loads,
+  // and then they have to click a second button to actually open Plaid.
+  useEffect(() => {
+    if (autoOpen && ready) open();
+  }, [autoOpen, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <button
@@ -3618,7 +3642,7 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected
         </div>
 
         {bankConnected && linkToken ? (
-          <PlaidLinkButton linkToken={linkToken} onSuccess={onPlaidSuccess} onExit={() => {}} />
+          <PlaidLinkButton linkToken={linkToken} onSuccess={onPlaidSuccess} onExit={() => {}} autoOpen />
         ) : bankConnected ? (
           <>
             <button onClick={syncBankTransactions} disabled={syncingBank}
@@ -3634,7 +3658,7 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected
             </button>
           </>
         ) : linkToken ? (
-          <PlaidLinkButton linkToken={linkToken} onSuccess={onPlaidSuccess} onExit={() => {}} />
+          <PlaidLinkButton linkToken={linkToken} onSuccess={onPlaidSuccess} onExit={() => {}} autoOpen />
         ) : (
           <button onClick={getLinkToken}
             style={{ width: "100%", padding: 14, background: "linear-gradient(135deg,#1A56DB,#2F80FF)", border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: "0 4px 20px rgba(26,86,219,0.4)" }}>
