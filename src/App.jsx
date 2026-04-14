@@ -1185,6 +1185,9 @@ export default function App() {
   // Refs keep addTransaction (async) from using stale closures after awaits
   const showAlertRef = useRef(showAlert);
   showAlertRef.current = showAlert;
+  // Stable ref to syncBankTransactions so onPlaidSuccess (useCallback [])
+  // always calls the current version, not the mount-time stale closure.
+  const syncBankTransactionsRef = useRef(null);
   const autopilotRef = useRef(autopilot);
   autopilotRef.current = autopilot;
 
@@ -1285,47 +1288,74 @@ export default function App() {
   }
 
   const onPlaidSuccess = useCallback(async (public_token, metadata) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    await fetch(
-      `${SUPABASE_URL}/functions/v1/plaid-exchange-token`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
-          "apikey": SUPABASE_KEY,
-        },
-        body: JSON.stringify({
-          public_token,
-          institution_name: metadata.institution.name,
-          institution_id: metadata.institution.institution_id,
-        }),
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const exchangeRes = await fetch(
+        `${SUPABASE_URL}/functions/v1/plaid-exchange-token`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+            "apikey": SUPABASE_KEY,
+          },
+          body: JSON.stringify({
+            public_token,
+            institution_name: metadata.institution.name,
+            institution_id: metadata.institution.institution_id,
+          }),
+        }
+      );
+      const exchangeData = await exchangeRes.json();
+      if (!exchangeRes.ok || exchangeData.error) {
+        console.error("[Plaid] exchange-token error:", exchangeData);
+        showAlertRef.current(exchangeData.error ?? "Bank connection failed", "danger", "alert-circle");
+        return;
       }
-    );
+    } catch (err) {
+      console.error("[Plaid] exchange-token exception:", err);
+      showAlertRef.current("Bank connection failed. Try again.", "danger", "alert-circle");
+      return;
+    }
     setBankConnected(true);
     setBankName(metadata.institution.name);
     setLinkToken(null);
-    await syncBankTransactions();
-  }, []);
+    await syncBankTransactionsRef.current();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function syncBankTransactions() {
     setSyncingBank(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch(
-      `${SUPABASE_URL}/functions/v1/plaid-sync-transactions`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
-          "apikey": SUPABASE_KEY,
-        },
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${SUPABASE_URL}/functions/v1/plaid-sync-transactions`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+            "apikey": SUPABASE_KEY,
+          },
+        }
+      );
+      const data = await res.json();
+      if (data.error) {
+        console.error("[Plaid] sync-transactions error:", data);
       }
-    );
-    const data = await res.json();
-    if (data.synced > 0) await loadAll();
+      // Always reload — even if synced=0 the user may have just connected
+      // and needs to see existing transactions. Also covers the case where
+      // the response is an error object (data.synced would be undefined).
+      await loadAll();
+    } catch (err) {
+      console.error("[Plaid] sync-transactions exception:", err);
+      // Still reload in case transactions were written before the error
+      await loadAll();
+    }
     setSyncingBank(false);
   }
+  // Keep ref current so onPlaidSuccess's stale closure always calls
+  // the version of syncBankTransactions that has the current loadAll.
+  syncBankTransactionsRef.current = syncBankTransactions;
 
   async function seedCategories() {
     const defaults = [
