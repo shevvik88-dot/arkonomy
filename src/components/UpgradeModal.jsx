@@ -21,13 +21,32 @@ const BENEFITS = [
   { icon: "📊", title: "Spending Charts", desc: "Full interactive breakdown of spending by category" },
 ];
 
-export default function UpgradeModal({ onClose }) {
+export default function UpgradeModal({ onClose, supabase }) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  function handleUpgrade() {
+  async function handleUpgrade() {
     setLoading(true);
-    // Placeholder — wire up payment flow when ready
-    setTimeout(() => setLoading(false), 1500);
+    setError(null);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke("stripe-checkout", {});
+      if (fnError) {
+        let msg = fnError.message ?? "Failed to start checkout";
+        try {
+          const body = typeof fnError.context?.json === "function" ? await fnError.context.json() : null;
+          if (body?.error) msg = body.error;
+        } catch {}
+        throw new Error(msg);
+      }
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error("No checkout URL returned");
+      }
+    } catch (err) {
+      setError(err.message ?? "Something went wrong");
+      setLoading(false);
+    }
   }
 
   return (
@@ -95,6 +114,15 @@ export default function UpgradeModal({ onClose }) {
             </div>
           ))}
         </div>
+
+        {/* Error */}
+        {error && (
+          <div style={{
+            background: "#2D151511", border: "1px solid #E05C5C44",
+            borderRadius: 10, padding: "10px 14px",
+            color: "#E05C5C", fontSize: 13, marginBottom: 12, textAlign: "center",
+          }}>{error}</div>
+        )}
 
         {/* CTA */}
         <button

@@ -1206,6 +1206,7 @@ export default function App() {
   const [syncingBank, setSyncingBank] = useState(false);
   const [alpacaToast, setAlpacaToast] = useState(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [proToast, setProToast] = useState(false);
   const [upcomingCharges, setUpcomingCharges] = useState([]);
   const [marketInitSymbol, setMarketInitSymbol] = useState(null);
 
@@ -1216,6 +1217,21 @@ export default function App() {
   }, []);
 
   useEffect(() => { if (user) { loadAll(); checkBankConnection(); } }, [user]);
+
+  // Detect return from Stripe checkout
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("upgraded") === "true") {
+      setProToast(true);
+      // Remove the query param without reloading
+      window.history.replaceState({}, "", window.location.pathname);
+      // Reload profile after a short delay to pick up plan='pro' from webhook
+      setTimeout(() => {
+        if (user) loadAll();
+      }, 2000);
+      setTimeout(() => setProToast(false), 6000);
+    }
+  }, []);
 
   // Register push notifications (no-op until VAPID key is configured)
   usePushNotifications(supabase, user?.id);
@@ -1668,7 +1684,22 @@ export default function App() {
       {showAddTx && <AddTransactionModal categories={categories} onAdd={addTransaction} onClose={() => setShowAddTx(false)} />}
       {editTx && <AddTransactionModal categories={categories} existing={editTx} onAdd={data => updateTransaction(editTx.id, data)} onClose={() => setEditTx(null)} />}
       <ToastStack toasts={alertToasts} dismiss={dismissAlert} />
-      {showUpgradeModal && <UpgradeModal onClose={() => setShowUpgradeModal(false)} />}
+      {proToast && (
+        <div style={{
+          position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)",
+          background: "linear-gradient(135deg, #7C6BFF22, #38B6FF11)",
+          border: "1px solid #7C6BFF66",
+          borderRadius: 16, padding: "16px 24px", zIndex: 10000,
+          color: "#E8EDF5", fontFamily: "'DM Sans', sans-serif",
+          textAlign: "center", boxShadow: "0 8px 32px rgba(124,107,255,0.3)",
+          minWidth: 260,
+        }}>
+          <div style={{ fontSize: 28, marginBottom: 6 }}>⚡</div>
+          <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>Welcome to Pro!</div>
+          <div style={{ fontSize: 13, color: "#7A8BA8" }}>Your account has been upgraded. Enjoy all features.</div>
+        </div>
+      )}
+      {showUpgradeModal && <UpgradeModal onClose={() => setShowUpgradeModal(false)} supabase={supabase} />}
 
       {alpacaToast && (
         <div style={{

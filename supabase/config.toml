@@ -33,3 +33,9 @@ verify_jwt = false
 
 [functions.alpaca-invest]
 verify_jwt = false
+
+[functions.stripe-checkout]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
