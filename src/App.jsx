@@ -3958,25 +3958,33 @@ function StockDetail({ symbol, onBack, user }) {
   const [buyResult, setBuyResult] = useState(null);
   const [hintDismissed, setHintDismissed] = useState(false);
 
+  // Use a ref so loadAi always reads the latest stats without being in effect deps
+  const statsRef = useRef(null);
   useEffect(() => {
     setLoadingStats(true);
-    callMarketData({ type: "stats", symbol }).then(d => { setStats(d); setLoadingStats(false); });
+    callMarketData({ type: "stats", symbol })
+      .then(d => { statsRef.current = d; setStats(d); setLoadingStats(false); })
+      .catch(() => setLoadingStats(false));
   }, [symbol]);
 
   useEffect(() => {
     setLoadingChart(true);
-    callMarketData({ type: "chart", symbol, period }).then(d => {
-      setCandles(d.candles ?? []);
-      setLoadingChart(false);
-    });
+    callMarketData({ type: "chart", symbol, period })
+      .then(d => { setCandles(d.candles ?? []); setLoadingChart(false); })
+      .catch(() => setLoadingChart(false));
   }, [symbol, period]);
 
-  async function loadAi() {
-    if (ai || aiLoading) return;
+  // Use a ref to guard against double-invocation (StrictMode / fast deps)
+  const aiCalledRef = useRef(false);
+
+  async function runAiAnalysis() {
+    if (aiCalledRef.current) return;
+    aiCalledRef.current = true;
     setAiLoading(true);
     setAiError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      const s = statsRef.current;
       const res = await fetch(`${SUPABASE_URL}/functions/v1/stock-ai-analysis`, {
         method: "POST",
         headers: {
@@ -3986,23 +3994,34 @@ function StockDetail({ symbol, onBack, user }) {
         },
         body: JSON.stringify({
           symbol,
-          name:      stats?.name ?? symbol,
-          price:     stats?.price,
-          pe:        stats?.pe,
-          high52w:   stats?.high52w,
-          low52w:    stats?.low52w,
-          changePct: stats?.changePct,
+          name:      s?.name ?? symbol,
+          price:     s?.price ?? null,
+          pe:        s?.pe ?? null,
+          high52w:   s?.high52w ?? null,
+          low52w:    s?.low52w ?? null,
+          changePct: s?.changePct ?? null,
           isCrypto:  meta.isCrypto,
         }),
       });
+      if (!res.ok && res.status !== 200) {
+        let errMsg = `HTTP ${res.status}`;
+        try { const j = await res.json(); errMsg = j.error ?? errMsg; } catch {}
+        throw new Error(errMsg);
+      }
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setAi(data);
-    } catch (e) { setAiError(e.message ?? "Analysis failed"); }
-    setAiLoading(false);
+    } catch (e) {
+      console.error("[AI Analysis] error:", e);
+      setAiError(e.message ?? "Analysis failed");
+    } finally {
+      setAiLoading(false);
+    }
   }
 
-  useEffect(() => { if (tab === "ai") loadAi(); }, [tab, stats]);
+  useEffect(() => {
+    if (tab === "ai") runAiAnalysis();
+  }, [tab]);
 
   async function handleBuy() {
     if (buying || !buyAmt || Number(buyAmt) < 1) return;
@@ -4140,55 +4159,84 @@ function StockDetail({ symbol, onBack, user }) {
       {/* ── AI TAB ───────────────────────────────────────────── */}
       {tab === "ai" && (
         <GlassCard style={{ border: `1px solid ${C.cyan}22` }}>
+          <style>{`@keyframes aiDot{0%,80%,100%{transform:translateY(0);opacity:0.4}40%{transform:translateY(-5px);opacity:1}}`}</style>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
             <div style={{ width: 30, height: 30, borderRadius: 8, background: C.cyan + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Icon name="activity" size={14} color={C.cyan} />
             </div>
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, fontSize: 14 }}>AI Analysis</div>
               <div style={{ fontSize: 11, color: C.faint }}>Powered by Claude</div>
             </div>
+            {aiError && !aiLoading && (
+              <button onClick={() => { aiCalledRef.current = false; setAi(null); setAiError(null); runAiAnalysis(); }}
+                style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 10px", color: C.muted, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
+                Retry
+              </button>
+            )}
           </div>
 
           {aiLoading ? (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "24px 0" }}>
-              <div style={{ display: "flex", gap: 5 }}>
-                {[0,1,2].map(i => <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: C.cyan, display: "inline-block", animation: `bop 1.2s ease ${i*0.2}s infinite` }} />)}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "28px 0" }}>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[0,1,2].map(i => (
+                  <span key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: C.cyan, display: "inline-block", animation: `aiDot 1.2s ease-in-out ${i*0.2}s infinite` }} />
+                ))}
               </div>
-              <div style={{ fontSize: 12, color: C.faint }}>Analyzing {symbol}...</div>
+              <div style={{ fontSize: 13, color: C.muted }}>Analyzing {symbol}...</div>
             </div>
           ) : aiError ? (
-            <div style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>
-              {aiError.includes("ANTHROPIC_API_KEY") ? "AI analysis requires ANTHROPIC_API_KEY to be configured." : aiError}
+            <div style={{ background: C.red + "12", border: `1px solid ${C.red}33`, borderRadius: 10, padding: "12px 14px" }}>
+              <div style={{ fontSize: 13, color: C.red, fontWeight: 600, marginBottom: 4 }}>Analysis unavailable</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
+                {aiError.includes("ANTHROPIC_API_KEY")
+                  ? "ANTHROPIC_API_KEY is not configured in Supabase secrets. Run: supabase secrets set ANTHROPIC_API_KEY=your_key"
+                  : aiError}
+              </div>
             </div>
           ) : ai ? (
             <>
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 11, color: C.cyan, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Trend Analysis</div>
-                <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6 }}>{ai.trend}</div>
-              </div>
-              {ai.risks?.length > 0 && (
+              {ai.trend ? (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, color: C.cyan, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Trend Analysis</div>
+                  <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6 }}>{ai.trend}</div>
+                </div>
+              ) : null}
+              {Array.isArray(ai.risks) && ai.risks.length > 0 && (
                 <div style={{ marginBottom: 14 }}>
                   <div style={{ fontSize: 11, color: C.yellow, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Key Risks</div>
                   {ai.risks.map((r, i) => (
                     <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
                       <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.yellow, marginTop: 5, flexShrink: 0 }} />
-                      <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>{r}</div>
+                      <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>{String(r)}</div>
                     </div>
                   ))}
                 </div>
               )}
-              {ai.analystView && (
+              {ai.analystView ? (
                 <div style={{ marginBottom: 16 }}>
                   <div style={{ fontSize: 11, color: C.purple, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Market Observers Note</div>
                   <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6 }}>{ai.analystView}</div>
                 </div>
-              )}
-              <div style={{ background: C.bgSecondary, borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
-                <div style={{ fontSize: 11, color: C.faint, lineHeight: 1.6 }}>{ai.disclaimer}</div>
-              </div>
+              ) : null}
+              {ai.disclaimer ? (
+                <div style={{ background: C.bgSecondary, borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
+                  <div style={{ fontSize: 11, color: C.faint, lineHeight: 1.6 }}>{ai.disclaimer}</div>
+                </div>
+              ) : null}
             </>
-          ) : null}
+          ) : (
+            /* Blank state — should rarely be seen, but never show an empty card */
+            <div style={{ textAlign: "center", padding: "24px 0", color: C.faint, fontSize: 13 }}>
+              Tap Retry to load analysis
+              <div style={{ marginTop: 12 }}>
+                <button onClick={() => { aiCalledRef.current = false; runAiAnalysis(); }}
+                  style={{ background: C.cyan + "18", border: `1px solid ${C.cyan}44`, borderRadius: 10, padding: "8px 20px", color: C.cyan, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+                  Analyze {symbol}
+                </button>
+              </div>
+            </div>
+          )}
         </GlassCard>
       )}
 
