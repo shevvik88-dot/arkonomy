@@ -13,12 +13,51 @@ const C = {
 };
 const FONT = "'DM Sans', sans-serif";
 
+// Stroke-based SVG icons matching the app's Icon component style
+const BenefitIcon = ({ type, color }) => {
+  const s = { fill: "none", stroke: color, strokeWidth: 1.75, strokeLinecap: "round", strokeLinejoin: "round" };
+  const icons = {
+    bank: (
+      <svg width={18} height={18} viewBox="0 0 24 24" {...s}>
+        <path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 10v11M12 10v11M16 10v11" />
+      </svg>
+    ),
+    ai: (
+      <svg width={18} height={18} viewBox="0 0 24 24" {...s}>
+        <path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2z" />
+        <path d="M19 14l.75 2.25L22 17l-2.25.75L19 20l-.75-2.25L16 17l2.25-.75L19 14z" />
+        <path d="M5 17l.5 1.5L7 19l-1.5.5L5 21l-.5-1.5L3 19l1.5-.5L5 17z" />
+      </svg>
+    ),
+    savings: (
+      <svg width={18} height={18} viewBox="0 0 24 24" {...s}>
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
+        <path d="M12 6v6l4 2" />
+      </svg>
+    ),
+    invest: (
+      <svg width={18} height={18} viewBox="0 0 24 24" {...s}>
+        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+        <polyline points="16 7 22 7 22 13" />
+      </svg>
+    ),
+    chart: (
+      <svg width={18} height={18} viewBox="0 0 24 24" {...s}>
+        <rect x="3" y="12" width="4" height="9" rx="1" />
+        <rect x="10" y="7" width="4" height="14" rx="1" />
+        <rect x="17" y="3" width="4" height="18" rx="1" />
+      </svg>
+    ),
+  };
+  return icons[type] ?? null;
+};
+
 const BENEFITS = [
-  { icon: "🏦", title: "Multiple Bank Accounts", desc: "Connect unlimited banks and track everything in one place" },
-  { icon: "🤖", title: "Full AI Insights", desc: "Unlock all AI-powered spending analyses and recommendations" },
-  { icon: "🪙", title: "Savings Round-Ups", desc: "Automatically round up spare change and grow your savings" },
-  { icon: "📈", title: "Alpaca Investing", desc: "Invest your spare change directly into the stock market" },
-  { icon: "📊", title: "Spending Charts", desc: "Full interactive breakdown of spending by category" },
+  { icon: "bank",    color: "#38B6FF", title: "Multiple Bank Accounts", desc: "Connect unlimited banks and track everything in one place" },
+  { icon: "ai",     color: "#7C6BFF", title: "Full AI Insights",        desc: "Unlock all AI-powered spending analyses and recommendations" },
+  { icon: "savings",color: "#00E5A0", title: "Savings Round-Ups",       desc: "Automatically round up spare change and grow your savings" },
+  { icon: "invest", color: "#00E5A0", title: "Alpaca Investing",         desc: "Invest your spare change directly into the stock market" },
+  { icon: "chart",  color: "#38B6FF", title: "Spending Charts",          desc: "Full interactive breakdown of spending by category" },
 ];
 
 export default function UpgradeModal({ onClose, supabase }) {
@@ -84,8 +123,11 @@ export default function UpgradeModal({ onClose, supabase }) {
             background: `linear-gradient(135deg, ${C.purple}33, ${C.cyan}22)`,
             border: `1px solid ${C.purple}44`,
             marginBottom: 14,
-            fontSize: 26,
-          }}>⚡</div>
+          }}>
+            <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+            </svg>
+          </div>
           <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Upgrade to Pro</div>
           <div style={{ fontSize: 14, color: C.muted }}>Unlock the full Arkonomy experience</div>
         </div>
@@ -103,10 +145,17 @@ export default function UpgradeModal({ onClose, supabase }) {
         </div>
 
         {/* Benefits */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
           {BENEFITS.map(b => (
-            <div key={b.title} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-              <span style={{ fontSize: 18, lineHeight: 1 }}>{b.icon}</span>
+            <div key={b.title} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                background: b.color + "18",
+                border: `1px solid ${b.color}30`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <BenefitIcon type={b.icon} color={b.color} />
+              </div>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 1 }}>{b.title}</div>
                 <div style={{ fontSize: 12, color: C.muted }}>{b.desc}</div>
