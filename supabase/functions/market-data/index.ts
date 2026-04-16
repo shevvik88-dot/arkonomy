@@ -20,18 +20,19 @@ const CORS = {
 // Crypto tickers → Finnhub exchange:pair notation (for quotes/stats)
 const CRYPTO_MAP: Record<string, string> = {
   BTC:  'BINANCE:BTCUSDT',
-  ETH:  'BINANCE:ETHUSDT',   // was ETHUSD — Binance pair is ETHUSDT
+  ETH:  'BINANCE:ETHUSDT',
   SOL:  'BINANCE:SOLUSDT',
   DOGE: 'BINANCE:DOGEUSDT',
 };
 
-// Crypto tickers → Binance klines symbol (for charts — Finnhub free tier
-// doesn't provide OHLCV candles; Binance public API does, no key needed)
-const BINANCE_SYMBOL: Record<string, string> = {
-  BTC:  'BTCUSDT',
-  ETH:  'ETHUSDT',
-  SOL:  'SOLUSDT',
-  DOGE: 'DOGEUSDT',
+// Crypto tickers → Kraken pair (for OHLCV charts)
+// Binance is geo-restricted from cloud IPs; Kraken public API is open globally.
+// Confirmed: XBTUSD, ETHUSD, SOLUSD, DOGEUSD all return ~720 candles.
+const KRAKEN_PAIR: Record<string, string> = {
+  BTC:  'XBTUSD',
+  ETH:  'ETHUSD',
+  SOL:  'SOLUSD',
+  DOGE: 'DOGEUSD',
 };
 
 // True if a watchlist symbol is crypto
@@ -43,35 +44,46 @@ function finnhubSym(sym: string): string {
   return CRYPTO_MAP[sym] ?? sym;
 }
 
-// Fetch crypto OHLCV from Binance public API (no key required)
-// Returns candles in the same shape the app uses: { t, o, h, l, c, v }
+// Fetch crypto OHLCV from Kraken public API (no key, no geo-restriction)
+// Kraken candle: [time_unix, open, high, low, close, vwap, volume, count]
 async function cryptoCandles(
   sym: string,
   period: string,
 ): Promise<{ t: number; o: number; h: number; l: number; c: number; v: number }[]> {
-  const binanceSym = BINANCE_SYMBOL[sym] ?? sym;
+  const pair = KRAKEN_PAIR[sym] ?? `${sym}USD`;
 
-  type PeriodConfig = { interval: string; limit: number };
-  const PERIODS: Record<string, PeriodConfig> = {
-    '1D': { interval: '5m',  limit: 288  }, // 24h  × 5-min candles
-    '1W': { interval: '1h',  limit: 168  }, // 7d   × hourly
-    '1M': { interval: '1d',  limit: 30   }, // 30 daily candles
-    '1Y': { interval: '1w',  limit: 52   }, // 52 weekly candles
+  // interval in minutes, since = unix timestamp to start from
+  const now = Math.floor(Date.now() / 1000);
+  const PERIODS: Record<string, { interval: number; since: number }> = {
+    '1D': { interval: 5,     since: now - 86_400 },
+    '1W': { interval: 60,    since: now - 7  * 86_400 },
+    '1M': { interval: 1440,  since: now - 30 * 86_400 },
+    '1Y': { interval: 10080, since: now - 365 * 86_400 },
   };
-  const { interval, limit } = PERIODS[period] ?? PERIODS['1M'];
+  const { interval, since } = PERIODS[period] ?? PERIODS['1M'];
 
-  const url = `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(binanceSym)}&interval=${interval}&limit=${limit}`;
+  const url = `https://api.kraken.com/0/public/OHLC?pair=${encodeURIComponent(pair)}&interval=${interval}&since=${since}`;
   const res  = await fetch(url);
   if (!res.ok) return [];
-  const raw: any[][] = await res.json();
-  // Binance kline: [openTime_ms, open, high, low, close, volume, ...]
-  return raw.map(k => ({
-    t: Math.floor(Number(k[0]) / 1000),
+
+  const json = await res.json();
+  if (json.error && json.error.length > 0) {
+    console.error('Kraken error:', json.error);
+    return [];
+  }
+
+  // The result key is the normalised pair name (e.g. XXBTZUSD), not what we sent
+  const resultKey = Object.keys(json.result ?? {}).find((k: string) => k !== 'last');
+  if (!resultKey) return [];
+
+  const rows: any[][] = json.result[resultKey];
+  return rows.map(k => ({
+    t: Number(k[0]),
     o: Number(k[1]),
     h: Number(k[2]),
     l: Number(k[3]),
     c: Number(k[4]),
-    v: Number(k[5]),
+    v: Number(k[6]), // index 5 is vwap, 6 is volume
   }));
 }
 
