@@ -3740,6 +3740,37 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected
         </div>
       </GlassCard>
 
+      {!isPro && (
+        <div
+          onClick={onUpgrade}
+          style={{
+            display: "flex", alignItems: "center", gap: 14,
+            background: "linear-gradient(135deg, #7C6BFF18, #38B6FF0A)",
+            border: "1px solid #7C6BFF33",
+            borderRadius: 18, padding: "16px 18px",
+            cursor: "pointer",
+          }}
+        >
+          <div style={{
+            width: 42, height: 42, borderRadius: 13, flexShrink: 0,
+            background: "linear-gradient(135deg, #7C6BFF33, #38B6FF22)",
+            border: "1px solid #7C6BFF44",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#38B6FF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+            </svg>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 2 }}>Upgrade to Pro</div>
+            <div style={{ fontSize: 12, color: C.muted }}>Unlock AI insights, investing & more — $9.99/mo</div>
+          </div>
+          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </div>
+      )}
+
       {/* ── PLAID BANK CONNECTION ── */}
       <GlassCard style={{ border: `1px solid ${bankConnected ? C.green + "44" : "#1A56DB44"}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
@@ -3857,37 +3888,6 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected
           </div>
         ))}
       </GlassCard>
-
-      {!isPro && (
-        <div
-          onClick={onUpgrade}
-          style={{
-            display: "flex", alignItems: "center", gap: 14,
-            background: "linear-gradient(135deg, #7C6BFF18, #38B6FF0A)",
-            border: "1px solid #7C6BFF33",
-            borderRadius: 18, padding: "16px 18px",
-            cursor: "pointer",
-          }}
-        >
-          <div style={{
-            width: 42, height: 42, borderRadius: 13, flexShrink: 0,
-            background: "linear-gradient(135deg, #7C6BFF33, #38B6FF22)",
-            border: "1px solid #7C6BFF44",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#38B6FF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-            </svg>
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 2 }}>Upgrade to Pro</div>
-            <div style={{ fontSize: 12, color: C.muted }}>Unlock AI insights, investing & more — $9.99/mo</div>
-          </div>
-          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </div>
-      )}
 
       <GlassCard style={{ border: `1px solid ${C.yellow}22` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
