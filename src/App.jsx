@@ -994,7 +994,7 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
           return [
             { label: "Savings Rate", value: savingsDisplay, display: isDeepDeficit ? "In deficit" : null, color: savingsColor },
             { label: "Budget Used", value: budgetUsedPct, color: budgetUsedPct > 100 ? C.red : budgetUsedPct > 70 ? C.yellow : C.cyan },
-            { label: "Recurring", value: rawBreakdown.recurring.ratio === 0 ? null : Math.round((rawBreakdown.recurring.points / 20) * 100), color: C.purple },
+            { label: "Recurring", value: Math.round((rawBreakdown.recurring.points / 20) * 100), color: C.purple },
           ];
         })().map(item => (
           <div key={item.label} style={{ flex: 1, background: C.bgTertiary, borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
@@ -1024,17 +1024,7 @@ function WeeklySummary({ transactions }) {
   const change = lastWeek > 0 ? ((thisWeek - lastWeek) / lastWeek) * 100 : 0;
   const pos = change <= 0;
 
-  if (thisWeek === 0 && lastWeek === 0) return (
-    <GlassCard style={{ background: `linear-gradient(135deg,${C.blue}10,${C.card})`, border: `1px solid ${C.blue}30` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-        <div style={{ width: 32, height: 32, borderRadius: 10, background: C.blue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Icon name="calendar" size={15} color={C.blue} />
-        </div>
-        <span style={{ fontWeight: 600, fontSize: 14, color: C.blue }}>Weekly Summary</span>
-      </div>
-      <div style={{ fontSize: 13, color: C.faint }}>No activity yet this week.</div>
-    </GlassCard>
-  );
+  if (thisWeek === 0) return null;
 
   return (
     <GlassCard style={{ background: `linear-gradient(135deg,${C.blue}10,${C.card})`, border: `1px solid ${C.blue}30` }}>
@@ -1207,6 +1197,7 @@ export default function App() {
   const [alpacaToast, setAlpacaToast] = useState(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [proToast, setProToast] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const [upcomingCharges, setUpcomingCharges] = useState([]);
   const [marketInitSymbol, setMarketInitSymbol] = useState(null);
 
@@ -1674,8 +1665,7 @@ export default function App() {
             {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} onUpgrade={onUpgrade} />}
-            {screen === "insights" && <Insights {...shared} onNavigateChat={msg => { setChatMessages(prev => [...prev, { role: "user", text: msg }]); setScreen("chat"); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
-            {screen === "chat" && <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={msg => sendChat(msg ?? chatInput)} insightsProps={{ ...shared, allInsights, onInsightAction: handleInsightAction, isPro, onUpgrade }} />}
+            {screen === "insights" && <Insights {...shared} onOpenChat={msg => { setShowChat(true); sendChat(msg); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
             {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
           </>
         )}
@@ -1727,6 +1717,92 @@ export default function App() {
               >Add funds to Alpaca</a>
             </>
           ) : alpacaToast.error ? `❌ ${alpacaToast.error}` : alpacaToast.loading ? `⏳ ${alpacaToast.message}` : `✅ ${alpacaToast.message}`}
+        </div>
+      )}
+
+      {/* ── Floating AI Chat Button ─────────────────────────── */}
+      {!showChat && (
+        <button
+          onClick={() => setShowChat(true)}
+          style={{
+            position: "fixed",
+            bottom: 88,
+            right: "max(16px, calc((100vw - 430px) / 2 + 16px))",
+            width: 56, height: 56,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, #7C6BFF, #00C2FF)",
+            border: "none", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 4px 24px rgba(124,107,255,0.55)",
+            zIndex: 90,
+          }}
+        >
+          <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          <div style={{
+            position: "absolute", top: -4, right: -4,
+            background: "#12D18E", borderRadius: 99,
+            padding: "2px 5px", fontSize: 8, fontWeight: 800,
+            color: "#000", lineHeight: 1, letterSpacing: 0.3,
+            border: "1.5px solid rgba(11,20,38,0.97)",
+          }}>AI</div>
+        </button>
+      )}
+
+      {/* ── Chat Modal ──────────────────────────────────────── */}
+      {showChat && (
+        <div
+          onClick={() => setShowChat(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 200,
+            background: "rgba(7,12,24,0.78)",
+            backdropFilter: "blur(6px)",
+            display: "flex", alignItems: "flex-end", justifyContent: "center",
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: "100%", maxWidth: 430,
+              height: "88vh",
+              background: C.bg,
+              borderRadius: "20px 20px 0 0",
+              border: `1px solid ${C.border}`,
+              borderBottom: "none",
+              display: "flex", flexDirection: "column",
+              overflow: "hidden",
+              boxShadow: "0 -8px 48px rgba(0,0,0,0.7)",
+            }}
+          >
+            {/* Modal header */}
+            <div style={{ padding: "12px 16px 10px", display: "flex", alignItems: "center", gap: 10, borderBottom: `1px solid ${C.sep}`, flexShrink: 0 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg,#7C6BFF22,#00C2FF18)`, border: `1px solid #7C6BFF33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#00C2FF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>AI Assistant</div>
+                <div style={{ fontSize: 11, color: C.faint, display: "flex", alignItems: "center", gap: 4 }}>
+                  <div style={{ width: 5, height: 5, borderRadius: 99, background: C.green }} />
+                  Powered by Claude · knows your finances
+                </div>
+              </div>
+              <button
+                onClick={() => setShowChat(false)}
+                style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+              >
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            {/* Chat body */}
+            <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", padding: "0 14px 14px" }}>
+              <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={msg => sendChat(msg ?? chatInput)} onClose={() => setShowChat(false)} />
+            </div>
+          </div>
         </div>
       )}
 
@@ -2126,7 +2202,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
 }
 
 // ─── Insights ─────────────────────────────────────────────────
-function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, onNavigateChat, transactions, savings, profile, allInsights, onInsightAction, isPro, onUpgrade }) {
+function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, onOpenChat, transactions, savings, profile, allInsights, onInsightAction, isPro, onUpgrade }) {
   const monthlySavings = totalIncome - totalSpent;
   const savingsRate = totalIncome > 0 ? Math.round((monthlySavings / totalIncome) * 100) : 0;
 
@@ -2208,7 +2284,7 @@ function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCa
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ marginBottom: 4 }}>
-        <h2 style={{ margin: "0 0 4px", fontSize: 26, fontWeight: 700 }}>Insights</h2>
+        <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 700 }}>Insights</h2>
         <div style={{ fontSize: 13, color: C.muted }}>AI-powered spending analysis</div>
       </div>
 
@@ -2250,7 +2326,7 @@ function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCa
             </div>
             <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>{ins.title}</div>
             <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 14 }}>{ins.desc}</div>
-            <button onClick={() => onNavigateChat(ins.context)} style={{ background: "none", border: "none", cursor: "pointer", color, fontSize: 13, fontWeight: 600, padding: 0, display: "flex", alignItems: "center", gap: 6, fontFamily: FONT }}>
+            <button onClick={() => onOpenChat?.(ins.context)} style={{ background: "none", border: "none", cursor: "pointer", color, fontSize: 13, fontWeight: 600, padding: 0, display: "flex", alignItems: "center", gap: 6, fontFamily: FONT }}>
               <Icon name="message" size={13} color={color} /> Ask AI about this <Icon name="chevron" size={13} color={color} />
             </button>
           </GlassCard>
@@ -3552,28 +3628,17 @@ const CHAT_SUGGESTIONS = [
   "What are my recurring charges?",
 ];
 
-function Chat({ messages, input, setInput, onSend, insightsProps }) {
+function Chat({ messages, input, setInput, onSend, onClose }) {
   const bottomRef = useRef(null);
-  const [showInsights, setShowInsights] = useState(false);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   const isWelcomeOnly = messages.length === 1 && messages[0].role === "assistant";
 
-  function sendSuggestion(text) {
-    setInput(text);
-    onSend(text);
-  }
+  function sendSuggestion(text) { setInput(text); onSend(text); }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", paddingBottom: 80 }}>
-      <div style={{ marginBottom: 14 }}>
-        <h2 style={{ margin: "0 0 2px", fontSize: 26, fontWeight: 700 }}>AI Assistant</h2>
-        <div style={{ fontSize: 12, color: C.faint, display: "flex", alignItems: "center", gap: 5 }}>
-          <div style={{ width: 6, height: 6, borderRadius: 99, background: C.green }} />
-          Powered by Claude · knows your finances
-        </div>
-      </div>
-      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: onClose ? "100%" : "auto", paddingBottom: onClose ? 0 : 80 }}>
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, marginTop: 10, marginBottom: 10 }}>
         {messages.map((m, i) => (
           <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", background: m.role === "user" ? `linear-gradient(90deg,${C.cyan},${C.blue})` : C.card, color: m.role === "user" ? "#fff" : C.text, padding: "12px 16px", borderRadius: m.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px", maxWidth: "82%", fontSize: 14, border: m.role === "assistant" ? `1px solid ${C.border}` : "none", lineHeight: 1.65, fontWeight: m.role === "user" ? 500 : 400 }}>
             {m.loading
@@ -3590,7 +3655,7 @@ function Chat({ messages, input, setInput, onSend, insightsProps }) {
               <button
                 key={q}
                 onClick={() => sendSuggestion(q)}
-                style={{ alignSelf: "flex-start", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 20, padding: "8px 14px", color: C.muted, fontSize: 13, cursor: "pointer", fontFamily: FONT, textAlign: "left", transition: "border-color 0.15s, color 0.15s" }}
+                style={{ alignSelf: "flex-start", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 20, padding: "8px 14px", color: C.muted, fontSize: 13, cursor: "pointer", fontFamily: FONT, textAlign: "left" }}
                 onPointerEnter={e => { e.currentTarget.style.borderColor = C.cyan + "66"; e.currentTarget.style.color = C.text; }}
                 onPointerLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.muted; }}
               >
@@ -3601,39 +3666,15 @@ function Chat({ messages, input, setInput, onSend, insightsProps }) {
         )}
         <div ref={bottomRef} />
       </div>
-      <div style={{ fontSize: 10, color: C.faint, textAlign: "center", marginBottom: 10, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 10, color: C.faint, textAlign: "center", marginBottom: 8, lineHeight: 1.5, flexShrink: 0 }}>
         AI insights are for informational purposes only and should not be considered financial advice.
       </div>
-      <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
         <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && onSend()} placeholder="Ask about your finances..." style={{ flex: 1, padding: "13px 16px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 14, outline: "none", fontFamily: FONT }} />
         <button onClick={onSend} style={{ padding: "13px 18px", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center" }}>
           <Icon name="send" size={16} color="#fff" strokeWidth={2} />
         </button>
       </div>
-
-      {/* ── Insights section ───────────────────────────────── */}
-      {insightsProps && (
-        <div style={{ marginTop: 24 }}>
-          <button
-            onClick={() => setShowInsights(v => !v)}
-            style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 16px", cursor: "pointer", fontFamily: FONT }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Icon name="pie-chart" size={16} color={C.cyan} />
-              <span style={{ fontWeight: 600, fontSize: 14, color: C.text }}>Financial Insights</span>
-            </div>
-            <Icon name="chevron" size={14} color={C.faint} style={{ transform: showInsights ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
-          </button>
-          {showInsights && (
-            <div style={{ marginTop: 8 }}>
-              <Insights
-                {...insightsProps}
-                onNavigateChat={msg => { setShowInsights(false); setInput(msg); onSend(msg); }}
-              />
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -4712,25 +4753,17 @@ function BottomNav({ screen, setScreen, insightCount = 1 }) {
     { id: "transactions", label: "Txns",     icon: "credit"    },
     { id: "markets",      label: "Markets",  icon: "bar-chart" },
     { id: "savings",      label: "Savings",  icon: "target"    },
-    { id: "chat",         label: "AI",       icon: "message"   },
+    { id: "insights",     label: "Insights", icon: "activity"  },
   ];
   return (
     <div className="cap-bottom-nav" style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(11,20,38,0.97)", backdropFilter: "blur(24px)", borderTop: `1px solid ${C.sep}`, display: "flex", padding: "10px 0 20px", zIndex: 50 }}>
-      <style>{`@keyframes aiPulse{0%,100%{opacity:0.55;transform:scale(1)}50%{opacity:1;transform:scale(1.35)}}`}</style>
       {tabs.map(tab => {
         const active = screen === tab.id;
-        const isAI = tab.id === "chat";
-        const showBadge = isAI && insightCount > 0 && !active;
         return (
           <button key={tab.id} onClick={() => setScreen(tab.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "4px 0", position: "relative" }}>
-            <div style={{ position: "relative" }}>
-              <Icon name={tab.icon} size={22} color={active ? (isAI ? C.cyan : C.blue) : C.faint} strokeWidth={active ? 2.2 : 1.8} />
-              {showBadge && (
-                <div style={{ position: "absolute", top: -3, right: -4, width: 8, height: 8, borderRadius: "50%", background: C.cyan, border: `1.5px solid rgba(11,20,38,0.97)`, animation: "aiPulse 2s ease-in-out infinite" }} />
-              )}
-            </div>
-            <span style={{ fontSize: 10, color: active ? (isAI ? C.cyan : C.blue) : C.faint, fontWeight: active ? 700 : 400, fontFamily: FONT }}>{tab.label}</span>
-            {active && <div style={{ width: 4, height: 4, borderRadius: 99, background: isAI ? C.cyan : C.blue, boxShadow: `0 0 6px ${isAI ? C.cyan : C.blue}` }} />}
+            <Icon name={tab.icon} size={22} color={active ? C.blue : C.faint} strokeWidth={active ? 2.2 : 1.8} />
+            <span style={{ fontSize: 10, color: active ? C.blue : C.faint, fontWeight: active ? 700 : 400, fontFamily: FONT }}>{tab.label}</span>
+            {active && <div style={{ width: 4, height: 4, borderRadius: 99, background: C.blue, boxShadow: `0 0 6px ${C.blue}` }} />}
           </button>
         );
       })}
