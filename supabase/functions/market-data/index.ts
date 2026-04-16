@@ -17,12 +17,21 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Crypto tickers the app uses → Finnhub exchange:pair notation
+// Crypto tickers → Finnhub exchange:pair notation (for quotes/stats)
 const CRYPTO_MAP: Record<string, string> = {
-  BTC: 'BINANCE:BTCUSDT',
-  ETH: 'BINANCE:ETHUSD',
-  SOL: 'BINANCE:SOLUSDT',
-  DOGE:'BINANCE:DOGEUSDT',
+  BTC:  'BINANCE:BTCUSDT',
+  ETH:  'BINANCE:ETHUSDT',   // was ETHUSD — Binance pair is ETHUSDT
+  SOL:  'BINANCE:SOLUSDT',
+  DOGE: 'BINANCE:DOGEUSDT',
+};
+
+// Crypto tickers → Binance klines symbol (for charts — Finnhub free tier
+// doesn't provide OHLCV candles; Binance public API does, no key needed)
+const BINANCE_SYMBOL: Record<string, string> = {
+  BTC:  'BTCUSDT',
+  ETH:  'ETHUSDT',
+  SOL:  'SOLUSDT',
+  DOGE: 'DOGEUSDT',
 };
 
 // True if a watchlist symbol is crypto
@@ -32,6 +41,38 @@ function isCrypto(sym: string): boolean {
 
 function finnhubSym(sym: string): string {
   return CRYPTO_MAP[sym] ?? sym;
+}
+
+// Fetch crypto OHLCV from Binance public API (no key required)
+// Returns candles in the same shape the app uses: { t, o, h, l, c, v }
+async function cryptoCandles(
+  sym: string,
+  period: string,
+): Promise<{ t: number; o: number; h: number; l: number; c: number; v: number }[]> {
+  const binanceSym = BINANCE_SYMBOL[sym] ?? sym;
+
+  type PeriodConfig = { interval: string; limit: number };
+  const PERIODS: Record<string, PeriodConfig> = {
+    '1D': { interval: '5m',  limit: 288  }, // 24h  × 5-min candles
+    '1W': { interval: '1h',  limit: 168  }, // 7d   × hourly
+    '1M': { interval: '1d',  limit: 30   }, // 30 daily candles
+    '1Y': { interval: '1w',  limit: 52   }, // 52 weekly candles
+  };
+  const { interval, limit } = PERIODS[period] ?? PERIODS['1M'];
+
+  const url = `https://api.binance.com/api/v3/klines?symbol=${encodeURIComponent(binanceSym)}&interval=${interval}&limit=${limit}`;
+  const res  = await fetch(url);
+  if (!res.ok) return [];
+  const raw: any[][] = await res.json();
+  // Binance kline: [openTime_ms, open, high, low, close, volume, ...]
+  return raw.map(k => ({
+    t: Math.floor(Number(k[0]) / 1000),
+    o: Number(k[1]),
+    h: Number(k[2]),
+    l: Number(k[3]),
+    c: Number(k[4]),
+    v: Number(k[5]),
+  }));
 }
 
 Deno.serve(async (req) => {
@@ -112,21 +153,26 @@ Deno.serve(async (req) => {
 
     // ── CHART ─────────────────────────────────────────────────────────────────
     if (type === 'chart' && symbol && period) {
-      const now    = Math.floor(Date.now() / 1000);
       const crypto = isCrypto(symbol);
-      const fhSym  = finnhubSym(symbol);
 
-      // resolution + from timestamp per period
+      // Crypto charts → Binance public API (free, no key, reliable OHLCV)
+      if (crypto) {
+        const candles = await cryptoCandles(symbol, period);
+        return new Response(JSON.stringify({ candles }), {
+          headers: { ...CORS, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Stock charts → Finnhub (daily/weekly candles available on free tier)
+      const now  = Math.floor(Date.now() / 1000);
       const PERIODS: Record<string, { res: string; from: number }> = {
-        '1D': { res: '5',  from: now - 86_400 },
+        '1D': { res: '60', from: now - 86_400 },       // hourly (5m requires premium)
         '1W': { res: '60', from: now - 7  * 86_400 },
         '1M': { res: 'D',  from: now - 30 * 86_400 },
         '1Y': { res: 'W',  from: now - 365 * 86_400 },
       };
       const { res, from } = PERIODS[period] ?? PERIODS['1M'];
-      const endpoint = crypto
-        ? `/crypto/candle?symbol=${encodeURIComponent(fhSym)}&resolution=${res}&from=${from}&to=${now}`
-        : `/stock/candle?symbol=${encodeURIComponent(fhSym)}&resolution=${res}&from=${from}&to=${now}`;
+      const endpoint = `/stock/candle?symbol=${encodeURIComponent(symbol)}&resolution=${res}&from=${from}&to=${now}`;
 
       const raw = await fh(endpoint);
       if (!raw || raw.s !== 'ok' || !Array.isArray(raw.t)) {
