@@ -1659,7 +1659,7 @@ export default function App() {
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} onUpgrade={onUpgrade} />}
             {screen === "insights" && <Insights {...shared} onNavigateChat={msg => { setChatMessages(prev => [...prev, { role: "user", text: msg }]); setScreen("chat"); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
-            {screen === "chat" && <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={msg => sendChat(msg ?? chatInput)} />}
+            {screen === "chat" && <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={msg => sendChat(msg ?? chatInput)} insightsProps={{ ...shared, allInsights, onInsightAction, isPro, onUpgrade }} />}
             {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
           </>
         )}
@@ -3521,8 +3521,9 @@ const CHAT_SUGGESTIONS = [
   "What are my recurring charges?",
 ];
 
-function Chat({ messages, input, setInput, onSend }) {
+function Chat({ messages, input, setInput, onSend, insightsProps }) {
   const bottomRef = useRef(null);
+  const [showInsights, setShowInsights] = useState(false);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   const isWelcomeOnly = messages.length === 1 && messages[0].role === "assistant";
@@ -3533,7 +3534,7 @@ function Chat({ messages, input, setInput, onSend }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "72vh" }}>
+    <div style={{ display: "flex", flexDirection: "column", paddingBottom: 80 }}>
       <div style={{ marginBottom: 14 }}>
         <h2 style={{ margin: "0 0 2px", fontSize: 26, fontWeight: 700 }}>AI Assistant</h2>
         <div style={{ fontSize: 12, color: C.faint, display: "flex", alignItems: "center", gap: 5 }}>
@@ -3578,6 +3579,30 @@ function Chat({ messages, input, setInput, onSend }) {
           <Icon name="send" size={16} color="#fff" strokeWidth={2} />
         </button>
       </div>
+
+      {/* ── Insights section ───────────────────────────────── */}
+      {insightsProps && (
+        <div style={{ marginTop: 24 }}>
+          <button
+            onClick={() => setShowInsights(v => !v)}
+            style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 16px", cursor: "pointer", fontFamily: FONT }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Icon name="pie-chart" size={16} color={C.cyan} />
+              <span style={{ fontWeight: 600, fontSize: 14, color: C.text }}>Financial Insights</span>
+            </div>
+            <Icon name="chevron" size={14} color={C.faint} style={{ transform: showInsights ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+          </button>
+          {showInsights && (
+            <div style={{ marginTop: 8 }}>
+              <Insights
+                {...insightsProps}
+                onNavigateChat={msg => { setShowInsights(false); setInput(msg); onSend(msg); }}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
