@@ -21,3 +21,12 @@ verify_jwt = false
 
 [functions.plaid-sync-transactions]
 verify_jwt = false
+
+[functions.generate-monthly-report]
+verify_jwt = false
+
+[functions.market-data]
+verify_jwt = false
+
+[functions.stock-ai-analysis]
+verify_jwt = false

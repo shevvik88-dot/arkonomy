@@ -10,7 +10,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Arkonomy" />
-    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="./icon-192.png" />
     <meta name="description" content="AI Financial Autopilot — track spending, grow savings, invest smarter" />
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -79,12 +79,16 @@
         40% { transform: translateY(-8px); }
       }
       #splash.hidden { opacity: 0; pointer-events: none; }
+      /* Capacitor iOS: bottom nav safe area */
+      .cap-bottom-nav {
+        padding-bottom: env(safe-area-inset-bottom) !important;
+      }
     </style>
-    <script type="module" crossorigin src="/assets/index-e697b2fe.js"></script>
+    <script type="module" crossorigin src="./assets/index-24a2914d.js"></script>
   </head>
   <body>
     <div id="splash">
-      <img src="/icon-192.png" alt="Arkonomy" />
+      <img src="./icon-192.png" alt="Arkonomy" />
       <div id="splash-title">ARKONOMY</div>
       <div id="splash-sub">AI FINANCIAL AUTOPILOT</div>
       <div class="dots">
