@@ -30,3 +30,6 @@ verify_jwt = false
 
 [functions.stock-ai-analysis]
 verify_jwt = false
+
+[functions.alpaca-invest]
+verify_jwt = false

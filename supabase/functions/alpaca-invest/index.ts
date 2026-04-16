@@ -11,9 +11,16 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const ALPACA_API_KEY    = Deno.env.get('ALPACA_API_KEY')!;
-    const ALPACA_SECRET_KEY = Deno.env.get('ALPACA_SECRET_KEY')!;
+    const ALPACA_API_KEY    = Deno.env.get('ALPACA_API_KEY');
+    const ALPACA_SECRET_KEY = Deno.env.get('ALPACA_SECRET_KEY');
     const BASE_URL          = Deno.env.get('ALPACA_BASE_URL') || 'https://api.alpaca.markets';
+
+    if (!ALPACA_API_KEY || !ALPACA_SECRET_KEY) {
+      return new Response(JSON.stringify({ error: 'ALPACA_API_KEY / ALPACA_SECRET_KEY not configured. Run: supabase secrets set ALPACA_API_KEY=xxx ALPACA_SECRET_KEY=yyy' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,

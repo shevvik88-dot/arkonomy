@@ -3911,13 +3911,25 @@ function PriceChart({ candles = [], color, height = 130 }) {
       No chart data
     </div>
   );
-  const prices = candles.map((c) => c.c);
+
+  const prices = candles.map((c) => c.c).filter(p => typeof p === "number" && isFinite(p));
+  if (prices.length < 2) {
+    // Not enough points to draw a line — duplicate the single point to form a flat line
+    if (prices.length === 1) prices.push(prices[0]);
+    else return (
+      <div style={{ height, display: "flex", alignItems: "center", justifyContent: "center", color: C.faint, fontSize: 12 }}>
+        No chart data
+      </div>
+    );
+  }
+
   const min    = Math.min(...prices);
   const max    = Math.max(...prices);
   const range  = max - min || 1;
   const W = 320, PAD = 6;
   const isPositive = prices[prices.length - 1] >= prices[0];
   const lineColor  = color ?? (isPositive ? C.green : C.red);
+  const gradId = `cg_${lineColor.replace("#", "")}`;
 
   const pts = prices.map((p, i) => {
     const x = PAD + (i / (prices.length - 1)) * (W - PAD * 2);
@@ -3930,12 +3942,12 @@ function PriceChart({ candles = [], color, height = 130 }) {
   return (
     <svg viewBox={`0 0 ${W} ${height}`} style={{ width: "100%", height, display: "block" }} preserveAspectRatio="none">
       <defs>
-        <linearGradient id={`cg_${lineColor.replace("#","")}`} x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%"   stopColor={lineColor} stopOpacity="0.25" />
           <stop offset="100%" stopColor={lineColor} stopOpacity="0"    />
         </linearGradient>
       </defs>
-      <path d={fillPath} fill={`url(#cg_${lineColor.replace("#","")})`} />
+      <path d={fillPath} fill={`url(#${gradId})`} />
       <path d={linePath} fill="none" stroke={lineColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
@@ -3953,6 +3965,7 @@ function StockDetail({ symbol, onBack, user }) {
   const [aiError, setAiError] = useState(null);
   const [loadingStats, setLoadingStats]   = useState(true);
   const [loadingChart, setLoadingChart]   = useState(false);
+  const [chartError, setChartError]       = useState(null);
   const [buyAmt, setBuyAmt]   = useState("100");
   const [buying, setBuying]   = useState(false);
   const [buyResult, setBuyResult] = useState(null);
@@ -3969,9 +3982,23 @@ function StockDetail({ symbol, onBack, user }) {
 
   useEffect(() => {
     setLoadingChart(true);
+    setChartError(null);
     callMarketData({ type: "chart", symbol, period })
-      .then(d => { setCandles(d.candles ?? []); setLoadingChart(false); })
-      .catch(() => setLoadingChart(false));
+      .then(d => {
+        if (d?.error) {
+          console.error("[Chart] API error:", d.error);
+          setChartError(d.error);
+          setCandles([]);
+        } else {
+          setCandles(d?.candles ?? []);
+        }
+        setLoadingChart(false);
+      })
+      .catch(err => {
+        console.error("[Chart] fetch error:", err);
+        setChartError(String(err));
+        setLoadingChart(false);
+      });
   }, [symbol, period]);
 
   // Use a ref to guard against double-invocation (StrictMode / fast deps)
@@ -4031,11 +4058,23 @@ function StockDetail({ symbol, onBack, user }) {
       const { data: result, error } = await supabase.functions.invoke("alpaca-invest", {
         body: { amount: Number(buyAmt), symbol: alpacaSym(symbol) },
       });
-      if (error || result?.error) {
-        const msg = result?.error ?? error?.message ?? "Order failed";
+      if (error) {
+        // supabase.functions.invoke wraps non-2xx in FunctionsHttpError —
+        // the real error body is in error.context, not error.message
+        let msg = error.message ?? "Order failed";
+        try {
+          const body = typeof error.context?.json === "function"
+            ? await error.context.json()
+            : null;
+          if (body?.error)   msg = body.error;
+          if (body?.details) console.error("[Buy] Alpaca details:", body.details);
+        } catch {}
+        console.error("[Buy] invoke error:", msg);
         setBuyResult({ error: msg });
+      } else if (result?.error) {
+        setBuyResult({ error: result.error });
       } else {
-        setBuyResult({ success: true, message: result.message ?? `$${buyAmt} order placed` });
+        setBuyResult({ success: true, message: result?.message ?? `$${buyAmt} order placed` });
       }
     } catch (e) { setBuyResult({ error: String(e) }); }
     setBuying(false);
@@ -4135,21 +4174,32 @@ function StockDetail({ symbol, onBack, user }) {
           </div>
           {loadingChart ? (
             <div style={{ height: 130, display: "flex", alignItems: "center", justifyContent: "center", color: C.faint, fontSize: 12 }}>Loading chart...</div>
+          ) : chartError ? (
+            <div style={{ background: C.red + "12", border: `1px solid ${C.red}33`, borderRadius: 10, padding: "12px 14px", margin: "4px 0" }}>
+              <div style={{ fontSize: 13, color: C.red, fontWeight: 600, marginBottom: 4 }}>Chart unavailable</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
+                {chartError.includes("FINNHUB_API_KEY")
+                  ? "FINNHUB_API_KEY not configured. Run: supabase secrets set FINNHUB_API_KEY=your_key"
+                  : chartError}
+              </div>
+            </div>
           ) : (
             <>
-              <PriceChart candles={candles} color={meta.color} height={130} />
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
-                {candles.length > 0 && (
-                  <>
-                    <span style={{ fontSize: 11, color: C.faint }}>
-                      {new Date(candles[0].t * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                    </span>
-                    <span style={{ fontSize: 11, color: C.faint }}>
-                      {new Date(candles[candles.length - 1].t * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                    </span>
-                  </>
-                )}
-              </div>
+              <PriceChart candles={candles} color={meta.color} height={140} />
+              {candles.length > 0 ? (
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                  <span style={{ fontSize: 11, color: C.faint }}>
+                    {new Date(candles[0].t * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </span>
+                  <span style={{ fontSize: 11, color: C.faint }}>
+                    {new Date(candles[candles.length - 1].t * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </span>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: C.faint, textAlign: "center", marginTop: 8 }}>
+                  No data for {period} — {meta.isCrypto ? "try 1W or 1M" : "intraday (1D) requires Finnhub premium; try 1W, 1M or 1Y"}
+                </div>
+              )}
               <div style={{ fontSize: 10, color: C.faint, textAlign: "right", marginTop: 6 }}>Powered by Finnhub</div>
             </>
           )}
