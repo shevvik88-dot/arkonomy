@@ -4218,9 +4218,17 @@ function StockDetail({ symbol, onBack, user }) {
           if (body?.details) console.error("[Buy] Alpaca details:", body.details);
         } catch {}
         console.error("[Buy] invoke error:", msg);
-        setBuyResult({ error: msg });
+        if (msg.includes("Insufficient buying power")) {
+          setBuyResult({ noFunds: true });
+        } else {
+          setBuyResult({ error: msg });
+        }
       } else if (result?.error) {
-        setBuyResult({ error: result.error });
+        if (result.error.includes("Insufficient buying power")) {
+          setBuyResult({ noFunds: true });
+        } else {
+          setBuyResult({ error: result.error });
+        }
       } else {
         setBuyResult({ success: true, message: result?.message ?? `$${buyAmt} order placed` });
       }
@@ -4478,11 +4486,28 @@ function StockDetail({ symbol, onBack, user }) {
             </button>
 
             {buyResult && (
-              <div style={{ marginTop: 12, padding: "10px 14px", background: buyResult.success ? C.green + "12" : C.red + "12", border: `1px solid ${buyResult.success ? C.green : C.red}33`, borderRadius: 10 }}>
-                <div style={{ fontSize: 13, color: buyResult.success ? C.green : C.red, fontWeight: 600 }}>
-                  {buyResult.success ? "✓ " + buyResult.message : "✗ " + buyResult.error}
+              buyResult.noFunds ? (
+                <div style={{ marginTop: 12, padding: "14px 16px", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 12, textAlign: "center" }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>
+                    Your Alpaca account has no funds yet
+                  </div>
+                  <a
+                    href="https://app.alpaca.markets"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: "inline-block", marginTop: 10, marginBottom: 8, padding: "10px 22px", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, borderRadius: 10, color: "#000", fontWeight: 700, fontSize: 14, textDecoration: "none", fontFamily: FONT }}
+                  >
+                    Fund My Account
+                  </a>
+                  <div style={{ fontSize: 11, color: C.faint }}>Add funds to start investing</div>
                 </div>
-              </div>
+              ) : (
+                <div style={{ marginTop: 12, padding: "10px 14px", background: buyResult.success ? C.green + "12" : C.red + "12", border: `1px solid ${buyResult.success ? C.green : C.red}33`, borderRadius: 10 }}>
+                  <div style={{ fontSize: 13, color: buyResult.success ? C.green : C.red, fontWeight: 600 }}>
+                    {buyResult.success ? "✓ " + buyResult.message : "✗ " + buyResult.error}
+                  </div>
+                </div>
+              )
             )}
           </GlassCard>
 
