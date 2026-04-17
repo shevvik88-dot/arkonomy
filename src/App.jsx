@@ -10,7 +10,7 @@ import UpcomingChargesCard from "./components/UpcomingChargesCard";
 import { usePlan } from "./hooks/usePlan";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import { detectRecurringCharges } from "./recurringDetector";
-import { calculateHealthScore, generateHealthComment } from "./healthScore";
+import { calculateHealthScore, generateHealthComment, getScoreLabel } from "./healthScore";
 
 // ─── AI Brain: useInsights hook ───────────────────────────────
 function useInsights(screen, userId) {
@@ -617,7 +617,7 @@ function Icon({ name, size = 20, color = C.muted, strokeWidth = 1.8 }) {
 // ─── Health Score Bar (compact, inline, expandable) ─────────────────────────
 function HealthScoreBar({ score, color, comment, breakdown, hasData = true }) {
   const [open, setOpen] = useState(false);
-  const label = score <= 40 ? "Needs work" : score <= 70 ? "Fair" : "Good";
+  const label = getScoreLabel(score);
 
   if (!hasData) {
     return (
@@ -900,7 +900,7 @@ const sw = 22;
 function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpent = 0, budget = 3000, hasData = true, actualSavingsRate = null }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
 
-  const label = score >= 75 ? "Excellent" : score >= 60 ? "Good" : score >= 40 ? "Fair" : "Needs Work";
+  const label = getScoreLabel(score);
   const circumference = 2 * Math.PI * 28;
   const dash = (score / 100) * circumference;
 

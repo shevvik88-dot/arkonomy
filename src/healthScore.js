@@ -1,7 +1,7 @@
 // src/healthScore.js
 // Financial Health Score: 0–100
-// Savings rate:          max 30 pts
-// Budget adherence:      max 25 pts
+// Savings rate:          max 30 pts  (min  5 pts)
+// Budget adherence:      max 25 pts  (min  5 pts)
 // Recurring charges:     max 20 pts
 // Balance trend:         max 25 pts
 
@@ -22,30 +22,30 @@ export function calculateHealthScore({
   budget,
   subscriptionSpend,
 }) {
-  // ── 1. Savings rate (30 pts) ────────────────────────────────────────────────
+  // ── 1. Savings rate (30 pts, minimum 5) ────────────────────────────────────
   const saved       = Math.max(totalIncome - totalSpent, 0);
   const savingsRate = totalIncome > 0 ? saved / totalIncome : 0;
-  // Full 30 pts at ≥ 20% savings rate, linear below that
-  const savingsPoints = Math.min(Math.round((savingsRate / 0.20) * 30), 30);
+  // Full 30 pts at ≥ 20% savings rate, linear below that, floor at 5 pts
+  const savingsPoints = Math.max(5, Math.min(30, Math.round((savingsRate / 0.20) * 30)));
 
-  // ── 2. Budget adherence (25 pts) ────────────────────────────────────────────
+  // ── 2. Budget adherence (25 pts, minimum 5) ─────────────────────────────────
   let budgetPoints = 12; // neutral when no budget set
   if (budget > 0) {
     const ratio = totalSpent / budget;
     if (ratio <= 0.80) {
       budgetPoints = 25;
     } else if (ratio <= 1.00) {
-      // Interpolate: 80% → 25 pts, 100% → 0 pts
-      budgetPoints = Math.round(((1 - ratio) / 0.20) * 25);
+      // Interpolate: 80% → 25 pts, 100% → 12 pts
+      budgetPoints = Math.round(12 + ((1 - ratio) / 0.20) * 13);
     } else {
-      // Over budget — penalise proportionally
-      budgetPoints = Math.max(0, Math.round((1 - (ratio - 1) * 2) * 25));
+      // Over budget — penalise proportionally, floor at 5
+      // 100% over = ~8 pts, 200% over = 5 pts minimum
+      budgetPoints = Math.max(5, Math.round((1 - Math.min((ratio - 1) / 1.0, 1)) * 12));
     }
-    budgetPoints = Math.max(0, budgetPoints);
   }
 
   // ── 3. Recurring charges ratio (20 pts) ────────────────────────────────────
-  const recurringRatio  = totalIncome > 0 ? subscriptionSpend / totalIncome : 0;
+  const recurringRatio = totalIncome > 0 ? subscriptionSpend / totalIncome : 0;
   // < 10% of income → full 20 pts, ≥ 40% → 0 pts (linear between)
   const recurringPoints = Math.max(
     0,
@@ -67,7 +67,8 @@ export function calculateHealthScore({
     }
   }
 
-  const score = Math.min(100, Math.max(0,
+  // Minimum total score of 20 — nobody starts at rock bottom
+  const score = Math.min(100, Math.max(20,
     savingsPoints + budgetPoints + recurringPoints + trendPoints
   ));
 
@@ -98,9 +99,7 @@ export function generateHealthComment({ score, breakdown, spendingByCategory, pr
     }
   }
 
-  // Score dropped vs "expected" — proxy: trend points < 20 and topCat exists
-  const trendDrop  = breakdown.trend.thisBalance < breakdown.trend.lastBalance;
-  const scoreDelta = breakdown.trend.points - 25; // negative if balance shrank
+  const trendDrop = breakdown.trend.thisBalance < breakdown.trend.lastBalance;
 
   if (breakdown.trend.thisBalance < 0) {
     return "You're spending more than you earn — focus on reducing expenses first.";
@@ -120,11 +119,24 @@ export function generateHealthComment({ score, breakdown, spendingByCategory, pr
   if (breakdown.recurring.ratio > 0.25) {
     return "Recurring charges are above 25% of income — review subscriptions.";
   }
-  if (score >= 80) {
+  if (score >= 81) {
     return "Great financial discipline — savings and budget are on track.";
   }
-  if (score >= 60) {
+  if (score >= 61) {
     return "Solid score — small savings increases could push you into green.";
   }
-  return "Focus on reducing subscriptions and staying within your budget.";
+  if (score >= 31) {
+    return "Making progress — focus on saving a bit more each month.";
+  }
+  return "Just getting started — small consistent steps add up fast.";
+}
+
+/**
+ * Returns a label for the score range.
+ */
+export function getScoreLabel(score) {
+  if (score >= 81) return "Excellent";
+  if (score >= 61) return "Doing well";
+  if (score >= 31) return "Making progress";
+  return "Getting started";
 }
