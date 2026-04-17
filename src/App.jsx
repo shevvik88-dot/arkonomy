@@ -1030,40 +1030,129 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
 
 function WeeklySummary({ transactions }) {
   const now = new Date();
-  const daysFromMonday = (now.getDay() + 6) % 7; // Mon=0 … Sun=6
-  const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - daysFromMonday); startOfWeek.setHours(0, 0, 0, 0);
-  const startOfLastWeek = new Date(startOfWeek); startOfLastWeek.setDate(startOfWeek.getDate() - 7);
+  const todayIdx = (now.getDay() + 6) % 7; // Mon=0 … Sun=6
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - todayIdx);
+  startOfWeek.setHours(0, 0, 0, 0);
+  const startOfLastWeek = new Date(startOfWeek);
+  startOfLastWeek.setDate(startOfWeek.getDate() - 7);
 
-  const thisWeekTxs = transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer" && parseDate(t.date) >= startOfWeek);
-  const thisWeek = thisWeekTxs.reduce((s, t) => s + Number(t.amount), 0);
-  const lastWeek = transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer" && parseDate(t.date) >= startOfLastWeek && parseDate(t.date) < startOfWeek).reduce((s, t) => s + Number(t.amount), 0);
+  // Daily totals Mon–Sun
+  const dailyTotals = Array(7).fill(0);
+  const thisWeekTxs = transactions.filter(t =>
+    t.type === "expense" && t.category_name !== "Transfer" && parseDate(t.date) >= startOfWeek
+  );
+  thisWeekTxs.forEach(t => {
+    const d = parseDate(t.date);
+    const idx = Math.round((d - startOfWeek) / 86400000);
+    if (idx >= 0 && idx < 7) dailyTotals[idx] += Number(t.amount);
+  });
 
-  // Топ категория за неделю
-  const weekCatMap = {};
-  thisWeekTxs.forEach(t => { const k = t.category_name || "Other"; weekCatMap[k] = (weekCatMap[k] || 0) + Number(t.amount); });
-  const topWeekCat = Object.entries(weekCatMap).sort((a, b) => b[1] - a[1])[0];
-  const change = lastWeek > 0 ? ((thisWeek - lastWeek) / lastWeek) * 100 : 0;
-  const pos = change <= 0;
-
+  const thisWeek = dailyTotals.reduce((s, v) => s + v, 0);
   if (thisWeek === 0) return null;
+
+  const lastWeek = transactions
+    .filter(t => t.type === "expense" && t.category_name !== "Transfer" && parseDate(t.date) >= startOfLastWeek && parseDate(t.date) < startOfWeek)
+    .reduce((s, t) => s + Number(t.amount), 0);
+
+  const change = lastWeek > 0 ? ((thisWeek - lastWeek) / lastWeek) * 100 : null;
+  const pos = change !== null && change <= 0;
+
+  const maxDay = Math.max(...dailyTotals, 1);
+  const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+  const todayLabel = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][todayIdx];
+
+  // Top category
+  const catMap = {};
+  thisWeekTxs.forEach(t => { const k = t.category_name || "Other"; catMap[k] = (catMap[k] || 0) + Number(t.amount); });
+  const topCat = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
 
   return (
     <GlassCard style={{ background: `linear-gradient(135deg,${C.blue}10,${C.card})`, border: `1px solid ${C.blue}30` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <div style={{ width: 32, height: 32, borderRadius: 10, background: C.blue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Icon name="calendar" size={15} color={C.blue} />
         </div>
-        <span style={{ fontWeight: 600, fontSize: 14, color: C.blue }}>Weekly Summary</span>
-      </div>
-      <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 4 }}>${fmt(thisWeek)}</div>
-      <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
-        Spent this week{topWeekCat ? ` — mostly on ${topWeekCat[0]} ($${fmt(topWeekCat[1])})` : ""}.{" "}
-        {thisWeek > 0 && lastWeek > 0 && (
-          <span style={{ color: pos ? C.green : C.red, fontWeight: 600 }}>
-            {pos ? "↓" : "↑"}{Math.abs(change).toFixed(0)}% {pos ? "less" : "more"} than last week
+        <span style={{ fontWeight: 600, fontSize: 14, color: C.blue }}>This Week</span>
+        {change !== null && (
+          <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: pos ? C.green : C.red }}>
+            {pos ? "↓" : "↑"}{Math.abs(change).toFixed(0)}% vs last week
           </span>
         )}
       </div>
+
+      {/* Mon–Sun daily bars */}
+      <div style={{ display: "flex", gap: 5, alignItems: "flex-end", height: 52, marginBottom: 10 }}>
+        {dailyTotals.map((amt, i) => {
+          const isToday = i === todayIdx;
+          const isFuture = i > todayIdx;
+          const barH = isFuture ? 0 : Math.max(amt > 0 ? 5 : 0, Math.round((amt / maxDay) * 42));
+          return (
+            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "flex-end" }}>
+                <div style={{
+                  width: "100%", height: barH,
+                  background: isToday ? C.blue : C.blue + "55",
+                  borderRadius: 3,
+                  opacity: isFuture ? 0.12 : 1,
+                  transition: "height 0.4s",
+                }} />
+              </div>
+              <div style={{ fontSize: 10, color: isToday ? C.blue : C.faint, fontWeight: isToday ? 700 : 400 }}>
+                {DAY_LABELS[i]}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 3 }}>${fmt(thisWeek)}</div>
+      <div style={{ fontSize: 12, color: C.muted }}>
+        Mon–{todayLabel}{topCat ? ` · mostly ${topCat[0]}` : ""}
+      </div>
+    </GlassCard>
+  );
+}
+
+function RecurringSummary({ transactions }) {
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - 30 * 86400000);
+
+  // Group expenses by normalized merchant name; 2+ appearances = recurring
+  const map = {};
+  transactions
+    .filter(t => t.type === "expense" && t.category_name !== "Transfer" && parseDate(t.date) >= cutoff)
+    .forEach(t => {
+      const raw = (t.description || t.category_name || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40);
+      if (!raw || raw.length < 3) return;
+      if (!map[raw]) map[raw] = { name: t.description || t.category_name || raw, total: 0, count: 0 };
+      map[raw].total += Number(t.amount);
+      map[raw].count++;
+    });
+
+  const recurring = Object.values(map).filter(m => m.count >= 2).sort((a, b) => b.total - a.total);
+  if (recurring.length === 0) return null;
+
+  const total = recurring.reduce((s, m) => s + m.total, 0);
+
+  return (
+    <GlassCard style={{ background: `linear-gradient(135deg,${C.purple}0D,${C.card})`, border: `1px solid ${C.purple}30` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 10, background: C.purple + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon name="repeat" size={14} color={C.purple} />
+        </div>
+        <span style={{ fontWeight: 600, fontSize: 14, color: C.purple }}>Recurring Charges</span>
+        <span style={{ marginLeft: "auto", fontSize: 14, fontWeight: 800, color: C.purple }}>${fmt(total)}</span>
+      </div>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
+        {recurring.length} merchant{recurring.length > 1 ? "s" : ""} charged 2+ times in 30 days
+      </div>
+      {recurring.slice(0, 5).map((m, i) => (
+        <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderTop: `1px solid ${C.sep}` }}>
+          <span style={{ fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: 8 }}>{m.name}</span>
+          <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{m.count}× · <span style={{ color: C.purple, fontWeight: 600 }}>${fmt(m.total)}</span></span>
+        </div>
+      ))}
     </GlassCard>
   );
 }
@@ -2354,6 +2443,7 @@ function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCa
 
       <HealthScore score={insightScore} color={insightScoreColor} breakdown={insightScoreBreakdown} comment={insightScoreComment} totalSpent={totalSpent} budget={Number(profile?.monthly_budget) || 3000} hasData={totalIncome > 0 || totalSpent > 0} actualSavingsRate={savingsRate} />
       <WeeklySummary transactions={transactions || []} />
+      <RecurringSummary transactions={transactions || []} />
 
       {/* Локальные инсайты — только если Edge Function не вернул данные */}
       {(!allInsights || allInsights.length === 0) && insights.map(ins => {
