@@ -1,6 +1,7 @@
 // arkonomy v1
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { App as CapApp } from "@capacitor/app";
 import { usePlaidLink } from "react-plaid-link";
 import { usePlaidOAuth, PLAID_REDIRECT_URI } from "./hooks/usePlaidOAuth";
 import CheckInCard from "./components/CheckInCard";
@@ -1228,6 +1229,17 @@ export default function App() {
   }, []);
 
   useEffect(() => { if (user) { loadAll(); checkBankConnection(); } }, [user]);
+
+  // Android back button: navigate to dashboard instead of closing the app
+  useEffect(() => {
+    let handler;
+    CapApp.addListener("backButton", ({ canGoBack }) => {
+      if (showChat) { setShowChat(false); return; }
+      if (screen !== "dashboard") { setScreen("dashboard"); return; }
+      // On dashboard with no modals, allow the OS to minimize (do nothing — Android handles it)
+    }).then(h => { handler = h; });
+    return () => { handler?.remove(); };
+  }, [screen, showChat]);
 
   // Detect return from Stripe checkout
   useEffect(() => {
