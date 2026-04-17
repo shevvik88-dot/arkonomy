@@ -785,7 +785,7 @@ function StatBadge({ value, suffix = "vs last month" }) {
   );
 }
 
-function DonutChart({ data, size = 196, onCatClick }) {
+function DonutChart({ data, size = 196, onCatClick, hideAmounts = false }) {
   const cx = size / 2, cy = size / 2;
   const outerR = size / 2 - 8;
 const innerR = outerR - 22;
@@ -852,12 +852,12 @@ const sw = 22;
           {hovered ? (
             <>
               <div style={{ fontSize: 10, color: "#ffffff", fontWeight: 600, letterSpacing: 0.5, marginBottom: 2, textAlign: "center", padding: "0 4px" }}>{hovered}</div>
-              <div style={{ fontSize: 17, fontWeight: 800, color: CAT_COLORS[hovered] || C.cyan }}>${fmt((data[hovered] || 0), 0)}</div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: CAT_COLORS[hovered] || C.cyan }}>{hideAmounts ? "••••" : `$${fmt((data[hovered] || 0), 0)}`}</div>
               <div style={{ fontSize: 11, color: "#ffffff", fontWeight: 600 }}>{Math.round(((data[hovered] || 0) / total) * 100)}%</div>
             </>
           ) : (
             <>
-             <div style={{ fontSize: 20, fontWeight: 800, color: "#ffffff", letterSpacing: -0.5, marginBottom: 2 }}>${fmt(total, 0)}</div>
+             <div style={{ fontSize: 20, fontWeight: 800, color: "#ffffff", letterSpacing: -0.5, marginBottom: 2 }}>{hideAmounts ? "••••" : `$${fmt(total, 0)}`}</div>
            <div style={{ fontSize: 10, color: "#9AA4B2", letterSpacing: 0.5, fontWeight: 600 }}>Total spent</div>
             </>
           )}
@@ -872,7 +872,7 @@ const sw = 22;
             onMouseEnter={() => setHovered(s.cat)} onMouseLeave={() => setHovered(null)}>
             <div style={{ width: 10, height: 10, borderRadius: 99, background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}88` }} />
             <span style={{ fontSize: 13, color: i === 0 ? C.text : C.muted, fontWeight: i === 0 ? 600 : 400, flex: 1 }}>{s.cat}</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: i === 0 ? '#ffffff' : C.text }}>${fmt(s.val, 0)}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: i === 0 ? '#ffffff' : C.text }}>{hideAmounts ? "••••" : `$${fmt(s.val, 0)}`}</span>
             <span style={{ fontSize: 11, color: s.color, fontWeight: i === 0 ? 700 : 500, minWidth: 36, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>
             {onCatClick && <Icon name="chevron" size={12} color={C.faint} />}
           </div>
@@ -1983,6 +1983,7 @@ function MarketOverview({ onOpenMarket }) {
 // ─── Dashboard ────────────────────────────────────────────────
 function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket }) {
   const [balanceVisible, setBalanceVisible] = useState(true);
+  const m = (n, dec = 0) => balanceVisible ? `$${fmt(n, dec)}` : "••••";
   const budget = Number(profile?.monthly_budget) || 3000;
   const balance = totalIncome - totalSpent;
   const pct = budget > 0 ? (totalSpent / budget) * 100 : 0;
@@ -2085,7 +2086,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
         </div>
 
         <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? balColor : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${balColor}44` : "none" }}>
-          {balanceVisible ? `$${fmt(balance)}` : "••••••"}
+          {balanceVisible ? `$${fmt(balance)}` : "••••"}
         </div>
         <div style={{ fontSize: 9, color: balance <= 0 ? C.red : C.faint, marginBottom: 12, letterSpacing: 0.5 }}>{balance <= 0 ? "You're in deficit" : "Available balance"}</div>
         
@@ -2093,9 +2094,9 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
 
         <div style={{ display: "flex" }}>
           {[
-            { label: "Income", value: `$${fmt(totalIncome)}`, dot: C.green, change: incomeChange },
-            { label: "Expenses", value: `$${fmt(totalSpent)}`, dot: C.red, change: expenseChange, flip: true },
-            { label: "Saved", value: `$${fmt(Math.max(totalIncome - totalSpent, 0))}`, dot: C.cyan },
+            { label: "Income", value: m(totalIncome), dot: C.green, change: incomeChange },
+            { label: "Expenses", value: m(totalSpent), dot: C.red, change: expenseChange, flip: true },
+            { label: "Saved", value: m(Math.max(totalIncome - totalSpent, 0)), dot: C.cyan },
           ].map((item, i) => (
             <div key={item.label} style={{ flex: 1, paddingLeft: i > 0 ? 10 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : "none", marginLeft: i > 0 ? 10 : 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
@@ -2127,7 +2128,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
           </div>
         ) : (
           <div style={{ position: "relative" }}>
-            <DonutChart data={spendingByCategory} size={152} onCatClick={onCatClick} />
+            <DonutChart data={spendingByCategory} size={152} onCatClick={onCatClick} hideAmounts={!balanceVisible} />
             {!isPro && (
               <div
                 onClick={onUpgrade}
@@ -2161,7 +2162,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>Monthly Budget</div>
-                <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>Spent ${fmt(totalSpent)} of ${fmt(budget, 0)}</div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>Spent {m(totalSpent)} of {m(budget)}</div>
               </div>
               <span style={{ color: isOver ? C.red : pct > 70 ? C.yellow : C.cyan, fontSize: 15, fontWeight: 800, display: "flex", alignItems: "baseline", gap: 4 }}>
                 {`${Math.round(pct)}%`}{isOver && <span style={{ fontSize: 10, fontWeight: 600, color: C.red }}>Over</span>}
@@ -2172,10 +2173,10 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               {isOver
-                ? <span style={{ color: C.red, fontSize: 11, fontWeight: 600 }}>Over by ${fmt(overBy, 0)}</span>
-                : <span style={{ color: C.green, fontSize: 11, fontWeight: 600 }}>${fmt(remaining, 0)} remaining</span>
+                ? <span style={{ color: C.red, fontSize: 11, fontWeight: 600 }}>Over by {m(overBy)}</span>
+                : <span style={{ color: C.green, fontSize: 11, fontWeight: 600 }}>{m(remaining)} remaining</span>
               }
-              <span style={{ color: C.faint, fontSize: 11 }}>of ${fmt(budget, 0)}</span>
+              <span style={{ color: C.faint, fontSize: 11 }}>of {m(budget)}</span>
             </div>
           </GlassCard>
         );
@@ -2196,7 +2197,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
           ? <div style={{ color: C.muted, textAlign: "center", padding: "16px 0", fontSize: 13 }}>No transactions yet</div>
           : transactions.slice(0, 3).map((t, i, arr) => (
               <div key={t.id}>
-                <TxRow t={t} />
+                <TxRow t={t} hideAmount={!balanceVisible} />
                 {i < arr.length - 1 && <div style={{ height: 1, background: C.sep }} />}
               </div>
             ))
@@ -2857,7 +2858,7 @@ function BreakdownSheet({ title, subtitle, rows, actionLabel, actionColor, onAct
   );
 }
 
-function TxRow({ t, onDelete, onEdit, onLongPress }) {
+function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) {
   const rowRef   = useRef(null);
   const bgLRef   = useRef(null);
   const bgRRef   = useRef(null);
@@ -2974,7 +2975,7 @@ function TxRow({ t, onDelete, onEdit, onLongPress }) {
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0, paddingLeft: 8, gap: 2 }}>
           <span style={{ fontSize: 15, fontWeight: 600, color: isIncome ? "#12D18E" : "#FF5C7A", letterSpacing: -0.35, fontFamily: FONT }}>
-            {isIncome ? "+" : "−"}{fmtMoney(Number(t.amount))}
+            {hideAmount ? "••••" : `${isIncome ? "+" : "−"}${fmtMoney(Number(t.amount))}`}
           </span>
           {t._incomeTotal > 0 && !isIncome && Number(t.amount) > 0 && (
             (() => { const p = Math.round((Number(t.amount) / t._incomeTotal) * 100); return p >= 1 && p <= 500 ? <span style={{ fontSize: 9, color: "rgba(74,94,122,0.8)", fontWeight: 400, fontFamily: FONT, letterSpacing: 0.1 }}>{p}%</span> : null; })()
