@@ -1267,6 +1267,210 @@ function AuthScreen({ onAuth }) {
   );
 }
 
+// ─── Onboarding ───────────────────────────────────────────────
+function OnboardingFlow({ user, profile, linkToken, getLinkToken, onPlaidSuccess, onSaveProfile, onDone }) {
+  const [step, setStep] = useState(1);
+  const [budget, setBudget] = useState("3000");
+  const [savingBudget, setSavingBudget] = useState(false);
+  const TOTAL_STEPS = 4;
+
+  const name = profile?.full_name?.split(" ")[0] || user?.user_metadata?.full_name?.split(" ")[0] || "there";
+
+  const dots = (
+    <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 36 }}>
+      {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+        <div key={i} style={{
+          width: i + 1 === step ? 22 : 8, height: 8,
+          borderRadius: 99,
+          background: i + 1 <= step ? C.cyan : C.border,
+          transition: "all 0.3s",
+        }} />
+      ))}
+    </div>
+  );
+
+  const wrap = (children) => (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 20px", fontFamily: FONT }}>
+      <div style={{ width: "100%", maxWidth: 390 }}>
+        {dots}
+        {children}
+      </div>
+    </div>
+  );
+
+  // ── Step 1: Welcome ───────────────────────────────────────────
+  if (step === 1) return wrap(
+    <div style={{ textAlign: "center" }}>
+      <div style={{
+        width: 80, height: 80, borderRadius: 24, margin: "0 auto 24px",
+        background: `linear-gradient(135deg, ${C.cyan}33, ${C.blue}22)`,
+        border: `1px solid ${C.cyan}44`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <svg width={36} height={36} viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <div style={{ fontSize: 26, fontWeight: 800, color: C.text, marginBottom: 10, lineHeight: 1.2 }}>
+        Welcome to Arkonomy,<br />{name}!
+      </div>
+      <div style={{ fontSize: 15, color: C.muted, lineHeight: 1.65, marginBottom: 40, maxWidth: 300, margin: "0 auto 40px" }}>
+        Your AI financial autopilot. Connect your bank and get instant insights into your spending, savings, and financial health.
+      </div>
+      <button
+        onClick={() => setStep(2)}
+        style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.cyan}, ${C.blue})`, border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 24px ${C.cyan}44` }}
+      >
+        Get Started
+      </button>
+    </div>
+  );
+
+  // ── Step 2: Connect Bank ──────────────────────────────────────
+  if (step === 2) return wrap(
+    <div>
+      <div style={{ textAlign: "center", marginBottom: 32 }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: 22, margin: "0 auto 20px",
+          background: "rgba(26,86,219,0.15)", border: "1px solid rgba(26,86,219,0.3)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="#2F80FF" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="22" x2="21" y2="22"/>
+            <line x1="6" y1="18" x2="6" y2="11"/>
+            <line x1="10" y1="18" x2="10" y2="11"/>
+            <line x1="14" y1="18" x2="14" y2="11"/>
+            <line x1="18" y1="18" x2="18" y2="11"/>
+            <polygon points="12 2 20 7 4 7"/>
+          </svg>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 10 }}>Connect your bank</div>
+        <div style={{ fontSize: 14, color: C.muted, lineHeight: 1.65 }}>
+          Securely link your account via Plaid. Read-only access — Arkonomy can never move money.
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+        {["Instant transaction sync", "AI spending analysis", "Automatic recurring detection"].map(f => (
+          <div key={f} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: C.bgSecondary, borderRadius: 12, border: `1px solid ${C.border}` }}>
+            <div style={{ width: 20, height: 20, borderRadius: "50%", background: C.green + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <span style={{ fontSize: 13, color: C.text }}>{f}</span>
+          </div>
+        ))}
+      </div>
+
+      {linkToken ? (
+        <PlaidLinkButton
+          linkToken={linkToken}
+          onSuccess={async (tok, meta) => { await onPlaidSuccess(tok, meta); setStep(3); }}
+          onExit={() => {}}
+          autoOpen={false}
+        />
+      ) : (
+        <button
+          onClick={getLinkToken}
+          style={{ width: "100%", padding: 16, background: `linear-gradient(135deg,#1A56DB,#2F80FF)`, border: "none", borderRadius: 16, color: "#fff", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: "0 4px 20px rgba(26,86,219,0.4)" }}
+        >
+          Connect Your Bank
+        </button>
+      )}
+
+      <button
+        onClick={() => setStep(3)}
+        style={{ width: "100%", marginTop: 12, padding: "12px", background: "none", border: `1px solid ${C.border}`, borderRadius: 14, color: C.muted, fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}
+      >
+        Skip for now
+      </button>
+    </div>
+  );
+
+  // ── Step 3: Set Budget ────────────────────────────────────────
+  if (step === 3) return wrap(
+    <div>
+      <div style={{ textAlign: "center", marginBottom: 32 }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: 22, margin: "0 auto 20px",
+          background: C.green + "18", border: `1px solid ${C.green}33`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 10 }}>Set your monthly budget</div>
+        <div style={{ fontSize: 14, color: C.muted, lineHeight: 1.65 }}>
+          We'll track your spending against this and alert you when you're getting close.
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 8 }}>Monthly budget (USD)</div>
+        <div style={{ position: "relative" }}>
+          <span style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", fontSize: 18, fontWeight: 700, color: C.text }}>$</span>
+          <input
+            type="number"
+            value={budget}
+            onChange={e => setBudget(e.target.value)}
+            style={{ width: "100%", padding: "16px 16px 16px 34px", background: C.bgSecondary, border: `2px solid ${C.cyan}44`, borderRadius: 14, color: C.text, fontSize: 22, fontWeight: 700, outline: "none", fontFamily: FONT, boxSizing: "border-box" }}
+            placeholder="3000"
+          />
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          {["1500", "2500", "3000", "5000"].map(v => (
+            <button key={v} onClick={() => setBudget(v)}
+              style={{ flex: 1, padding: "7px 0", borderRadius: 10, border: `1px solid ${budget === v ? C.cyan + "66" : C.border}`, background: budget === v ? C.cyan + "18" : C.bgSecondary, color: budget === v ? C.cyan : C.muted, fontSize: 12, fontWeight: budget === v ? 700 : 400, cursor: "pointer", fontFamily: FONT }}>
+              ${v}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button
+        onClick={async () => {
+          setSavingBudget(true);
+          const val = Math.max(100, Number(budget) || 3000);
+          await onSaveProfile({ monthly_budget: val });
+          setSavingBudget(false);
+          setStep(4);
+        }}
+        disabled={savingBudget}
+        style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.green}, ${C.cyan})`, border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, opacity: savingBudget ? 0.7 : 1 }}
+      >
+        {savingBudget ? "Saving..." : "Looks good"}
+      </button>
+    </div>
+  );
+
+  // ── Step 4: Done ──────────────────────────────────────────────
+  return wrap(
+    <div style={{ textAlign: "center" }}>
+      <div style={{
+        width: 88, height: 88, borderRadius: 28, margin: "0 auto 28px",
+        background: `linear-gradient(135deg, ${C.green}33, ${C.cyan}22)`,
+        border: `1px solid ${C.green}44`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 40,
+      }}>
+        🎉
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 800, color: C.text, marginBottom: 12 }}>You're all set!</div>
+      <div style={{ fontSize: 15, color: C.muted, lineHeight: 1.65, marginBottom: 44 }}>
+        Your financial autopilot is ready. Head to your dashboard to see your insights.
+      </div>
+      <button
+        onClick={onDone}
+        style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.cyan}, ${C.blue})`, border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 24px ${C.cyan}44` }}
+      >
+        Go to Dashboard
+      </button>
+    </div>
+  );
+}
+
 // ─── Main App ─────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(null);
@@ -1308,6 +1512,9 @@ export default function App() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [proToast, setProToast] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [onboardingDone, setOnboardingDone] = useState(() => {
+    try { return !!localStorage.getItem("arkonomy_onboarding_done"); } catch { return false; }
+  });
   const [upcomingCharges, setUpcomingCharges] = useState([]);
   const [marketInitSymbol, setMarketInitSymbol] = useState(null);
 
@@ -1647,6 +1854,23 @@ export default function App() {
   );
 
   if (!user) return <AuthScreen onAuth={setUser} />;
+
+  // Show onboarding for new users: no transactions and not yet completed
+  const shouldOnboard = !loading && !onboardingDone && transactions.length === 0 && !bankConnected;
+  if (shouldOnboard) return (
+    <OnboardingFlow
+      user={user}
+      profile={profile}
+      linkToken={linkToken}
+      getLinkToken={getLinkToken}
+      onPlaidSuccess={onPlaidSuccess}
+      onSaveProfile={saveProfile}
+      onDone={() => {
+        try { localStorage.setItem("arkonomy_onboarding_done", "1"); } catch {}
+        setOnboardingDone(true);
+      }}
+    />
+  );
 
   const isShowingLastMonth = rawThisMonth.length === 0 && lastMonthTxs.length > 0;
   const { isPro } = usePlan(profile);
