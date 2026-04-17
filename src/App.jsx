@@ -178,7 +178,7 @@ function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
                       Recommended · safe amount
                     </span>
                   </>
-                : cleanCta}
+                : getSmartCta(insight)}
             </button>
           )}
           {isSavings && Number(rawBreakdown?.suggestedSave) > 0 && Number(rawBreakdown.suggestedSave) > SAFE_CAP && (
@@ -278,6 +278,20 @@ const INSIGHT_CONFIG = {
     ),
   },
 };
+
+function getSmartCta(insight) {
+  if (!insight) return "View Transactions";
+  const { type, data } = insight;
+  switch (type) {
+    case "category_spike":      return data?.categoryName ? `Review ${data.categoryName}` : "View Transactions";
+    case "overspending":        return "View Transactions";
+    case "cash_risk":           return "Review Recurring";
+    case "savings_opportunity": return "View Savings";
+    case "goal_off_track":      return "View Savings";
+    case "positive_progress":   return "Improve Score";
+    default:                    return "View Transactions";
+  }
+}
 
 function InsightCard({ insight, onAction }) {
   const [expanded, setExpanded] = useState(false);
@@ -430,7 +444,7 @@ function InsightCard({ insight, onAction }) {
                       Recommended · safe amount
                     </span>
                   </>
-                : cleanCta
+                : getSmartCta(insight)
               }
             </button>
           )}
@@ -1543,12 +1557,21 @@ export default function App() {
     setScreen("markets");
   }
 
-  function handleInsightAction(action, _data) {
-    if (action === "review_spending" || action === "reduce_category") setScreen("transactions");
-    if (action === "move_to_savings" || action === "catch_up_goal")   setScreen("savings");
-    if (action === "view_progress")                                    setScreen("insights");
-    if (action === "view_bills")                                       setScreen("transactions");
-    if (action === "invest_alpaca") { investAlpaca(_data); setScreen("savings"); }
+  function handleInsightAction(action, data) {
+    if (action === "reduce_category") {
+      if (data?.categoryName) setCatFilter(data.categoryName);
+      setScreen("transactions");
+    } else if (action === "review_spending" || action === "view_bills") {
+      setScreen("transactions");
+    } else if (action === "move_to_savings" || action === "catch_up_goal") {
+      setScreen("savings");
+    } else if (action === "view_progress") {
+      setScreen("insights");
+    } else if (action === "invest_alpaca") {
+      investAlpaca(data); setScreen("savings");
+    } else {
+      setScreen("transactions");
+    }
   }
 
   async function investAlpaca(data) {
