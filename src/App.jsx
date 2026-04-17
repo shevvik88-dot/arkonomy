@@ -513,13 +513,19 @@ const C = {
 };
 
 const CAT_COLORS = {
-  "Food & Dining": "#FF6B6B", "Transport": "#4ECDC4",
-  "Shopping": "#F59E0B", "Entertainment": "#A78BFA",
-  "Health": "#F472B6", "Bills": "#60A5FA",
-  "Subscriptions": "#F97316", "Other": "#94A3B8",
-  "Travel": "#34D399", "Housing": "#60A5FA",
-  "Personal Care": "#F472B6", "Transfer": "#94A3B8",
-  "Income": "#4ADE80",
+  "Housing":       "#60A5FA",
+  "Bills":         "#A78BFA",
+  "Subscriptions": "#A78BFA",
+  "Shopping":      "#FB923C",
+  "Food & Dining": "#F87171",
+  "Transport":     "#2DD4BF",
+  "Entertainment": "#F472B6",
+  "Health":        "#4ADE80",
+  "Personal Care": "#FBBF24",
+  "Travel":        "#818CF8",
+  "Other":         "#94A3B8",
+  "Transfer":      "#94A3B8",
+  "Income":        "#34D399",
 };
 
 function fmt(n, decimals = 2) {
@@ -2355,15 +2361,18 @@ function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCa
 // ─── Category Icon ────────────────────────────────────────────
 function CatIcon({ name, type, size = 18 }) {
   const map = {
-    "Food & Dining": { color: "#E8612C", icon: "food" },
-    "Transport":     { color: "#2563EB", icon: "car" },
-    "Shopping":      { color: "#B45309", icon: "shopping" },
-    "Entertainment": { color: "#7C3AED", icon: "film" },
-    "Health":        { color: "#F472B6", icon: "heart" },
-    "Bills":         { color: "#0891B2", icon: "file" },
-    "Subscriptions": { color: "#EA580C", icon: "repeat" },
-    "income":        { color: "#00A67E", icon: "dollar" },
-    "default":       { color: "#374151", icon: "credit" },
+    "Food & Dining": { color: "#F87171", icon: "food" },
+    "Transport":     { color: "#2DD4BF", icon: "car" },
+    "Shopping":      { color: "#FB923C", icon: "shopping" },
+    "Entertainment": { color: "#F472B6", icon: "film" },
+    "Health":        { color: "#4ADE80", icon: "heart" },
+    "Bills":         { color: "#A78BFA", icon: "file" },
+    "Subscriptions": { color: "#A78BFA", icon: "repeat" },
+    "Housing":       { color: "#60A5FA", icon: "home" },
+    "Personal Care": { color: "#FBBF24", icon: "heart" },
+    "Travel":        { color: "#818CF8", icon: "activity" },
+    "income":        { color: "#34D399", icon: "dollar" },
+    "default":       { color: "#94A3B8", icon: "credit" },
   };
   const key = type === "income" ? "income" : (map[name] ? name : "default");
   const { color, icon } = map[key];
