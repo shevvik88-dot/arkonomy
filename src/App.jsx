@@ -519,6 +519,21 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// Alpaca OAuth — redirect URI points to the Supabase edge function which
+// exchanges the code for tokens and then redirects back to https://app.arkonomy.com
+const ALPACA_CLIENT_ID    = import.meta.env.VITE_ALPACA_CLIENT_ID ?? "";
+const ALPACA_REDIRECT_URI = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/alpaca-oauth-callback`;
+function alpacaOAuthUrl(userJwt) {
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id:     ALPACA_CLIENT_ID,
+    redirect_uri:  ALPACA_REDIRECT_URI,
+    scope:         "account:write trading",
+    state:         userJwt, // echoed back so the callback can identify the user
+  });
+  return `https://app.alpaca.markets/oauth/authorize?${params}`;
+}
+
 const C = {
   bg: "#0B1426", bgSecondary: "#0F1A2E", bgTertiary: "#162035",
   card: "#111E33", border: "#1E2D4A", sep: "#192840",
@@ -1267,6 +1282,208 @@ function AuthScreen({ onAuth }) {
   );
 }
 
+// ─── Tutorial ─────────────────────────────────────────────────
+const TUTORIAL_STEPS = [
+  { selector: '[data-tutorial="net-balance"]',   screen: "dashboard", title: "Your financial snapshot",         description: "See income, expenses and balance at a glance" },
+  { selector: '[data-tutorial="health-score"]',  screen: "dashboard", title: "Your financial health score",     description: "Updated daily based on your spending habits" },
+  { selector: '[data-tutorial="ai-insight"]',    screen: "dashboard", title: "AI-powered insights",             description: "Tap to see personalized recommendations" },
+  { selector: '[data-tutorial="nav-transactions"]', screen: null,     title: "All your transactions",           description: "Automatically synced from your bank" },
+  { selector: '[data-tutorial="nav-markets"]',   screen: null,        title: "Invest directly",                 description: "Buy stocks and crypto with spare change" },
+  { selector: '[data-tutorial="nav-savings"]',   screen: null,        title: "Track your savings goals",        description: "Automate round-ups and build your wealth" },
+  { selector: '[data-tutorial="nav-insights"]',  screen: null,        title: "Deep spending analysis",          description: "See where your money really goes" },
+  { selector: '[data-tutorial="ai-chat"]',       screen: null,        title: "Ask anything about your finances", description: "Your personal AI advisor, always on hand" },
+];
+
+const MINI_TOURS = {
+  "connect-bank": [
+    { selector: '[data-tutorial="net-balance"]',  screen: "dashboard", title: "Your balance lives here",          description: "Once your bank is connected, your real balance, income and expenses update automatically" },
+    { selector: '[data-tutorial="settings-btn"]', screen: "dashboard", title: "Open Settings to connect",         description: "Tap the gear icon → 'Connect Bank' to securely link your account via Plaid (read-only)" },
+    { selector: '[data-tutorial="nav-transactions"]', screen: "dashboard", title: "Transactions sync automatically", description: "After linking, all past and future transactions appear here instantly" },
+  ],
+  "ai-insights": [
+    { selector: '[data-tutorial="ai-insight"]',   screen: "dashboard", title: "Your AI insight card",             description: "After connecting your bank, the AI analyzes your actual spending and generates personalized tips" },
+    { selector: '[data-tutorial="nav-insights"]', screen: "dashboard", title: "Full Insights tab",                description: "Deep health score, weekly summaries and spending breakdowns — all powered by AI" },
+  ],
+  "invest": [
+    { selector: '[data-tutorial="nav-markets"]',  screen: "dashboard", title: "Step 1: Browse Markets",           description: "Tap Markets to see live prices for stocks, ETFs and crypto — tap any ticker for charts and AI analysis" },
+    { selector: '[data-tutorial="nav-savings"]',  screen: "dashboard", title: "Step 2: Connect Alpaca",           description: "In Savings, connect your Alpaca account to enable automatic investing of your monthly round-ups" },
+    { selector: '[data-tutorial="ai-chat"]',      screen: "dashboard", title: "Step 3: Ask AI for picks",         description: "Ask your AI advisor which assets fit your goals and risk profile before investing" },
+  ],
+  "budget": [
+    { selector: '[data-tutorial="health-score"]', screen: "dashboard", title: "Budget drives your score",         description: "Your health score is calculated against your monthly budget — the tighter you stick to it, the higher it goes" },
+    { selector: '[data-tutorial="settings-btn"]', screen: "dashboard", title: "Change your budget anytime",       description: "Tap the gear icon, scroll to 'Monthly Budget', and update the amount — changes take effect immediately" },
+  ],
+};
+
+function TutorialOverlay({ stepIdx, totalSteps, steps, onNext, onSkip }) {
+  const config = steps[stepIdx];
+  const [rect, setRect] = useState(null);
+
+  useEffect(() => {
+    setRect(null);
+    let cancelled = false;
+    const tryFind = (attempt = 0) => {
+      if (cancelled) return;
+      const el = document.querySelector(config.selector);
+      if (el) {
+        el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        setTimeout(() => {
+          if (cancelled) return;
+          const r = el.getBoundingClientRect();
+          setRect({ top: r.top, left: r.left, width: r.width, height: r.height, bottom: r.bottom, right: r.right });
+        }, 150);
+      } else if (attempt < 20) {
+        setTimeout(() => tryFind(attempt + 1), 100);
+      }
+    };
+    setTimeout(() => tryFind(), 250);
+    return () => { cancelled = true; };
+  }, [config.selector]);
+
+  const vw = typeof window !== "undefined" ? window.innerWidth : 390;
+  const vh = typeof window !== "undefined" ? window.innerHeight : 844;
+
+  if (!rect) return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, pointerEvents: "all" }} onClick={onSkip} />
+  );
+
+  const PAD = 10;
+  const hL = Math.max(0, rect.left - PAD);
+  const hT = Math.max(0, rect.top - PAD);
+  const hR = Math.min(vw, rect.right + PAD);
+  const hB = Math.min(vh, rect.bottom + PAD);
+  const hW = hR - hL;
+  const hH = hB - hT;
+
+  const tooltipW = Math.min(290, vw - 32);
+  const tooltipH = 175;
+  const gap = 14;
+  const above = (vh - hB - gap) < (tooltipH + 20);
+  const tY = Math.max(8, above ? hT - gap - tooltipH : hB + gap);
+  const tX = Math.max(16, Math.min(hL + hW / 2 - tooltipW / 2, vw - tooltipW - 16));
+
+  const arrowX = Math.max(tX + 12, Math.min(hL + hW / 2 - 8, tX + tooltipW - 24));
+  const arrowY = above ? tY + tooltipH : tY - 10;
+  const bg = "rgba(0,0,0,0.82)";
+  const panelBase = { position: "fixed", background: bg, zIndex: 1000, pointerEvents: "all", cursor: "default" };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, pointerEvents: "none" }}>
+      {/* Dark panels surrounding the spotlight */}
+      <div style={{ ...panelBase, top: 0, left: 0, right: 0, height: hT }} onClick={onSkip} />
+      <div style={{ ...panelBase, top: hB, left: 0, right: 0, bottom: 0 }} onClick={onSkip} />
+      <div style={{ ...panelBase, top: hT, left: 0, width: hL, height: hH }} onClick={onSkip} />
+      <div style={{ ...panelBase, top: hT, left: hR, right: 0, height: hH }} onClick={onSkip} />
+
+      {/* Highlight ring */}
+      <div style={{
+        position: "fixed", top: hT, left: hL, width: hW, height: hH,
+        border: "2px solid #00C2FF", borderRadius: 14,
+        boxShadow: "0 0 0 4px rgba(0,194,255,0.12), 0 0 28px rgba(0,194,255,0.35)",
+        zIndex: 1001, pointerEvents: "none",
+      }} />
+
+      {/* Arrow */}
+      <div style={{
+        position: "fixed", left: arrowX, top: arrowY,
+        width: 0, height: 0, zIndex: 1002, pointerEvents: "none",
+        borderLeft: "8px solid transparent", borderRight: "8px solid transparent",
+        ...(above ? { borderTop: "10px solid #111E33" } : { borderBottom: "10px solid #111E33" }),
+      }} />
+
+      {/* Tooltip */}
+      <div style={{
+        position: "fixed", top: tY, left: tX, width: tooltipW,
+        background: "#111E33", border: "1px solid #1E2D4A",
+        borderRadius: 16, padding: "16px",
+        boxShadow: "0 8px 40px rgba(0,0,0,0.75)",
+        zIndex: 1002, pointerEvents: "all",
+        fontFamily: "'Inter',-apple-system,sans-serif",
+      }}>
+        <div style={{ fontSize: 10, color: "#4A5E7A", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>
+          STEP {stepIdx + 1} OF {totalSteps}
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", marginBottom: 6, lineHeight: 1.3 }}>
+          {config.title}
+        </div>
+        <div style={{ fontSize: 12, color: "#9AA4B2", lineHeight: 1.6, marginBottom: 14 }}>
+          {config.description}
+        </div>
+        <div style={{ display: "flex", gap: 3, marginBottom: 14 }}>
+          {Array.from({ length: totalSteps }).map((_, i) => (
+            <div key={i} style={{ height: 3, flex: 1, borderRadius: 99, background: i <= stepIdx ? "#00C2FF" : "#1E2D4A", transition: "background 0.3s" }} />
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onSkip} style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid #1E2D4A", background: "none", color: "#4A5E7A", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'Inter',-apple-system,sans-serif" }}>
+            Skip
+          </button>
+          <button onClick={onNext} style={{ padding: "7px 18px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#00C2FF,#2F80FF)", color: "#000", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "'Inter',-apple-system,sans-serif" }}>
+            {stepIdx === totalSteps - 1 ? "Done ✓" : "Next →"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HelpButton({ onRestart, onMiniTour }) {
+  const [open, setOpen] = useState(false);
+  const items = [
+    { label: "Restart tutorial",        action: () => onRestart() },
+    { label: "How to connect bank",     action: () => onMiniTour("connect-bank"), divider: true },
+    { label: "How AI insights work",    action: () => onMiniTour("ai-insights") },
+    { label: "How to invest",           action: () => onMiniTour("invest") },
+    { label: "How to set budget",       action: () => onMiniTour("budget") },
+  ];
+  return (
+    <>
+      {open && <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 148 }} />}
+      {open && (
+        <div style={{
+          position: "fixed", bottom: 114, left: "max(16px,calc((100vw - 430px)/2 + 16px))",
+          background: "#111E33", border: "1px solid #1E2D4A",
+          borderRadius: 14, padding: "6px 0", zIndex: 150,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.6)", minWidth: 228,
+          fontFamily: "'Inter',-apple-system,sans-serif",
+        }}>
+          {items.map((item, i) => (
+            <button key={i} onClick={() => { setOpen(false); item.action(); }} style={{
+              display: "block", width: "100%", textAlign: "left",
+              padding: "10px 16px", background: "none",
+              border: "none",
+              borderTop: item.divider ? "1px solid #1E2D4A" : "none",
+              color: i === 0 ? "#00C2FF" : "#9AA4B2",
+              fontSize: 13, fontWeight: i === 0 ? 700 : 400,
+              cursor: "pointer", fontFamily: "'Inter',-apple-system,sans-serif",
+            }}>
+              {i === 0 ? "▶  " : "→  "}{item.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          position: "fixed", bottom: 70,
+          left: "max(16px,calc((100vw - 430px)/2 + 16px))",
+          width: 36, height: 36, borderRadius: "50%",
+          background: open ? "#1E2D4A" : "#111E33",
+          border: "1px solid #1E2D4A",
+          color: open ? "#00C2FF" : "#9AA4B2",
+          fontSize: 15, fontWeight: 800,
+          cursor: "pointer", zIndex: 149,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          boxShadow: "0 2px 16px rgba(0,0,0,0.4)",
+          transition: "background 0.2s, color 0.2s",
+        }}
+      >
+        ?
+      </button>
+    </>
+  );
+}
+
 // ─── Onboarding ───────────────────────────────────────────────
 function OnboardingFlow({ user, profile, linkToken, getLinkToken, onPlaidSuccess, onSaveProfile, onDone }) {
   const [step, setStep] = useState(1);
@@ -1372,6 +1589,7 @@ function OnboardingFlow({ user, profile, linkToken, getLinkToken, onPlaidSuccess
         />
       ) : (
         <button
+          className="pulse-connect-bank"
           onClick={getLinkToken}
           style={{ width: "100%", padding: 16, background: `linear-gradient(135deg,#1A56DB,#2F80FF)`, border: "none", borderRadius: 16, color: "#fff", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: "0 4px 20px rgba(26,86,219,0.4)" }}
         >
@@ -1509,6 +1727,7 @@ export default function App() {
   const [bankCount, setBankCount] = useState(0);
   const [syncingBank, setSyncingBank] = useState(false);
   const [alpacaToast, setAlpacaToast] = useState(null);
+  const [alpacaConnected, setAlpacaConnected] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [proToast, setProToast] = useState(false);
   const [showChat, setShowChat] = useState(false);
@@ -1517,6 +1736,11 @@ export default function App() {
   });
   const [upcomingCharges, setUpcomingCharges] = useState([]);
   const [marketInitSymbol, setMarketInitSymbol] = useState(null);
+  const [tutorialActive, setTutorialActive] = useState(false);
+  const [tutorialStepIdx, setTutorialStepIdx] = useState(0);
+  const [activeTourSteps, setActiveTourSteps] = useState(TUTORIAL_STEPS);
+  const [chatBounced, setChatBounced] = useState(() => { try { return !!localStorage.getItem("arkonomy_chat_bounced"); } catch { return false; } });
+  const tutorialStartedRef = useRef(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setUser(session?.user ?? null); setLoading(false); });
@@ -1537,18 +1761,37 @@ export default function App() {
     return () => { handler?.remove(); };
   }, [screen, showChat]);
 
-  // Detect return from Stripe checkout
+  // Detect return from Stripe checkout or Alpaca OAuth
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+
     if (params.get("upgraded") === "true") {
       setProToast(true);
-      // Remove the query param without reloading
       window.history.replaceState({}, "", window.location.pathname);
-      // Reload profile after a short delay to pick up plan='pro' from webhook
-      setTimeout(() => {
-        if (user) loadAll();
-      }, 2000);
+      setTimeout(() => { if (user) loadAll(); }, 2000);
       setTimeout(() => setProToast(false), 6000);
+    }
+
+    if (params.get("alpaca_connected") === "true") {
+      window.history.replaceState({}, "", window.location.pathname);
+      // Refresh profile to pick up the new alpaca_access_token
+      setTimeout(() => { if (user) loadAll(); }, 500);
+      setAlpacaToast({ alpacaSuccess: true });
+      setTimeout(() => setAlpacaToast(null), 5000);
+    }
+
+    if (params.get("alpaca_error")) {
+      const errCode = params.get("alpaca_error");
+      window.history.replaceState({}, "", window.location.pathname);
+      const msgs = {
+        missing_code:        "Alpaca connection cancelled.",
+        token_exchange_failed: "Alpaca login failed — please try again.",
+        auth_failed:         "Could not verify your session. Please log in again.",
+        server_misconfigured: "Alpaca is not configured yet. Contact support.",
+        network_error:       "Network error connecting to Alpaca.",
+      };
+      setAlpacaToast({ error: msgs[errCode] ?? `Alpaca error: ${errCode}` });
+      setTimeout(() => setAlpacaToast(null), 6000);
     }
   }, []);
 
@@ -1560,6 +1803,22 @@ export default function App() {
     try { localStorage.setItem("arkonomy_autopilot", JSON.stringify(autopilot)); } catch {}
   }, [autopilot]);
 
+  // Auto-start tutorial once for users who haven't completed it
+  useEffect(() => {
+    if (!profile || loading) return;
+    if (profile.tutorial_completed) return;
+    if (tutorialActive || tutorialStartedRef.current) return;
+    const stillOnboarding = !onboardingDone && transactions.length === 0 && !bankConnected;
+    if (stillOnboarding) return;
+    tutorialStartedRef.current = true;
+    setTimeout(() => {
+      setActiveTourSteps(TUTORIAL_STEPS);
+      setTutorialStepIdx(0);
+      setScreen("dashboard");
+      setTutorialActive(true);
+    }, 900);
+  }, [profile, loading, onboardingDone, transactions.length, bankConnected]);
+
   async function loadAll() {
     setLoading(true);
     const [p, t, c, sv] = await Promise.all([
@@ -1568,7 +1827,10 @@ export default function App() {
       supabase.from("categories").select("*").eq("user_id", user.id),
       supabase.from("savings").select("*").eq("user_id", user.id),
     ]);
-    if (p.data) setProfile(p.data);
+    if (p.data) {
+      setProfile(p.data);
+      setAlpacaConnected(!!p.data.alpaca_access_token);
+    }
     if (t.data) {
       setTransactions(t.data);
       // Detect recurring charges from loaded transactions
@@ -1803,6 +2065,41 @@ export default function App() {
     setProfile(prev => ({ ...prev, ...updates }));
   }
 
+  function startTutorial() {
+    setActiveTourSteps(TUTORIAL_STEPS);
+    setTutorialStepIdx(0);
+    setScreen("dashboard");
+    setTutorialActive(true);
+  }
+
+  function startMiniTour(tourId) {
+    const steps = MINI_TOURS[tourId];
+    if (!steps) return;
+    setActiveTourSteps(steps);
+    setTutorialStepIdx(0);
+    if (steps[0].screen) setScreen(steps[0].screen);
+    setTutorialActive(true);
+  }
+
+  function advanceTutorial() {
+    const nextIdx = tutorialStepIdx + 1;
+    if (nextIdx >= activeTourSteps.length) {
+      finishTutorial();
+      return;
+    }
+    const nextStep = activeTourSteps[nextIdx];
+    if (nextStep.screen) setScreen(nextStep.screen);
+    setTutorialStepIdx(nextIdx);
+  }
+
+  function finishTutorial() {
+    setTutorialActive(false);
+    setTutorialStepIdx(0);
+    supabase.from("profiles").update({ tutorial_completed: true }).eq("id", user.id).then(() => {
+      setProfile(p => p ? { ...p, tutorial_completed: true } : p);
+    });
+  }
+
   const now = new Date();
   const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
@@ -1899,8 +2196,16 @@ export default function App() {
     }
   }
 
+  async function connectAlpaca() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const url = alpacaOAuthUrl(session.access_token);
+    window.open(url, "_blank", "noopener");
+  }
+
   async function investAlpaca(data) {
     if (profile?.plan !== 'pro') { setShowUpgradeModal(true); return; }
+    if (!alpacaConnected) { connectAlpaca(); return; }
     const amount = data?.roundUpMonthly;
     if (!amount || Number(amount) < 1) {
       setAlpacaToast({ error: "No round-up amount available" });
@@ -1924,7 +2229,11 @@ export default function App() {
             details = errBody?.details ? JSON.stringify(errBody.details) : details;
           } catch {}
         }
-        if (errMsg.includes('Insufficient buying power') || errMsg.includes('not configured') || errMsg.includes('ALPACA_API_KEY')) {
+        if (errMsg === 'alpaca_not_connected') {
+          setAlpacaToast(null);
+          connectAlpaca();
+          return;
+        } else if (errMsg.includes('Insufficient buying power') || errMsg.includes('not configured') || errMsg.includes('ALPACA_API_KEY')) {
           setAlpacaToast({ addFunds: true });
         } else {
           setAlpacaToast({ error: errMsg + (details ? ` | ${details}` : '') });
@@ -2002,7 +2311,7 @@ export default function App() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => setScreen("profile")} style={{ background: screen === "profile" ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${screen === "profile" ? C.cyan + "44" : C.border}`, borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <button data-tutorial="settings-btn" onClick={() => setScreen("profile")} style={{ background: screen === "profile" ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${screen === "profile" ? C.cyan + "44" : C.border}`, borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <Icon name="settings" size={16} color={screen === "profile" ? C.cyan : C.muted} />
           </button>
           <button onClick={signOut} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, padding: "7px 13px", color: C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: 500 }}>Sign Out</button>
@@ -2016,9 +2325,9 @@ export default function App() {
         ) : (
           <>
             {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} />}
-            {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} />}
+            {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
-            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} onUpgrade={onUpgrade} />}
+            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} />}
             {screen === "insights" && <Insights {...shared} onOpenChat={msg => { setShowChat(true); sendChat(msg); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
             {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
           </>
@@ -2070,6 +2379,10 @@ export default function App() {
                 }}
               >Add funds to Alpaca</a>
             </>
+          ) : alpacaToast.alpacaSuccess ? (
+            <>
+              <span>✅ Alpaca connected! You can now invest directly from Arkonomy.</span>
+            </>
           ) : alpacaToast.error ? `❌ ${alpacaToast.error}` : alpacaToast.loading ? `⏳ ${alpacaToast.message}` : `✅ ${alpacaToast.message}`}
         </div>
       )}
@@ -2077,6 +2390,9 @@ export default function App() {
       {/* ── Floating AI Chat Button ─────────────────────────── */}
       {!showChat && (
         <button
+          data-tutorial="ai-chat"
+          className={chatBounced ? "" : "chat-bounce"}
+          onAnimationEnd={() => { setChatBounced(true); try { localStorage.setItem("arkonomy_chat_bounced","1"); } catch {} }}
           onClick={() => setShowChat(true)}
           style={{
             position: "fixed",
@@ -2161,11 +2477,25 @@ export default function App() {
       )}
 
       <BottomNav screen={screen} setScreen={setScreen} />
+
+      {/* ── Tutorial Overlay ───────────────────────────────────── */}
+      {tutorialActive && (
+        <TutorialOverlay
+          stepIdx={tutorialStepIdx}
+          totalSteps={activeTourSteps.length}
+          steps={activeTourSteps}
+          onNext={advanceTutorial}
+          onSkip={finishTutorial}
+        />
+      )}
+
+      {/* ── Help Button ────────────────────────────────────────── */}
+      <HelpButton onRestart={startTutorial} onMiniTour={startMiniTour} />
     </div>
   );
 }
 
-// ─── Market Overview Card ─────────────────────────────────────
+// ─── Market Overview Card ─────────────────────────────��───────
 function MarketOverview({ onOpenMarket }) {
   const [markets, setMarkets] = useState([]);
   const [news, setNews] = useState([]);
@@ -2418,7 +2748,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
       )}
 
       {/* 1 ── Net Balance Card */}
-      <div style={{ background: "linear-gradient(145deg,#0D1F3C,#0B1426)", borderRadius: 20, padding: "16px 18px", border: `1px solid #1E2D4A`, position: "relative", overflow: "hidden", boxShadow: "0 4px 32px rgba(0,194,255,0.08)" }}>
+      <div data-tutorial="net-balance" style={{ background: "linear-gradient(145deg,#0D1F3C,#0B1426)", borderRadius: 20, padding: "16px 18px", border: `1px solid #1E2D4A`, position: "relative", overflow: "hidden", boxShadow: "0 4px 32px rgba(0,194,255,0.08)" }}>
         <div style={{ position: "absolute", top: -30, right: -30, width: 110, height: 110, borderRadius: "50%", background: C.cyan + "0B", pointerEvents: "none" }} />
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
@@ -2459,10 +2789,14 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
       </div>
 
       {/* 2 ── Financial Health Score */}
-      <HealthScoreBar score={healthScore} color={scoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} />
+      <div data-tutorial="health-score">
+        <HealthScoreBar score={healthScore} color={scoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} />
+      </div>
 
       {/* 2b ── AI Brain Insight */}
-      <InsightCard insight={insight?.type === 'savings_opportunity' && balance <= 0 ? null : insight} onAction={onInsightAction} />
+      <div data-tutorial="ai-insight">
+        <InsightCard insight={insight?.type === 'savings_opportunity' && balance <= 0 ? null : insight} onAction={onInsightAction} />
+      </div>
 
       {/* 3 ── Spending by Category */}
       <GlassCard style={{ padding: "14px 16px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}>
@@ -3708,7 +4042,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
   );
 }
 
-function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactions, insight, onInsightAction, onInvestAlpaca, isPro, onUpgrade }) {
+function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactions, insight, onInsightAction, onInvestAlpaca, isPro, onUpgrade, alpacaConnected, onConnectAlpaca }) {
   const [showAdd, setShowAdd]             = useState(false);
   const [newName, setNewName]             = useState("");
   const [newTarget, setNewTarget]         = useState("");
@@ -3845,15 +4179,17 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
         </div>
 
         {roundupMonth >= 1 && monthlySurplus > 0 && (
-          <button onClick={() => { if (!isPro) { onUpgrade(); return; } setShowAlpacaSheet(true); }}
-            style={{ width: "100%", padding: "12px 16px", marginBottom: 12, background: isPro ? `linear-gradient(135deg, #7B5EA7, #4B6CB7)` : "#1E2D45", border: isPro ? "none" : `1px solid #2D3F58`, borderRadius: 11, color: isPro ? "#fff" : "#7A8BA8", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT, letterSpacing: -0.2, boxShadow: isPro ? "0 4px 16px rgba(75,108,183,0.35)" : "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "transform 0.12s ease" }}
+          <button onClick={() => { if (!isPro) { onUpgrade(); return; } if (!alpacaConnected) { onConnectAlpaca?.(); return; } setShowAlpacaSheet(true); }}
+            style={{ width: "100%", padding: "12px 16px", marginBottom: 12, background: isPro && alpacaConnected ? `linear-gradient(135deg, #7B5EA7, #4B6CB7)` : "#1E2D45", border: isPro && alpacaConnected ? "none" : `1px solid #2D3F58`, borderRadius: 11, color: isPro && alpacaConnected ? "#fff" : "#7A8BA8", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT, letterSpacing: -0.2, boxShadow: isPro && alpacaConnected ? "0 4px 16px rgba(75,108,183,0.35)" : "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "transform 0.12s ease" }}
             onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; }}
             onPointerUp={e => { e.currentTarget.style.transform = "scale(1.02)"; setTimeout(() => { e.currentTarget.style.transform = ""; }, 120); }}
             onPointerLeave={e => { e.currentTarget.style.transform = ""; }}
           >
-            {isPro
-              ? <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Invest ${Math.floor(roundupMonth)} via Alpaca</>
-              : <><span>🔒</span> Invest via Alpaca — Pro only</>
+            {!isPro
+              ? <><span>🔒</span> Invest via Alpaca — Pro only</>
+              : !alpacaConnected
+              ? <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>Connect Alpaca to invest</>
+              : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Invest ${Math.floor(roundupMonth)} via Alpaca</>
             }
           </button>
         )}
@@ -4416,7 +4752,7 @@ function PriceChart({ candles = [], color, height = 130 }) {
 }
 
 // ─── Stock Detail Screen ───────────────────────────────────────
-function StockDetail({ symbol, onBack, user }) {
+function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca }) {
   const meta    = MARKET_META[symbol] ?? { label: symbol, color: C.cyan, icon: "activity", isCrypto: false };
   const [tab, setTab]         = useState("overview");
   const [period, setPeriod]   = useState("1M");
@@ -4763,6 +5099,29 @@ function StockDetail({ symbol, onBack, user }) {
       {/* ── BUY TAB ──────────────────────────────────────────── */}
       {tab === "buy" && (
         <>
+          {/* ── Alpaca not connected: show connect prompt ──────── */}
+          {!alpacaConnected ? (
+            <GlassCard style={{ marginBottom: 12, textAlign: "center", padding: "28px 20px" }}>
+              <div style={{ width: 52, height: 52, borderRadius: 16, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+                <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" />
+                </svg>
+              </div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 6 }}>Connect Your Alpaca Account</div>
+              <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 20 }}>
+                Link your free Alpaca brokerage account to buy stocks and ETFs directly from Arkonomy.
+              </div>
+              <button
+                onClick={onConnectAlpaca}
+                style={{ width: "100%", padding: "14px 0", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#000", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, marginBottom: 10 }}
+              >
+                Connect Alpaca Account
+              </button>
+              <div style={{ fontSize: 11, color: C.faint, lineHeight: 1.6 }}>
+                Free to open · No minimums · Powered by Alpaca Securities
+              </div>
+            </GlassCard>
+          ) : (
           <GlassCard style={{ marginBottom: 12 }}>
             <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16 }}>Buy {meta.label || symbol}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
@@ -4834,7 +5193,9 @@ function StockDetail({ symbol, onBack, user }) {
               )
             )}
           </GlassCard>
+          )}
 
+          {alpacaConnected && (
           <div style={{ padding: "0 2px" }}>
             <div style={{ fontSize: 10, color: C.faint, lineHeight: 1.7 }}>
               Investment accounts through Alpaca Securities LLC, a registered broker-dealer, member FINRA/SIPC.
@@ -4843,6 +5204,7 @@ function StockDetail({ symbol, onBack, user }) {
               You are making the final investment decision.
             </div>
           </div>
+          )}
         </>
       )}
     </div>
@@ -4850,7 +5212,7 @@ function StockDetail({ symbol, onBack, user }) {
 }
 
 // ─── Markets Screen ────────────────────────────────────────────
-function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit }) {
+function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit, alpacaConnected, onConnectAlpaca }) {
   const defaultWatchlist = profile?.watchlist ?? DEFAULT_WATCHLIST;
 
   const [watchlist, setWatchlist]       = useState(defaultWatchlist);
@@ -4969,7 +5331,7 @@ function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit }) {
   if (selectedSymbol) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <StockDetail symbol={selectedSymbol} onBack={() => setSelectedSymbol(null)} user={user} />
+        <StockDetail symbol={selectedSymbol} onBack={() => setSelectedSymbol(null)} user={user} alpacaConnected={alpacaConnected} onConnectAlpaca={onConnectAlpaca} />
       </div>
     );
   }
@@ -5154,7 +5516,7 @@ function BottomNav({ screen, setScreen, insightCount = 1 }) {
       {tabs.map(tab => {
         const active = screen === tab.id;
         return (
-          <button key={tab.id} onClick={() => setScreen(tab.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "4px 0", position: "relative" }}>
+          <button key={tab.id} data-tutorial={`nav-${tab.id}`} onClick={() => setScreen(tab.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "4px 0", position: "relative" }}>
             <Icon name={tab.icon} size={22} color={active ? C.blue : C.faint} strokeWidth={active ? 2.2 : 1.8} />
             <span style={{ fontSize: 10, color: active ? C.blue : C.faint, fontWeight: active ? 700 : 400, fontFamily: FONT }}>{tab.label}</span>
             {active && <div style={{ width: 4, height: 4, borderRadius: 99, background: C.blue, boxShadow: `0 0 6px ${C.blue}` }} />}

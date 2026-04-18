@@ -17,6 +17,9 @@ const config: CapacitorConfig = {
     App: {
       // Deep link scheme: arkonomy://
       // Plaid redirect URI (HTTPS, registered in Plaid Dashboard): https://app.arkonomy.com/
+      // Alpaca OAuth: redirect URI is the Supabase edge function URL
+      //   (https://[project].supabase.co/functions/v1/alpaca-oauth-callback)
+      //   which exchanges the code and redirects back to https://app.arkonomy.com?alpaca_connected=true
     },
     SplashScreen: {
       launchShowDuration: 2000,

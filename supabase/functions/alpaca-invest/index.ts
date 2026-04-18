@@ -1,3 +1,12 @@
+// alpaca-invest
+// Places a fractional market buy order using the calling user's
+// personal Alpaca OAuth access token (stored in profiles).
+//
+// Body: { amount: number, symbol: string }
+// Returns: { success, order_id, status, symbol, amount, message }
+//      or: { error: "alpaca_not_connected" }  — if user hasn't OAuth'd
+//      or: { error: "Insufficient buying power. Available: $X.XX" }
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
@@ -5,28 +14,20 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const BASE_URL = 'https://api.alpaca.markets';
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const ALPACA_API_KEY    = Deno.env.get('ALPACA_API_KEY');
-    const ALPACA_SECRET_KEY = Deno.env.get('ALPACA_SECRET_KEY');
-    const BASE_URL          = Deno.env.get('ALPACA_BASE_URL') || 'https://api.alpaca.markets';
-
-    if (!ALPACA_API_KEY || !ALPACA_SECRET_KEY) {
-      return new Response(JSON.stringify({ error: 'ALPACA_API_KEY / ALPACA_SECRET_KEY not configured. Run: supabase secrets set ALPACA_API_KEY=xxx ALPACA_SECRET_KEY=yyy' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
+    // ── Authenticate caller ──────────────────────────────────────
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -34,6 +35,7 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
@@ -43,8 +45,8 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Parse request ────────────────────────────────────────────
     const { amount, symbol = 'SPY' } = await req.json();
-
     if (!amount || Number(amount) < 1) {
       return new Response(JSON.stringify({ error: 'Minimum amount is $1' }), {
         status: 400,
@@ -52,16 +54,49 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Проверяем аккаунт Alpaca
+    // ── Load user's Alpaca access token from profiles ────────────
+    const { data: profile, error: profileErr } = await supabase
+      .from('profiles')
+      .select('alpaca_access_token, alpaca_refresh_token')
+      .eq('id', user.id)
+      .single();
+
+    if (profileErr || !profile?.alpaca_access_token) {
+      return new Response(JSON.stringify({ error: 'alpaca_not_connected' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const alpacaToken = profile.alpaca_access_token;
+
+    // ── Check account / buying power ─────────────────────────────
     const accountRes = await fetch(`${BASE_URL}/v2/account`, {
-      headers: {
-        'APCA-API-KEY-ID':     ALPACA_API_KEY,
-        'APCA-API-SECRET-KEY': ALPACA_SECRET_KEY,
-      },
+      headers: { Authorization: `Bearer ${alpacaToken}` },
     });
     const account = await accountRes.json();
 
     if (!accountRes.ok) {
+      // Token may have expired — return a "not connected" signal so the
+      // UI prompts the user to reconnect
+      if (accountRes.status === 401 || accountRes.status === 403) {
+        // Clear the stale token so the UI shows the connect prompt again
+        await supabase
+          .from('profiles')
+          .update({
+            alpaca_access_token:  null,
+            alpaca_refresh_token: null,
+            alpaca_account_id:    null,
+            alpaca_connected_at:  null,
+          })
+          .eq('id', user.id);
+
+        return new Response(JSON.stringify({ error: 'alpaca_not_connected' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       console.error('Alpaca account error:', JSON.stringify(account));
       return new Response(JSON.stringify({ error: 'Alpaca account error', details: account }), {
         status: 400,
@@ -79,13 +114,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Размещаем ордер (fractional, по сумме в долларах)
+    // ── Place fractional order ───────────────────────────────────
     const orderRes = await fetch(`${BASE_URL}/v2/orders`, {
       method: 'POST',
       headers: {
-        'APCA-API-KEY-ID':     ALPACA_API_KEY,
-        'APCA-API-SECRET-KEY': ALPACA_SECRET_KEY,
-        'Content-Type':        'application/json',
+        Authorization:   `Bearer ${alpacaToken}`,
+        'Content-Type':  'application/json',
       },
       body: JSON.stringify({
         symbol,
@@ -106,7 +140,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Записываем в Supabase
+    // ── Record in Supabase ───────────────────────────────────────
     await supabase.from('investments').insert({
       user_id:    user.id,
       symbol,

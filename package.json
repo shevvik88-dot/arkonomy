@@ -24,6 +24,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.0",
     "pdfkit": "^0.18.0",
+    "playwright": "^1.59.1",
     "sharp": "^0.34.5",
     "supabase": "^2.87.2",
     "typescript": "^6.0.2",
