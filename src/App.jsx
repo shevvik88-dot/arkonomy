@@ -1924,7 +1924,7 @@ export default function App() {
             details = errBody?.details ? JSON.stringify(errBody.details) : details;
           } catch {}
         }
-        if (errMsg.includes('Insufficient buying power')) {
+        if (errMsg.includes('Insufficient buying power') || errMsg.includes('not configured') || errMsg.includes('ALPACA_API_KEY')) {
           setAlpacaToast({ addFunds: true });
         } else {
           setAlpacaToast({ error: errMsg + (details ? ` | ${details}` : '') });
@@ -4532,14 +4532,14 @@ function StockDetail({ symbol, onBack, user }) {
           if (body?.details) console.error("[Buy] Alpaca details:", body.details);
         } catch {}
         console.error("[Buy] invoke error:", msg);
-        if (msg.includes("Insufficient buying power")) {
-          setBuyResult({ noFunds: true });
+        if (msg.includes("Insufficient buying power") || msg.includes("not configured") || msg.includes("ALPACA_API_KEY")) {
+          setBuyResult({ notConnected: true });
         } else {
           setBuyResult({ error: msg });
         }
       } else if (result?.error) {
-        if (result.error.includes("Insufficient buying power")) {
-          setBuyResult({ noFunds: true });
+        if (result.error.includes("Insufficient buying power") || result.error.includes("not configured")) {
+          setBuyResult({ notConnected: true });
         } else {
           setBuyResult({ error: result.error });
         }
@@ -4800,20 +4800,30 @@ function StockDetail({ symbol, onBack, user }) {
             </button>
 
             {buyResult && (
-              buyResult.noFunds ? (
-                <div style={{ marginTop: 12, padding: "14px 16px", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 12, textAlign: "center" }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 4 }}>
-                    Your Alpaca account has no funds yet
+              (buyResult.notConnected || buyResult.noFunds) ? (
+                <div style={{ marginTop: 14, padding: "18px 16px", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 14, textAlign: "center" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
+                    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" />
+                    </svg>
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 4 }}>
+                    Connect Alpaca to invest
+                  </div>
+                  <div style={{ fontSize: 13, color: C.muted, marginBottom: 14, lineHeight: 1.5 }}>
+                    Create a free Alpaca account to start investing
                   </div>
                   <a
                     href="https://app.alpaca.markets"
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ display: "inline-block", marginTop: 10, marginBottom: 8, padding: "10px 22px", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, borderRadius: 10, color: "#000", fontWeight: 700, fontSize: 14, textDecoration: "none", fontFamily: FONT }}
+                    style={{ display: "inline-block", padding: "11px 28px", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, borderRadius: 10, color: "#000", fontWeight: 700, fontSize: 14, textDecoration: "none", fontFamily: FONT }}
                   >
-                    Fund My Account
+                    Open Alpaca
                   </a>
-                  <div style={{ fontSize: 11, color: C.faint }}>Add funds to start investing</div>
+                  <div style={{ fontSize: 11, color: C.faint, marginTop: 10 }}>
+                    After creating your account, return here to invest
+                  </div>
                 </div>
               ) : (
                 <div style={{ marginTop: 12, padding: "10px 14px", background: buyResult.success ? C.green + "12" : C.red + "12", border: `1px solid ${buyResult.success ? C.green : C.red}33`, borderRadius: 10 }}>
