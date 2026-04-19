@@ -1195,27 +1195,39 @@ function RecurringSummary({ transactions }) {
 
   if (recurring.length === 0) return null;
 
-  const totalMonthly = recurring.reduce((s, m) => s + m.avgMonthly, 0);
+  // Split: subscriptions < $100/mo, regular payments >= $100/mo
+  const subscriptions   = recurring.filter(m => m.avgMonthly <  100);
+  const regularPayments = recurring.filter(m => m.avgMonthly >= 100);
+
+  const subTotal     = subscriptions.reduce((s, m)   => s + m.avgMonthly, 0);
+  const regularTotal = regularPayments.reduce((s, m) => s + m.avgMonthly, 0);
+
+  function Section({ title, items, color, total, icon }) {
+    if (items.length === 0) return null;
+    return (
+      <GlassCard style={{ background: `linear-gradient(135deg,${color}0D,${C.card})`, border: `1px solid ${color}30` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 10, background: color + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name={icon} size={14} color={color} />
+          </div>
+          <span style={{ fontWeight: 600, fontSize: 14, color }}>{title}</span>
+          <span style={{ marginLeft: "auto", fontSize: 14, fontWeight: 800, color }}>${fmt(total)}/mo</span>
+        </div>
+        {items.slice(0, 5).map((m, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderTop: `1px solid ${C.sep}` }}>
+            <span style={{ fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: 8 }}>{m.name}</span>
+            <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{m.months} mo · <span style={{ color, fontWeight: 600 }}>${fmt(m.avgMonthly)}/mo</span></span>
+          </div>
+        ))}
+      </GlassCard>
+    );
+  }
 
   return (
-    <GlassCard style={{ background: `linear-gradient(135deg,${C.purple}0D,${C.card})`, border: `1px solid ${C.purple}30` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <div style={{ width: 32, height: 32, borderRadius: 10, background: C.purple + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Icon name="repeat" size={14} color={C.purple} />
-        </div>
-        <span style={{ fontWeight: 600, fontSize: 14, color: C.purple }}>Recurring Charges</span>
-        <span style={{ marginLeft: "auto", fontSize: 14, fontWeight: 800, color: C.purple }}>${fmt(totalMonthly)}/mo</span>
-      </div>
-      <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
-        {recurring.length} merchant{recurring.length > 1 ? "s" : ""} seen across 2+ months
-      </div>
-      {recurring.slice(0, 5).map((m, i) => (
-        <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderTop: `1px solid ${C.sep}` }}>
-          <span style={{ fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: 8 }}>{m.name}</span>
-          <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{m.months} mo · <span style={{ color: C.purple, fontWeight: 600 }}>${fmt(m.avgMonthly)}/mo</span></span>
-        </div>
-      ))}
-    </GlassCard>
+    <>
+      <Section title="Subscriptions"    items={subscriptions}   color={C.purple} total={subTotal}     icon="repeat" />
+      <Section title="Regular Payments" items={regularPayments} color={C.blue}   total={regularTotal} icon="file"   />
+    </>
   );
 }
 
@@ -4240,6 +4252,24 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
 
       <div style={{ background: "linear-gradient(135deg,#0D2233,#0B1426)", borderRadius: 20, padding: 20, border: `1px solid ${C.cyan}30`, position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: -20, right: -20, width: 100, height: 100, borderRadius: "50%", background: C.cyan + "0A", pointerEvents: "none" }} />
+        {!alpacaConnected && (
+          <div style={{ textAlign: "center", padding: "8px 0 4px" }}>
+            <div style={{ width: 44, height: 44, borderRadius: 14, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
+              </svg>
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: C.text, marginBottom: 6 }}>Spare Change Investing</div>
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>
+              Connect Alpaca to enable spare change investing — automatically invest your round-ups.
+            </div>
+            <button onClick={() => { if (!isPro) { onUpgrade(); return; } onConnectAlpaca?.(); }}
+              style={{ width: "100%", padding: "12px 16px", background: isPro ? `linear-gradient(135deg,#7B5EA7,#4B6CB7)` : C.bgTertiary, border: isPro ? "none" : `1px solid ${C.border}`, borderRadius: 12, color: isPro ? "#fff" : C.faint, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: isPro ? "0 4px 16px rgba(75,108,183,0.35)" : "none" }}>
+              {isPro ? "Connect Alpaca" : <><span>🔒</span> Connect Alpaca — Pro only</>}
+            </button>
+          </div>
+        )}
+        {alpacaConnected && <>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -4331,6 +4361,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
             Once your spending is balanced, round-up savings will unlock automatically.
           </div>
         )}
+        </>}
       </div>
 
       {showAlpacaSheet && (
