@@ -591,6 +591,15 @@ function guessCategory(description, type = "expense") {
 // Parse a YYYY-MM-DD date string in LOCAL time (not UTC).
 // new Date("2026-04-11") is parsed as UTC midnight, which shifts to the
 // previous day for any UTC+ timezone. Appending T00:00:00 forces local time.
+function timeAgo(iso) {
+  if (!iso) return null;
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} hr ago`;
+  return `${Math.floor(s / 86400)} days ago`;
+}
+
 function parseDate(dateStr) {
   if (!dateStr) return new Date();
   return new Date(dateStr + "T00:00:00");
@@ -1774,6 +1783,11 @@ export default function App() {
   });
   const [upcomingCharges, setUpcomingCharges] = useState([]);
   const [marketInitSymbol, setMarketInitSymbol] = useState(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState(() => {
+    try { return localStorage.getItem("arkonomy_last_synced") || null; } catch { return null; }
+  });
+  const [backgroundSyncing, setBackgroundSyncing] = useState(false);
+  const bgSyncRef = useRef(null);
   const [tutorialActive, setTutorialActive] = useState(false);
   const [tutorialStepIdx, setTutorialStepIdx] = useState(0);
   const [activeTourSteps, setActiveTourSteps] = useState(TUTORIAL_STEPS);
@@ -1841,6 +1855,22 @@ export default function App() {
     try { localStorage.setItem("arkonomy_autopilot", JSON.stringify(autopilot)); } catch {}
   }, [autopilot]);
 
+  // Auto-sync on load: fires once when bank connection is confirmed
+  useEffect(() => {
+    if (bankConnected && !loading && user) {
+      // Small delay so loadAll() can finish painting the UI first
+      const t = setTimeout(() => bgSyncRef.current?.(), 1500);
+      return () => clearTimeout(t);
+    }
+  }, [bankConnected, loading]);
+
+  // Auto-sync every 4 hours
+  useEffect(() => {
+    if (!bankConnected || !user) return;
+    const id = setInterval(() => bgSyncRef.current?.(), 4 * 60 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [bankConnected, user]);
+
   // Auto-start tutorial once for users who haven't completed it
   useEffect(() => {
     if (!profile || loading) return;
@@ -1868,6 +1898,10 @@ export default function App() {
     if (p.data) {
       setProfile(p.data);
       setAlpacaConnected(!!p.data.alpaca_access_token);
+      if (p.data.last_synced_at) {
+        setLastSyncedAt(p.data.last_synced_at);
+        try { localStorage.setItem("arkonomy_last_synced", p.data.last_synced_at); } catch {}
+      }
     }
     if (t.data) {
       setTransactions(t.data);
@@ -1988,17 +2022,50 @@ export default function App() {
       // Always reload — even if synced=0 the user may have just connected
       // and needs to see existing transactions. Also covers the case where
       // the response is an error object (data.synced would be undefined).
+      const now = new Date().toISOString();
+      setLastSyncedAt(now);
+      try { localStorage.setItem("arkonomy_last_synced", now); } catch {}
+      supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
       await loadAll();
     } catch (err) {
       console.error("[Plaid] sync-transactions exception:", err);
-      // Still reload in case transactions were written before the error
       await loadAll();
     }
     setSyncingBank(false);
   }
-  // Keep ref current so onPlaidSuccess's stale closure always calls
-  // the version of syncBankTransactions that has the current loadAll.
   syncBankTransactionsRef.current = syncBankTransactions;
+
+  // Background (silent) sync — no blocking UI change, just a subtle indicator
+  async function bgSync() {
+    if (backgroundSyncing || syncingBank) return;
+    setBackgroundSyncing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/plaid-sync-transactions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+          "apikey": SUPABASE_KEY,
+        },
+      });
+      const data = await res.json();
+      if (!data.error) {
+        const now = new Date().toISOString();
+        setLastSyncedAt(now);
+        try { localStorage.setItem("arkonomy_last_synced", now); } catch {}
+        supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
+        // Only reload UI if new data came in
+        if ((data.synced ?? 0) > 0) await loadAll();
+      }
+    } catch (err) {
+      console.error("[bgSync] error:", err);
+    } finally {
+      setBackgroundSyncing(false);
+    }
+  }
+  bgSyncRef.current = bgSync;
 
   async function seedCategories() {
     const defaults = [
@@ -2350,7 +2417,13 @@ export default function App() {
               <span style={{ color: C.muted, fontSize: 12, fontWeight: 500 }}>{profile?.full_name || user.email?.split("@")[0]}</span>
               {isPro && <span style={{ fontSize: 9, fontWeight: 700, color: "#7C6BFF", background: "#7C6BFF18", border: "1px solid #7C6BFF44", borderRadius: 99, padding: "1px 6px", letterSpacing: 0.5 }}>PRO</span>}
             </div>
-            <div style={{ color: C.faint, fontSize: 10 }}>AI Financial Autopilot</div>
+            {backgroundSyncing
+              ? <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: C.green }}>
+                  <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.green, animation: "pulse 1.2s ease-in-out infinite" }} />
+                  Syncing…
+                </div>
+              : <div style={{ color: C.faint, fontSize: 10 }}>AI Financial Autopilot</div>
+            }
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -2372,7 +2445,7 @@ export default function App() {
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} />}
             {screen === "insights" && <Insights {...shared} onOpenChat={msg => { setShowChat(true); sendChat(msg); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
-            {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
+            {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} lastSyncedAt={lastSyncedAt} backgroundSyncing={backgroundSyncing} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
           </>
         )}
       </div>
@@ -4458,7 +4531,7 @@ function PlaidLinkButton({ linkToken, onSuccess, onExit, autoOpen = false }) {
 }
 
 // ─── Profile / Settings ───────────────────────────────────────
-function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected, bankName, bankCount, linkToken, getLinkToken, onPlaidSuccess, syncBankTransactions, syncingBank, isPro, onUpgrade, transactions = [] }) {
+function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected, bankName, bankCount, linkToken, getLinkToken, onPlaidSuccess, syncBankTransactions, syncingBank, lastSyncedAt, backgroundSyncing, isPro, onUpgrade, transactions = [] }) {
   const [budget, setBudget] = useState(profile?.monthly_budget || 3000);
   const [goal, setGoal] = useState(profile?.savings_goal || 10000);
   const [saved, setSaved] = useState(false);
@@ -4545,7 +4618,14 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected
               {bankConnected ? bankName || "Bank Connected" : "Connect Your Bank"}
             </div>
             <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
-              {bankConnected ? "✓ Transactions syncing automatically" : "Sync real transactions via Plaid"}
+              {bankConnected
+                ? backgroundSyncing
+                  ? "Syncing now…"
+                  : lastSyncedAt
+                    ? `Last synced: ${timeAgo(lastSyncedAt)}`
+                    : "✓ Auto-sync enabled"
+                : "Sync real transactions via Plaid"
+              }
             </div>
           </div>
           {bankConnected && (
