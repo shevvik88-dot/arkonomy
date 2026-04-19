@@ -562,6 +562,32 @@ function fmt(n, decimals = 2) {
   return Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
+// Keyword-based category guesser — used as fallback when no category is assigned
+function guessCategory(description, type = "expense") {
+  if (!description) return null;
+  const d = description.toLowerCase();
+  if (type === "income") {
+    if (/salary|payroll|direct.?deposit|wages|paycheck/.test(d)) return "Salary";
+    if (/freelance|consulting|contract|self.?employ/.test(d)) return "Freelance";
+    if (/refund|reimburs|cashback|cash.?back/.test(d)) return "Refund";
+    return null;
+  }
+  if (/rent|lease|mortgage|apartment|hoa|homeowner/.test(d)) return "Housing";
+  if (/grocery|groceries|supermarket|walmart|target|costco|trader.?joe|whole.?food|safeway|kroger|aldi|publix|h.e.b|wegman|food.?4.?less|sprouts/.test(d)) return "Food & Dining";
+  if (/restaurant|mcdonald|burger.?king|pizza|subway|starbucks|chipotle|taco.?bell|wendy|dunkin|chick.?fil|panera|doordash|ubereats|uber.?eats|grubhub|postmates|instacart|coffee|cafe|diner|bistro|sushi|grill|tavern/.test(d)) return "Food & Dining";
+  if (/uber|lyft|taxi|cab |parking|gas.?station|shell|chevron|exxon|bp |mobil|fuel|transit|metro|train|bus |amtrak|airline|delta|united|southwest|spirit|jetblue/.test(d)) return "Transportation";
+  if (/netflix|hulu|spotify|disney\+|amazon.?prime|apple.?tv|youtube.?premium|hbo|peacock|paramount\+|subscription/.test(d)) return "Subscriptions";
+  if (/doctor|physician|hospital|pharmacy|cvs|walgreens|rite.?aid|medical|dental|vision|health.?insur|urgent.?care|clinic/.test(d)) return "Healthcare";
+  if (/electric|electricity|water.?bill|sewer|gas.?bill|utility|at&t|verizon|t-mobile|sprint|comcast|xfinity|spectrum|internet|phone.?bill/.test(d)) return "Utilities";
+  if (/amazon|ebay|etsy|best.?buy|apple.?store|nike|zara|h&m|nordstrom|gap |old.?navy|macy|target\.com|walmart\.com/.test(d)) return "Shopping";
+  if (/gym|fitness|planet.?fitness|equinox|crossfit|yoga|peloton|24.?hour/.test(d)) return "Health & Fitness";
+  if (/movie|cinema|theater|concert|ticketmaster|stubhub|steam|playstation|xbox|spotify.?games|gaming/.test(d)) return "Entertainment";
+  if (/tuition|university|college|student.?loan|udemy|coursera|skillshare|school/.test(d)) return "Education";
+  if (/insurance|geico|state.?farm|progressive|allstate|travelers/.test(d)) return "Bills";
+  if (/transfer|zelle|venmo|paypal|cash.?app|wire|ach/.test(d)) return "Transfer";
+  return null;
+}
+
 // Parse a YYYY-MM-DD date string in LOCAL time (not UTC).
 // new Date("2026-04-11") is parsed as UTC midnight, which shifts to the
 // previous day for any UTC+ timezone. Appending T00:00:00 forces local time.
@@ -815,7 +841,7 @@ function StatBadge({ value, suffix = "vs last month" }) {
   );
 }
 
-function DonutChart({ data, size = 196, onCatClick, hideAmounts = false }) {
+function DonutChart({ data, size = 196, onCatClick, hideAmounts = false, lockList = false, onUpgrade }) {
   const cx = size / 2, cy = size / 2;
   const outerR = size / 2 - 8;
 const innerR = outerR - 22;
@@ -894,19 +920,28 @@ const sw = 22;
         </div>
       </div>
 
-      <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6 }}>
-        {slices.map((s, i) => (
-          <div key={s.cat}
-            onClick={() => onCatClick && onCatClick(s.cat)}
-            style={{ display: "flex", alignItems: "center", gap: 10, cursor: onCatClick ? "pointer" : "default", padding: "6px 10px", borderRadius: 10, background: hovered === s.cat ? s.color + "18" : C.bgTertiary, border: `1px solid ${hovered === s.cat ? s.color + "44" : "transparent"}`, transition: "all 0.15s" }}
-            onMouseEnter={() => setHovered(s.cat)} onMouseLeave={() => setHovered(null)}>
-            <div style={{ width: 10, height: 10, borderRadius: 99, background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}88` }} />
-            <span style={{ fontSize: 13, color: i === 0 ? C.text : C.muted, fontWeight: i === 0 ? 600 : 400, flex: 1 }}>{s.cat}</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: i === 0 ? '#ffffff' : C.text }}>{hideAmounts ? "••••" : `$${fmt(s.val, 0)}`}</span>
-            <span style={{ fontSize: 11, color: s.color, fontWeight: i === 0 ? 700 : 500, minWidth: 36, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>
-            {onCatClick && <Icon name="chevron" size={12} color={C.faint} />}
+      <div style={{ position: "relative", width: "100%" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, filter: lockList ? "blur(3px)" : "none", userSelect: lockList ? "none" : "auto", pointerEvents: lockList ? "none" : "auto" }}>
+          {slices.map((s, i) => (
+            <div key={s.cat}
+              onClick={() => onCatClick && onCatClick(s.cat)}
+              style={{ display: "flex", alignItems: "center", gap: 10, cursor: onCatClick ? "pointer" : "default", padding: "6px 10px", borderRadius: 10, background: hovered === s.cat ? s.color + "18" : C.bgTertiary, border: `1px solid ${hovered === s.cat ? s.color + "44" : "transparent"}`, transition: "all 0.15s" }}
+              onMouseEnter={() => setHovered(s.cat)} onMouseLeave={() => setHovered(null)}>
+              <div style={{ width: 10, height: 10, borderRadius: 99, background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}88` }} />
+              <span style={{ fontSize: 13, color: i === 0 ? C.text : C.muted, fontWeight: i === 0 ? 600 : 400, flex: 1 }}>{s.cat}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: i === 0 ? '#ffffff' : C.text }}>{hideAmounts ? "••••" : `$${fmt(s.val, 0)}`}</span>
+              <span style={{ fontSize: 11, color: s.color, fontWeight: i === 0 ? 700 : 500, minWidth: 36, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>
+              {onCatClick && <Icon name="chevron" size={12} color={C.faint} />}
+            </div>
+          ))}
+        </div>
+        {lockList && (
+          <div onClick={onUpgrade} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, background: C.card, padding: "5px 14px", borderRadius: 20, border: `1px solid ${C.border}` }}>
+              Unlock full breakdown →
+            </span>
           </div>
-        ))}
+        )}
       </div>
     </div>
   );
@@ -1030,7 +1065,7 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
           return [
             { label: "Savings Rate", value: savingsDisplay, display: isDeepDeficit ? "In deficit" : null, color: savingsColor },
             { label: "Budget Used", value: budgetUsedPct, color: budgetUsedPct > 100 ? C.red : budgetUsedPct > 70 ? C.yellow : C.cyan },
-            { label: "Recurring", value: Math.round((rawBreakdown.recurring.points / 20) * 100), color: C.purple },
+            { label: "Recurring", value: Math.min(99, Math.round(rawBreakdown.recurring.ratio * 100)), color: rawBreakdown.recurring.ratio > 0.25 ? C.red : rawBreakdown.recurring.ratio > 0.1 ? C.yellow : C.purple },
           ];
         })().map(item => (
           <div key={item.label} style={{ flex: 1, background: C.bgTertiary, borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
@@ -1130,25 +1165,28 @@ function WeeklySummary({ transactions }) {
 }
 
 function RecurringSummary({ transactions }) {
-  const now = new Date();
-  const cutoff = new Date(now.getTime() - 30 * 86400000);
-
-  // Group expenses by normalized merchant name; 2+ appearances = recurring
+  // Count each merchant per calendar month — only flag if it appears in 2+ different months
   const map = {};
   transactions
-    .filter(t => t.type === "expense" && t.category_name !== "Transfer" && parseDate(t.date) >= cutoff)
+    .filter(t => t.type === "expense" && t.category_name !== "Transfer")
     .forEach(t => {
       const raw = (t.description || t.category_name || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40);
       if (!raw || raw.length < 3) return;
-      if (!map[raw]) map[raw] = { name: t.description || t.category_name || raw, total: 0, count: 0 };
+      const d = parseDate(t.date);
+      const monthKey = `${d.getFullYear()}-${d.getMonth()}`;
+      if (!map[raw]) map[raw] = { name: t.description || t.category_name || raw, months: new Set(), total: 0 };
+      map[raw].months.add(monthKey);
       map[raw].total += Number(t.amount);
-      map[raw].count++;
     });
 
-  const recurring = Object.values(map).filter(m => m.count >= 2).sort((a, b) => b.total - a.total);
+  const recurring = Object.values(map)
+    .filter(m => m.months.size >= 2)
+    .map(m => ({ name: m.name, months: m.months.size, avgMonthly: m.total / m.months.size }))
+    .sort((a, b) => b.avgMonthly - a.avgMonthly);
+
   if (recurring.length === 0) return null;
 
-  const total = recurring.reduce((s, m) => s + m.total, 0);
+  const totalMonthly = recurring.reduce((s, m) => s + m.avgMonthly, 0);
 
   return (
     <GlassCard style={{ background: `linear-gradient(135deg,${C.purple}0D,${C.card})`, border: `1px solid ${C.purple}30` }}>
@@ -1157,15 +1195,15 @@ function RecurringSummary({ transactions }) {
           <Icon name="repeat" size={14} color={C.purple} />
         </div>
         <span style={{ fontWeight: 600, fontSize: 14, color: C.purple }}>Recurring Charges</span>
-        <span style={{ marginLeft: "auto", fontSize: 14, fontWeight: 800, color: C.purple }}>${fmt(total)}</span>
+        <span style={{ marginLeft: "auto", fontSize: 14, fontWeight: 800, color: C.purple }}>${fmt(totalMonthly)}/mo</span>
       </div>
       <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
-        {recurring.length} merchant{recurring.length > 1 ? "s" : ""} charged 2+ times in 30 days
+        {recurring.length} merchant{recurring.length > 1 ? "s" : ""} seen across 2+ months
       </div>
       {recurring.slice(0, 5).map((m, i) => (
         <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderTop: `1px solid ${C.sep}` }}>
           <span style={{ fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: 8 }}>{m.name}</span>
-          <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{m.count}× · <span style={{ color: C.purple, fontWeight: 600 }}>${fmt(m.total)}</span></span>
+          <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{m.months} mo · <span style={{ color: C.purple, fontWeight: 600 }}>${fmt(m.avgMonthly)}/mo</span></span>
         </div>
       ))}
     </GlassCard>
@@ -1981,6 +2019,11 @@ export default function App() {
   }
 
   async function addTransaction(tx) {
+    // Auto-assign category from description keywords if none provided
+    if (!tx.category_name) {
+      const guessed = guessCategory(tx.description, tx.type);
+      if (guessed) { tx = { ...tx, category_name: guessed }; }
+    }
     const { data } = await supabase.from("transactions").insert({ user_id: user.id, ...tx }).select().single();
     if (data) {
       // Update state first (pure — no side effects inside the updater)
@@ -2802,33 +2845,17 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
       <GlassCard style={{ padding: "14px 16px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <span style={{ fontWeight: 600, fontSize: 14 }}>Spending by Category</span>
-          <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: 99 }}>Tap to filter</span>
+          {isPro
+            ? <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: 99 }}>Tap to filter</span>
+            : <span style={{ fontSize: 10, color: C.cyan + "AA", background: C.cyan + "10", padding: "3px 8px", borderRadius: 99, cursor: "pointer" }} onClick={onUpgrade}>Pro</span>
+          }
         </div>
         {Object.keys(spendingByCategory).length === 0 ? (
           <div style={{ textAlign: "center", padding: "24px 0", color: C.faint, fontSize: 13 }}>
             No spending data yet. Connect your bank to get started.
           </div>
         ) : (
-          <div style={{ position: "relative" }}>
-            <DonutChart data={spendingByCategory} size={152} onCatClick={onCatClick} hideAmounts={!balanceVisible} />
-            {!isPro && (
-              <div
-                onClick={onUpgrade}
-                style={{
-                  position: "absolute", inset: 0,
-                  backdropFilter: "blur(6px)",
-                  background: "rgba(11,20,38,0.55)",
-                  borderRadius: 12,
-                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                  cursor: "pointer", gap: 6,
-                }}
-              >
-                <span style={{ fontSize: 22 }}>🔒</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#E8EDF5" }}>Pro feature</span>
-                <span style={{ fontSize: 11, color: "#7A8BA8" }}>Upgrade to see full chart</span>
-              </div>
-            )}
-          </div>
+          <DonutChart data={spendingByCategory} size={152} onCatClick={isPro ? onCatClick : null} hideAmounts={!balanceVisible} lockList={!isPro} onUpgrade={onUpgrade} />
         )}
       </GlassCard>
 
@@ -3648,7 +3675,7 @@ function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) {
         <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
           <div style={{ fontSize: 14, fontWeight: 500, color: C.text, letterSpacing: -0.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{displayName}</div>
           <div style={{ fontSize: 11, color: C.faint, marginTop: 2, display: "flex", alignItems: "center", gap: 4, overflow: "hidden", fontFamily: FONT }}>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1 }}>{t.category_name || "Uncategorized"} · {fmtDate(t.date)}</span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1 }}>{t.category_name || guessCategory(t.description, t.type) || "Other"} · {fmtDate(t.date)}</span>
             {signal && (
               <span style={{ fontSize: 10, fontWeight: 700, color: SIGNAL_STYLE[signal].color, background: SIGNAL_STYLE[signal].bg, padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>
                 {SIGNAL_STYLE[signal].label}
@@ -4227,7 +4254,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
             </div>
           </>
         ) : (
-          <div style={{ padding: "10px 14px", background: C.red + "12", border: `1px solid ${C.red}30`, borderRadius: 12, fontSize: 12, color: C.red, lineHeight: 1.5 }}>
+          <div style={{ padding: "10px 14px", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 12, fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
             Once your spending is balanced, round-up savings will unlock automatically.
           </div>
         )}
