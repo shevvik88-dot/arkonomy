@@ -5011,9 +5011,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca })
             <div style={{ background: C.red + "12", border: `1px solid ${C.red}33`, borderRadius: 10, padding: "12px 14px", margin: "4px 0" }}>
               <div style={{ fontSize: 13, color: C.red, fontWeight: 600, marginBottom: 4 }}>Chart unavailable</div>
               <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
-                {chartError.includes("FINNHUB_API_KEY")
-                  ? "FINNHUB_API_KEY not configured. Run: supabase secrets set FINNHUB_API_KEY=your_key"
-                  : chartError}
+                {chartError}
               </div>
             </div>
           ) : (
