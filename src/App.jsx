@@ -4704,6 +4704,20 @@ const MARKET_META = {
   DOGE: { label: "Dogecoin", color: "#C2A633", icon: "zap",       isCrypto: true  },
 };
 
+const TRENDING = [
+  { symbol: "AAPL", name: "Apple Inc.",   color: "#9AA4B2" },
+  { symbol: "TSLA", name: "Tesla, Inc.",  color: "#E05C5C" },
+  { symbol: "NVDA", name: "NVIDIA Corp.", color: "#76B900" },
+];
+
+const SECTORS = [
+  { name: "Tech",       etf: "XLK", color: "#2F80FF", stocks: ["AAPL", "MSFT", "NVDA"]  },
+  { name: "Finance",    etf: "XLF", color: "#A78BFA", stocks: ["JPM",  "BAC",  "GS"]    },
+  { name: "Energy",     etf: "XLE", color: "#F59E0B", stocks: ["XOM",  "CVX",  "COP"]   },
+  { name: "Healthcare", etf: "XLV", color: "#34D399", stocks: ["UNH",  "JNJ",  "ABBV"]  },
+  { name: "Consumer",   etf: "XLY", color: "#FF6B9D", stocks: ["AMZN", "HD",   "MCD"]   },
+];
+
 // Alpaca uses BTCUSD / ETHUSD for crypto orders
 const ALPACA_SYMBOL_MAP = { BTC: "BTCUSD", ETH: "ETHUSD", SOL: "SOLUSD", DOGE: "DOGEUSD" };
 function alpacaSym(s) { return ALPACA_SYMBOL_MAP[s] ?? s; }
@@ -5254,11 +5268,42 @@ function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit, alp
   const [dragging, setDragging]         = useState(null);
   const [dragList, setDragList]         = useState(watchlist);
   const dragRef = useRef(watchlist);
+  const [extraQuotes, setExtraQuotes]   = useState({});
+  const [loadingExtra, setLoadingExtra] = useState(true);
+  const [activeSector, setActiveSector] = useState(null);
+  const [loadingSectorStocks, setLoadingSectorStocks] = useState(false);
 
   // When parent passes an initialSymbol (e.g. from dashboard card tap), open it
   useEffect(() => {
     if (initialSymbol) { setSelectedSymbol(initialSymbol); onClearInit?.(); }
   }, [initialSymbol]);
+
+  // Fetch trending + sector-ETF quotes on mount
+  useEffect(() => {
+    const syms = [...new Set([...TRENDING.map(t => t.symbol), ...SECTORS.map(s => s.etf)])];
+    Promise.allSettled(syms.map(s => callMarketData({ type: "quote", symbol: s }))).then(results => {
+      const map = {};
+      syms.forEach((s, i) => { if (results[i].status === "fulfilled") map[s] = results[i].value; });
+      setExtraQuotes(map);
+      setLoadingExtra(false);
+    });
+  }, []);
+
+  async function toggleSector(sector) {
+    if (activeSector?.name === sector.name) { setActiveSector(null); return; }
+    setActiveSector(sector);
+    const missing = sector.stocks.filter(s => !extraQuotes[s]);
+    if (missing.length > 0) {
+      setLoadingSectorStocks(true);
+      const results = await Promise.allSettled(missing.map(s => callMarketData({ type: "quote", symbol: s })));
+      setExtraQuotes(prev => {
+        const next = { ...prev };
+        missing.forEach((s, i) => { if (results[i].status === "fulfilled") next[s] = results[i].value; });
+        return next;
+      });
+      setLoadingSectorStocks(false);
+    }
+  }
 
   // Load quotes for all watchlist items
   async function loadQuotes(list) {
@@ -5509,9 +5554,91 @@ function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit, alp
             ))}
           </div>
         ) : !exploreQuery && (
-          <div style={{ color: C.faint, fontSize: 12, textAlign: "center", padding: "12px 0" }}>
-            Search for AAPL, TSLA, MSFT, ETFs, crypto and more
-          </div>
+          <>
+            {/* ── Trending Today ──────────────────────────────── */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.faint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>Trending Today</div>
+              {TRENDING.map((t, i) => {
+                const q = extraQuotes[t.symbol];
+                const pos = (q?.changePct ?? 0) >= 0;
+                return (
+                  <div key={t.symbol} onClick={() => setSelectedSymbol(t.symbol)}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 6px", borderBottom: i < TRENDING.length - 1 ? `1px solid ${C.sep}` : "none", cursor: "pointer" }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: t.color + "1A", border: `1px solid ${t.color}30`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, color: t.color, letterSpacing: -0.3 }}>{t.symbol.slice(0, 2)}</span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.name}</div>
+                      <div style={{ fontSize: 11, color: C.faint }}>{t.symbol}</div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      {loadingExtra
+                        ? <div style={{ width: 48, height: 12, background: C.border, borderRadius: 4 }} />
+                        : <>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmtPrice(q?.price)}</div>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: pos ? C.green : C.red }}>{fmtPct(q?.changePct)}</div>
+                          </>
+                      }
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ── Sectors ──────────────────────────────────────── */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.faint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>Sectors</div>
+              <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 6, scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                {SECTORS.map(sector => {
+                  const q = extraQuotes[sector.etf];
+                  const pct = q?.changePct ?? null;
+                  const pos = (pct ?? 0) >= 0;
+                  const active = activeSector?.name === sector.name;
+                  return (
+                    <button key={sector.name} onClick={() => toggleSector(sector)} style={{
+                      flexShrink: 0, minWidth: 80, padding: "8px 12px", borderRadius: 12, textAlign: "left",
+                      background: active ? sector.color + "18" : C.bgTertiary,
+                      border: `1px solid ${active ? sector.color + "55" : C.border}`,
+                      cursor: "pointer", fontFamily: FONT,
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: active ? sector.color : C.text, marginBottom: 3 }}>{sector.name}</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: loadingExtra ? C.faint : pos ? C.green : C.red }}>
+                        {loadingExtra ? "—" : fmtPct(pct)}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {activeSector && (
+                <div style={{ marginTop: 10, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+                  {loadingSectorStocks
+                    ? <div style={{ padding: "12px 14px", color: C.faint, fontSize: 12 }}>Loading...</div>
+                    : activeSector.stocks.map((sym, i) => {
+                        const q = extraQuotes[sym];
+                        const pos = (q?.changePct ?? 0) >= 0;
+                        return (
+                          <div key={sym} onClick={() => setSelectedSymbol(sym)}
+                            style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", borderTop: i > 0 ? `1px solid ${C.sep}` : "none", background: C.bgTertiary }}>
+                            <div style={{ width: 28, height: 28, borderRadius: 8, background: activeSector.color + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              <span style={{ fontSize: 9, fontWeight: 800, color: activeSector.color }}>{sym.slice(0, 2)}</span>
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{sym}</div>
+                            </div>
+                            <div style={{ textAlign: "right" }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmtPrice(q?.price)}</div>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: pos ? C.green : C.red }}>{fmtPct(q?.changePct)}</div>
+                            </div>
+                            <Icon name="chevron" size={12} color={C.faint} />
+                          </div>
+                        );
+                      })
+                  }
+                </div>
+              )}
+            </div>
+          </>
         )}
       </GlassCard>
 
