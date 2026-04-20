@@ -4205,40 +4205,44 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
             style={{ width: "100%", padding: "10px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: FONT, marginBottom: 12 }}
           />
 
-          {/* Account selector */}
+          {/* Account selector — savings accounts only */}
           {plaidAccounts.length > 0 && (
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>
-                Source account <span style={{ color: C.faint }}>(optional)</span>
+                Savings account <span style={{ color: C.faint }}>(optional)</span>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                <div
-                  onClick={() => { setEditAccountId(""); setEditAccountName(""); }}
-                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, border: `1px solid ${!editAccountId ? C.cyan + "55" : C.border}`, background: !editAccountId ? C.cyan + "08" : C.bg, cursor: "pointer" }}
-                >
-                  <span style={{ fontSize: 12, color: !editAccountId ? C.text : C.muted }}>No linked account</span>
-                  {!editAccountId && <svg style={{ marginLeft: "auto" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
-                </div>
-                {plaidAccounts.map(acc => {
-                  const label = `${acc.name}${acc.mask ? ` ••••${acc.mask}` : ""}`;
-                  const bal = acc.balance_available ?? acc.balance_current;
-                  const sel = editAccountId === acc.account_id;
-                  return (
-                    <div
-                      key={acc.account_id}
-                      onClick={() => { setEditAccountId(acc.account_id); setEditAccountName(label); }}
-                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, border: `1px solid ${sel ? C.green + "55" : C.border}`, background: sel ? C.green + "08" : C.bg, cursor: "pointer" }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, color: C.text, fontWeight: sel ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
-                        {acc.institution_name && <div style={{ fontSize: 10, color: C.faint }}>{acc.institution_name}</div>}
-                      </div>
-                      {bal != null && <span style={{ fontSize: 12, fontWeight: 600, color: sel ? C.green : C.muted, flexShrink: 0 }}>${bal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
-                      {sel && <svg style={{ flexShrink: 0 }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+              {(() => {
+                const cardSavings = plaidAccounts.filter(a => a.subtype === "savings" || a.type === "savings");
+                return cardSavings.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    <div onClick={() => { setEditAccountId(""); setEditAccountName(""); }}
+                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, border: `1px solid ${!editAccountId ? C.cyan + "55" : C.border}`, background: !editAccountId ? C.cyan + "08" : C.bg, cursor: "pointer" }}>
+                      <span style={{ fontSize: 12, color: !editAccountId ? C.text : C.muted }}>Track manually</span>
+                      {!editAccountId && <svg style={{ marginLeft: "auto" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
                     </div>
-                  );
-                })}
-              </div>
+                    {cardSavings.map(acc => {
+                      const label = `${acc.name}${acc.mask ? ` ••••${acc.mask}` : ""}`;
+                      const bal = acc.balance_available ?? acc.balance_current;
+                      const sel = editAccountId === acc.account_id;
+                      return (
+                        <div key={acc.account_id} onClick={() => { setEditAccountId(acc.account_id); setEditAccountName(label); }}
+                          style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, border: `1px solid ${sel ? C.green + "55" : C.border}`, background: sel ? C.green + "08" : C.bg, cursor: "pointer" }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, color: C.text, fontWeight: sel ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+                            {acc.institution_name && <div style={{ fontSize: 10, color: C.faint }}>{acc.institution_name}</div>}
+                          </div>
+                          {bal != null && <span style={{ fontSize: 12, fontWeight: 600, color: sel ? C.green : C.muted, flexShrink: 0 }}>${bal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
+                          {sel && <svg style={{ flexShrink: 0 }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: C.muted, padding: "8px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, lineHeight: 1.6 }}>
+                    No savings accounts found. Open a dedicated savings account at your bank, then reconnect in Settings.
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -4434,6 +4438,9 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
   useEffect(() => {
     if (bankConnected) fetchPlaidAccounts();
   }, [bankConnected]);
+
+  // Only savings-subtype accounts are valid sources for goal tracking
+  const savingsAccounts = plaidAccounts.filter(a => a.subtype === "savings" || a.type === "savings");
 
   const BASE_MONTHLY = totalSpent > 0 ? Math.floor(totalSpent * 0.03 * 100) / 100 : 26;
   const roundupMonth = parseFloat((BASE_MONTHLY * roundupMultiplier).toFixed(2));
@@ -4666,39 +4673,36 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
           <input style={inp} placeholder="Goal name (e.g. Vacation, Emergency Fund)" value={newName} onChange={e => setNewName(e.target.value)} />
           <input style={inp} type="number" placeholder="Target amount ($)" value={newTarget} onChange={e => setNewTarget(e.target.value)} />
 
-          {/* Account selector — only shown when bank is connected */}
+          {/* Account selector — savings accounts only */}
           {bankConnected && (
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 6 }}>
-                Source account <span style={{ color: C.faint }}>(optional — track real balance)</span>
+                Savings account <span style={{ color: C.faint }}>(optional — track real balance)</span>
               </div>
               {loadingAccounts ? (
-                <div style={{ fontSize: 12, color: C.faint, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12 }}>
-                  Loading accounts…
+                <div style={{ fontSize: 12, color: C.faint, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12 }}>Loading accounts…</div>
+              ) : accountsError ? (
+                <div style={{ fontSize: 12, color: C.red, padding: "10px 14px", background: C.red + "0A", border: `1px solid ${C.red}22`, borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Could not load accounts: {accountsError}</span>
+                  <button onClick={fetchPlaidAccounts} style={{ background: "none", border: "none", color: C.cyan, fontSize: 12, cursor: "pointer", fontFamily: FONT, fontWeight: 600, marginLeft: 8 }}>Retry</button>
                 </div>
-              ) : plaidAccounts.length > 0 ? (
+              ) : savingsAccounts.length > 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {/* "No account" option */}
-                  <div
-                    onClick={() => { setNewAccountId(""); setNewAccountName(""); }}
-                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, border: `1px solid ${!newAccountId ? C.cyan + "55" : C.border}`, background: !newAccountId ? C.cyan + "08" : C.bg, cursor: "pointer" }}
-                  >
+                  <div onClick={() => { setNewAccountId(""); setNewAccountName(""); }}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, border: `1px solid ${!newAccountId ? C.cyan + "55" : C.border}`, background: !newAccountId ? C.cyan + "08" : C.bg, cursor: "pointer" }}>
                     <div style={{ width: 28, height: 28, borderRadius: 8, background: C.bgTertiary, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </div>
                     <span style={{ fontSize: 13, color: !newAccountId ? C.text : C.muted }}>Track manually (no bank link)</span>
                     {!newAccountId && <svg style={{ marginLeft: "auto" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
                   </div>
-                  {plaidAccounts.map(acc => {
+                  {savingsAccounts.map(acc => {
                     const label = `${acc.name}${acc.mask ? ` ••••${acc.mask}` : ""}`;
                     const balance = acc.balance_available ?? acc.balance_current;
                     const selected = newAccountId === acc.account_id;
                     return (
-                      <div
-                        key={acc.account_id}
-                        onClick={() => { setNewAccountId(acc.account_id); setNewAccountName(label); }}
-                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, border: `1px solid ${selected ? C.green + "55" : C.border}`, background: selected ? C.green + "08" : C.bg, cursor: "pointer" }}
-                      >
+                      <div key={acc.account_id} onClick={() => { setNewAccountId(acc.account_id); setNewAccountName(label); }}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, border: `1px solid ${selected ? C.green + "55" : C.border}`, background: selected ? C.green + "08" : C.bg, cursor: "pointer" }}>
                         <div style={{ width: 28, height: 28, borderRadius: 8, background: C.green + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>
                         </div>
@@ -4715,15 +4719,9 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
                     );
                   })}
                 </div>
-              ) : accountsError ? (
-                <div style={{ fontSize: 12, color: C.red, padding: "10px 14px", background: C.red + "0A", border: `1px solid ${C.red}22`, borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span>Could not load accounts: {accountsError}</span>
-                  <button onClick={fetchPlaidAccounts} style={{ background: "none", border: "none", color: C.cyan, fontSize: 12, cursor: "pointer", fontFamily: FONT, fontWeight: 600, marginLeft: 8 }}>Retry</button>
-                </div>
               ) : (
-                <div style={{ fontSize: 12, color: C.faint, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span>No accounts found. Make sure your bank is connected.</span>
-                  <button onClick={fetchPlaidAccounts} style={{ background: "none", border: "none", color: C.cyan, fontSize: 12, cursor: "pointer", fontFamily: FONT, fontWeight: 600, marginLeft: 8 }}>Retry</button>
+                <div style={{ fontSize: 12, color: C.muted, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, lineHeight: 1.6 }}>
+                  No savings accounts found. To track real progress, open a dedicated savings account at your bank (e.g. BofA Savings, Chase Savings, Ally). Then reconnect your bank in Settings.
                 </div>
               )}
             </div>
@@ -4783,18 +4781,19 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
                 {/* Account picker + Create button — shown when a preset is selected */}
                 {selectedPreset && (
                   <div style={{ background: C.bgTertiary, borderRadius: 12, padding: "14px", border: `1px solid ${C.border}`, marginTop: 4 }}>
-                    {bankConnected && plaidAccounts.length > 0 && (
+                    {bankConnected && (
                       <div style={{ marginBottom: 12 }}>
                         <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 6 }}>
-                          Source account <span style={{ color: C.faint }}>(optional)</span>
+                          Savings account <span style={{ color: C.faint }}>(optional)</span>
                         </div>
+                        {savingsAccounts.length > 0 ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                           <div onClick={() => { setNewAccountId(""); setNewAccountName(""); }}
                             style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, border: `1px solid ${!newAccountId ? C.cyan + "55" : C.border}`, background: !newAccountId ? C.cyan + "08" : C.bg, cursor: "pointer" }}>
-                            <span style={{ fontSize: 13, color: !newAccountId ? C.text : C.muted }}>No linked account</span>
+                            <span style={{ fontSize: 13, color: !newAccountId ? C.text : C.muted }}>Track manually</span>
                             {!newAccountId && <svg style={{ marginLeft: "auto" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
                           </div>
-                          {plaidAccounts.map(acc => {
+                          {savingsAccounts.map(acc => {
                             const label = `${acc.name}${acc.mask ? ` ••••${acc.mask}` : ""}`;
                             const bal = acc.balance_available ?? acc.balance_current;
                             const sel = newAccountId === acc.account_id;
@@ -4815,6 +4814,11 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
                             );
                           })}
                         </div>
+                        ) : (
+                          <div style={{ fontSize: 12, color: C.muted, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, lineHeight: 1.6 }}>
+                            No savings accounts found. Open a dedicated savings account at your bank (e.g. BofA Savings, Chase Savings, Ally), then reconnect in Settings.
+                          </div>
+                        )}
                       </div>
                     )}
                     <button
