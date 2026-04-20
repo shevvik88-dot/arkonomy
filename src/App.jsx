@@ -4066,6 +4066,57 @@ function AddTransactionModal({ categories, onAdd, onClose, existing }) {
   );
 }
 
+// ─── No-savings-account empty state (shared by all 3 pickers) ─────────────────
+function SavingsAccountEmptyState({ onTrackManually }) {
+  const [showSteps, setShowSteps] = useState(false);
+  const steps = [
+    { n: 1, text: "Go to your bank app (BofA, Chase, Wells Fargo, Ally, etc.)" },
+    { n: 2, text: "Open a free savings account — takes about 2 minutes online" },
+    { n: 3, text: "Come back to Arkonomy and reconnect your bank in Settings" },
+  ];
+  return (
+    <div style={{ borderRadius: 14, border: `1px solid ${C.cyan}30`, background: `linear-gradient(135deg,${C.cyan}06,${C.bgTertiary})`, padding: "14px 16px" }}>
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 10 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: C.cyan + "16", border: `1px solid ${C.cyan}30`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 17 }}>
+          🏦
+        </div>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 3 }}>No savings account found</div>
+          <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
+            A dedicated savings account helps track real progress. Open one at your bank, then reconnect in Settings.
+          </div>
+        </div>
+      </div>
+
+      {showSteps && (
+        <div style={{ margin: "10px 0", display: "flex", flexDirection: "column", gap: 8 }}>
+          {steps.map(s => (
+            <div key={s.n} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <div style={{ width: 20, height: 20, borderRadius: "50%", background: C.cyan + "22", border: `1px solid ${C.cyan}44`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: C.cyan }}>{s.n}</span>
+              </div>
+              <span style={{ fontSize: 12, color: C.muted, lineHeight: 1.55 }}>{s.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        onClick={() => setShowSteps(v => !v)}
+        style={{ width: "100%", marginTop: 8, padding: "8px 0", borderRadius: 9, border: `1px solid ${C.cyan}40`, background: C.cyan + "0E", color: C.cyan, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}
+      >
+        {showSteps ? "Hide steps ↑" : "Learn how to open a savings account →"}
+      </button>
+      <button
+        onClick={onTrackManually}
+        style={{ width: "100%", marginTop: 6, padding: "8px 0", borderRadius: 9, border: `1px solid ${C.border}`, background: "none", color: C.muted, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: FONT }}
+      >
+        Track manually instead
+      </button>
+    </div>
+  );
+}
+
 function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEdit, onDelete, plaidAccounts = [], getGoalIcon, insight, safeSavingsAmount, maxSavingsAmount, monthlySurplus }) {
   const [mode, setMode] = useState(null);
   const [customAmt, setCustomAmt] = useState("");
@@ -4238,9 +4289,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
                     })}
                   </div>
                 ) : (
-                  <div style={{ fontSize: 12, color: C.muted, padding: "8px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, lineHeight: 1.6 }}>
-                    No savings accounts found. Open a dedicated savings account at your bank, then reconnect in Settings.
-                  </div>
+                  <SavingsAccountEmptyState onTrackManually={() => { setEditAccountId(""); setEditAccountName(""); }} />
                 );
               })()}
             </div>
@@ -4720,9 +4769,7 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
                   })}
                 </div>
               ) : (
-                <div style={{ fontSize: 12, color: C.muted, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, lineHeight: 1.6 }}>
-                  No savings accounts found. To track real progress, open a dedicated savings account at your bank (e.g. BofA Savings, Chase Savings, Ally). Then reconnect your bank in Settings.
-                </div>
+                <SavingsAccountEmptyState onTrackManually={() => { setNewAccountId(""); setNewAccountName(""); }} />
               )}
             </div>
           )}
@@ -4815,9 +4862,7 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
                           })}
                         </div>
                         ) : (
-                          <div style={{ fontSize: 12, color: C.muted, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, lineHeight: 1.6 }}>
-                            No savings accounts found. Open a dedicated savings account at your bank (e.g. BofA Savings, Chase Savings, Ally), then reconnect in Settings.
-                          </div>
+                          <SavingsAccountEmptyState onTrackManually={() => { setNewAccountId(""); setNewAccountName(""); }} />
                         )}
                       </div>
                     )}
