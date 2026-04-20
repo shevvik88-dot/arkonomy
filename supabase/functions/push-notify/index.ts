@@ -280,6 +280,45 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Savings reminders: fire push for reminders whose day_of_week matches today ──
+    const todayDow = new Date().getDay(); // 0=Sun … 6=Sat
+    const { data: reminders } = await supabase
+      .from('savings_reminders')
+      .select('user_id, goal_id, amount, savings(name)')
+      .eq('day_of_week', todayDow);
+
+    const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+    for (const r of (reminders ?? [])) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('push_subscription')
+        .eq('id', r.user_id)
+        .single();
+
+      if (!profile?.push_subscription) continue;
+
+      const goalName = (r.savings as any)?.name ?? 'your savings goal';
+      const payload = {
+        title: '💰 Savings reminder',
+        body:  `Transfer $${Number(r.amount).toFixed(2)} to ${goalName} today (${DAY_NAMES[todayDow]})`,
+        icon:  '/icon-192.png',
+        tag:   `savings-reminder-${r.goal_id}`,
+        url:   '/',
+      };
+
+      try {
+        await sendPushNotification(
+          profile.push_subscription, payload,
+          vapidPublicKey, vapidPrivateKey, vapidSubject,
+        );
+        results.push({ userId: r.user_id, type: 'savings_reminder', goalId: r.goal_id, status: 'sent' });
+      } catch (err) {
+        console.error(`Savings reminder push failed for user ${r.user_id}:`, err);
+        results.push({ userId: r.user_id, type: 'savings_reminder', goalId: r.goal_id, status: 'failed' });
+      }
+    }
+
     return new Response(JSON.stringify({ notified: results.length, results }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

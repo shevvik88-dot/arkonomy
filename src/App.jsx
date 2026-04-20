@@ -2501,7 +2501,7 @@ export default function App() {
             {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} />}
             {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
-            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} />}
+            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} />}
             {screen === "insights" && <Insights {...shared} onOpenChat={msg => { setShowChat(true); sendChat(msg); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
             {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} lastSyncedAt={lastSyncedAt} backgroundSyncing={backgroundSyncing} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
           </>
@@ -4117,7 +4117,7 @@ function SavingsAccountEmptyState({ onTrackManually }) {
   );
 }
 
-function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEdit, onDelete, plaidAccounts = [], getGoalIcon, insight, safeSavingsAmount, maxSavingsAmount, monthlySurplus }) {
+function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEdit, onDelete, plaidAccounts = [], getGoalIcon, insight, safeSavingsAmount, maxSavingsAmount, monthlySurplus, userId }) {
   const [mode, setMode] = useState(null);
   const [customAmt, setCustomAmt] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -4127,6 +4127,65 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
   const [editAccountId, setEditAccountId] = useState(sv.plaid_account_id || "");
   const [editAccountName, setEditAccountName] = useState(sv.plaid_account_name || "");
   const [showMoveMoney, setShowMoveMoney] = useState(false);
+
+  // ── Reminder state ─────────────────────────────────────────────────────────
+  // null = not yet loaded, false = no reminder, object = existing reminder
+  const [reminder, setReminder] = useState(null);
+  const [loadingReminder, setLoadingReminder] = useState(false);
+  const [reminderDay, setReminderDay] = useState(1);   // 1 = Monday default
+  const [reminderAmt, setReminderAmt] = useState("");
+  const [savingReminder, setSavingReminder] = useState(false);
+  const [editingReminder, setEditingReminder] = useState(false);
+
+  const DAYS = [
+    { label: "Mon", dow: 1 }, { label: "Tue", dow: 2 }, { label: "Wed", dow: 3 },
+    { label: "Thu", dow: 4 }, { label: "Fri", dow: 5 }, { label: "Sat", dow: 6 },
+    { label: "Sun", dow: 0 },
+  ];
+  const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+  async function openMoveMoney() {
+    setShowMoveMoney(true);
+    if (reminder !== null || !userId) return;
+    setLoadingReminder(true);
+    const { data } = await supabase.from("savings_reminders")
+      .select("*").eq("goal_id", sv.id).eq("user_id", userId).maybeSingle();
+    setReminder(data || false);
+    if (data) { setReminderDay(data.day_of_week); setReminderAmt(String(data.amount)); }
+    setLoadingReminder(false);
+  }
+
+  async function saveReminder() {
+    const amt = parseFloat(reminderAmt);
+    if (!amt || amt <= 0 || !userId) return;
+    setSavingReminder(true);
+    const { data } = await supabase.from("savings_reminders")
+      .upsert({ user_id: userId, goal_id: sv.id, day_of_week: reminderDay, amount: amt, updated_at: new Date().toISOString() },
+               { onConflict: "user_id,goal_id" })
+      .select().single();
+    if (data) {
+      setReminder(data);
+      setEditingReminder(false);
+      // Send confirmation push (fire-and-forget)
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) return;
+        fetch(`${SUPABASE_URL}/functions/v1/push-notify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}`, "apikey": SUPABASE_KEY },
+          body: JSON.stringify({ user_id: userId, title: "Reminder set! 💰", body: `Every ${DAY_NAMES[reminderDay]} — transfer $${amt.toFixed(2)} to ${sv.name}`, icon: "/icon-192.png", tag: "savings-reminder-set" }),
+        }).catch(() => {});
+      });
+    }
+    setSavingReminder(false);
+  }
+
+  async function cancelReminder() {
+    if (!userId) return;
+    await supabase.from("savings_reminders").delete().eq("goal_id", sv.id).eq("user_id", userId);
+    setReminder(false);
+    setReminderAmt("");
+    setEditingReminder(false);
+  }
 
   // ── Linked Plaid account: derive real balance & progress ────────────────────
   const linkedAccount = sv.plaid_account_id
@@ -4321,7 +4380,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
             <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>Your money stays in your bank · synced automatically</span>
           </div>
           <button
-            onClick={() => setShowMoveMoney(true)}
+            onClick={openMoveMoney}
             style={{ width: "100%", padding: "11px 16px", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 11, color: C.text, fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -4330,8 +4389,10 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
 
           {showMoveMoney && (
             <div onClick={() => setShowMoveMoney(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-              <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "22px 22px 0 0", border: `1px solid ${C.border}`, padding: 24, fontFamily: FONT, paddingBottom: 36 }}>
+              <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "22px 22px 0 0", border: `1px solid ${C.border}`, padding: 24, paddingBottom: 36, fontFamily: FONT, maxHeight: "90vh", overflowY: "auto" }}>
                 <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.11)", borderRadius: 2, margin: "0 auto 20px" }} />
+
+                {/* Header */}
                 <div style={{ width: 44, height: 44, borderRadius: 14, background: C.green + "18", border: `1px solid ${C.green}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>
                 </div>
@@ -4341,6 +4402,8 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
                   <strong style={{ color: C.text }}>{linkedAccount.institution_name || sv.plaid_account_name || "bank"} app</strong>.
                   <br />Your balance here updates automatically when Arkonomy syncs.
                 </div>
+
+                {/* Linked account card */}
                 <div style={{ background: C.bgSecondary, borderRadius: 12, padding: "12px 14px", marginBottom: 20, border: `1px solid ${C.border}` }}>
                   <div style={{ fontSize: 11, color: C.faint, fontWeight: 600, letterSpacing: 0.5, marginBottom: 6 }}>LINKED ACCOUNT</div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{sv.plaid_account_name}</div>
@@ -4350,6 +4413,68 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
                     </div>
                   )}
                 </div>
+
+                {/* ── Weekly reminder section ── */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 12 }}>Set a weekly reminder</div>
+
+                  {loadingReminder ? (
+                    <div style={{ fontSize: 12, color: C.faint, textAlign: "center", padding: "12px 0" }}>Loading…</div>
+                  ) : reminder && !editingReminder ? (
+                    /* Existing reminder display */
+                    <div style={{ background: C.green + "0D", border: `1px solid ${C.green}30`, borderRadius: 12, padding: "12px 14px" }}>
+                      <div style={{ fontSize: 12, color: C.faint, fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>ACTIVE REMINDER</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 10 }}>
+                        Every {DAY_NAMES[reminder.day_of_week]} · ${Number(reminder.amount).toFixed(2)}
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={() => setEditingReminder(true)}
+                          style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: `1px solid ${C.border}`, background: C.bgTertiary, color: C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+                          Edit
+                        </button>
+                        <button onClick={cancelReminder}
+                          style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: `1px solid ${C.red}33`, background: C.red + "0D", color: C.red, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+                          Cancel reminder
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Set / edit reminder form */
+                    <div style={{ background: C.bgTertiary, borderRadius: 12, padding: "14px" }}>
+                      {/* Day chips */}
+                      <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Remind me every</div>
+                      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+                        {DAYS.map(d => (
+                          <button key={d.dow} onClick={() => setReminderDay(d.dow)}
+                            style={{ flex: 1, padding: "7px 0", borderRadius: 9, border: `1px solid ${reminderDay === d.dow ? C.cyan + "66" : C.border}`, background: reminderDay === d.dow ? C.cyan + "18" : "transparent", color: reminderDay === d.dow ? C.cyan : C.muted, fontSize: 11, fontWeight: reminderDay === d.dow ? 700 : 400, cursor: "pointer", fontFamily: FONT }}>
+                            {d.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Amount input */}
+                      <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>Remind me to transfer</div>
+                      <div style={{ position: "relative", marginBottom: 14 }}>
+                        <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 15, fontWeight: 700, color: C.muted, pointerEvents: "none" }}>$</span>
+                        <input type="number" placeholder="0.00" value={reminderAmt} onChange={e => setReminderAmt(e.target.value)}
+                          style={{ width: "100%", padding: "11px 12px 11px 26px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 15, fontWeight: 600, outline: "none", boxSizing: "border-box", fontFamily: FONT }} />
+                      </div>
+
+                      <button onClick={saveReminder} disabled={savingReminder || !reminderAmt}
+                        style={{ width: "100%", padding: "11px 0", borderRadius: 10, border: "none", background: (!reminderAmt || savingReminder) ? C.bgSecondary : `linear-gradient(90deg,${C.cyan},${C.blue})`, color: (!reminderAmt || savingReminder) ? C.faint : "#000", fontSize: 13, fontWeight: 700, cursor: (!reminderAmt || savingReminder) ? "default" : "pointer", fontFamily: FONT }}>
+                        {savingReminder ? "Saving…" : "Set Reminder"}
+                      </button>
+                      {editingReminder && (
+                        <button onClick={() => setEditingReminder(false)}
+                          style={{ width: "100%", marginTop: 8, padding: "9px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: "none", color: C.muted, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Got it */}
                 <button onClick={() => setShowMoveMoney(false)} style={{ width: "100%", padding: 14, background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 14, color: C.muted, fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
                   Got it
                 </button>
@@ -4437,7 +4562,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
   );
 }
 
-function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, totalSpent, transactions, insight, onInsightAction, onInvestAlpaca, isPro, onUpgrade, alpacaConnected, onConnectAlpaca, bankConnected }) {
+function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, totalSpent, transactions, insight, onInsightAction, onInvestAlpaca, isPro, onUpgrade, alpacaConnected, onConnectAlpaca, bankConnected, userId }) {
   // ── All useState calls grouped together first (Rules of Hooks) ───────────────
   const [showAdd, setShowAdd]               = useState(false);
   const [selectedPreset, setSelectedPreset] = useState(null); // { name, target, icon, color }
@@ -4895,7 +5020,7 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
           const goalColor = sv.color || C.green;
           const remaining = Math.max(Number(sv.target) - Number(sv.current), 0);
           const months    = monthsToGoal(sv);
-          return <SavingsGoalCard key={sv.id} sv={sv} pct={pct} goalColor={goalColor} remaining={remaining} months={months} onUpdate={onUpdate} onEdit={onEdit} onDelete={onDelete} plaidAccounts={plaidAccounts} getGoalIcon={getGoalIcon} insight={insight} safeSavingsAmount={safeSavingsAmount} maxSavingsAmount={maxSavingsAmount} monthlySurplus={monthlySurplus} />;
+          return <SavingsGoalCard key={sv.id} sv={sv} pct={pct} goalColor={goalColor} remaining={remaining} months={months} onUpdate={onUpdate} onEdit={onEdit} onDelete={onDelete} plaidAccounts={plaidAccounts} getGoalIcon={getGoalIcon} insight={insight} safeSavingsAmount={safeSavingsAmount} maxSavingsAmount={maxSavingsAmount} monthlySurplus={monthlySurplus} userId={userId} />;
         })
       )}
     </div>
