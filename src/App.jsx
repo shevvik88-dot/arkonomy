@@ -4322,37 +4322,54 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
 }
 
 function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, totalSpent, transactions, insight, onInsightAction, onInvestAlpaca, isPro, onUpgrade, alpacaConnected, onConnectAlpaca, bankConnected }) {
-  const [showAdd, setShowAdd]             = useState(false);
-  const [newName, setNewName]             = useState("");
-  const [newTarget, setNewTarget]         = useState("");
-  const [newAccountId, setNewAccountId]   = useState("");
+  // ── All useState calls grouped together first (Rules of Hooks) ───────────────
+  const [showAdd, setShowAdd]               = useState(false);
+  const [newName, setNewName]               = useState("");
+  const [newTarget, setNewTarget]           = useState("");
+  const [newAccountId, setNewAccountId]     = useState("");
   const [newAccountName, setNewAccountName] = useState("");
-  const [plaidAccounts, setPlaidAccounts] = useState([]);
+  const [plaidAccounts, setPlaidAccounts]   = useState([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [accountsError, setAccountsError]   = useState(null);
+  const [roundupEnabled, setRoundupEnabled] = useState(false);
+  const [roundupMultiplier, setRoundupMultiplier] = useState(1);
+  const [showAlpacaSheet, setShowAlpacaSheet] = useState(false);
 
-  // Fetch Plaid accounts with live balances when bank is connected
-  useEffect(() => {
-    if (!bankConnected) return;
+  // ── Fetch Plaid accounts ──────────────────────────────────────────────────────
+  async function fetchPlaidAccounts() {
     setLoadingAccounts(true);
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) { setLoadingAccounts(false); return; }
-      fetch(`${SUPABASE_URL}/functions/v1/plaid-get-accounts`, {
+    setAccountsError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { console.warn("[plaid-get-accounts] no session"); setLoadingAccounts(false); return; }
+      console.log("[plaid-get-accounts] fetching with token prefix:", session.access_token?.slice(0, 20));
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/plaid-get-accounts`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session.access_token}`,
           "apikey": SUPABASE_KEY,
         },
-      })
-        .then(r => r.json())
-        .then(d => { if (d.accounts) setPlaidAccounts(d.accounts); })
-        .catch(err => console.error("[plaid-get-accounts]", err))
-        .finally(() => setLoadingAccounts(false));
-    });
+        body: "{}",
+      });
+      const d = await res.json();
+      console.log("[plaid-get-accounts] HTTP", res.status, "response:", JSON.stringify(d));
+      if (!res.ok) { setAccountsError(d.error || d.message || `HTTP ${res.status}`); return; }
+      if (d.accounts) {
+        setPlaidAccounts(d.accounts);
+        console.log("[plaid-get-accounts] loaded", d.accounts.length, "accounts");
+      }
+    } catch (err) {
+      console.error("[plaid-get-accounts] exception:", err);
+      setAccountsError(String(err));
+    } finally {
+      setLoadingAccounts(false);
+    }
+  }
+
+  useEffect(() => {
+    if (bankConnected) fetchPlaidAccounts();
   }, [bankConnected]);
-  const [roundupEnabled, setRoundupEnabled] = useState(false);
-  const [roundupMultiplier, setRoundupMultiplier] = useState(1);
-  const [showAlpacaSheet, setShowAlpacaSheet] = useState(false);
 
   const BASE_MONTHLY = totalSpent > 0 ? Math.floor(totalSpent * 0.03 * 100) / 100 : 26;
   const roundupMonth = parseFloat((BASE_MONTHLY * roundupMultiplier).toFixed(2));
@@ -4634,9 +4651,15 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
                     );
                   })}
                 </div>
+              ) : accountsError ? (
+                <div style={{ fontSize: 12, color: C.red, padding: "10px 14px", background: C.red + "0A", border: `1px solid ${C.red}22`, borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Could not load accounts: {accountsError}</span>
+                  <button onClick={fetchPlaidAccounts} style={{ background: "none", border: "none", color: C.cyan, fontSize: 12, cursor: "pointer", fontFamily: FONT, fontWeight: 600, marginLeft: 8 }}>Retry</button>
+                </div>
               ) : (
-                <div style={{ fontSize: 12, color: C.faint, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12 }}>
-                  No depository accounts found. Connect a bank in Settings.
+                <div style={{ fontSize: 12, color: C.faint, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>No accounts found. Make sure your bank is connected.</span>
+                  <button onClick={fetchPlaidAccounts} style={{ background: "none", border: "none", color: C.cyan, fontSize: 12, cursor: "pointer", fontFamily: FONT, fontWeight: 600, marginLeft: 8 }}>Retry</button>
                 </div>
               )}
             </div>
