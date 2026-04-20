@@ -1173,8 +1173,37 @@ function WeeklySummary({ transactions }) {
   );
 }
 
+// Keywords that disqualify a merchant from appearing in either recurring section.
+// Uses word-boundary padding (" name ") to avoid false partial matches.
+const RECURRING_EXCLUDE = [
+  // Credit card / bank payments
+  "card payment","ccpymt","credit card","card online","online des:payment",
+  "mobile banking","online banking","online payment","payment to ",
+  // Person-to-person transfers
+  "zelle","venmo","cash app","paypal",
+  // Groceries & wholesale
+  "trader joe","walmart","costco","grocery","grocer","supermarket",
+  "safeway","kroger","albertsons","publix","aldi","whole food","sprouts",
+  // General retail
+  "home depot","dollar tree","dollar general","dollar store",
+  "petsmart","petco","jcpenny","jcpenney","marshalls","tj maxx","ross store",
+  "big lots","five below","amazon",
+  // Restaurants & fast food
+  "mcdonald","starbucks","chipotle","dunkin","taco bell","wendy",
+  "burger king","pizza hut","domino","restaurant","bistro","diner",
+  // Gas stations
+  "chevron","exxon","mobil","arco","fuel",
+];
+
+// Shell matches too broadly with padding, check it as a whole-word match separately
+function isRecurringExcluded(name) {
+  const n = " " + name.toLowerCase() + " ";
+  if (/ shell /.test(n)) return true;
+  return RECURRING_EXCLUDE.some(k => n.includes(k));
+}
+
 function RecurringSummary({ transactions }) {
-  // Count each merchant per calendar month — only flag if it appears in 2+ different months
+  // Group by merchant across calendar months — only flag if seen in 2+ distinct months
   const map = {};
   transactions
     .filter(t => t.type === "expense" && t.category_name !== "Transfer")
@@ -1183,21 +1212,27 @@ function RecurringSummary({ transactions }) {
       if (!raw || raw.length < 3) return;
       const d = parseDate(t.date);
       const monthKey = `${d.getFullYear()}-${d.getMonth()}`;
-      if (!map[raw]) map[raw] = { name: t.description || t.category_name || raw, months: new Set(), total: 0 };
+      if (!map[raw]) map[raw] = { name: t.description || t.category_name || raw, months: new Set(), amounts: [], total: 0 };
       map[raw].months.add(monthKey);
+      map[raw].amounts.push(Number(t.amount));
       map[raw].total += Number(t.amount);
     });
 
-  const recurring = Object.values(map)
-    .filter(m => m.months.size >= 2)
-    .map(m => ({ name: m.name, months: m.months.size, avgMonthly: m.total / m.months.size }))
+  const candidates = Object.values(map)
+    .filter(m => m.months.size >= 2 && !isRecurringExcluded(m.name))
+    .map(m => {
+      const sorted = m.amounts.slice().sort((a, b) => a - b);
+      const spread = sorted[sorted.length - 1] - sorted[0];
+      return { name: m.name, months: m.months.size, avgMonthly: m.total / m.months.size, spread };
+    })
     .sort((a, b) => b.avgMonthly - a.avgMonthly);
 
-  if (recurring.length === 0) return null;
+  // Subscriptions: consistent amount (spread ≤ $0.50) and under $100/mo
+  const subscriptions   = candidates.filter(m => m.avgMonthly <  100 && m.spread <= 0.50);
+  // Regular Payments: ≥ $100/mo fixed bills (rent, loan, insurance — no strict spread needed)
+  const regularPayments = candidates.filter(m => m.avgMonthly >= 100);
 
-  // Split: subscriptions < $100/mo, regular payments >= $100/mo
-  const subscriptions   = recurring.filter(m => m.avgMonthly <  100);
-  const regularPayments = recurring.filter(m => m.avgMonthly >= 100);
+  if (subscriptions.length === 0 && regularPayments.length === 0) return null;
 
   const subTotal     = subscriptions.reduce((s, m)   => s + m.avgMonthly, 0);
   const regularTotal = regularPayments.reduce((s, m) => s + m.avgMonthly, 0);
@@ -1213,7 +1248,7 @@ function RecurringSummary({ transactions }) {
           <span style={{ fontWeight: 600, fontSize: 14, color }}>{title}</span>
           <span style={{ marginLeft: "auto", fontSize: 14, fontWeight: 800, color }}>${fmt(total)}/mo</span>
         </div>
-        {items.slice(0, 5).map((m, i) => (
+        {items.slice(0, 6).map((m, i) => (
           <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderTop: `1px solid ${C.sep}` }}>
             <span style={{ fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, paddingRight: 8 }}>{m.name}</span>
             <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{m.months} mo · <span style={{ color, fontWeight: 600 }}>${fmt(m.avgMonthly)}/mo</span></span>
