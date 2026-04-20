@@ -4387,6 +4387,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
 function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, totalSpent, transactions, insight, onInsightAction, onInvestAlpaca, isPro, onUpgrade, alpacaConnected, onConnectAlpaca, bankConnected }) {
   // ── All useState calls grouped together first (Rules of Hooks) ───────────────
   const [showAdd, setShowAdd]               = useState(false);
+  const [selectedPreset, setSelectedPreset] = useState(null); // { name, target, icon, color }
   const [newName, setNewName]               = useState("");
   const [newTarget, setNewTarget]           = useState("");
   const [newAccountId, setNewAccountId]     = useState("");
@@ -4748,30 +4749,96 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
           <style>{`@keyframes goalFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}`}</style>
           <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Start your first goal</div>
           <div style={{ fontSize: 13, color: C.muted, marginBottom: 20, lineHeight: 1.5 }}>Build your first $1,000.<br /><span style={{ color: C.faint, fontSize: 12 }}>Start with small automatic savings</span></div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, textAlign: "left" }}>
-            <div onClick={() => { onAdd({ name: "Emergency Fund", target: 1000, current: 0, icon: "lock", color: C.green }); }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 12, padding: "13px 14px", cursor: "pointer", transition: "border-color 0.15s, background 0.15s" }} onPointerEnter={e => { e.currentTarget.style.borderColor = C.green + "55"; e.currentTarget.style.background = C.green + "08"; }} onPointerLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bgSecondary; }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: C.green + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          {(() => {
+            const PRESETS = [
+              { name: "Emergency Fund", target: 1000, icon: "lock",   color: C.green, accentSvg: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> },
+              { name: "Vacation",       target: 2000, icon: "target", color: C.cyan,  accentSvg: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.cyan}  strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg> },
+            ];
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, textAlign: "left" }}>
+                {PRESETS.map(p => {
+                  const isSelected = selectedPreset?.name === p.name;
+                  return (
+                    <div key={p.name}
+                      onClick={() => { setSelectedPreset(isSelected ? null : p); setShowAdd(false); setNewAccountId(""); setNewAccountName(""); }}
+                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: isSelected ? p.color + "10" : C.bgSecondary, border: `1px solid ${isSelected ? p.color + "55" : C.border}`, borderRadius: 12, padding: "13px 14px", cursor: "pointer", transition: "all 0.15s" }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: p.color + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          {p.accentSvg}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{p.name}</div>
+                          <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Target: ${p.target.toLocaleString()}</div>
+                        </div>
+                      </div>
+                      {isSelected
+                        ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={p.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                      }
+                    </div>
+                  );
+                })}
+
+                {/* Account picker + Create button — shown when a preset is selected */}
+                {selectedPreset && (
+                  <div style={{ background: C.bgTertiary, borderRadius: 12, padding: "14px", border: `1px solid ${C.border}`, marginTop: 4 }}>
+                    {bankConnected && plaidAccounts.length > 0 && (
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 6 }}>
+                          Source account <span style={{ color: C.faint }}>(optional)</span>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div onClick={() => { setNewAccountId(""); setNewAccountName(""); }}
+                            style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, border: `1px solid ${!newAccountId ? C.cyan + "55" : C.border}`, background: !newAccountId ? C.cyan + "08" : C.bg, cursor: "pointer" }}>
+                            <span style={{ fontSize: 13, color: !newAccountId ? C.text : C.muted }}>No linked account</span>
+                            {!newAccountId && <svg style={{ marginLeft: "auto" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                          </div>
+                          {plaidAccounts.map(acc => {
+                            const label = `${acc.name}${acc.mask ? ` ••••${acc.mask}` : ""}`;
+                            const bal = acc.balance_available ?? acc.balance_current;
+                            const sel = newAccountId === acc.account_id;
+                            return (
+                              <div key={acc.account_id}
+                                onClick={() => { setNewAccountId(acc.account_id); setNewAccountName(label); }}
+                                style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, border: `1px solid ${sel ? C.green + "55" : C.border}`, background: sel ? C.green + "08" : C.bg, cursor: "pointer" }}>
+                                <div style={{ width: 28, height: 28, borderRadius: 8, background: C.green + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: 13, color: C.text, fontWeight: sel ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+                                  {acc.institution_name && <div style={{ fontSize: 11, color: C.faint }}>{acc.institution_name}</div>}
+                                </div>
+                                {bal != null && <div style={{ fontSize: 13, fontWeight: 600, color: sel ? C.green : C.text, flexShrink: 0 }}>${bal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>}
+                                {sel && <svg style={{ flexShrink: 0 }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => {
+                        onAdd({ name: selectedPreset.name, target: selectedPreset.target, current: 0, icon: selectedPreset.icon, color: selectedPreset.color, plaid_account_id: newAccountId || null, plaid_account_name: newAccountName || null });
+                        setSelectedPreset(null); setNewAccountId(""); setNewAccountName("");
+                      }}
+                      style={{ width: "100%", padding: 13, background: `linear-gradient(90deg,${selectedPreset.color},${selectedPreset.color}CC)`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT }}
+                    >
+                      Create {selectedPreset.name}
+                    </button>
+                  </div>
+                )}
+
+                <div onClick={() => { setShowAdd(true); setSelectedPreset(null); }}
+                  style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, background: C.bgSecondary, border: `1px dashed ${C.border}`, borderRadius: 12, padding: "13px 14px", cursor: "pointer", color: C.muted, fontSize: 14, fontWeight: 500, transition: "color 0.15s, border-color 0.15s" }}
+                  onPointerEnter={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = C.muted; }}
+                  onPointerLeave={e => { e.currentTarget.style.color = C.muted; e.currentTarget.style.borderColor = C.border; }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Custom goal
                 </div>
-                <div><div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Emergency Fund</div><div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Target: $1,000</div></div>
               </div>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-            <div onClick={() => { onAdd({ name: "Vacation", target: 2000, current: 0, icon: "target", color: C.cyan }); }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 12, padding: "13px 14px", cursor: "pointer", transition: "border-color 0.15s, background 0.15s" }} onPointerEnter={e => { e.currentTarget.style.borderColor = C.cyan + "55"; e.currentTarget.style.background = C.cyan + "08"; }} onPointerLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.bgSecondary; }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: C.cyan + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
-                </div>
-                <div><div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Vacation</div><div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Target: $2,000</div></div>
-              </div>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-            <div onClick={() => setShowAdd(true)} style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, background: C.bgSecondary, border: `1px dashed ${C.border}`, borderRadius: 12, padding: "13px 14px", cursor: "pointer", color: C.muted, fontSize: 14, fontWeight: 500, transition: "color 0.15s, border-color 0.15s" }} onPointerEnter={e => { e.currentTarget.style.color = C.text; e.currentTarget.style.borderColor = C.muted; }} onPointerLeave={e => { e.currentTarget.style.color = C.muted; e.currentTarget.style.borderColor = C.border; }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Custom goal
-            </div>
-          </div>
+            );
+          })()}
         </GlassCard>
       ) : (
         savings.map(sv => {
