@@ -655,6 +655,7 @@ function Icon({ name, size = 20, color = C.muted, strokeWidth = 1.8 }) {
     calendar:        <svg {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
     "bar-chart":     <svg {...p}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>,
     edit:            <svg {...p}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+    trash:           <svg {...p}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>,
     search:          <svg {...p}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
     "arrow-left":    <svg {...p}><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>,
     "pie-chart":     <svg {...p}><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>,
@@ -2217,6 +2218,16 @@ export default function App() {
     setSavings(prev => prev.map(s => s.id === id ? { ...s, current } : s));
   }
 
+  async function editSaving(id, updates) {
+    await supabase.from("savings").update(updates).eq("id", id);
+    setSavings(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  }
+
+  async function deleteSaving(id) {
+    await supabase.from("savings").delete().eq("id", id);
+    setSavings(prev => prev.filter(s => s.id !== id));
+  }
+
   async function saveProfile(updates) {
     await supabase.from("profiles").update(updates).eq("id", user.id);
     setProfile(prev => ({ ...prev, ...updates }));
@@ -2490,7 +2501,7 @@ export default function App() {
             {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} />}
             {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
-            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} />}
+            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} />}
             {screen === "insights" && <Insights {...shared} onOpenChat={msg => { setShowChat(true); sendChat(msg); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
             {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} lastSyncedAt={lastSyncedAt} backgroundSyncing={backgroundSyncing} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
           </>
@@ -4055,9 +4066,15 @@ function AddTransactionModal({ categories, onAdd, onClose, existing }) {
   );
 }
 
-function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getGoalIcon, insight, safeSavingsAmount, maxSavingsAmount, monthlySurplus }) {
+function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEdit, onDelete, plaidAccounts = [], getGoalIcon, insight, safeSavingsAmount, maxSavingsAmount, monthlySurplus }) {
   const [mode, setMode] = useState(null);
   const [customAmt, setCustomAmt] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(sv.name);
+  const [editTarget, setEditTarget] = useState(String(sv.target));
+  const [editAccountId, setEditAccountId] = useState(sv.plaid_account_id || "");
+  const [editAccountName, setEditAccountName] = useState(sv.plaid_account_name || "");
 
   const aiContribution = (() => {
     // safeSavingsAmount — главный источник истины, всегда использовать его
@@ -4106,18 +4123,127 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
             )}
           </div>
         </div>
-        <div style={{ background: goalColor + "22", borderRadius: 100, padding: "4px 10px" }}>
-          <span style={{ color: goalColor, fontWeight: 700, fontSize: 13 }}>{pct.toFixed(0)}%</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {/* Edit */}
+          <button
+            onClick={() => { setEditing(v => !v); setConfirmDelete(false); setEditName(sv.name); setEditTarget(String(sv.target)); setEditAccountId(sv.plaid_account_id || ""); setEditAccountName(sv.plaid_account_name || ""); }}
+            style={{ width: 28, height: 28, borderRadius: 8, background: editing ? C.blue + "22" : C.bgTertiary, border: `1px solid ${editing ? C.blue + "44" : C.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+          >
+            <Icon name="edit" size={12} color={editing ? C.blue : C.faint} strokeWidth={2} />
+          </button>
+          {/* Delete */}
+          <button
+            onClick={() => { setConfirmDelete(v => !v); setEditing(false); }}
+            style={{ width: 28, height: 28, borderRadius: 8, background: confirmDelete ? C.red + "18" : C.bgTertiary, border: `1px solid ${confirmDelete ? C.red + "44" : C.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+          >
+            <Icon name="trash" size={12} color={confirmDelete ? C.red : C.faint} strokeWidth={2} />
+          </button>
+          {/* Progress % */}
+          <div style={{ background: goalColor + "22", borderRadius: 100, padding: "4px 10px" }}>
+            <span style={{ color: goalColor, fontWeight: 700, fontSize: 13 }}>{pct.toFixed(0)}%</span>
+          </div>
         </div>
       </div>
 
       <div style={{ height: 10, background: C.bgTertiary, borderRadius: 99, marginBottom: 8, overflow: "hidden" }}>
         <div style={{ height: 10, borderRadius: 99, width: `${pct}%`, background: `linear-gradient(90deg,${goalColor},${goalColor}BB)`, transition: "width 0.6s", boxShadow: `0 0 12px ${goalColor}55` }} />
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: confirmDelete || editing ? 12 : 14 }}>
         <span style={{ color: C.text, fontWeight: 600 }}>${fmt(sv.current, 0)} saved</span>
         <span style={{ color: C.muted }}>${fmt(remaining, 0)} remaining</span>
       </div>
+
+      {/* ── Confirm delete ── */}
+      {confirmDelete && (
+        <div style={{ marginBottom: 14, padding: "12px 14px", background: C.red + "0E", border: `1px solid ${C.red}28`, borderRadius: 12, display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ flex: 1, fontSize: 13, color: C.muted }}>Delete <strong style={{ color: C.text }}>{sv.name}</strong>?</span>
+          <button
+            onClick={() => { onDelete(sv.id); }}
+            style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: C.red, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}
+          >Delete</button>
+          <button
+            onClick={() => setConfirmDelete(false)}
+            style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: "none", color: C.muted, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: FONT }}
+          >Cancel</button>
+        </div>
+      )}
+
+      {/* ── Inline edit form ── */}
+      {editing && (
+        <div style={{ marginBottom: 14, padding: "14px", background: C.bgTertiary, borderRadius: 12, border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, letterSpacing: 0.5, marginBottom: 12, textTransform: "uppercase" }}>Edit Goal</div>
+
+          {/* Name */}
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>Goal name</div>
+          <input
+            value={editName}
+            onChange={e => setEditName(e.target.value)}
+            style={{ width: "100%", padding: "10px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: FONT, marginBottom: 10 }}
+          />
+
+          {/* Target */}
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>Target amount ($)</div>
+          <input
+            type="number"
+            value={editTarget}
+            onChange={e => setEditTarget(e.target.value)}
+            style={{ width: "100%", padding: "10px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: FONT, marginBottom: 12 }}
+          />
+
+          {/* Account selector */}
+          {plaidAccounts.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>
+                Source account <span style={{ color: C.faint }}>(optional)</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                <div
+                  onClick={() => { setEditAccountId(""); setEditAccountName(""); }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, border: `1px solid ${!editAccountId ? C.cyan + "55" : C.border}`, background: !editAccountId ? C.cyan + "08" : C.bg, cursor: "pointer" }}
+                >
+                  <span style={{ fontSize: 12, color: !editAccountId ? C.text : C.muted }}>No linked account</span>
+                  {!editAccountId && <svg style={{ marginLeft: "auto" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                </div>
+                {plaidAccounts.map(acc => {
+                  const label = `${acc.name}${acc.mask ? ` ••••${acc.mask}` : ""}`;
+                  const bal = acc.balance_available ?? acc.balance_current;
+                  const sel = editAccountId === acc.account_id;
+                  return (
+                    <div
+                      key={acc.account_id}
+                      onClick={() => { setEditAccountId(acc.account_id); setEditAccountName(label); }}
+                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, border: `1px solid ${sel ? C.green + "55" : C.border}`, background: sel ? C.green + "08" : C.bg, cursor: "pointer" }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, color: C.text, fontWeight: sel ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+                        {acc.institution_name && <div style={{ fontSize: 10, color: C.faint }}>{acc.institution_name}</div>}
+                      </div>
+                      {bal != null && <span style={{ fontSize: 12, fontWeight: 600, color: sel ? C.green : C.muted, flexShrink: 0 }}>${bal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
+                      {sel && <svg style={{ flexShrink: 0 }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Save / Cancel */}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => {
+                if (!editName.trim() || !editTarget) return;
+                onEdit(sv.id, { name: editName.trim(), target: parseFloat(editTarget), plaid_account_id: editAccountId || null, plaid_account_name: editAccountName || null });
+                setEditing(false);
+              }}
+              style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: "none", background: `linear-gradient(90deg,${C.green},#00A67E)`, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}
+            >Save</button>
+            <button
+              onClick={() => setEditing(false)}
+              style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: "none", color: C.muted, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: FONT }}
+            >Cancel</button>
+          </div>
+        </div>
+      )}
 
       {aiContribution > 0 ? (
         <div style={{ marginBottom: 10 }}>
@@ -4195,7 +4321,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
   );
 }
 
-function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactions, insight, onInsightAction, onInvestAlpaca, isPro, onUpgrade, alpacaConnected, onConnectAlpaca, bankConnected }) {
+function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, totalSpent, transactions, insight, onInsightAction, onInvestAlpaca, isPro, onUpgrade, alpacaConnected, onConnectAlpaca, bankConnected }) {
   const [showAdd, setShowAdd]             = useState(false);
   const [newName, setNewName]             = useState("");
   const [newTarget, setNewTarget]         = useState("");
@@ -4567,7 +4693,7 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
           const goalColor = sv.color || C.green;
           const remaining = Math.max(Number(sv.target) - Number(sv.current), 0);
           const months    = monthsToGoal(sv);
-          return <SavingsGoalCard key={sv.id} sv={sv} pct={pct} goalColor={goalColor} remaining={remaining} months={months} onUpdate={onUpdate} getGoalIcon={getGoalIcon} insight={insight} safeSavingsAmount={safeSavingsAmount} maxSavingsAmount={maxSavingsAmount} monthlySurplus={monthlySurplus} />;
+          return <SavingsGoalCard key={sv.id} sv={sv} pct={pct} goalColor={goalColor} remaining={remaining} months={months} onUpdate={onUpdate} onEdit={onEdit} onDelete={onDelete} plaidAccounts={plaidAccounts} getGoalIcon={getGoalIcon} insight={insight} safeSavingsAmount={safeSavingsAmount} maxSavingsAmount={maxSavingsAmount} monthlySurplus={monthlySurplus} />;
         })
       )}
     </div>
