@@ -1,6 +1,8 @@
 // supabase/functions/plaid-get-accounts/index.ts
-// Returns all Plaid accounts for the authenticated user with live balances.
-// Calls /accounts/balance/get for each connected Plaid item.
+// Returns all Plaid accounts for the authenticated user.
+// Deployed with --no-verify-jwt: Supabase gateway passes ES256 tokens through;
+// auth is handled internally via supabase.auth.getUser(token), same pattern
+// as plaid-sync-transactions.
 //
 // POST {} with user Bearer token
 // → { accounts: [{ account_id, name, mask, type, subtype, balance_current, balance_available }] }
@@ -23,45 +25,37 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 
   try {
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey);
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
 
+    // Auth: same pattern as plaid-sync-transactions
     const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '').trim();
-
-    // Allow service-role key for debug/admin calls; resolve user_id from body
-    let userId: string;
-    const body = await req.json().catch(() => ({})) as Record<string, string>;
-    if (token === serviceKey) {
-      if (!body.user_id) return json({ error: 'user_id required when using service role' }, 400);
-      userId = body.user_id;
-    } else {
-      const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
-      if (authErr || !user) return json({ error: 'Unauthorized' }, 401);
-      userId = user.id;
-    }
+    const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+    if (authErr || !user) return json({ error: 'Unauthorized' }, 401);
 
     const plaidEnv  = Deno.env.get('PLAID_ENV') ?? 'production';
     const plaidBase = `https://${plaidEnv}.plaid.com`;
     const clientId  = Deno.env.get('PLAID_CLIENT_ID')!;
     const secret    = Deno.env.get('PLAID_SECRET')!;
 
-    // Fetch all connected Plaid items for this user
     const { data: items, error: itemsErr } = await supabase
       .from('plaid_items')
       .select('id, access_token, institution_name')
-      .eq('user_id', userId);
+      .eq('user_id', user.id);
 
     if (itemsErr) throw itemsErr;
-    if (!items || items.length === 0) return json({ accounts: [], _debug: 'no_plaid_items' });
+    if (!items || items.length === 0) return json({ accounts: [] });
 
     const allAccounts: object[] = [];
 
     for (const item of items) {
       let data: any;
-      let status: number;
+      let status = 0;
 
-      // Try /accounts/balance/get first (includes live balances).
-      // Falls back to /accounts/get if the Balance product isn't enabled on this Plaid app.
+      // Try /accounts/balance/get first (live balances).
+      // Falls back to /accounts/get if Balance product is not enabled on this Plaid app.
       for (const endpoint of ['/accounts/balance/get', '/accounts/get']) {
         try {
           const res = await fetch(`${plaidBase}${endpoint}`, {
@@ -70,17 +64,17 @@ Deno.serve(async (req) => {
             body:    JSON.stringify({ client_id: clientId, secret, access_token: item.access_token }),
           });
           status = res.status;
-          data = await res.json();
+          data   = await res.json();
         } catch (fetchErr) {
           console.error(`[plaid-get-accounts] fetch threw for ${endpoint}:`, fetchErr);
           continue;
         }
 
-        if (status === 200 && data.accounts) break;  // success — stop trying
+        if (status === 200 && data.accounts) break;
 
         const code = data?.error_code ?? '';
-        console.warn(`[plaid-get-accounts] ${endpoint} returned ${status} ${code} — ${code === 'INVALID_PRODUCT' ? 'falling back to /accounts/get' : 'skipping item'}`);
-        if (code !== 'INVALID_PRODUCT') break; // non-product error, no point retrying
+        console.warn(`[plaid-get-accounts] ${endpoint} → ${status} ${code}`);
+        if (code !== 'INVALID_PRODUCT') break;
       }
 
       if (!data?.accounts) continue;
