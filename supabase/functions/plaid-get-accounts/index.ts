@@ -23,14 +23,22 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    );
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey);
 
     const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '').trim();
-    const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
-    if (authErr || !user) return json({ error: 'Unauthorized' }, 401);
+
+    // Allow service-role key for debug/admin calls; resolve user_id from body
+    let userId: string;
+    const body = await req.json().catch(() => ({})) as Record<string, string>;
+    if (token === serviceKey) {
+      if (!body.user_id) return json({ error: 'user_id required when using service role' }, 400);
+      userId = body.user_id;
+    } else {
+      const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+      if (authErr || !user) return json({ error: 'Unauthorized' }, 401);
+      userId = user.id;
+    }
 
     const plaidEnv  = Deno.env.get('PLAID_ENV') ?? 'production';
     const plaidBase = `https://${plaidEnv}.plaid.com`;
@@ -41,49 +49,54 @@ Deno.serve(async (req) => {
     const { data: items, error: itemsErr } = await supabase
       .from('plaid_items')
       .select('id, access_token, institution_name')
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
 
     if (itemsErr) throw itemsErr;
-    if (!items || items.length === 0) return json({ accounts: [] });
+    if (!items || items.length === 0) return json({ accounts: [], _debug: 'no_plaid_items' });
 
     const allAccounts: object[] = [];
 
     for (const item of items) {
-      try {
-        const res = await fetch(`${plaidBase}/accounts/balance/get`, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({
-            client_id:    clientId,
-            secret,
-            access_token: item.access_token,
-          }),
-        });
+      let data: any;
+      let status: number;
 
-        const data = await res.json();
-        if (!res.ok || !data.accounts) {
-          console.error(`Plaid accounts error for item ${item.id}:`, data.error_code);
+      // Try /accounts/balance/get first (includes live balances).
+      // Falls back to /accounts/get if the Balance product isn't enabled on this Plaid app.
+      for (const endpoint of ['/accounts/balance/get', '/accounts/get']) {
+        try {
+          const res = await fetch(`${plaidBase}${endpoint}`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ client_id: clientId, secret, access_token: item.access_token }),
+          });
+          status = res.status;
+          data = await res.json();
+        } catch (fetchErr) {
+          console.error(`[plaid-get-accounts] fetch threw for ${endpoint}:`, fetchErr);
           continue;
         }
 
-        for (const acc of data.accounts) {
-          // Only include depository accounts (checking, savings) — skip credit/loan/investment
-          if (acc.type !== 'depository') continue;
+        if (status === 200 && data.accounts) break;  // success — stop trying
 
-          allAccounts.push({
-            account_id:        acc.account_id,
-            name:              acc.name,
-            official_name:     acc.official_name ?? null,
-            mask:              acc.mask ?? null,
-            type:              acc.type,
-            subtype:           acc.subtype,
-            institution_name:  item.institution_name ?? null,
-            balance_current:   acc.balances?.current   ?? null,
-            balance_available: acc.balances?.available ?? null,
-          });
-        }
-      } catch (err) {
-        console.error(`Failed to fetch accounts for item ${item.id}:`, err);
+        const code = data?.error_code ?? '';
+        console.warn(`[plaid-get-accounts] ${endpoint} returned ${status} ${code} — ${code === 'INVALID_PRODUCT' ? 'falling back to /accounts/get' : 'skipping item'}`);
+        if (code !== 'INVALID_PRODUCT') break; // non-product error, no point retrying
+      }
+
+      if (!data?.accounts) continue;
+
+      for (const acc of data.accounts) {
+        allAccounts.push({
+          account_id:        acc.account_id,
+          name:              acc.name,
+          official_name:     acc.official_name ?? null,
+          mask:              acc.mask ?? null,
+          type:              acc.type,
+          subtype:           acc.subtype,
+          institution_name:  item.institution_name ?? null,
+          balance_current:   acc.balances?.current   ?? null,
+          balance_available: acc.balances?.available ?? null,
+        });
       }
     }
 
