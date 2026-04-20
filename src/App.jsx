@@ -2490,7 +2490,7 @@ export default function App() {
             {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} />}
             {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
-            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} />}
+            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} />}
             {screen === "insights" && <Insights {...shared} onOpenChat={msg => { setShowChat(true); sendChat(msg); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
             {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} lastSyncedAt={lastSyncedAt} backgroundSyncing={backgroundSyncing} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
           </>
@@ -4098,6 +4098,12 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
               ${fmt(sv.current, 0)} / ${fmt(sv.target, 0)}
               {months && <span style={{ color: C.cyan, fontWeight: 500 }}> · ~{months}mo</span>}
             </div>
+            {sv.plaid_account_name && (
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4, background: C.green + "10", border: `1px solid ${C.green}28`, borderRadius: 20, padding: "2px 8px" }}>
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>
+                <span style={{ fontSize: 10, color: C.green, fontWeight: 600 }}>{sv.plaid_account_name}</span>
+              </div>
+            )}
           </div>
         </div>
         <div style={{ background: goalColor + "22", borderRadius: 100, padding: "4px 10px" }}>
@@ -4189,10 +4195,35 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, getG
   );
 }
 
-function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactions, insight, onInsightAction, onInvestAlpaca, isPro, onUpgrade, alpacaConnected, onConnectAlpaca }) {
+function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactions, insight, onInsightAction, onInvestAlpaca, isPro, onUpgrade, alpacaConnected, onConnectAlpaca, bankConnected }) {
   const [showAdd, setShowAdd]             = useState(false);
   const [newName, setNewName]             = useState("");
   const [newTarget, setNewTarget]         = useState("");
+  const [newAccountId, setNewAccountId]   = useState("");
+  const [newAccountName, setNewAccountName] = useState("");
+  const [plaidAccounts, setPlaidAccounts] = useState([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+
+  // Fetch Plaid accounts with live balances when bank is connected
+  useEffect(() => {
+    if (!bankConnected) return;
+    setLoadingAccounts(true);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) { setLoadingAccounts(false); return; }
+      fetch(`${SUPABASE_URL}/functions/v1/plaid-get-accounts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+          "apikey": SUPABASE_KEY,
+        },
+      })
+        .then(r => r.json())
+        .then(d => { if (d.accounts) setPlaidAccounts(d.accounts); })
+        .catch(err => console.error("[plaid-get-accounts]", err))
+        .finally(() => setLoadingAccounts(false));
+    });
+  }, [bankConnected]);
   const [roundupEnabled, setRoundupEnabled] = useState(false);
   const [roundupMultiplier, setRoundupMultiplier] = useState(1);
   const [showAlpacaSheet, setShowAlpacaSheet] = useState(false);
@@ -4427,8 +4458,69 @@ function Savings({ savings, onAdd, onUpdate, totalIncome, totalSpent, transactio
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>New Savings Goal</div>
           <input style={inp} placeholder="Goal name (e.g. Vacation, Emergency Fund)" value={newName} onChange={e => setNewName(e.target.value)} />
           <input style={inp} type="number" placeholder="Target amount ($)" value={newTarget} onChange={e => setNewTarget(e.target.value)} />
-          <button onClick={() => { if (!newName || !newTarget) return; onAdd({ name: newName, target: parseFloat(newTarget), current: 0, icon: "star", color: C.green }); setShowAdd(false); setNewName(""); setNewTarget(""); }}
-            style={{ width: "100%", padding: 13, background: `linear-gradient(90deg,${C.green},#00A67E)`, border: "none", borderRadius: 12, color: C.bg, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
+
+          {/* Account selector — only shown when bank is connected */}
+          {bankConnected && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 6 }}>
+                Source account <span style={{ color: C.faint }}>(optional — track real balance)</span>
+              </div>
+              {loadingAccounts ? (
+                <div style={{ fontSize: 12, color: C.faint, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12 }}>
+                  Loading accounts…
+                </div>
+              ) : plaidAccounts.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {/* "No account" option */}
+                  <div
+                    onClick={() => { setNewAccountId(""); setNewAccountName(""); }}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, border: `1px solid ${!newAccountId ? C.cyan + "55" : C.border}`, background: !newAccountId ? C.cyan + "08" : C.bg, cursor: "pointer" }}
+                  >
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: C.bgTertiary, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </div>
+                    <span style={{ fontSize: 13, color: !newAccountId ? C.text : C.muted }}>Track manually (no bank link)</span>
+                    {!newAccountId && <svg style={{ marginLeft: "auto" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                  </div>
+                  {plaidAccounts.map(acc => {
+                    const label = `${acc.name}${acc.mask ? ` ••••${acc.mask}` : ""}`;
+                    const balance = acc.balance_available ?? acc.balance_current;
+                    const selected = newAccountId === acc.account_id;
+                    return (
+                      <div
+                        key={acc.account_id}
+                        onClick={() => { setNewAccountId(acc.account_id); setNewAccountName(label); }}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, border: `1px solid ${selected ? C.green + "55" : C.border}`, background: selected ? C.green + "08" : C.bg, cursor: "pointer" }}
+                      >
+                        <div style={{ width: 28, height: 28, borderRadius: 8, background: C.green + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, color: C.text, fontWeight: selected ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+                          {acc.institution_name && <div style={{ fontSize: 11, color: C.faint }}>{acc.institution_name}</div>}
+                        </div>
+                        <div style={{ textAlign: "right", flexShrink: 0 }}>
+                          {balance != null && <div style={{ fontSize: 13, fontWeight: 700, color: selected ? C.green : C.text }}>${balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>}
+                          <div style={{ fontSize: 10, color: C.faint, textTransform: "capitalize" }}>{acc.subtype}</div>
+                        </div>
+                        {selected && <svg style={{ flexShrink: 0, marginLeft: 4 }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: C.faint, padding: "10px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12 }}>
+                  No depository accounts found. Connect a bank in Settings.
+                </div>
+              )}
+            </div>
+          )}
+
+          <button onClick={() => {
+            if (!newName || !newTarget) return;
+            onAdd({ name: newName, target: parseFloat(newTarget), current: 0, icon: "star", color: C.green, plaid_account_id: newAccountId || null, plaid_account_name: newAccountName || null });
+            setShowAdd(false); setNewName(""); setNewTarget(""); setNewAccountId(""); setNewAccountName("");
+          }} style={{ width: "100%", padding: 13, background: `linear-gradient(90deg,${C.green},#00A67E)`, border: "none", borderRadius: 12, color: C.bg, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
             Create Goal
           </button>
         </GlassCard>
