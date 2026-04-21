@@ -4372,31 +4372,32 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
         </div>
       )}
 
-      {isLinked ? (
-        /* ── Linked account: Move Money button + auto-sync note ──────────────── */
-        <>
-          <div style={{ marginBottom: 10, padding: "8px 12px", background: C.green + "0A", border: `1px solid ${C.green}20`, borderRadius: 10, display: "flex", alignItems: "center", gap: 6 }}>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-            <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>Your money stays in your bank · synced automatically</span>
-          </div>
-          <button
-            onClick={openMoveMoney}
-            style={{ width: "100%", padding: "11px 16px", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 11, color: C.text, fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-            Move Money
-          </button>
+      {isLinked && (
+        <div style={{ marginBottom: 10, padding: "8px 12px", background: C.green + "0A", border: `1px solid ${C.green}20`, borderRadius: 10, display: "flex", alignItems: "center", gap: 6 }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>Your money stays in your bank · synced automatically</span>
+        </div>
+      )}
+      <button
+        onClick={openMoveMoney}
+        style={{ width: "100%", padding: "11px 16px", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 11, color: C.text, fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Move Money
+      </button>
 
-          {showMoveMoney && (
-            <div onClick={() => setShowMoveMoney(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-              <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "22px 22px 0 0", border: `1px solid ${C.border}`, padding: 24, paddingBottom: 36, fontFamily: FONT, maxHeight: "90vh", overflowY: "auto" }}>
-                <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.11)", borderRadius: 2, margin: "0 auto 20px" }} />
+      {showMoveMoney && (
+        <div onClick={() => setShowMoveMoney(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "22px 22px 0 0", border: `1px solid ${C.border}`, padding: 24, paddingBottom: 36, fontFamily: FONT, maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.11)", borderRadius: 2, margin: "0 auto 20px" }} />
 
-                {/* Header */}
-                <div style={{ width: 44, height: 44, borderRadius: 14, background: C.green + "18", border: `1px solid ${C.green}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>
-                </div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: C.text, textAlign: "center", marginBottom: 8 }}>Move Money</div>
+            {/* Header */}
+            <div style={{ width: 44, height: 44, borderRadius: 14, background: C.green + "18", border: `1px solid ${C.green}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: C.text, textAlign: "center", marginBottom: 8 }}>Move Money</div>
+            {isLinked && (
+              <>
                 <div style={{ fontSize: 13, color: C.muted, textAlign: "center", lineHeight: 1.65, marginBottom: 20 }}>
                   Transfer funds directly in your{" "}
                   <strong style={{ color: C.text }}>{linkedAccount.institution_name || sv.plaid_account_name || "bank"} app</strong>.
@@ -4413,6 +4414,8 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
                     </div>
                   )}
                 </div>
+              </>
+            )}
 
                 {/* ── Weekly reminder section ── */}
                 <div style={{ marginBottom: 20 }}>
@@ -4481,9 +4484,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
               </div>
             </div>
           )}
-        </>
-      ) : (
-        /* ── No linked account: keep all existing deposit/withdraw UI ─────────── */
+      {!isLinked && (
         <>
           {aiContribution > 0 ? (
             <div style={{ marginBottom: 10 }}>
@@ -4576,6 +4577,7 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
   const [roundupEnabled, setRoundupEnabled] = useState(false);
   const [roundupMultiplier, setRoundupMultiplier] = useState(1);
   const [showAlpacaSheet, setShowAlpacaSheet] = useState(false);
+  const [accountLinkMode, setAccountLinkMode] = useState("auto"); // "auto" | "manual"
 
   // ── Fetch Plaid accounts ──────────────────────────────────────────────────────
   async function fetchPlaidAccounts() {
@@ -4680,7 +4682,7 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
         </button>
       </div>
 
-      {insight && ['savings_opportunity', 'goal_off_track'].includes(insight.type) && monthlySurplus > 0 && (
+      {insight && ['savings_opportunity', 'goal_off_track'].includes(insight.type) && monthlySurplus > 0 && savings.length > 0 && (insight.type !== 'goal_off_track' || savings.some(sv => sv.id === insight.data?.goalId)) && (
         <InsightCard insight={insight} onAction={onInsightAction} />
       )}
 
@@ -4841,7 +4843,7 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
         </div>
       )}
 
-      {showAdd && (
+      {showAdd && savings.length > 0 && (
         <GlassCard>
           <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>New Savings Goal</div>
           <input style={inp} placeholder="Goal name (e.g. Vacation, Emergency Fund)" value={newName} onChange={e => setNewName(e.target.value)} />
@@ -4893,8 +4895,13 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
                     );
                   })}
                 </div>
+              ) : accountLinkMode === "manual" ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span style={{ fontSize: 12, color: C.muted, fontWeight: 500 }}>Tracking manually</span>
+                </div>
               ) : (
-                <SavingsAccountEmptyState onTrackManually={() => { setNewAccountId(""); setNewAccountName(""); }} />
+                <SavingsAccountEmptyState onTrackManually={() => { setNewAccountId(""); setNewAccountName(""); setAccountLinkMode("manual"); }} />
               )}
             </div>
           )}
@@ -4902,7 +4909,7 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
           <button onClick={() => {
             if (!newName || !newTarget) return;
             onAdd({ name: newName, target: parseFloat(newTarget), current: 0, icon: "star", color: C.green, plaid_account_id: newAccountId || null, plaid_account_name: newAccountName || null });
-            setShowAdd(false); setNewName(""); setNewTarget(""); setNewAccountId(""); setNewAccountName("");
+            setShowAdd(false); setNewName(""); setNewTarget(""); setNewAccountId(""); setNewAccountName(""); setAccountLinkMode("auto");
           }} style={{ width: "100%", padding: 13, background: `linear-gradient(90deg,${C.green},#00A67E)`, border: "none", borderRadius: 12, color: C.bg, fontWeight: 700, cursor: "pointer", fontFamily: FONT }}>
             Create Goal
           </button>
@@ -4930,7 +4937,7 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
                   const isSelected = selectedPreset?.name === p.name;
                   return (
                     <div key={p.name}
-                      onClick={() => { setSelectedPreset(isSelected ? null : p); setShowAdd(false); setNewAccountId(""); setNewAccountName(""); }}
+                      onClick={() => { setSelectedPreset(isSelected ? null : p); setShowAdd(false); setNewAccountId(""); setNewAccountName(""); setAccountLinkMode("auto"); }}
                       style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: isSelected ? p.color + "10" : C.bgSecondary, border: `1px solid ${isSelected ? p.color + "55" : C.border}`, borderRadius: 12, padding: "13px 14px", cursor: "pointer", transition: "all 0.15s" }}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -4950,57 +4957,17 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
                   );
                 })}
 
-                {/* Account picker + Create button — shown when a preset is selected */}
+                {/* Create button — shown when a preset is selected */}
                 {selectedPreset && (
-                  <div style={{ background: C.bgTertiary, borderRadius: 12, padding: "14px", border: `1px solid ${C.border}`, marginTop: 4 }}>
-                    {bankConnected && (
-                      <div style={{ marginBottom: 12 }}>
-                        <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 6 }}>
-                          Savings account <span style={{ color: C.faint }}>(optional)</span>
-                        </div>
-                        {savingsAccounts.length > 0 ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                          <div onClick={() => { setNewAccountId(""); setNewAccountName(""); }}
-                            style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, border: `1px solid ${!newAccountId ? C.cyan + "55" : C.border}`, background: !newAccountId ? C.cyan + "08" : C.bg, cursor: "pointer" }}>
-                            <span style={{ fontSize: 13, color: !newAccountId ? C.text : C.muted }}>Track manually</span>
-                            {!newAccountId && <svg style={{ marginLeft: "auto" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
-                          </div>
-                          {savingsAccounts.map(acc => {
-                            const label = `${acc.name}${acc.mask ? ` ••••${acc.mask}` : ""}`;
-                            const bal = acc.balance_available ?? acc.balance_current;
-                            const sel = newAccountId === acc.account_id;
-                            return (
-                              <div key={acc.account_id}
-                                onClick={() => { setNewAccountId(acc.account_id); setNewAccountName(label); }}
-                                style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, border: `1px solid ${sel ? C.green + "55" : C.border}`, background: sel ? C.green + "08" : C.bg, cursor: "pointer" }}>
-                                <div style={{ width: 28, height: 28, borderRadius: 8, background: C.green + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>
-                                </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontSize: 13, color: C.text, fontWeight: sel ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
-                                  {acc.institution_name && <div style={{ fontSize: 11, color: C.faint }}>{acc.institution_name}</div>}
-                                </div>
-                                {bal != null && <div style={{ fontSize: 13, fontWeight: 600, color: sel ? C.green : C.text, flexShrink: 0 }}>${bal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>}
-                                {sel && <svg style={{ flexShrink: 0 }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
-                              </div>
-                            );
-                          })}
-                        </div>
-                        ) : (
-                          <SavingsAccountEmptyState onTrackManually={() => { setNewAccountId(""); setNewAccountName(""); }} />
-                        )}
-                      </div>
-                    )}
-                    <button
-                      onClick={() => {
-                        onAdd({ name: selectedPreset.name, target: selectedPreset.target, current: 0, icon: selectedPreset.icon, color: selectedPreset.color, plaid_account_id: newAccountId || null, plaid_account_name: newAccountName || null });
-                        setSelectedPreset(null); setNewAccountId(""); setNewAccountName("");
-                      }}
-                      style={{ width: "100%", padding: 13, background: `linear-gradient(90deg,${selectedPreset.color},${selectedPreset.color}CC)`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT }}
-                    >
-                      Create {selectedPreset.name}
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => {
+                      onAdd({ name: selectedPreset.name, target: selectedPreset.target, current: 0, icon: selectedPreset.icon, color: selectedPreset.color, plaid_account_id: null, plaid_account_name: null });
+                      setSelectedPreset(null);
+                    }}
+                    style={{ width: "100%", padding: 13, background: `linear-gradient(90deg,${selectedPreset.color},${selectedPreset.color}CC)`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT }}
+                  >
+                    Create {selectedPreset.name}
+                  </button>
                 )}
 
                 <div onClick={() => { setShowAdd(true); setSelectedPreset(null); }}
@@ -5377,6 +5344,8 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected
         <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ color: C.faint, textDecoration: "none" }}>Privacy Policy</a>
         <span style={{ margin: "0 8px" }}>·</span>
         <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: C.faint, textDecoration: "none" }}>Terms of Service</a>
+        <span style={{ margin: "0 8px" }}>·</span>
+        <a href="/cybersecurity.html" target="_blank" rel="noopener noreferrer" style={{ color: C.faint, textDecoration: "none" }}>Cybersecurity Policy</a>
       </div>
     </div>
   );
@@ -5840,6 +5809,16 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca })
               <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 6 }}>Connect Your Alpaca Account</div>
               <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 20 }}>
                 Link your free Alpaca brokerage account to buy stocks and ETFs directly from Arkonomy.
+              </div>
+              <div style={{ background: "rgba(245,200,66,0.07)", border: "1px solid rgba(245,200,66,0.35)", borderRadius: 12, padding: "14px 16px", marginBottom: 16, textAlign: "left" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#F5C842", marginBottom: 8, letterSpacing: 0.3 }}>Authorize Arkonomy</div>
+                <div style={{ fontSize: 12, color: "#C8B86A", lineHeight: 1.65 }}>
+                  By allowing Arkonomy to access your Alpaca account, you are granting Arkonomy access to your account information and authorization to place transactions at your direction.
+                </div>
+                <div style={{ fontSize: 12, color: "#C8B86A", lineHeight: 1.65, marginTop: 8 }}>
+                  Alpaca does not warrant or guarantee that Arkonomy will work as advertised or expected. Before authorizing, learn more about Arkonomy at{" "}
+                  <a href="https://arkonomy.com" target="_blank" rel="noopener noreferrer" style={{ color: "#F5C842", textDecoration: "underline" }}>arkonomy.com</a>.
+                </div>
               </div>
               <button
                 onClick={onConnectAlpaca}

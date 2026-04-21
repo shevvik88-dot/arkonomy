@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cybersecurity Policy — Arkonomy</title>
+  <meta name="theme-color" content="#0B1426" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      background: #0B1426;
+      color: #C8D8F0;
+      font-family: -apple-system, 'Inter', 'Segoe UI', sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+    .wrap {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 40px;
+      text-decoration: none;
+    }
+    .logo-text {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      color: #ffffff;
+    }
+    .logo-sub {
+      font-size: 9px;
+      letter-spacing: 2px;
+      color: #4A5E7A;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 8px;
+    }
+    .updated {
+      font-size: 12px;
+      color: #4A5E7A;
+      margin-bottom: 40px;
+      letter-spacing: 0.5px;
+    }
+    h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #2F80FF;
+      margin: 36px 0 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    p { margin-bottom: 12px; color: #A0B4CC; }
+    ul {
+      margin: 8px 0 12px 0;
+      padding-left: 20px;
+      color: #A0B4CC;
+    }
+    li { margin-bottom: 6px; }
+    .card {
+      background: #111E33;
+      border: 1px solid #1E3050;
+      border-radius: 14px;
+      padding: 20px 24px;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 6px;
+    }
+    .card p { margin: 0; font-size: 13px; }
+    a { color: #2F80FF; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .divider {
+      border: none;
+      border-top: 1px solid #1E3050;
+      margin: 40px 0;
+    }
+    .footer {
+      font-size: 12px;
+      color: #4A5E7A;
+      text-align: center;
+      margin-top: 48px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <a class="logo" href="/">
+      <div>
+        <div class="logo-text">ARKONOMY</div>
+        <div class="logo-sub">AI FINANCIAL AUTOPILOT</div>
+      </div>
+    </a>
+
+    <h1>Cybersecurity Policy</h1>
+    <div class="updated">Last updated: April 20, 2026</div>
+
+    <p>Arkonomy takes the security of your financial data seriously. This policy describes the technical and organisational measures we use to protect your account and personal information.</p>
+
+    <h2>1. Infrastructure Security</h2>
+    <p>Arkonomy's backend is built on <strong>Supabase</strong>, hosted on AWS infrastructure. All data is encrypted in transit using TLS 1.2 or higher and encrypted at rest using AES-256.</p>
+    <p>Row-level security (RLS) policies are enforced at the database layer, ensuring that each authenticated user can only read and write their own records — even in the event of an application-layer misconfiguration.</p>
+
+    <h2>2. Authentication</h2>
+    <p>User accounts are secured through Supabase Auth, which provides:</p>
+    <ul>
+      <li>Secure password hashing using bcrypt.</li>
+      <li>Short-lived JWT access tokens with automatic refresh.</li>
+      <li>Email-based verification for new accounts.</li>
+      <li>Protection against brute-force login attempts via rate limiting.</li>
+    </ul>
+    <p>We strongly recommend using a unique, strong password for your Arkonomy account and enabling any available two-factor authentication options.</p>
+
+    <h2>3. Bank Connection Security</h2>
+    <p>Bank connections are handled exclusively through <strong>Plaid</strong>, a regulated financial data aggregator. Arkonomy never sees, stores, or transmits your bank username, password, or MFA codes. All credential exchange occurs directly between you and Plaid within their secure, isolated environment.</p>
+    <p>Arkonomy receives only read-only access tokens and transaction data — it cannot initiate transfers or modify your bank account in any way.</p>
+
+    <h2>4. API & Edge Function Security</h2>
+    <p>All server-side logic runs as Supabase Edge Functions behind authentication middleware. API keys and secrets are stored as environment variables and are never exposed to the client. Requests to third-party services (Plaid, Alpaca, Anthropic) are made exclusively from server-side functions.</p>
+
+    <h2>5. Data Minimisation</h2>
+    <p>We collect only the data required to provide the service. Raw transaction data is used locally to generate spending summaries; only anonymised, aggregated figures are forwarded to Anthropic's API for AI insight generation. No personally identifiable information is included in AI prompts.</p>
+
+    <h2>6. Third-Party Security</h2>
+    <p>We rely on the following third-party providers, each of which maintains their own security certifications and programmes:</p>
+
+    <div class="card">
+      <div class="card-title">Supabase</div>
+      <p>SOC 2 Type II compliant. Provides database, authentication, and serverless compute. <a href="https://supabase.com/security" target="_blank" rel="noopener">supabase.com/security</a></p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Plaid</div>
+      <p>PCI DSS Level 1 and SOC 2 Type II certified. Handles all bank credential exchange and financial data aggregation. <a href="https://plaid.com/legal/privacy-notice/" target="_blank" rel="noopener">plaid.com/legal/privacy-notice</a></p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Alpaca Markets</div>
+      <p>FINRA-registered broker-dealer subject to SEC and FINRA security requirements. Brokerage accounts are held with Alpaca, not Arkonomy. <a href="https://alpaca.markets/disclosures" target="_blank" rel="noopener">alpaca.markets/disclosures</a></p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Anthropic (Claude AI)</div>
+      <p>Enterprise-grade API with data isolation per request. Anonymised spending summaries sent to the API are not used to train models under our API agreement. <a href="https://www.anthropic.com/privacy" target="_blank" rel="noopener">anthropic.com/privacy</a></p>
+    </div>
+
+    <h2>7. Vulnerability Disclosure</h2>
+    <p>If you discover a security vulnerability in Arkonomy, please report it responsibly by emailing <a href="mailto:security@arkonomy.com">security@arkonomy.com</a>. We ask that you do not publicly disclose the issue until we have had a reasonable opportunity to investigate and remediate it.</p>
+    <p>We will acknowledge all valid reports and work to address confirmed vulnerabilities promptly.</p>
+
+    <h2>8. Incident Response</h2>
+    <p>In the event of a security incident that affects your personal data, we will notify affected users as required by applicable law and take immediate steps to contain, assess, and remediate the issue.</p>
+
+    <h2>9. Changes to This Policy</h2>
+    <p>We may update this policy as our security practices evolve. Material changes will be communicated through the app or by email.</p>
+
+    <hr class="divider" />
+
+    <div class="footer">
+      &copy; 2026 Arkonomy &nbsp;·&nbsp;
+      <a href="/privacy.html">Privacy Policy</a> &nbsp;·&nbsp;
+      <a href="/terms.html">Terms of Service</a> &nbsp;·&nbsp;
+      <a href="/cybersecurity.html">Cybersecurity Policy</a>
+    </div>
+
+  </div>
+</body>
+</html>

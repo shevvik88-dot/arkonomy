@@ -28,7 +28,7 @@ select cron.schedule(
     url     => 'https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/plaid-batch-sync',
     headers => jsonb_build_object(
                  'Content-Type',  'application/json',
-                 'Authorization', 'Bearer YOUR_SERVICE_ROLE_KEY'
+                 'Authorization', 'Bearer <SUPABASE_SERVICE_ROLE_KEY>'
                ),
     body    => '{}'::jsonb
   ) as request_id;
