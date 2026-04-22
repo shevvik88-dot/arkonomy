@@ -1839,7 +1839,6 @@ export default function App() {
   const [tutorialActive, setTutorialActive] = useState(false);
   const [tutorialStepIdx, setTutorialStepIdx] = useState(0);
   const [activeTourSteps, setActiveTourSteps] = useState(TUTORIAL_STEPS);
-  const [chatBounced, setChatBounced] = useState(() => { try { return !!localStorage.getItem("arkonomy_chat_bounced"); } catch { return false; } });
   const tutorialStartedRef = useRef(false);
 
   useEffect(() => {
@@ -2560,8 +2559,6 @@ export default function App() {
           ) : alpacaToast.error ? `❌ ${alpacaToast.error}` : alpacaToast.loading ? `⏳ ${alpacaToast.message}` : `✅ ${alpacaToast.message}`}
         </div>
       )}
-
-      {/* Floating AI chat button removed — AI tab is now in the bottom nav */}
 
       {/* ── Chat Modal ──────────────────────────────────────── */}
       {showChat && (
