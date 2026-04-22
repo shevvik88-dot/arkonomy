@@ -6392,63 +6392,66 @@ function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit, alp
 }
 
 // ─── Bottom Nav ───────────────────────────────────────────────
-function BottomNav({ screen, setScreen, onOpenChat, showChat }) {
-  const leftTabs = [
-    { id: "dashboard",    label: "Home",  icon: "home"   },
-    { id: "transactions", label: "Txns",  icon: "credit" },
+function BottomNav({ screen, setScreen, onOpenChat }) {
+  const tabs = [
+    { id: "dashboard",    label: "Home",     icon: "home"      },
+    { id: "transactions", label: "Txns",     icon: "credit"    },
+    { id: "markets",      label: "Markets",  icon: "bar-chart" },
+    { id: "savings",      label: "Savings",  icon: "target"    },
+    { id: "insights",     label: "Insights", icon: "activity"  },
   ];
-  const rightTabs = [
-    { id: "savings",  label: "Savings",  icon: "target"   },
-    { id: "insights", label: "Insights", icon: "activity" },
-  ];
-
-  function TabBtn({ tab }) {
-    const active = screen === tab.id;
-    return (
-      <button data-tutorial={`nav-${tab.id}`} onClick={() => setScreen(tab.id)}
-        style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "4px 0", position: "relative" }}>
-        <Icon name={tab.icon} size={22} color={active ? C.blue : C.faint} strokeWidth={active ? 2.2 : 1.8} />
-        <span style={{ fontSize: 10, color: active ? C.blue : C.faint, fontWeight: active ? 700 : 400, fontFamily: FONT }}>{tab.label}</span>
-        {active && <div style={{ width: 4, height: 4, borderRadius: 99, background: C.blue, boxShadow: `0 0 6px ${C.blue}` }} />}
-      </button>
-    );
-  }
-
   return (
-    <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, zIndex: 50 }}>
-      {/* FAB — center of button sits on nav bar top edge */}
-      <button
+    <>
+      {/* ── Floating AI chat bubble — above nav bar, never overlapping tabs ── */}
+      <div
         data-tutorial="ai-chat"
         onClick={onOpenChat}
         style={{
-          position: "absolute",
-          top: 0,
+          position: "fixed",
+          bottom: 60,
           left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: 56, height: 56,
-          borderRadius: "50%",
-          background: "linear-gradient(135deg, #00C9A7, #0066FF)",
-          border: "3px solid #0B1426",
+          transform: "translateX(-50%)",
+          width: 56,
           cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: "0 0 20px rgba(0,201,167,0.5), 0 4px 14px rgba(0,0,0,0.4)",
-          zIndex: 52,
+          zIndex: 55,
+          filter: "drop-shadow(0 4px 20px rgba(0,201,167,0.4))",
         }}
       >
-        <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}>
-          <path d="M12 3L13.5 8.5L19 10L13.5 11.5L12 17L10.5 11.5L5 10L10.5 8.5Z"/>
-          <path d="M19 3L19.8 5.2L22 6L19.8 6.8L19 9L18.2 6.8L16 6L18.2 5.2Z"/>
-          <path d="M5 17L5.5 18.5L7 19L5.5 19.5L5 21L4.5 19.5L3 19L4.5 18.5Z"/>
+        {/* Bubble body + tail as a single SVG so the tail blends seamlessly */}
+        <svg width="56" height="52" viewBox="0 0 56 52" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "block" }}>
+          <defs>
+            <linearGradient id="fab-grad" x1="0" y1="0" x2="56" y2="44" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#00C9A7"/>
+              <stop offset="100%" stopColor="#0066FF"/>
+            </linearGradient>
+          </defs>
+          {/* Rounded rect body */}
+          <rect x="0" y="0" width="56" height="44" rx="16" fill="url(#fab-grad)"/>
+          {/* Triangular tail pointing down, centered */}
+          <polygon points="22,44 34,44 28,52" fill="url(#fab-grad)"/>
         </svg>
-      </button>
-
-      {/* Nav bar */}
-      <div className="cap-bottom-nav" style={{ background: "rgba(11,20,38,0.97)", backdropFilter: "blur(24px)", borderTop: `1px solid ${C.sep}`, display: "flex", padding: "10px 0 20px" }}>
-        {leftTabs.map(tab => <TabBtn key={tab.id} tab={tab} />)}
-        {/* Spacer keeps visual center clear under FAB */}
-        <div style={{ width: 72, flexShrink: 0 }} />
-        {rightTabs.map(tab => <TabBtn key={tab.id} tab={tab} />)}
+        {/* Sparkle icon overlaid */}
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+          style={{ position: "absolute", top: 10, left: 16, display: "block", pointerEvents: "none" }}>
+          <path d="M12 2L13.5 7.5L19 9L13.5 10.5L12 16L10.5 10.5L5 9L10.5 7.5Z"/>
+          <path d="M19 2L19.7 4.3L22 5L19.7 5.7L19 8L18.3 5.7L16 5L18.3 4.3Z"/>
+        </svg>
       </div>
-    </div>
+
+      {/* ── Nav bar — 5 tabs, no AI slot ── */}
+      <div className="cap-bottom-nav" style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(11,20,38,0.97)", backdropFilter: "blur(24px)", borderTop: `1px solid ${C.sep}`, display: "flex", padding: "10px 0 20px", zIndex: 50 }}>
+        {tabs.map(tab => {
+          const active = screen === tab.id;
+          return (
+            <button key={tab.id} data-tutorial={`nav-${tab.id}`} onClick={() => setScreen(tab.id)}
+              style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "4px 0", position: "relative" }}>
+              <Icon name={tab.icon} size={22} color={active ? C.blue : C.faint} strokeWidth={active ? 2.2 : 1.8} />
+              <span style={{ fontSize: 10, color: active ? C.blue : C.faint, fontWeight: active ? 700 : 400, fontFamily: FONT }}>{tab.label}</span>
+              {active && <div style={{ width: 4, height: 4, borderRadius: 99, background: C.blue, boxShadow: `0 0 6px ${C.blue}` }} />}
+            </button>
+          );
+        })}
+      </div>
+    </>
   );
 }
