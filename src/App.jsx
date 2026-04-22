@@ -2561,38 +2561,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ── Floating AI Chat Button ─────────────────────────── */}
-      {!showChat && (
-        <button
-          data-tutorial="ai-chat"
-          className={chatBounced ? "" : "chat-bounce"}
-          onAnimationEnd={() => { setChatBounced(true); try { localStorage.setItem("arkonomy_chat_bounced","1"); } catch {} }}
-          onClick={() => setShowChat(true)}
-          style={{
-            position: "fixed",
-            bottom: 88,
-            right: "max(16px, calc((100vw - 430px) / 2 + 16px))",
-            width: 56, height: 56,
-            borderRadius: "50%",
-            background: "linear-gradient(135deg, #7C6BFF, #00C2FF)",
-            border: "none", cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 4px 24px rgba(124,107,255,0.55)",
-            zIndex: 90,
-          }}
-        >
-          <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          <div style={{
-            position: "absolute", top: -4, right: -4,
-            background: "#12D18E", borderRadius: 99,
-            padding: "2px 5px", fontSize: 8, fontWeight: 800,
-            color: "#000", lineHeight: 1, letterSpacing: 0.3,
-            border: "1.5px solid rgba(11,20,38,0.97)",
-          }}>AI</div>
-        </button>
-      )}
+      {/* Floating AI chat button removed — AI tab is now in the bottom nav */}
 
       {/* ── Chat Modal ──────────────────────────────────────── */}
       {showChat && (
@@ -2650,7 +2619,7 @@ export default function App() {
         </div>
       )}
 
-      <BottomNav screen={screen} setScreen={setScreen} />
+      <BottomNav screen={screen} setScreen={setScreen} onOpenChat={() => setShowChat(true)} showChat={showChat} />
 
       {/* ── Tutorial Overlay ───────────────────────────────────── */}
       {tutorialActive && (
@@ -4702,7 +4671,7 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
         </button>
       </div>
 
-      {insight && ['savings_opportunity', 'goal_off_track'].includes(insight.type) && monthlySurplus > 0 && savings.length > 0 && (insight.type !== 'goal_off_track' || savings.some(sv => sv.id === insight.data?.goalId)) && (
+      {insight && ['savings_opportunity', 'goal_off_track'].includes(insight.type) && monthlySurplus > 0 && savings.length > 0 && (insight.type !== 'goal_off_track' || savings.some(sv => sv.id === insight.data?.goalId && Number(sv.target) < 50000)) && (
         <InsightCard insight={insight} onAction={onInsightAction} />
       )}
 
@@ -6012,6 +5981,7 @@ function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit, alp
   const [exploreQuery, setExploreQuery] = useState("");
   const [exploreResults, setExploreResults] = useState([]);
   const [searchingExplore, setSearchingExplore] = useState(false);
+  const [exploreNonUS, setExploreNonUS] = useState(false);
   const [dragging, setDragging]         = useState(null);
   const [dragList, setDragList]         = useState(watchlist);
   const dragRef = useRef(watchlist);
@@ -6107,6 +6077,15 @@ function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit, alp
     setDragging(null);
   }
 
+  const US_EXCHANGES = ["NYSE", "NASDAQ", "ARCA", "BATS", "NYSE ARCA"];
+  function filterUSStocks(results) {
+    return (results ?? []).filter(r => {
+      if (r.symbol?.includes(".")) return false;
+      const ex = (r.exchange || r.primary_exchange || "").toUpperCase();
+      return US_EXCHANGES.some(e => ex.includes(e));
+    });
+  }
+
   // Add-to-watchlist search
   const addSearchTimer = useRef(null);
   function onAddQueryChange(q) {
@@ -6116,7 +6095,7 @@ function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit, alp
     addSearchTimer.current = setTimeout(async () => {
       setSearchingAdd(true);
       const d = await callMarketData({ type: "search", query: q });
-      setAddResults(d.results ?? []);
+      setAddResults(filterUSStocks(d.results));
       setSearchingAdd(false);
     }, 400);
   }
@@ -6126,11 +6105,13 @@ function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit, alp
   function onExploreChange(q) {
     setExploreQuery(q);
     clearTimeout(exploreTimer.current);
-    if (!q.trim()) { setExploreResults([]); return; }
+    if (!q.trim()) { setExploreResults([]); setExploreNonUS(false); return; }
     exploreTimer.current = setTimeout(async () => {
       setSearchingExplore(true);
       const d = await callMarketData({ type: "search", query: q });
-      setExploreResults(d.results ?? []);
+      const filtered = filterUSStocks(d.results);
+      setExploreResults(filtered);
+      setExploreNonUS(!filtered.length && (d.results ?? []).length > 0);
       setSearchingExplore(false);
     }, 400);
   }
@@ -6284,6 +6265,11 @@ function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit, alp
           />
         </div>
         {searchingExplore && <div style={{ color: C.faint, fontSize: 12, textAlign: "center", padding: "8px 0" }}>Searching...</div>}
+        {!searchingExplore && exploreNonUS && (
+          <div style={{ fontSize: 12, color: "#F5A623", padding: "8px 12px", background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.25)", borderRadius: 10, marginBottom: 8 }}>
+            Only US stocks supported. Try <strong>AAPL</strong>, <strong>TSLA</strong>, <strong>MSFT</strong>.
+          </div>
+        )}
         {exploreResults.length > 0 ? (
           <div style={{ display: "flex", flexDirection: "column" }}>
             {exploreResults.map((r, i) => (
@@ -6402,17 +6388,51 @@ function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit, alp
 }
 
 // ─── Bottom Nav ───────────────────────────────────────────────
-function BottomNav({ screen, setScreen, insightCount = 1 }) {
-  const tabs = [
-    { id: "dashboard",    label: "Home",     icon: "home"      },
-    { id: "transactions", label: "Txns",     icon: "credit"    },
-    { id: "markets",      label: "Markets",  icon: "bar-chart" },
-    { id: "savings",      label: "Savings",  icon: "target"    },
-    { id: "insights",     label: "Insights", icon: "activity"  },
+function BottomNav({ screen, setScreen, onOpenChat, showChat }) {
+  // Left: Home, Txns, Markets  |  [AI center]  |  Right: Savings, Insights
+  const leftTabs  = [
+    { id: "dashboard",    label: "Home",    icon: "home"      },
+    { id: "transactions", label: "Txns",    icon: "credit"    },
+    { id: "markets",      label: "Markets", icon: "bar-chart" },
+  ];
+  const rightTabs = [
+    { id: "savings",  label: "Savings",  icon: "target"   },
+    { id: "insights", label: "Insights", icon: "activity" },
   ];
   return (
-    <div className="cap-bottom-nav" style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(11,20,38,0.97)", backdropFilter: "blur(24px)", borderTop: `1px solid ${C.sep}`, display: "flex", padding: "10px 0 20px", zIndex: 50 }}>
-      {tabs.map(tab => {
+    <div className="cap-bottom-nav" style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(11,20,38,0.97)", backdropFilter: "blur(24px)", borderTop: `1px solid ${C.sep}`, display: "flex", alignItems: "flex-end", padding: "10px 0 20px", zIndex: 50 }}>
+      {leftTabs.map(tab => {
+        const active = screen === tab.id;
+        return (
+          <button key={tab.id} data-tutorial={`nav-${tab.id}`} onClick={() => setScreen(tab.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "4px 0", position: "relative" }}>
+            <Icon name={tab.icon} size={22} color={active ? C.blue : C.faint} strokeWidth={active ? 2.2 : 1.8} />
+            <span style={{ fontSize: 10, color: active ? C.blue : C.faint, fontWeight: active ? 700 : 400, fontFamily: FONT }}>{tab.label}</span>
+            {active && <div style={{ width: 4, height: 4, borderRadius: 99, background: C.blue, boxShadow: `0 0 6px ${C.blue}` }} />}
+          </button>
+        );
+      })}
+
+      {/* ── Center AI tab (raised) ── */}
+      <button
+        data-tutorial="ai-chat"
+        onClick={onOpenChat}
+        style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer", padding: "0", position: "relative", marginBottom: -8 }}
+      >
+        <div style={{
+          width: 48, height: 48, borderRadius: 16,
+          background: showChat ? "linear-gradient(135deg,#00C2FF,#7C6BFF)" : "linear-gradient(135deg,#7C6BFF,#00C2FF)",
+          boxShadow: "0 4px 20px rgba(124,107,255,0.5)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          border: "1.5px solid rgba(255,255,255,0.12)",
+        }}>
+          <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}>
+            <path d="M12 3c-4.97 0-9 3.185-9 7.115 0 2.557 1.522 4.82 3.889 6.116L6 20l4.055-2.125C10.671 18.0 11.33 18 12 18c4.97 0 9-3.185 9-7.115C21 6.955 16.97 3 12 3z"/>
+          </svg>
+        </div>
+        <span style={{ fontSize: 10, color: showChat ? C.cyan : C.faint, fontWeight: showChat ? 700 : 400, fontFamily: FONT }}>AI</span>
+      </button>
+
+      {rightTabs.map(tab => {
         const active = screen === tab.id;
         return (
           <button key={tab.id} data-tutorial={`nav-${tab.id}`} onClick={() => setScreen(tab.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "4px 0", position: "relative" }}>
