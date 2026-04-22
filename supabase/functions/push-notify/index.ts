@@ -280,12 +280,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Savings reminders: fire push for reminders whose day_of_week matches today ──
+    // ── Savings reminders: fire push for reminders whose day_of_week array contains today ──
     const todayDow = new Date().getDay(); // 0=Sun … 6=Sat
     const { data: reminders } = await supabase
       .from('savings_reminders')
-      .select('user_id, goal_id, amount, savings(name)')
-      .eq('day_of_week', todayDow);
+      .select('user_id, goal_id, amount, day_of_week, savings(name)')
+      .contains('day_of_week', [todayDow]);
 
     const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
@@ -299,6 +299,8 @@ Deno.serve(async (req) => {
       if (!profile?.push_subscription) continue;
 
       const goalName = (r.savings as any)?.name ?? 'your savings goal';
+      const days: number[] = Array.isArray(r.day_of_week) ? r.day_of_week : [r.day_of_week];
+      const dayLabel = days.length === 7 ? 'every day' : days.map((d: number) => DAY_NAMES[d]).join(', ');
       const payload = {
         title: '💰 Savings reminder',
         body:  `Transfer $${Number(r.amount).toFixed(2)} to ${goalName} today (${DAY_NAMES[todayDow]})`,

@@ -4180,7 +4180,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
   // null = not yet loaded, false = no reminder, object = existing reminder
   const [reminder, setReminder] = useState(null);
   const [loadingReminder, setLoadingReminder] = useState(false);
-  const [reminderDay, setReminderDay] = useState(1);   // 1 = Monday default
+  const [reminderDays, setReminderDays] = useState([1]);  // array of dow ints, default Mon
   const [reminderAmt, setReminderAmt] = useState("");
   const [savingReminder, setSavingReminder] = useState(false);
   const [editingReminder, setEditingReminder] = useState(false);
@@ -4199,28 +4199,33 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
     const { data } = await supabase.from("savings_reminders")
       .select("*").eq("goal_id", sv.id).eq("user_id", userId).maybeSingle();
     setReminder(data || false);
-    if (data) { setReminderDay(data.day_of_week); setReminderAmt(String(data.amount)); }
+    if (data) {
+      const days = Array.isArray(data.day_of_week) ? data.day_of_week : [data.day_of_week];
+      setReminderDays(days);
+      setReminderAmt(String(data.amount));
+    }
     setLoadingReminder(false);
   }
 
   async function saveReminder() {
     const amt = parseFloat(reminderAmt);
-    if (!amt || amt <= 0 || !userId) return;
+    if (!amt || amt <= 0 || !userId || reminderDays.length === 0) return;
     setSavingReminder(true);
     const { data } = await supabase.from("savings_reminders")
-      .upsert({ user_id: userId, goal_id: sv.id, day_of_week: reminderDay, amount: amt, updated_at: new Date().toISOString() },
+      .upsert({ user_id: userId, goal_id: sv.id, day_of_week: reminderDays, amount: amt, updated_at: new Date().toISOString() },
                { onConflict: "user_id,goal_id" })
       .select().single();
     if (data) {
       setReminder(data);
       setEditingReminder(false);
       // Send confirmation push (fire-and-forget)
+      const dayLabel = reminderDays.length === 7 ? "every day" : reminderDays.map(d => DAY_NAMES[d]).join(", ");
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (!session) return;
         fetch(`${SUPABASE_URL}/functions/v1/push-notify`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}`, "apikey": SUPABASE_KEY },
-          body: JSON.stringify({ user_id: userId, title: "Reminder set! 💰", body: `Every ${DAY_NAMES[reminderDay]} — transfer $${amt.toFixed(2)} to ${sv.name}`, icon: "/icon-192.png", tag: "savings-reminder-set" }),
+          body: JSON.stringify({ user_id: userId, title: "Reminder set! 💰", body: `${dayLabel} — transfer $${amt.toFixed(2)} to ${sv.name}`, icon: "/icon-192.png", tag: "savings-reminder-set" }),
         }).catch(() => {});
       });
     }
@@ -4231,6 +4236,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
     if (!userId) return;
     await supabase.from("savings_reminders").delete().eq("goal_id", sv.id).eq("user_id", userId);
     setReminder(false);
+    setReminderDays([1]);
     setReminderAmt("");
     setEditingReminder(false);
   }
@@ -4476,10 +4482,18 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
                     <div style={{ background: C.green + "0D", border: `1px solid ${C.green}30`, borderRadius: 12, padding: "12px 14px" }}>
                       <div style={{ fontSize: 12, color: C.faint, fontWeight: 600, letterSpacing: 0.5, marginBottom: 4 }}>ACTIVE REMINDER</div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 10 }}>
-                        Every {DAY_NAMES[reminder.day_of_week]} · ${Number(reminder.amount).toFixed(2)}
+                        {(() => {
+                          const days = Array.isArray(reminder.day_of_week) ? reminder.day_of_week : [reminder.day_of_week];
+                          const label = days.length === 7 ? "Every day" : days.map(d => DAY_NAMES[d]).join(", ");
+                          return `${label} · $${Number(reminder.amount).toFixed(2)}`;
+                        })()}
                       </div>
                       <div style={{ display: "flex", gap: 8 }}>
-                        <button onClick={() => setEditingReminder(true)}
+                        <button onClick={() => {
+                          const days = Array.isArray(reminder.day_of_week) ? reminder.day_of_week : [reminder.day_of_week];
+                          setReminderDays(days);
+                          setEditingReminder(true);
+                        }}
                           style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: `1px solid ${C.border}`, background: C.bgTertiary, color: C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
                           Edit
                         </button>
@@ -4492,15 +4506,20 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
                   ) : (
                     /* Set / edit reminder form */
                     <div style={{ background: C.bgTertiary, borderRadius: 12, padding: "14px" }}>
-                      {/* Day chips */}
+                      {/* Day chips — multi-select */}
                       <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Remind me every</div>
                       <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-                        {DAYS.map(d => (
-                          <button key={d.dow} onClick={() => setReminderDay(d.dow)}
-                            style={{ flex: 1, padding: "7px 0", borderRadius: 9, border: `1px solid ${reminderDay === d.dow ? C.cyan + "66" : C.border}`, background: reminderDay === d.dow ? C.cyan + "18" : "transparent", color: reminderDay === d.dow ? C.cyan : C.muted, fontSize: 11, fontWeight: reminderDay === d.dow ? 700 : 400, cursor: "pointer", fontFamily: FONT }}>
-                            {d.label}
-                          </button>
-                        ))}
+                        {DAYS.map(d => {
+                          const sel = reminderDays.includes(d.dow);
+                          return (
+                            <button key={d.dow} onClick={() => setReminderDays(prev =>
+                              sel ? (prev.length > 1 ? prev.filter(x => x !== d.dow) : prev) : [...prev, d.dow]
+                            )}
+                              style={{ flex: 1, padding: "7px 0", borderRadius: 9, border: `1px solid ${sel ? C.cyan + "66" : C.border}`, background: sel ? C.cyan + "18" : "transparent", color: sel ? C.cyan : C.muted, fontSize: 11, fontWeight: sel ? 700 : 400, cursor: "pointer", fontFamily: FONT }}>
+                              {d.label}
+                            </button>
+                          );
+                        })}
                       </div>
 
                       {/* Amount input */}
