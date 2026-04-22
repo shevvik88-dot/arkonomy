@@ -5113,6 +5113,25 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected
   const [budget, setBudget] = useState(profile?.monthly_budget || 3000);
   const [goal, setGoal] = useState(profile?.savings_goal || 10000);
   const [saved, setSaved] = useState(false);
+  const [showChangePw, setShowChangePw] = useState(false);
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [pwMsg, setPwMsg] = useState(null); // { type: "success"|"error", text }
+  const [pwLoading, setPwLoading] = useState(false);
+
+  async function handleChangePassword() {
+    setPwMsg(null);
+    if (!newPw || !confirmPw) { setPwMsg({ type: "error", text: "Please fill in both fields." }); return; }
+    if (newPw !== confirmPw) { setPwMsg({ type: "error", text: "Passwords don't match." }); return; }
+    if (newPw.length < 6) { setPwMsg({ type: "error", text: "Password must be at least 6 characters." }); return; }
+    setPwLoading(true);
+    const { error } = await supabase.auth.updateUser({ password: newPw });
+    setPwLoading(false);
+    if (error) { setPwMsg({ type: "error", text: error.message }); return; }
+    setPwMsg({ type: "success", text: "Password updated successfully." });
+    setNewPw(""); setConfirmPw("");
+    setTimeout(() => { setShowChangePw(false); setPwMsg(null); }, 2000);
+  }
   const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT };
 
   const budgetSuggestion = useMemo(() => {
@@ -5143,15 +5162,53 @@ function Profile({ profile, user, onSave, autopilot, setAutopilot, bankConnected
 
       <GlassCard>
         <div style={{ color: C.faint, fontSize: 10, letterSpacing: 1.2, fontWeight: 600, marginBottom: 8 }}>ACCOUNT</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 42, height: 42, borderRadius: 14, background: C.cyan + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: showChangePw ? 14 : 0 }}>
+          <div style={{ width: 42, height: 42, borderRadius: 14, background: C.cyan + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Icon name="dollar" size={18} color={C.cyan} />
           </div>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 600, fontSize: 14 }}>{profile?.full_name || "User"}</div>
             <div style={{ color: C.muted, fontSize: 13 }}>{user.email}</div>
           </div>
+          <button
+            onClick={() => { setShowChangePw(v => !v); setPwMsg(null); setNewPw(""); setConfirmPw(""); }}
+            style={{ flexShrink: 0, background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "5px 10px", color: C.muted, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: FONT, whiteSpace: "nowrap" }}
+          >
+            {showChangePw ? "Cancel" : "Change Password"}
+          </button>
         </div>
+
+        {showChangePw && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <input
+              type="password"
+              placeholder="New password"
+              value={newPw}
+              onChange={e => setNewPw(e.target.value)}
+              style={{ width: "100%", padding: "11px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: FONT }}
+            />
+            <input
+              type="password"
+              placeholder="Confirm new password"
+              value={confirmPw}
+              onChange={e => setConfirmPw(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleChangePassword()}
+              style={{ width: "100%", padding: "11px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: FONT }}
+            />
+            {pwMsg && (
+              <div style={{ fontSize: 12, fontWeight: 500, padding: "8px 12px", borderRadius: 8, background: pwMsg.type === "success" ? C.green + "14" : C.red + "14", color: pwMsg.type === "success" ? C.green : C.red, border: `1px solid ${pwMsg.type === "success" ? C.green + "33" : C.red + "33"}` }}>
+                {pwMsg.text}
+              </div>
+            )}
+            <button
+              onClick={handleChangePassword}
+              disabled={pwLoading}
+              style={{ width: "100%", padding: "11px 0", background: pwLoading ? C.bgTertiary : `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 10, color: pwLoading ? C.faint : "#000", fontWeight: 700, fontSize: 14, cursor: pwLoading ? "default" : "pointer", fontFamily: FONT }}
+            >
+              {pwLoading ? "Updating…" : "Update Password"}
+            </button>
+          </div>
+        )}
       </GlassCard>
 
       {!isPro && (
