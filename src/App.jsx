@@ -4298,6 +4298,11 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
                 <span style={{ fontSize: 10, color: C.green, fontWeight: 600 }}>{sv.plaid_account_name}</span>
               </div>
             )}
+            {!isLinked && (
+              <div style={{ fontSize: 11, color: C.faint, marginTop: 5, lineHeight: 1.4 }}>
+                📋 Manual tracking — set reminders to transfer money yourself
+              </div>
+            )}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -4473,7 +4478,12 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
 
                 {/* ── Weekly reminder section ── */}
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 12 }}>Set a weekly reminder</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>Set a weekly reminder</div>
+                  {!isLinked && (
+                    <div style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", marginBottom: 14, fontSize: 12, color: C.faint, lineHeight: 1.55 }}>
+                      Arkonomy doesn't move real money. Set a reminder and we'll notify you to transfer funds yourself in your banking app.
+                    </div>
+                  )}
 
                   {loadingReminder ? (
                     <div style={{ fontSize: 12, color: C.faint, textAlign: "center", padding: "12px 0" }}>Loading…</div>
@@ -4551,6 +4561,21 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
               </div>
             </div>
           )}
+
+      {/* ── Manual mode: quick-log deposit chips ── */}
+      {!isLinked && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 11, color: C.faint, marginBottom: 6 }}>Log a transfer you've already made:</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {[10, 25, 50, 100].map(amt => (
+              <button key={amt} onClick={() => onUpdate(sv.id, Number(sv.current) + amt)}
+                style={{ flex: 1, padding: "8px 0", background: goalColor + "15", border: `1px solid ${goalColor}40`, borderRadius: 10, color: goalColor + "CC", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: FONT }}>
+                +${amt}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </GlassCard>
   );
 }
