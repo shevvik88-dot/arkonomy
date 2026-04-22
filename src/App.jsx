@@ -6402,39 +6402,38 @@ function BottomNav({ screen, setScreen, onOpenChat }) {
   ];
   return (
     <>
-      {/* ── Floating AI chat bubble ── */}
+      {/* ── Floating AI chat bubble — iMessage-style, tail at bottom-left ── */}
       <div
         data-tutorial="ai-chat"
         onClick={onOpenChat}
         style={{
           position: "fixed",
-          bottom: 70,
+          bottom: 72,
           left: "50%",
           transform: "translateX(-50%)",
-          width: 52,
-          height: 44,        // 38px body + 6px tail
+          width: 64,
+          height: 52,
           cursor: "pointer",
           zIndex: 55,
           userSelect: "none",
+          filter: "drop-shadow(0 4px 20px rgba(0,201,167,0.5))",
         }}
       >
-        {/* SVG: 52×38 body (rx 12) + 6px tail (8px wide), left→right gradient */}
-        <svg width="52" height="44" viewBox="0 0 52 44" style={{ display: "block", position: "absolute", top: 0, left: 0 }}>
+        {/* Single path: 64×42 body (rx≈14) + tail down-left from bottom-left corner */}
+        <svg width="64" height="52" viewBox="0 0 64 52" style={{ display: "block" }}>
           <defs>
-            <linearGradient id="fab-g" x1="0" y1="0" x2="52" y2="0" gradientUnits="userSpaceOnUse">
+            <linearGradient id="fab-g" x1="0" y1="0" x2="64" y2="0" gradientUnits="userSpaceOnUse">
               <stop offset="0%" stopColor="#00C9A7"/>
               <stop offset="100%" stopColor="#0066FF"/>
             </linearGradient>
           </defs>
-          <rect x="0" y="0" width="52" height="38" rx="12" fill="url(#fab-g)"/>
-          <polygon points="22,38 30,38 26,44" fill="url(#fab-g)"/>
+          {/* Path: rounded rect body with bottom-left tail pointing down-left */}
+          <path d="M14 0 L50 0 Q64 0 64 14 L64 28 Q64 42 50 42 L20 42 L6 52 L12 42 Q0 42 0 28 L0 14 Q0 0 14 0 Z" fill="url(#fab-g)"/>
         </svg>
-        {/* "AI" text, centered in the 52×38 body */}
-        <div style={{ position: "absolute", top: 0, left: 0, width: 52, height: 38, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-          <span style={{ color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: FONT, letterSpacing: 0.5, lineHeight: 1 }}>AI</span>
+        {/* "AI" centered in the 64×42 body */}
+        <div style={{ position: "absolute", top: 0, left: 0, width: 64, height: 42, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+          <span style={{ color: "#fff", fontSize: 15, fontWeight: 700, fontFamily: FONT, letterSpacing: 0.5, lineHeight: 1 }}>AI</span>
         </div>
-        {/* Shadow on body only */}
-        <div style={{ position: "absolute", top: 0, left: 0, width: 52, height: 38, borderRadius: 12, boxShadow: "0 4px 16px rgba(0,150,255,0.4)", pointerEvents: "none" }} />
       </div>
 
       {/* ── Nav bar — 5 tabs, no AI slot ── */}
