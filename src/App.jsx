@@ -2622,9 +2622,9 @@ export default function App() {
         onClick={() => setShowChat(true)}
         style={{
           position: "fixed",
-          bottom: 70,
+          bottom: 51,        // nav bar top ≈70px; 70 - 54×0.35≈19px = 51 → 35% of button hidden behind bar
           left: "50%",
-          transform: "translateX(-50%) translateY(50%)",
+          transform: "translateX(-50%)",
           width: 54, height: 54,
           borderRadius: "50%",
           background: showChat
@@ -2633,8 +2633,8 @@ export default function App() {
           border: "3px solid #0B1426",
           cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: "0 0 0 1.5px rgba(124,107,255,0.5), 0 4px 20px rgba(124,107,255,0.55), 0 2px 8px rgba(0,0,0,0.5)",
-          zIndex: 55,
+          boxShadow: "0 0 0 1.5px rgba(124,107,255,0.5), 0 -4px 20px rgba(124,107,255,0.5), 0 2px 8px rgba(0,0,0,0.5)",
+          zIndex: 48,        // below nav bar (z-index 50) so bar overlaps the bottom 35%
         }}
       >
         <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}>
