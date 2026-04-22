@@ -2498,7 +2498,7 @@ export default function App() {
           <div style={{ color: C.muted, textAlign: "center", padding: 40 }}>Loading...</div>
         ) : (
           <>
-            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} />}
+            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} />}
             {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} />}
@@ -2833,9 +2833,31 @@ function MarketOverview({ onOpenMarket }) {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────
-function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket }) {
+function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId }) {
   const [balanceVisible, setBalanceVisible] = useState(true);
+  const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
   const m = (n, dec = 0) => balanceVisible ? `$${fmt(n, dec)}` : "••••";
+
+  useEffect(() => {
+    if (!bankConnected || !userId) return;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/plaid-get-accounts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}`, "apikey": SUPABASE_KEY },
+          body: "{}",
+        });
+        if (!res.ok) return;
+        const { accounts } = await res.json();
+        if (!accounts?.length) return;
+        const checking = accounts.find(a => a.subtype === "checking") ?? accounts.find(a => a.type === "depository") ?? accounts[0];
+        const bal = checking?.balance_available ?? checking?.balance_current ?? null;
+        if (bal != null) setAccountBalance(bal);
+      } catch {}
+    })();
+  }, [bankConnected, userId]);
   const budget = Number(profile?.monthly_budget) || 3000;
   const balance = totalIncome - totalSpent;
   const pct = budget > 0 ? (totalSpent / budget) * 100 : 0;
@@ -2925,8 +2947,10 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
       <div data-tutorial="net-balance" style={{ background: "linear-gradient(145deg,#0D1F3C,#0B1426)", borderRadius: 20, padding: "16px 18px", border: `1px solid #1E2D4A`, position: "relative", overflow: "hidden", boxShadow: "0 4px 32px rgba(0,194,255,0.08)" }}>
         <div style={{ position: "absolute", top: -30, right: -30, width: 110, height: 110, borderRadius: "50%", background: C.cyan + "0B", pointerEvents: "none" }} />
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
-          <span style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>Net Balance</span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: accountBalance != null ? 10 : 2 }}>
+          <span style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
+            {accountBalance != null ? "Account Balance" : "Monthly Cash Flow"}
+          </span>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {isShowingLastMonth && (
               <span style={{ fontSize: 9, color: C.yellow, fontWeight: 600, background: C.yellow + "18", padding: "2px 7px", borderRadius: 99, letterSpacing: 0.3 }}>Mar data</span>
@@ -2937,18 +2961,36 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
           </div>
         </div>
 
-        <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? balColor : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${balColor}44` : "none" }}>
-          {balanceVisible ? `$${fmt(balance)}` : "••••"}
-        </div>
-        <div style={{ fontSize: 9, color: balance <= 0 ? C.red : C.faint, marginBottom: 12, letterSpacing: 0.5 }}>{balance <= 0 ? "You're in deficit" : "Available balance"}</div>
-        
-        <div style={{ height: 1, background: "rgba(255,255,255,0.05)", marginBottom: 12 }} />
+        {/* Account Balance row — only when Plaid connected and balance fetched */}
+        {accountBalance != null && (
+          <>
+            <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? C.cyan : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${C.cyan}44` : "none" }}>
+              {balanceVisible ? `$${fmt(accountBalance)}` : "••••"}
+            </div>
+            <div style={{ fontSize: 9, color: C.faint, marginBottom: 14, letterSpacing: 0.5 }}>Available in your bank</div>
+            <div style={{ height: 1, background: "rgba(255,255,255,0.05)", marginBottom: 12 }} />
+            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 8 }}>Monthly Cash Flow</div>
+          </>
+        )}
+
+        {/* Monthly Cash Flow — always shown */}
+        {accountBalance == null && (
+          <>
+            <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? balColor : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${balColor}44` : "none" }}>
+              {balanceVisible ? `$${fmt(balance)}` : "••••"}
+            </div>
+            <div style={{ fontSize: 9, color: balance <= 0 ? C.red : C.faint, marginBottom: 12, letterSpacing: 0.5 }}>
+              {balance <= 0 ? "Spent more than earned this month" : "Net this month"}
+            </div>
+            <div style={{ height: 1, background: "rgba(255,255,255,0.05)", marginBottom: 12 }} />
+          </>
+        )}
 
         <div style={{ display: "flex" }}>
           {[
             { label: "Income", value: m(totalIncome), dot: C.green, change: incomeChange },
             { label: "Expenses", value: m(totalSpent), dot: C.red, change: expenseChange, flip: true },
-            { label: "Saved", value: m(Math.max(totalIncome - totalSpent, 0)), dot: C.cyan },
+            { label: "Net", value: m(Math.abs(balance)), dot: balance >= 0 ? C.cyan : C.red },
           ].map((item, i) => (
             <div key={item.label} style={{ flex: 1, paddingLeft: i > 0 ? 10 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : "none", marginLeft: i > 0 ? 10 : 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
