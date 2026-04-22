@@ -618,7 +618,7 @@ function fmtDate(dateStr) {
 }
 
 function Icon({ name, size = 20, color = C.muted, strokeWidth = 1.8 }) {
-  const p = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth, strokeLinecap: "round", strokeLinejoin: "round" };
+  const p = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth, strokeLinecap: "round", strokeLinejoin: "round", style: { display: "block", flexShrink: 0 } };
   const icons = {
     home:            <svg {...p}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
     credit:          <svg {...p}><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>,
@@ -4281,7 +4281,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <div style={{ width: 44, height: 44, borderRadius: 14, background: goalColor + "22", border: `1px solid ${goalColor}44`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 12px ${goalColor}33` }}>
+          <div style={{ width: 44, height: 44, minWidth: 44, minHeight: 44, borderRadius: 14, background: goalColor + "22", border: `1px solid ${goalColor}44`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 12px ${goalColor}33`, flexShrink: 0, overflow: "hidden" }}>
             <Icon name={getGoalIcon(sv.name)} size={20} color={goalColor} />
           </div>
           <div>
@@ -4299,8 +4299,11 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
               </div>
             )}
             {!isLinked && (
-              <div style={{ fontSize: 11, color: C.faint, marginTop: 5, lineHeight: 1.4 }}>
-                📋 Manual tracking — set reminders to transfer money yourself
+              <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 5 }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: "block", flexShrink: 0 }}>
+                  <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                </svg>
+                <span style={{ fontSize: 11, color: C.faint, lineHeight: 1.4 }}>Manual tracking — set reminders to transfer money yourself</span>
               </div>
             )}
           </div>
@@ -4442,7 +4445,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
         style={{ width: "100%", padding: "11px 16px", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 11, color: C.text, fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        Move Money
+        {isLinked ? "Move Money" : "Set Reminder"}
       </button>
 
       {showMoveMoney && (
