@@ -2988,20 +2988,26 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
 
         <div style={{ display: "flex" }}>
           {[
-            { label: "Income", value: m(totalIncome), dot: C.green, change: incomeChange },
-            { label: "Expenses", value: m(totalSpent), dot: C.red, change: expenseChange, flip: true },
-            { label: "Net", value: m(Math.abs(balance)), dot: balance >= 0 ? C.cyan : C.red },
+            { label: "Income",   value: m(totalIncome), color: C.green, dot: C.green, change: incomeChange },
+            { label: "Expenses", value: m(totalSpent),  color: C.red,   dot: C.red,   change: expenseChange, flip: true },
+            { label: "Net",      value: balanceVisible ? (balance < 0 ? `-$${fmt(Math.abs(balance))}` : `$${fmt(balance)}`) : "••••", color: balance >= 0 ? C.green : C.red, dot: balance >= 0 ? C.green : C.red },
           ].map((item, i) => (
             <div key={item.label} style={{ flex: 1, paddingLeft: i > 0 ? 10 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : "none", marginLeft: i > 0 ? 10 : 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
                 <div style={{ width: 5, height: 5, borderRadius: 99, background: item.dot }} />
                 <span style={{ fontSize: 9, color: C.muted, fontWeight: 500 }}>{item.label}</span>
               </div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 3 }}>{item.value}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: item.color, marginBottom: 3 }}>{item.value}</div>
               {item.change !== undefined && <StatBadge value={item.flip ? -item.change : item.change} suffix="" />}
             </div>
           ))}
         </div>
+        {balance < 0 && balanceVisible && (
+          <div style={{ marginTop: 10, fontSize: 11, color: "#F5A623", fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
+            <span>⚠</span>
+            <span>Spent ${fmt(Math.abs(balance))} more than earned this month</span>
+          </div>
+        )}
       </div>
 
       {/* 2 ── Financial Health Score */}
