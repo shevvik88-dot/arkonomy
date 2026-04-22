@@ -6402,38 +6402,38 @@ function BottomNav({ screen, setScreen, onOpenChat }) {
   ];
   return (
     <>
-      {/* ── Floating AI chat bubble — above nav bar, never overlapping tabs ── */}
+      {/* ── Floating AI chat bubble ── */}
       <div
         data-tutorial="ai-chat"
         onClick={onOpenChat}
         style={{
           position: "fixed",
-          bottom: 60,
+          bottom: 68,
           left: "50%",
           transform: "translateX(-50%)",
-          width: 56,
+          width: 58,
           cursor: "pointer",
           zIndex: 55,
-          filter: "drop-shadow(0 4px 20px rgba(0,201,167,0.4))",
+          userSelect: "none",
         }}
       >
-        {/* Bubble body + tail as a single SVG so the tail blends seamlessly */}
-        <svg width="56" height="52" viewBox="0 0 56 52" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "block" }}>
+        {/* Single SVG: 58×42 bubble body (rx 14) + 8px downward tail, gradient left→right */}
+        <svg width="58" height="50" viewBox="0 0 58 50" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "block" }}>
           <defs>
-            <linearGradient id="fab-grad" x1="0" y1="0" x2="56" y2="44" gradientUnits="userSpaceOnUse">
+            <linearGradient id="fab-g" x1="0" y1="0" x2="58" y2="0" gradientUnits="userSpaceOnUse">
               <stop offset="0%" stopColor="#00C9A7"/>
               <stop offset="100%" stopColor="#0066FF"/>
             </linearGradient>
           </defs>
-          {/* Rounded rect body */}
-          <rect x="0" y="0" width="56" height="44" rx="16" fill="url(#fab-grad)"/>
-          {/* Triangular tail pointing down, centered */}
-          <polygon points="22,44 34,44 28,52" fill="url(#fab-grad)"/>
+          <rect x="0" y="0" width="58" height="42" rx="14" fill="url(#fab-g)"/>
+          <polygon points="21,42 37,42 29,50" fill="url(#fab-g)"/>
         </svg>
-        {/* "AI" text label */}
-        <div style={{ position: "absolute", top: 0, left: 0, width: 56, height: 44, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-          <span style={{ color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: FONT, letterSpacing: 0.5 }}>AI</span>
+        {/* "AI" text centered in the 58×42 body */}
+        <div style={{ position: "absolute", top: 0, left: 0, width: 58, height: 42, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+          <span style={{ color: "#fff", fontSize: 15, fontWeight: 700, fontFamily: FONT, letterSpacing: 0.5, lineHeight: 1 }}>AI</span>
         </div>
+        {/* Glow layer — applied to bubble body only */}
+        <div style={{ position: "absolute", top: 0, left: 0, width: 58, height: 42, borderRadius: 14, boxShadow: "0 4px 16px rgba(0,201,167,0.45)", pointerEvents: "none" }} />
       </div>
 
       {/* ── Nav bar — 5 tabs, no AI slot ── */}
