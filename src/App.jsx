@@ -3154,7 +3154,14 @@ function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCa
 
       {allInsights && allInsights.length > 0 && (
         <div>
-          <InsightCardGroup insights={(isPro ? allInsights : allInsights.slice(0, 2)).filter(i => i.type !== 'savings_opportunity' || monthlySavings > 0)} onAction={onInsightAction} />
+          <InsightCardGroup insights={(isPro ? allInsights : allInsights.slice(0, 2)).filter(i => {
+            if (i.type === 'savings_opportunity' && monthlySavings <= 0) return false;
+            if (i.type === 'goal_off_track') {
+              const goal = (savings ?? []).find(sv => sv.id === i.data?.goalId);
+              if (!goal || Number(goal.target) >= 50000) return false;
+            }
+            return true;
+          })} onAction={onInsightAction} />
           {!isPro && allInsights.length > 2 && (
             <div
               onClick={onUpgrade}
@@ -6389,59 +6396,77 @@ function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit, alp
 
 // ─── Bottom Nav ───────────────────────────────────────────────
 function BottomNav({ screen, setScreen, onOpenChat, showChat }) {
-  // Left: Home, Txns, Markets  |  [AI center]  |  Right: Savings, Insights
-  const leftTabs  = [
+  const tabs = [
     { id: "dashboard",    label: "Home",    icon: "home"      },
     { id: "transactions", label: "Txns",    icon: "credit"    },
     { id: "markets",      label: "Markets", icon: "bar-chart" },
+    { id: "savings",      label: "Savings", icon: "target"    },
+    { id: "insights",     label: "Insights",icon: "activity"  },
   ];
-  const rightTabs = [
-    { id: "savings",  label: "Savings",  icon: "target"   },
-    { id: "insights", label: "Insights", icon: "activity" },
-  ];
-  return (
-    <div className="cap-bottom-nav" style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(11,20,38,0.97)", backdropFilter: "blur(24px)", borderTop: `1px solid ${C.sep}`, display: "flex", alignItems: "flex-end", padding: "10px 0 20px", zIndex: 50 }}>
-      {leftTabs.map(tab => {
-        const active = screen === tab.id;
-        return (
-          <button key={tab.id} data-tutorial={`nav-${tab.id}`} onClick={() => setScreen(tab.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "4px 0", position: "relative" }}>
-            <Icon name={tab.icon} size={22} color={active ? C.blue : C.faint} strokeWidth={active ? 2.2 : 1.8} />
-            <span style={{ fontSize: 10, color: active ? C.blue : C.faint, fontWeight: active ? 700 : 400, fontFamily: FONT }}>{tab.label}</span>
-            {active && <div style={{ width: 4, height: 4, borderRadius: 99, background: C.blue, boxShadow: `0 0 6px ${C.blue}` }} />}
-          </button>
-        );
-      })}
+  // Split 2 | spacer | 3 so the floating AI button sits above the gap between Txns and Markets
+  const leftTabs  = tabs.slice(0, 2);
+  const rightTabs = tabs.slice(2);
 
-      {/* ── Center AI tab (raised) ── */}
+  return (
+    // Outer wrapper: fixed, full-width — holds both the floating button and the bar
+    <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, zIndex: 50 }}>
+
+      {/* ── Floating AI bubble — sits above the nav bar, centered ── */}
       <button
         data-tutorial="ai-chat"
         onClick={onOpenChat}
-        style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer", padding: "0", position: "relative", marginBottom: -8 }}
-      >
-        <div style={{
-          width: 48, height: 48, borderRadius: 16,
-          background: showChat ? "linear-gradient(135deg,#00C2FF,#7C6BFF)" : "linear-gradient(135deg,#7C6BFF,#00C2FF)",
-          boxShadow: "0 4px 20px rgba(124,107,255,0.5)",
+        style={{
+          position: "absolute",
+          bottom: "100%",           // bottom of button = top of nav bar
+          left: "50%",
+          transform: "translateX(-50%) translateY(16px)", // overlap 16px into the bar
+          width: 56, height: 56,
+          borderRadius: "50%",
+          background: showChat
+            ? "linear-gradient(135deg,#00C2FF,#7C6BFF)"
+            : "linear-gradient(135deg,#7C6BFF,#00C2FF)",
+          border: "2.5px solid rgba(11,20,38,0.97)",
+          cursor: "pointer",
           display: "flex", alignItems: "center", justifyContent: "center",
-          border: "1.5px solid rgba(255,255,255,0.12)",
-        }}>
-          <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}>
-            <path d="M12 3c-4.97 0-9 3.185-9 7.115 0 2.557 1.522 4.82 3.889 6.116L6 20l4.055-2.125C10.671 18.0 11.33 18 12 18c4.97 0 9-3.185 9-7.115C21 6.955 16.97 3 12 3z"/>
-          </svg>
-        </div>
-        <span style={{ fontSize: 10, color: showChat ? C.cyan : C.faint, fontWeight: showChat ? 700 : 400, fontFamily: FONT }}>AI</span>
+          boxShadow: "0 -4px 24px rgba(124,107,255,0.55), 0 4px 16px rgba(0,0,0,0.4)",
+          zIndex: 51,
+        }}
+      >
+        <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}>
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
       </button>
 
-      {rightTabs.map(tab => {
-        const active = screen === tab.id;
-        return (
-          <button key={tab.id} data-tutorial={`nav-${tab.id}`} onClick={() => setScreen(tab.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "4px 0", position: "relative" }}>
-            <Icon name={tab.icon} size={22} color={active ? C.blue : C.faint} strokeWidth={active ? 2.2 : 1.8} />
-            <span style={{ fontSize: 10, color: active ? C.blue : C.faint, fontWeight: active ? 700 : 400, fontFamily: FONT }}>{tab.label}</span>
-            {active && <div style={{ width: 4, height: 4, borderRadius: 99, background: C.blue, boxShadow: `0 0 6px ${C.blue}` }} />}
-          </button>
-        );
-      })}
+      {/* ── Nav bar ── */}
+      <div className="cap-bottom-nav" style={{ background: "rgba(11,20,38,0.97)", backdropFilter: "blur(24px)", borderTop: `1px solid ${C.sep}`, display: "flex", padding: "10px 0 20px" }}>
+        {leftTabs.map(tab => {
+          const active = screen === tab.id;
+          return (
+            <button key={tab.id} data-tutorial={`nav-${tab.id}`} onClick={() => setScreen(tab.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "4px 0", position: "relative" }}>
+              <Icon name={tab.icon} size={22} color={active ? C.blue : C.faint} strokeWidth={active ? 2.2 : 1.8} />
+              <span style={{ fontSize: 10, color: active ? C.blue : C.faint, fontWeight: active ? 700 : 400, fontFamily: FONT }}>{tab.label}</span>
+              {active && <div style={{ width: 4, height: 4, borderRadius: 99, background: C.blue, boxShadow: `0 0 6px ${C.blue}` }} />}
+            </button>
+          );
+        })}
+
+        {/* Spacer for floating button — keeps center clear */}
+        <div style={{ width: 64, flexShrink: 0 }}>
+          {/* AI label below the floating button */}
+          <div style={{ textAlign: "center", paddingTop: 32, fontSize: 10, color: showChat ? C.cyan : C.faint, fontWeight: showChat ? 700 : 400, fontFamily: FONT }}>AI</div>
+        </div>
+
+        {rightTabs.map(tab => {
+          const active = screen === tab.id;
+          return (
+            <button key={tab.id} data-tutorial={`nav-${tab.id}`} onClick={() => setScreen(tab.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "4px 0", position: "relative" }}>
+              <Icon name={tab.icon} size={22} color={active ? C.blue : C.faint} strokeWidth={active ? 2.2 : 1.8} />
+              <span style={{ fontSize: 10, color: active ? C.blue : C.faint, fontWeight: active ? 700 : 400, fontFamily: FONT }}>{tab.label}</span>
+              {active && <div style={{ width: 4, height: 4, borderRadius: 99, background: C.blue, boxShadow: `0 0 6px ${C.blue}` }} />}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
