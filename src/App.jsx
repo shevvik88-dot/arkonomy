@@ -6430,12 +6430,10 @@ function BottomNav({ screen, setScreen, onOpenChat }) {
           {/* Triangular tail pointing down, centered */}
           <polygon points="22,44 34,44 28,52" fill="url(#fab-grad)"/>
         </svg>
-        {/* Sparkle icon overlaid */}
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
-          style={{ position: "absolute", top: 10, left: 16, display: "block", pointerEvents: "none" }}>
-          <path d="M12 2L13.5 7.5L19 9L13.5 10.5L12 16L10.5 10.5L5 9L10.5 7.5Z"/>
-          <path d="M19 2L19.7 4.3L22 5L19.7 5.7L19 8L18.3 5.7L16 5L18.3 4.3Z"/>
-        </svg>
+        {/* "AI" text label */}
+        <div style={{ position: "absolute", top: 0, left: 0, width: 56, height: 44, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+          <span style={{ color: "#fff", fontSize: 14, fontWeight: 700, fontFamily: FONT, letterSpacing: 0.5 }}>AI</span>
+        </div>
       </div>
 
       {/* ── Nav bar — 5 tabs, no AI slot ── */}
