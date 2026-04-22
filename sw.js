@@ -1,4 +1,4 @@
-const CACHE_NAME = 'arkonomy-v1';
+const CACHE_NAME = 'arkonomy-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
