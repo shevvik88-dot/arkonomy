@@ -4443,7 +4443,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
             <div style={{ width: 44, height: 44, borderRadius: 14, background: C.green + "18", border: `1px solid ${C.green}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>
             </div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: C.text, textAlign: "center", marginBottom: 8 }}>Move Money</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: C.text, textAlign: "center", marginBottom: 8 }}>{isLinked ? "Move Money" : "Set a Weekly Reminder"}</div>
             {isLinked && (
               <>
                 <div style={{ fontSize: 13, color: C.muted, textAlign: "center", lineHeight: 1.65, marginBottom: 20 }}>
@@ -4532,81 +4532,6 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
               </div>
             </div>
           )}
-      {!isLinked && (
-        <>
-          {aiContribution > 0 ? (
-            <div style={{ marginBottom: 10 }}>
-              <button
-                onClick={() => onUpdate(sv.id, Number(sv.current) + aiContribution)}
-                style={{ width: "100%", padding: "12px 16px", marginBottom: 6, background: goalColor, border: "none", borderRadius: 11, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: FONT, letterSpacing: -0.2, boxShadow: `0 4px 16px ${goalColor}44`, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, transition: "transform 0.12s ease, box-shadow 0.12s ease" }}
-                onPointerDown={e => { e.currentTarget.style.transform = "scale(0.98)"; }}
-                onPointerUp={e => { e.currentTarget.style.transform = "scale(1.02)"; setTimeout(() => { e.currentTarget.style.transform = "scale(1)"; }, 120); }}
-                onPointerLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-              >
-                Add ${aiContribution} to savings
-                <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(255,255,255,0.20)", borderRadius: 20, padding: "2px 8px", letterSpacing: 0.2, whiteSpace: "nowrap" }}>
-                  Recommended · Keeps your buffer safe
-                </span>
-              </button>
-              {maxSavingsAmount > aiContribution && (
-                <button
-                  onClick={() => onUpdate(sv.id, Number(sv.current) + Math.round(maxSavingsAmount))}
-                  style={{ width: "100%", padding: "9px 16px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 10, color: C.muted, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: FONT, transition: "border-color 0.15s" }}
-                  onPointerEnter={e => e.currentTarget.style.borderColor = C.faint}
-                  onPointerLeave={e => e.currentTarget.style.borderColor = C.border}
-                >
-                  Add ${Math.round(maxSavingsAmount)} (max)
-                </button>
-              )}
-            </div>
-          ) : (
-            <div style={{ marginBottom: 10, padding: "10px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 10, fontSize: 12, color: C.muted, lineHeight: 1.5, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FFB800" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginRight: 6 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              Increase your income or reduce spending to start saving
-            </div>
-          )}
-
-          {monthlySurplus > 0 && (
-            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-              {[10, 25, 50, 100].map(amt => (
-                <button key={amt} onClick={() => onUpdate(sv.id, Number(sv.current) + amt)}
-                  style={{ flex: 1, padding: "8px 0", background: goalColor + "15", border: `1px solid ${goalColor}40`, borderRadius: 10, color: goalColor + "CC", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: FONT, transition: "all 0.15s" }}>
-                  +${amt}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: 8, marginBottom: mode ? 10 : 0 }}>
-            {monthlySurplus > 0 && (
-              <button onClick={() => { setMode(mode === "deposit" ? null : "deposit"); setCustomAmt(""); }}
-                style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${mode === "deposit" ? C.green : C.border}`, background: mode === "deposit" ? C.green + "20" : C.bgTertiary, color: mode === "deposit" ? C.green : C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                <Icon name="plus" size={14} color={mode === "deposit" ? C.green : C.muted} strokeWidth={2.5} /> Deposit
-              </button>
-            )}
-            <button onClick={() => { setMode(mode === "withdraw" ? null : "withdraw"); setCustomAmt(""); }}
-              style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${mode === "withdraw" ? C.red : C.border}`, background: mode === "withdraw" ? C.red + "20" : C.bgTertiary, color: mode === "withdraw" ? C.red : C.muted, cursor: "pointer", fontWeight: 600, fontSize: 13, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-              <Icon name="trending-down" size={14} color={mode === "withdraw" ? C.red : C.muted} strokeWidth={2.5} /> Withdraw
-            </button>
-          </div>
-
-          {mode && (
-            <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
-              <div style={{ flex: 1, position: "relative" }}>
-                <span style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: C.muted, fontSize: 15, fontWeight: 700, pointerEvents: "none" }}>$</span>
-                <input autoFocus type="number" placeholder="0.00" value={customAmt} onChange={e => setCustomAmt(e.target.value)} onKeyDown={e => e.key === "Enter" && confirm()}
-                  style={{ width: "100%", padding: "12px 12px 12px 28px", background: C.bg, border: `2px solid ${accentColor}66`, borderRadius: 10, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT }} />
-              </div>
-              <button onClick={confirm} style={{ padding: "12px 20px", background: accentColor, border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
-                {mode === "deposit" ? "Add" : "Withdraw"}
-              </button>
-              <button onClick={() => { setMode(null); setCustomAmt(""); }} style={{ padding: "12px", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center" }}>
-                <Icon name="x" size={14} color={C.muted} strokeWidth={2.5} />
-              </button>
-            </div>
-          )}
-        </>
-      )}
     </GlassCard>
   );
 }
