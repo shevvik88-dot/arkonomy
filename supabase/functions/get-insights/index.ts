@@ -137,7 +137,7 @@ async function buildFinancialInput(supabase: any, userId: string) {
   ] = await Promise.all([
     supabase.from('transactions').select('amount, category_name, description, date, type')
       .eq('user_id', userId).gte('date', startOfMonth).lte('date', todayStr),
-    supabase.from('transactions').select('amount, category_name, date, type')
+    supabase.from('transactions').select('amount, category_name, description, date, type')
       .eq('user_id', userId).gte('date', startOf3MonthsAgo).lt('date', startOfMonth),
     supabase.from('transactions').select('amount, date, type')
       .eq('user_id', userId).eq('type', 'income')
@@ -249,7 +249,8 @@ async function buildFinancialInput(supabase: any, userId: string) {
     dataFreshnessHours: 0,
     categories,
     goals,
-    rawTransactions: current,
+    rawTransactions:        current,
+    historicalTransactions: historical,
     dayOfMonth,
     daysLeft,
   };
@@ -322,6 +323,7 @@ function computeMetrics(input: any, ctx: RenderContext) {
     roundUpMonthly:         input.roundUpMonthly ?? 0,
     topCategorySpike:       findTopCategorySpike(input.categories),
     topCategoryTransaction: findTopCategoryTransaction(input.categories, input.rawTransactions),
+    historicalTransactions: input.historicalTransactions || [],
     offTrackGoal:           findOffTrackGoal(input.goals),
     hasEnoughHistory:       input.monthsOfHistory >= 2,
     dataIsStale:            input.dataFreshnessHours > 72,
@@ -438,12 +440,46 @@ function detectCashRisk(m: any) {
   return [];
 }
 
+// Normalize merchant name the same way as the recurring merchant map
+function normalizeMerchant(raw: string): string {
+  return (raw || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// Returns true if the description appears in the historical transactions in 2+ distinct
+// calendar months with a tight amount spread (≤ $10) — i.e. it is a recurring charge.
+function isKnownRecurringMerchant(description: string, historical: any[]): boolean {
+  const key = normalizeMerchant(description);
+  if (!key || key.length < 3) return false;
+  const monthAmounts: Record<string, number[]> = {};
+  for (const t of historical) {
+    if (t.type !== 'expense') continue;
+    const tKey = normalizeMerchant(t.description || '');
+    // Accept if either is a substring of the other (handles truncated descriptions)
+    if (!tKey || (!tKey.includes(key.slice(0, 10)) && !key.includes(tKey.slice(0, 10)))) continue;
+    const mo = (t.date || '').slice(0, 7);
+    if (!monthAmounts[mo]) monthAmounts[mo] = [];
+    monthAmounts[mo].push(Number(t.amount));
+  }
+  const months = Object.values(monthAmounts);
+  if (months.length < 2) return false;
+  const allAmounts = months.flat();
+  const spread = Math.max(...allAmounts) - Math.min(...allAmounts);
+  return spread <= 10;
+}
+
 function detectCategorySpike(m: any) {
   if (!m.topCategorySpike) return [];
   const s     = m.topCategorySpike;
   const topTx = m.topCategoryTransaction;
-  const isOneTime = topTx && s.currentSpend > 0 &&
+
+  // A transaction is only "one-time" if it dominates the category spend AND
+  // is NOT a known recurring merchant (e.g. rent paid via Turbotenant).
+  const dominatesCategory = topTx && s.currentSpend > 0 &&
     (Number(topTx.amount) / s.currentSpend) >= 0.60;
+  const merchantIsRecurring = topTx &&
+    isKnownRecurringMerchant(topTx.description || '', m.historicalTransactions || []);
+  const isOneTime = dominatesCategory && !merchantIsRecurring;
+
   return [{ type: 'category_spike', priority: PRIORITY.category_spike, data: {
     categoryName:  s.name,
     currentSpend:  s.currentSpend,
