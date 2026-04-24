@@ -4027,11 +4027,38 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
           <div style={{ fontSize: 13, color: C.faint, maxWidth: 220, lineHeight: 1.55 }}>{filter === "all" ? "Add your first transaction to get started." : "Nothing recorded here this month."}</div>
           {filter === "all" && <button onClick={onAdd} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, padding: "12px 24px", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, fontFamily: FONT, minHeight: 44 }}>+ Add transaction</button>}
         </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {filtered.map(t => <TxRow key={t.id} t={{ ...t, _incomeTotal: summary.income }} onDelete={handleDelete} onEdit={onEdit} onLongPress={tx => setQuickTx(tx)} />)}
-        </div>
-      )}
+      ) : (() => {
+        // Group transactions by date with human-friendly headers
+        const todayStr     = new Date().toISOString().slice(0, 10);
+        const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+        function dateLabel(dateStr) {
+          if (dateStr === todayStr)     return "Today";
+          if (dateStr === yesterdayStr) return "Yesterday";
+          const d = parseDate(dateStr);
+          return d.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+        }
+        const groups = [];
+        let lastDate = null;
+        for (const t of filtered) {
+          const d = (t.date || "").slice(0, 10);
+          if (d !== lastDate) { groups.push({ date: d, label: dateLabel(d), txs: [] }); lastDate = d; }
+          groups[groups.length - 1].txs.push(t);
+        }
+        return (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {groups.map(group => (
+              <div key={group.date}>
+                <div style={{ padding: "10px 4px 4px", fontSize: 11, fontWeight: 700, color: C.faint, letterSpacing: 0.6, textTransform: "uppercase", position: "sticky", top: 0, background: "transparent", backdropFilter: "blur(8px)", zIndex: 2 }}>
+                  {group.label}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  {group.txs.map(t => <TxRow key={t.id} t={{ ...t, _incomeTotal: summary.income }} onDelete={handleDelete} onEdit={onEdit} onLongPress={tx => setQuickTx(tx)} />)}
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {!hintDone && filtered.length > 0 && (
         <div style={{ marginTop: 8, padding: "8px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 10, border: `1px solid rgba(255,255,255,0.05)`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, animation: "hintFade 0.3s ease forwards", animationDelay: "1.2s", opacity: 1 }}>
