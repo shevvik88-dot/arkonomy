@@ -519,6 +519,31 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// ── Plaid accounts cache ──────────────────────────────────────────────────────
+const ACCOUNTS_CACHE_KEY = "arkonomy_accounts_v1";
+const ACCOUNTS_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+const SYNC_CACHE_TTL     = 60 * 60 * 1000; // 1 hour
+
+function getCachedAccounts() {
+  try {
+    const raw = localStorage.getItem(ACCOUNTS_CACHE_KEY);
+    if (!raw) return null;
+    const { ts, accounts } = JSON.parse(raw);
+    if (Date.now() - ts > ACCOUNTS_CACHE_TTL) return null;
+    return accounts;
+  } catch { return null; }
+}
+function setCachedAccounts(accounts) {
+  try { localStorage.setItem(ACCOUNTS_CACHE_KEY, JSON.stringify({ ts: Date.now(), accounts })); } catch {}
+}
+function clearAccountsCache() {
+  try { localStorage.removeItem(ACCOUNTS_CACHE_KEY); } catch {}
+}
+function isSyncStale(lastSyncedAt) {
+  if (!lastSyncedAt) return true;
+  return Date.now() - new Date(lastSyncedAt).getTime() > SYNC_CACHE_TTL;
+}
+
 // Alpaca OAuth — redirect URI points to the Supabase edge function which
 // exchanges the code for tokens and then redirects back to https://app.arkonomy.com
 const ALPACA_CLIENT_ID    = import.meta.env.VITE_ALPACA_CLIENT_ID ?? "";
@@ -1902,11 +1927,14 @@ export default function App() {
     try { localStorage.setItem("arkonomy_autopilot", JSON.stringify(autopilot)); } catch {}
   }, [autopilot]);
 
-  // Auto-sync on load: fires once when bank connection is confirmed
+  // Auto-sync on load: fires once when bank connection is confirmed,
+  // but only if data is stale (last sync > 1 hour ago)
   useEffect(() => {
     if (bankConnected && !loading && user) {
-      // Small delay so loadAll() can finish painting the UI first
-      const t = setTimeout(() => bgSyncRef.current?.(), 1500);
+      const t = setTimeout(() => {
+        const last = lastSyncedAt || (() => { try { return localStorage.getItem("arkonomy_last_synced"); } catch { return null; } })();
+        if (isSyncStale(last)) bgSyncRef.current?.();
+      }, 1500);
       return () => clearTimeout(t);
     }
   }, [bankConnected, loading]);
@@ -2049,6 +2077,7 @@ export default function App() {
 
   async function syncBankTransactions() {
     setSyncingBank(true);
+    clearAccountsCache(); // force fresh account balance on next fetch
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(
@@ -2808,16 +2837,22 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
     if (!bankConnected || !userId) return;
     (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/plaid-get-accounts`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}`, "apikey": SUPABASE_KEY },
-          body: "{}",
-        });
-        if (!res.ok) return;
-        const { accounts } = await res.json();
-        if (!accounts?.length) return;
+        // Use cached accounts if fresh (<1 hr)
+        let accounts = getCachedAccounts();
+        if (!accounts) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) return;
+          const res = await fetch(`${SUPABASE_URL}/functions/v1/plaid-get-accounts`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}`, "apikey": SUPABASE_KEY },
+            body: "{}",
+          });
+          if (!res.ok) return;
+          const d = await res.json();
+          accounts = d.accounts ?? [];
+          if (accounts.length) setCachedAccounts(accounts);
+        }
+        if (!accounts.length) return;
         const checking = accounts.find(a => a.subtype === "checking") ?? accounts.find(a => a.type === "depository") ?? accounts[0];
         const bal = checking?.balance_available ?? checking?.balance_current ?? null;
         if (bal != null) setAccountBalance(bal);
@@ -4572,14 +4607,17 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
   const [showAlpacaSheet, setShowAlpacaSheet] = useState(false);
   const [accountLinkMode, setAccountLinkMode] = useState("auto"); // "auto" | "manual"
 
-  // ── Fetch Plaid accounts ──────────────────────────────────────────────────────
+  // ── Fetch Plaid accounts (cache-first, 1-hour TTL) ───────────────────────────
   async function fetchPlaidAccounts() {
+    // Serve from cache if still fresh
+    const cached = getCachedAccounts();
+    if (cached) { setPlaidAccounts(cached); return; }
+
     setLoadingAccounts(true);
     setAccountsError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { console.warn("[plaid-get-accounts] no session"); setLoadingAccounts(false); return; }
-      console.log("[plaid-get-accounts] fetching with token prefix:", session.access_token?.slice(0, 20));
       const res = await fetch(`${SUPABASE_URL}/functions/v1/plaid-get-accounts`, {
         method: "POST",
         headers: {
@@ -4590,11 +4628,10 @@ function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, tota
         body: "{}",
       });
       const d = await res.json();
-      console.log("[plaid-get-accounts] HTTP", res.status, "response:", JSON.stringify(d));
       if (!res.ok) { setAccountsError(d.error || d.message || `HTTP ${res.status}`); return; }
       if (d.accounts) {
         setPlaidAccounts(d.accounts);
-        console.log("[plaid-get-accounts] loaded", d.accounts.length, "accounts");
+        setCachedAccounts(d.accounts);
       }
     } catch (err) {
       console.error("[plaid-get-accounts] exception:", err);
