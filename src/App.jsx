@@ -3104,14 +3104,17 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
       </div>
 
       {/* 2 ── Financial Health Score */}
-      <div data-tutorial="health-score" onClick={() => onNavigate("insights")} style={{ cursor: "pointer", position: "relative" }}>
+      <div data-tutorial="health-score">
         <HealthScoreBar score={healthScore} color={scoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} />
-        <div style={{ position: "absolute", top: 10, right: 14, display: "flex", alignItems: "center", gap: 3, pointerEvents: "none" }}>
-          <span style={{ fontSize: 11, color: C.faint, fontFamily: FONT }}>Details</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}>
-            <polyline points="9 18 15 12 9 6"/>
+        <button
+          onClick={() => onNavigate("insights")}
+          style={{ display: "flex", alignItems: "center", gap: 4, margin: "6px 0 0 2px", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: FONT }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.cyan }}>View Insights</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}>
+            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
           </svg>
-        </div>
+        </button>
       </div>
 
       {/* 2b ── AI Brain Insight */}
