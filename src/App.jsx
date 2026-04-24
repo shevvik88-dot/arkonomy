@@ -527,17 +527,25 @@ const SYNC_CACHE_TTL     = 60 * 60 * 1000; // 1 hour
 function getCachedAccounts() {
   try {
     const raw = localStorage.getItem(ACCOUNTS_CACHE_KEY);
-    if (!raw) return null;
+    if (!raw) { console.log("[accounts-cache] miss — no entry"); return null; }
     const { ts, accounts } = JSON.parse(raw);
-    if (Date.now() - ts > ACCOUNTS_CACHE_TTL) return null;
+    const ageMin = Math.round((Date.now() - ts) / 60000);
+    if (Date.now() - ts > ACCOUNTS_CACHE_TTL) {
+      console.log(`[accounts-cache] miss — expired (${ageMin}m old)`);
+      return null;
+    }
+    console.log(`[accounts-cache] hit — ${ageMin}m old, ${accounts.length} accounts`);
     return accounts;
   } catch { return null; }
 }
 function setCachedAccounts(accounts) {
-  try { localStorage.setItem(ACCOUNTS_CACHE_KEY, JSON.stringify({ ts: Date.now(), accounts })); } catch {}
+  try {
+    localStorage.setItem(ACCOUNTS_CACHE_KEY, JSON.stringify({ ts: Date.now(), accounts }));
+    console.log(`[accounts-cache] stored ${accounts.length} accounts`);
+  } catch {}
 }
 function clearAccountsCache() {
-  try { localStorage.removeItem(ACCOUNTS_CACHE_KEY); } catch {}
+  try { localStorage.removeItem(ACCOUNTS_CACHE_KEY); console.log("[accounts-cache] cleared"); } catch {}
 }
 function isSyncStale(lastSyncedAt) {
   if (!lastSyncedAt) return true;
@@ -1927,17 +1935,13 @@ export default function App() {
     try { localStorage.setItem("arkonomy_autopilot", JSON.stringify(autopilot)); } catch {}
   }, [autopilot]);
 
-  // Auto-sync on load: fires once when bank connection is confirmed,
-  // but only if data is stale (last sync > 1 hour ago)
+  // Auto-sync on load: fires once when bankConnected first becomes true.
+  // Staleness check is inside bgSync itself — this just triggers the attempt.
   useEffect(() => {
-    if (bankConnected && !loading && user) {
-      const t = setTimeout(() => {
-        const last = lastSyncedAt || (() => { try { return localStorage.getItem("arkonomy_last_synced"); } catch { return null; } })();
-        if (isSyncStale(last)) bgSyncRef.current?.();
-      }, 1500);
-      return () => clearTimeout(t);
-    }
-  }, [bankConnected, loading]);
+    if (!bankConnected || !user) return;
+    const t = setTimeout(() => bgSyncRef.current?.(), 1500);
+    return () => clearTimeout(t);
+  }, [bankConnected, user]);
 
   // Auto-sync every 4 hours
   useEffect(() => {
@@ -2111,9 +2115,18 @@ export default function App() {
   }
   syncBankTransactionsRef.current = syncBankTransactions;
 
-  // Background (silent) sync — no blocking UI change, just a subtle indicator
+  // Background (silent) sync — always checks 1-hour staleness before hitting Plaid
   async function bgSync() {
     if (backgroundSyncing || syncingBank) return;
+
+    // Staleness guard — read from localStorage (always up-to-date, not stale closure)
+    const lastTs = (() => { try { return localStorage.getItem("arkonomy_last_synced"); } catch { return null; } })();
+    if (!isSyncStale(lastTs)) {
+      console.log(`[bgSync] skipped — last sync ${lastTs ? Math.round((Date.now() - new Date(lastTs).getTime()) / 60000) + "m ago" : "unknown"}, TTL 60m`);
+      return;
+    }
+
+    console.log("[bgSync] stale — calling plaid-sync-transactions");
     setBackgroundSyncing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -2132,7 +2145,7 @@ export default function App() {
         setLastSyncedAt(now);
         try { localStorage.setItem("arkonomy_last_synced", now); } catch {}
         supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
-        // Only reload UI if new data came in
+        console.log(`[bgSync] done — synced ${data.synced ?? 0} transactions`);
         if ((data.synced ?? 0) > 0) await loadAll();
       }
     } catch (err) {
@@ -2840,6 +2853,7 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
         // Use cached accounts if fresh (<1 hr)
         let accounts = getCachedAccounts();
         if (!accounts) {
+          console.log("[dashboard] cache miss — calling plaid-get-accounts");
           const { data: { session } } = await supabase.auth.getSession();
           if (!session) return;
           const res = await fetch(`${SUPABASE_URL}/functions/v1/plaid-get-accounts`, {
