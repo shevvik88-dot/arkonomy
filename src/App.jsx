@@ -3958,11 +3958,27 @@ function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) {
 }
 
 function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter, insight, onInsightAction, onToast }) {
-  const [filter,   setFilter]   = useState("all");
-  const [search,   setSearch]   = useState("");
-  const [sheet,    setSheet]    = useState(null);
-  const [quickTx,  setQuickTx]  = useState(null);
-  const [hintDone, setHintDone] = useState(false);
+  const [filter,       setFilter]       = useState("all");
+  const [search,       setSearch]       = useState("");
+  const [visibleCount, setVisibleCount] = useState(50);
+  const [sheet,        setSheet]        = useState(null);
+  const [quickTx,      setQuickTx]      = useState(null);
+  const [hintDone,     setHintDone]     = useState(false);
+  const sentinelRef = useRef(null);
+
+  // Reset visible count when filter or search changes
+  useEffect(() => { setVisibleCount(50); }, [filter, search, activeCatFilter]);
+
+  // IntersectionObserver — load 50 more when sentinel scrolls into view
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) setVisibleCount(n => n + 50);
+    }, { rootMargin: "200px" });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [filter, search, activeCatFilter]);
   const { toasts, show: _localToast, dismiss } = useToasts();
   const toast = onToast || _localToast;
   const catFilter = activeCatFilter || null;
@@ -4109,7 +4125,10 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
           {!search && filter === "all" && <button onClick={onAdd} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, padding: "12px 24px", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, fontFamily: FONT, minHeight: 44 }}>+ Add transaction</button>}
         </div>
       ) : (() => {
-        // Group transactions by date with human-friendly headers
+        const visible = filtered.slice(0, visibleCount);
+        const hasMore = filtered.length > visibleCount;
+
+        // Group visible transactions by date with human-friendly headers
         const todayStr     = new Date().toISOString().slice(0, 10);
         const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
         function dateLabel(dateStr) {
@@ -4120,7 +4139,7 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
         }
         const groups = [];
         let lastDate = null;
-        for (const t of filtered) {
+        for (const t of visible) {
           const d = (t.date || "").slice(0, 10);
           if (d !== lastDate) { groups.push({ date: d, label: dateLabel(d), txs: [] }); lastDate = d; }
           groups[groups.length - 1].txs.push(t);
@@ -4137,6 +4156,13 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
                 </div>
               </div>
             ))}
+            {/* Sentinel — observed by IntersectionObserver to trigger next batch */}
+            <div ref={sentinelRef} style={{ height: 1 }} />
+            {hasMore && (
+              <div style={{ textAlign: "center", padding: "12px 0", fontSize: 12, color: C.faint }}>
+                Loading more…
+              </div>
+            )}
           </div>
         );
       })()}
