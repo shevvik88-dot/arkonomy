@@ -3086,8 +3086,14 @@ function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transaction
       </div>
 
       {/* 2 ── Financial Health Score */}
-      <div data-tutorial="health-score">
+      <div data-tutorial="health-score" onClick={() => onNavigate("insights")} style={{ cursor: "pointer", position: "relative" }}>
         <HealthScoreBar score={healthScore} color={scoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} />
+        <div style={{ position: "absolute", top: 10, right: 14, display: "flex", alignItems: "center", gap: 3, pointerEvents: "none" }}>
+          <span style={{ fontSize: 11, color: C.faint, fontFamily: FONT }}>Details</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}>
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </div>
       </div>
 
       {/* 2b ── AI Brain Insight */}
