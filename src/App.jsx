@@ -3623,9 +3623,19 @@ const INSIGHT_DEFS = [
       // Check if the top expense is a known recurring payment (e.g. rent via Turbotenant)
       const catLower = cat.toLowerCase();
       const isRecurring =
-        (s._recurringCategories && s._recurringCategories.has(catLower)) ||
-        (s._recurringMerchants && s._topExpenseDesc &&
-          [...s._recurringMerchants].some(m => s._topExpenseDesc.includes(m) || m.includes(s._topExpenseDesc.slice(0, 8))));
+        // Category-based: top spending category or category of the biggest single tx
+        (s._recurringCategories && (
+          s._recurringCategories.has(catLower) ||
+          s._recurringCategories.has(s._topExpenseTxCat || "")
+        )) ||
+        // Merchant-based: normalized description of biggest tx matches a known recurring merchant
+        (s._recurringMerchants && s._topExpenseDesc && s._topExpenseDesc.length >= 3 &&
+          [...s._recurringMerchants].some(m =>
+            s._topExpenseDesc.includes(m) ||       // exact normalized match
+            m.includes(s._topExpenseDesc) ||        // tx desc is substring of merchant key
+            (s._topExpenseDesc.length >= 6 && m.includes(s._topExpenseDesc.slice(0, 12)))
+          ));
+      console.log("[AIInsightCard] isRecurring:", isRecurring, "| catLower:", catLower, "| _topExpenseTxCat:", s._topExpenseTxCat);
 
       const cause = `This increase was caused by ${amt} in ${cat}. Your usual ${cat.toLowerCase()} spending is much lower.`;
       const interpretation = isRecurring
@@ -3734,9 +3744,18 @@ function AIInsightCard({ summary, transactions, onAction }) {
     });
     enriched._recurringMerchants = recurringMerchantNames;
     enriched._recurringCategories = recurringCategories;
-    // Also capture the top expense merchant name for checking
+    // Normalize helper — same pipeline as merchantMap keys
+    const norm = s => (s || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+    // Top single transaction by amount — normalized description + its category
     const topTx = expenses.sort((a, b) => Number(b.amount) - Number(a.amount))[0];
-    if (topTx) enriched._topExpenseDesc = (topTx.description || "").toLowerCase();
+    if (topTx) {
+      enriched._topExpenseDesc    = norm(topTx.description);
+      enriched._topExpenseTxCat   = (topTx.category_name || "").toLowerCase();
+    }
+    console.log("[AIInsightCard] _recurringMerchants:", [...recurringMerchantNames]);
+    console.log("[AIInsightCard] _topExpenseDesc (normalized):", enriched._topExpenseDesc);
+    console.log("[AIInsightCard] _topExpenseCat (highest total category):", enriched._topExpenseCat);
+    console.log("[AIInsightCard] _topExpenseTxCat (category of biggest tx):", enriched._topExpenseTxCat);
   }
 
   const def = INSIGHT_DEFS
