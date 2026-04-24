@@ -3959,6 +3959,7 @@ function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) {
 
 function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter, insight, onInsightAction, onToast }) {
   const [filter,   setFilter]   = useState("all");
+  const [search,   setSearch]   = useState("");
   const [sheet,    setSheet]    = useState(null);
   const [quickTx,  setQuickTx]  = useState(null);
   const [hintDone, setHintDone] = useState(false);
@@ -3983,6 +3984,14 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
 
   let filtered = filter === "all" ? transactions : transactions.filter(t => t.type === filter);
   if (catFilter) filtered = filtered.filter(t => t.category_name === catFilter);
+  if (search.trim()) {
+    const q = search.trim().toLowerCase();
+    filtered = filtered.filter(t =>
+      (t.description || "").toLowerCase().includes(q) ||
+      (t.category_name || "").toLowerCase().includes(q) ||
+      String(t.amount).includes(q)
+    );
+  }
 
   const counts = {
     all:     transactions.length,
@@ -4058,6 +4067,25 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
         </div>
       )}
 
+      {/* Search bar */}
+      <div style={{ position: "relative", marginBottom: 10 }}>
+        <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+          <Icon name="search" size={15} color={C.faint} />
+        </div>
+        <input
+          type="text"
+          placeholder="Search by merchant, category, amount…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ width: "100%", padding: "10px 36px 10px 36px", background: C.bgSecondary, border: `1px solid ${search ? C.blue + "66" : C.border}`, borderRadius: 12, color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: FONT, transition: "border-color 0.15s" }}
+        />
+        {search && (
+          <button onClick={() => setSearch("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", color: C.faint }}>
+            <Icon name="x" size={14} color={C.faint} strokeWidth={2.5} />
+          </button>
+        )}
+      </div>
+
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
         {[{ key: "all", label: "All" }, { key: "expense", label: "Expenses" }, { key: "income", label: "Income" }].map(f => {
           const on = filter === f.key;
@@ -4076,9 +4104,9 @@ function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activ
           <div style={{ width: 56, height: 56, background: C.bgSecondary, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name="credit" size={24} color={C.faint} strokeWidth={1.6} />
           </div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{filter === "all" ? "No transactions yet" : `No ${filter === "expense" ? "expense" : "income"} transactions`}</div>
-          <div style={{ fontSize: 13, color: C.faint, maxWidth: 220, lineHeight: 1.55 }}>{filter === "all" ? "Add your first transaction to get started." : "Nothing recorded here this month."}</div>
-          {filter === "all" && <button onClick={onAdd} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, padding: "12px 24px", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, fontFamily: FONT, minHeight: 44 }}>+ Add transaction</button>}
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{search ? `No results for "${search}"` : filter === "all" ? "No transactions yet" : `No ${filter === "expense" ? "expense" : "income"} transactions`}</div>
+          <div style={{ fontSize: 13, color: C.faint, maxWidth: 220, lineHeight: 1.55 }}>{search ? "Try a different search term." : filter === "all" ? "Add your first transaction to get started." : "Nothing recorded here this month."}</div>
+          {!search && filter === "all" && <button onClick={onAdd} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, padding: "12px 24px", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, fontFamily: FONT, minHeight: 44 }}>+ Add transaction</button>}
         </div>
       ) : (() => {
         // Group transactions by date with human-friendly headers
