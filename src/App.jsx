@@ -1236,15 +1236,24 @@ const RECURRING_EXCLUDE = [
   // Groceries & wholesale
   "trader joe","walmart","costco","grocery","grocer","supermarket",
   "safeway","kroger","albertsons","publix","aldi","whole food","sprouts",
+  "target","ralphs","vons","heb ","wegman","meijer","food lion","giant",
+  "stop & shop","stop and shop","price chopper","winco","fresh market",
+  "grocery outlet","smart & final","piggly","food 4 less","save mart",
+  // Pharmacies — variable amounts, not subscriptions
+  "cvs","walgreen","rite aid","duane reade","eckerd","health mart","kinney drug",
   // General retail
   "home depot","dollar tree","dollar general","dollar store",
   "petsmart","petco","jcpenny","jcpenney","marshalls","tj maxx","ross store",
-  "big lots","five below","amazon",
+  "big lots","five below","amazon","best buy","gamestop","kohl","macy","nordstrom",
+  "bath & body","bath and body","gap ","old navy","h&m ","zara ","victoria","sephora","ulta",
   // Restaurants & fast food
   "mcdonald","starbucks","chipotle","dunkin","taco bell","wendy",
   "burger king","pizza hut","domino","restaurant","bistro","diner",
+  "chick-fil","subway ","panera","sonic ","in-n-out","five guys",
   // Gas stations
-  "chevron","exxon","mobil","arco","fuel",
+  "chevron","exxon","mobil","arco","fuel","bp ","valero","circle k",
+  "sunoco","speedway","76 ","phillips 66","murphy","quiktrip","wawa",
+  "racetrac","casey","pilot ","flying j","loves travel",
 ];
 
 // Shell matches too broadly with padding, check it as a whole-word match separately
@@ -1281,8 +1290,9 @@ function RecurringSummary({ transactions }) {
 
   // Subscriptions: consistent amount (spread ≤ $0.50) and under $100/mo
   const subscriptions   = candidates.filter(m => m.avgMonthly <  100 && m.spread <= 0.50);
-  // Regular Payments: ≥ $100/mo fixed bills (rent, loan, insurance — no strict spread needed)
-  const regularPayments = candidates.filter(m => m.avgMonthly >= 100);
+  // Regular Payments: ≥ $100/mo fixed bills — allow up to $10 spread for utilities/insurance
+  // that may vary slightly, but reject wildly variable retail/variable spend
+  const regularPayments = candidates.filter(m => m.avgMonthly >= 100 && m.spread <= Math.max(10, m.avgMonthly * 0.10));
 
   if (subscriptions.length === 0 && regularPayments.length === 0) return null;
 
