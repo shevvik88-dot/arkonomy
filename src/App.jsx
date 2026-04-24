@@ -67,7 +67,7 @@ function sanitizeAiBody(text) {
     .replace(/You can cover the full gap[^.]*\./gi,
       "You can cover the full gap using your available balance.\n→ A safer contribution is $200–$400 to keep your buffer stable.\n→ Larger deposits are possible, but may reduce your safety cushion.")
     // Слабые слова
-    .replace(/appears to be a one-time event/gi, "is a one-time expense, not a trend")
+    .replace(/appears to be a one-time event/gi, "is a one-time expense")
     .replace(/appears to be/gi, "is")
     .replace(/\bappears\b/gi, "is")
     .replace(/\blikely\b\s*/gi, "")
@@ -3619,11 +3619,23 @@ const INSIGHT_DEFS = [
       const cat = s._topExpenseCat || "Transport";
       const amt = fmtMoney(Math.round(s._topExpenseAmt || 590));
       const isSpike = s._topExpenseAmt > 400;
+
+      // Check if the top expense is a known recurring payment (e.g. rent via Turbotenant)
+      const catLower = cat.toLowerCase();
+      const isRecurring =
+        (s._recurringCategories && s._recurringCategories.has(catLower)) ||
+        (s._recurringMerchants && s._topExpenseDesc &&
+          [...s._recurringMerchants].some(m => s._topExpenseDesc.includes(m) || m.includes(s._topExpenseDesc.slice(0, 8))));
+
       const cause = `This increase was caused by ${amt} in ${cat}. Your usual ${cat.toLowerCase()} spending is much lower.`;
-      const interpretation = isSpike
-        ? `→ This is a one-time expense, not a trend.`
-        : `→ Your ${cat} spending is running above typical levels this month.`;
-      const guidance = `→ No changes needed now, but monitor next month to confirm stability.`;
+      const interpretation = isRecurring
+        ? `→ This is a regular monthly expense, not a one-time event.`
+        : isSpike
+          ? `→ This appears to be a one-time expense, not a trend.`
+          : `→ Your ${cat} spending is running above typical levels this month.`;
+      const guidance = isRecurring
+        ? `→ This charge recurs monthly — budget for it going forward.`
+        : `→ No changes needed now, but monitor next month to confirm stability.`;
       return `${cause}\n\n${interpretation}\n${guidance}`;
     },
     p:     "Reduce spending",
@@ -3690,13 +3702,41 @@ function shouldAutoExpand(def, enriched) {
 function AIInsightCard({ summary, transactions, onAction }) {
   const enriched = { ...summary };
   if (transactions && transactions.length > 0) {
-    const bycat = transactions.filter(t => t.type === "expense").reduce((a, t) => {
+    const expenses = transactions.filter(t => t.type === "expense");
+    const bycat = expenses.reduce((a, t) => {
       const k = t.category_name || "Other";
       a[k] = (a[k] || 0) + Number(t.amount);
       return a;
     }, {});
     const top = Object.entries(bycat).sort((a, b) => b[1] - a[1])[0];
     if (top) { enriched._topExpenseCat = top[0]; enriched._topExpenseAmt = top[1]; }
+
+    // Build a set of recurring merchant names and categories so the insight
+    // body can avoid labelling known recurring charges as "one-time"
+    const recurringMerchantNames = new Set();
+    const recurringCategories = new Set([
+      "rent", "mortgage", "bills", "utilities", "subscriptions",
+      "insurance", "phone", "internet", "loan", "finance",
+    ]);
+    const merchantMap = {};
+    expenses.forEach(t => {
+      const raw = (t.description || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40);
+      if (!raw || raw.length < 2) return;
+      const mo = (t.date || "").slice(0, 7);
+      if (!merchantMap[raw]) merchantMap[raw] = { months: new Set(), amounts: [] };
+      merchantMap[raw].months.add(mo);
+      merchantMap[raw].amounts.push(Number(t.amount));
+    });
+    Object.entries(merchantMap).forEach(([name, d]) => {
+      if (d.months.size < 2) return;
+      const spread = Math.max(...d.amounts) - Math.min(...d.amounts);
+      if (spread <= 10) recurringMerchantNames.add(name);
+    });
+    enriched._recurringMerchants = recurringMerchantNames;
+    enriched._recurringCategories = recurringCategories;
+    // Also capture the top expense merchant name for checking
+    const topTx = expenses.sort((a, b) => Number(b.amount) - Number(a.amount))[0];
+    if (topTx) enriched._topExpenseDesc = (topTx.description || "").toLowerCase();
   }
 
   const def = INSIGHT_DEFS
