@@ -52,29 +52,23 @@ Deno.serve(async (req) => {
 
     for (const item of items) {
       let data: any;
-      let status = 0;
 
-      // Try /accounts/balance/get first (live balances).
-      // Falls back to /accounts/get if Balance product is not enabled on this Plaid app.
-      for (const endpoint of ['/accounts/balance/get', '/accounts/get']) {
-        try {
-          const res = await fetch(`${plaidBase}${endpoint}`, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ client_id: clientId, secret, access_token: item.access_token }),
-          });
-          status = res.status;
-          data   = await res.json();
-        } catch (fetchErr) {
-          console.error(`[plaid-get-accounts] fetch threw for ${endpoint}:`, fetchErr);
+      // /accounts/get returns balance_current + balance_available without
+      // requiring the Balance product — avoids 400 INVALID_PRODUCT errors.
+      try {
+        const res = await fetch(`${plaidBase}/accounts/get`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ client_id: clientId, secret, access_token: item.access_token }),
+        });
+        data = await res.json();
+        if (!res.ok) {
+          console.warn(`[plaid-get-accounts] /accounts/get → ${res.status} ${data?.error_code ?? ''}`);
           continue;
         }
-
-        if (status === 200 && data.accounts) break;
-
-        const code = data?.error_code ?? '';
-        console.warn(`[plaid-get-accounts] ${endpoint} → ${status} ${code}`);
-        if (code !== 'INVALID_PRODUCT') break;
+      } catch (fetchErr) {
+        console.error('[plaid-get-accounts] fetch error:', fetchErr);
+        continue;
       }
 
       if (!data?.accounts) continue;
