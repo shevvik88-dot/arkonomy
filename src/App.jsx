@@ -2542,9 +2542,62 @@ export default function App() {
 
       {/* Content */}
       <div style={{ padding: "14px 14px 85px" }}>
-        {loading ? (
-          <div style={{ color: C.muted, textAlign: "center", padding: 40 }}>Loading...</div>
-        ) : (
+        {loading ? (() => {
+          const shimmerStyle = { background: `linear-gradient(90deg, ${C.bgSecondary} 0%, ${C.bgTertiary} 40%, ${C.bgSecondary} 100%)`, backgroundSize: "300% 100%", animation: "shimmer 1.6s ease-in-out infinite", borderRadius: 10 };
+          const row = (w, h = 14, extra = {}) => <div style={{ ...shimmerStyle, width: w, height: h, marginBottom: 6, borderRadius: 8, ...extra }} />;
+          const card = (children, mb = 12) => <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: "18px 16px", marginBottom: mb, overflow: "hidden" }}>{children}</div>;
+
+          if (screen === "transactions") return (
+            <div>
+              <style>{`@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}`}</style>
+              {[0,1,2,3,4,5].map(i => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: `1px solid ${C.sep}` }}>
+                  <div style={{ ...shimmerStyle, width: 40, height: 40, borderRadius: 12, flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    {row("65%", 13)}
+                    {row("40%", 10, { marginBottom: 0 })}
+                  </div>
+                  {row(52, 13, { marginBottom: 0 })}
+                </div>
+              ))}
+            </div>
+          );
+
+          if (screen === "insights") return (
+            <div>
+              <style>{`@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}`}</style>
+              {card(<>{row("50%", 10, { marginBottom: 10 })}{row("100%", 60, { borderRadius: 12, marginBottom: 0 })}</>)}
+              {[0,1,2].map(i => card(<>
+                {row("30%", 10)}
+                {row("80%", 14)}
+                {row("55%", 12, { marginBottom: 0 })}
+              </>, 10))}
+            </div>
+          );
+
+          // Dashboard (default)
+          return (
+            <div>
+              <style>{`@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}`}</style>
+              {card(<>
+                {row("35%", 10)}
+                {row("55%", 36, { borderRadius: 8, marginBottom: 10 })}
+                <div style={{ display: "flex", gap: 12 }}>
+                  {[0,1,2].map(i => <div key={i} style={{ flex: 1 }}>{row("100%", 10)}{row("100%", 18, { marginBottom: 0 })}</div>)}
+                </div>
+              </>)}
+              {card(<>
+                {row("45%", 12)}
+                {row("100%", 22, { borderRadius: 8 })}
+                {row("70%", 10, { marginBottom: 0 })}
+              </>)}
+              {card(<>
+                {row("60%", 12)}
+                {row("100%", 48, { borderRadius: 12, marginBottom: 0 })}
+              </>)}
+            </div>
+          );
+        })() : (
           <>
             {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} />}
             {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} />}
