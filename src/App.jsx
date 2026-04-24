@@ -141,13 +141,13 @@ function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
       </div>
 
       <div style={{ fontSize: 16, fontWeight: 700, color: "#FFFFFF", letterSpacing: -0.35, lineHeight: 1.3, marginBottom: expanded ? 12 : 0 }}>
-        {cleanHeadline}
+        {highlightNumbers(cleanHeadline, accent)}
       </div>
 
       {expanded && (
         <div style={{ borderTop: `1px solid ${border}14`, paddingTop: 12 }}>
           <p style={{ color: "rgba(154,164,178,0.85)", fontSize: 13, lineHeight: 1.6, margin: "0 0 12px", whiteSpace: "pre-line" }}>
-            {body}
+            {highlightNumbers(body, accent)}
           </p>
           {isSavings && breakdown && (
             <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 12px", marginBottom: 14, display: "flex", flexDirection: "column", gap: 4 }}>
@@ -376,7 +376,7 @@ function InsightCard({ insight, onAction }) {
         letterSpacing: -0.35, lineHeight: 1.3,
         marginBottom: expanded ? 12 : 0,
       }}>
-        {cleanHeadline}
+        {highlightNumbers(cleanHeadline, accent)}
       </div>
 
       {expanded && (
@@ -386,7 +386,7 @@ function InsightCard({ insight, onAction }) {
             fontSize: 13, lineHeight: 1.6,
             margin: "0 0 12px",
           }}>
-            {body}
+            {highlightNumbers(body, accent)}
           </p>
 
           {isSavings && breakdown && (
@@ -565,6 +565,24 @@ function alpacaOAuthUrl(userJwt) {
     state:         userJwt, // echoed back so the callback can identify the user
   });
   return `https://app.alpaca.markets/oauth/authorize?${params}`;
+}
+
+// ── highlightNumbers ─────────────────────────────────────────────────────────
+// Splits a string on $amounts and X% percentages and wraps them in bold
+// colored spans: explicit negative (−$X / −X%) → red, positive → green,
+// unsigned → accent color passed in (falls back to white).
+function highlightNumbers(text, accentColor = "#FFFFFF") {
+  if (!text) return text;
+  const parts = String(text).split(/([-+]?\$[\d,]+(?:\.\d+)?|[-+]?\d+(?:\.\d+)?%)/g);
+  return parts.map((part, i) => {
+    if (!/^[-+]?\$|[-+]?\d.*%$/.test(part) || !/\d/.test(part)) return part;
+    const isNeg = part.startsWith("-");
+    const isPos = part.startsWith("+");
+    const color = isNeg ? "#FF5C7A" : isPos ? "#12D18E" : accentColor;
+    return (
+      <span key={i} style={{ color, fontWeight: 700, fontSize: "1.05em" }}>{part}</span>
+    );
+  });
 }
 
 const C = {
