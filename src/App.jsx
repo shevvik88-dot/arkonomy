@@ -2105,7 +2105,7 @@ export default function App() {
       const now = new Date().toISOString();
       setLastSyncedAt(now);
       try { localStorage.setItem("arkonomy_last_synced", now); } catch {}
-      supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
+      await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
       await loadAll();
     } catch (err) {
       console.error("[Plaid] sync-transactions exception:", err);
@@ -2119,10 +2119,17 @@ export default function App() {
   async function bgSync() {
     if (backgroundSyncing || syncingBank) return;
 
-    // Staleness guard — read from localStorage (always up-to-date, not stale closure)
-    const lastTs = (() => { try { return localStorage.getItem("arkonomy_last_synced"); } catch { return null; } })();
+    // Staleness guard — query profiles.last_synced_at from Supabase so all
+    // tabs and devices share the same timestamp (not per-device localStorage).
+    const { data: profileSnap } = await supabase
+      .from("profiles")
+      .select("last_synced_at")
+      .eq("id", user.id)
+      .single();
+    const lastTs = profileSnap?.last_synced_at ?? null;
     if (!isSyncStale(lastTs)) {
-      console.log(`[bgSync] skipped — last sync ${lastTs ? Math.round((Date.now() - new Date(lastTs).getTime()) / 60000) + "m ago" : "unknown"}, TTL 60m`);
+      const ageMin = lastTs ? Math.round((Date.now() - new Date(lastTs).getTime()) / 60000) : null;
+      console.log(`[bgSync] skipped — last sync ${ageMin != null ? ageMin + "m ago" : "unknown"}, TTL 60m`);
       return;
     }
 
@@ -2143,8 +2150,8 @@ export default function App() {
       if (!data.error) {
         const now = new Date().toISOString();
         setLastSyncedAt(now);
-        try { localStorage.setItem("arkonomy_last_synced", now); } catch {}
-        supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
+        try { localStorage.setItem("arkonomy_last_synced", now); } catch {} // keep local cache in sync
+        await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
         console.log(`[bgSync] done — synced ${data.synced ?? 0} transactions`);
         if ((data.synced ?? 0) > 0) await loadAll();
       }
