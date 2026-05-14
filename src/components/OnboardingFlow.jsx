@@ -1,0 +1,485 @@
+import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { supabase } from "../utils/supabase";
+import { SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
+import { C, FONT } from "../utils/colors";
+import PlaidLinkButton from "./shared/PlaidLinkButton";
+
+export const TUTORIAL_STEPS = [
+  { selector: '[data-tutorial="net-balance"]',   screen: "dashboard", title: "Your financial snapshot",         description: "See income, expenses and balance at a glance" },
+  { selector: '[data-tutorial="health-score"]',  screen: "dashboard", title: "Your financial health score",     description: "Updated daily based on your spending habits" },
+  { selector: '[data-tutorial="ai-insight"]',    screen: "dashboard", title: "AI-powered insights",             description: "Tap to see personalized recommendations" },
+  { selector: '[data-tutorial="nav-transactions"]', screen: null,     title: "All your transactions",           description: "Automatically synced from your bank" },
+  { selector: '[data-tutorial="nav-markets"]',   screen: null,        title: "Invest directly",                 description: "Buy stocks and crypto with spare change" },
+  { selector: '[data-tutorial="nav-savings"]',   screen: null,        title: "Track your savings goals",        description: "Automate round-ups and build your wealth" },
+  { selector: '[data-tutorial="nav-insights"]',  screen: null,        title: "Deep spending analysis",          description: "See where your money really goes" },
+  { selector: '[data-tutorial="ai-chat"]',       screen: null,        title: "Ask anything about your finances", description: "Your personal AI advisor, always on hand" },
+];
+
+export const MINI_TOURS = {
+  "connect-bank": [
+    { selector: '[data-tutorial="net-balance"]',  screen: "dashboard", title: "Your balance lives here",          description: "Once your bank is connected, your real balance, income and expenses update automatically" },
+    { selector: '[data-tutorial="settings-btn"]', screen: "dashboard", title: "Open Settings to connect",         description: "Tap the gear icon → 'Connect Bank' to securely link your account via Plaid (read-only)" },
+    { selector: '[data-tutorial="nav-transactions"]', screen: "dashboard", title: "Transactions sync automatically", description: "After linking, all past and future transactions appear here instantly" },
+  ],
+  "ai-insights": [
+    { selector: '[data-tutorial="ai-insight"]',   screen: "dashboard", title: "Your AI insight card",             description: "After connecting your bank, the AI analyzes your actual spending and generates personalized tips" },
+    { selector: '[data-tutorial="nav-insights"]', screen: "dashboard", title: "Full Insights tab",                description: "Deep health score, weekly summaries and spending breakdowns — all powered by AI" },
+  ],
+  "invest": [
+    { selector: '[data-tutorial="nav-markets"]',  screen: "dashboard", title: "Step 1: Browse Markets",           description: "Tap Markets to see live prices for stocks, ETFs and crypto — tap any ticker for charts and AI analysis" },
+    { selector: '[data-tutorial="nav-savings"]',  screen: "dashboard", title: "Step 2: Connect Alpaca",           description: "In Savings, connect your Alpaca account to enable automatic investing of your monthly round-ups" },
+    { selector: '[data-tutorial="ai-chat"]',      screen: "dashboard", title: "Step 3: Ask AI for picks",         description: "Ask your AI advisor which assets fit your goals and risk profile before investing" },
+  ],
+  "budget": [
+    { selector: '[data-tutorial="health-score"]', screen: "dashboard", title: "Budget drives your score",         description: "Your health score is calculated against your monthly budget — the tighter you stick to it, the higher it goes" },
+    { selector: '[data-tutorial="settings-btn"]', screen: "dashboard", title: "Change your budget anytime",       description: "Tap the gear icon, scroll to 'Monthly Budget', and update the amount — changes take effect immediately" },
+  ],
+};
+
+export function TutorialOverlay({ stepIdx, totalSteps, steps, onNext, onSkip }) {
+  const { t } = useTranslation();
+  const config = steps[stepIdx];
+  const [rect, setRect] = useState(null);
+
+  useEffect(() => {
+    setRect(null);
+    let cancelled = false;
+    const tryFind = (attempt = 0) => {
+      if (cancelled) return;
+      const el = document.querySelector(config.selector);
+      if (el) {
+        el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        setTimeout(() => {
+          if (cancelled) return;
+          const r = el.getBoundingClientRect();
+          setRect({ top: r.top, left: r.left, width: r.width, height: r.height, bottom: r.bottom, right: r.right });
+        }, 150);
+      } else if (attempt < 20) {
+        setTimeout(() => tryFind(attempt + 1), 100);
+      }
+    };
+    setTimeout(() => tryFind(), 250);
+    return () => { cancelled = true; };
+  }, [config.selector]);
+
+  const vw = typeof window !== "undefined" ? window.innerWidth : 390;
+  const vh = typeof window !== "undefined" ? window.innerHeight : 844;
+
+  if (!rect) return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1000, pointerEvents: "all" }} onClick={onSkip} />
+  );
+
+  const PAD = 10;
+  const hL = Math.max(0, rect.left - PAD);
+  const hT = Math.max(0, rect.top - PAD);
+  const hR = Math.min(vw, rect.right + PAD);
+  const hB = Math.min(vh, rect.bottom + PAD);
+  const hW = hR - hL;
+  const hH = hB - hT;
+
+  const tooltipW = Math.min(290, vw - 32);
+  const tooltipH = 175;
+  const gap = 14;
+  const above = (vh - hB - gap) < (tooltipH + 20);
+  const tY = Math.max(8, above ? hT - gap - tooltipH : hB + gap);
+  const tX = Math.max(16, Math.min(hL + hW / 2 - tooltipW / 2, vw - tooltipW - 16));
+
+  const arrowX = Math.max(tX + 12, Math.min(hL + hW / 2 - 8, tX + tooltipW - 24));
+  const arrowY = above ? tY + tooltipH : tY - 10;
+  const bg = "rgba(0,0,0,0.82)";
+  const panelBase = { position: "fixed", background: bg, zIndex: 1000, pointerEvents: "all", cursor: "default" };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, pointerEvents: "none" }}>
+      <div style={{ ...panelBase, top: 0, left: 0, right: 0, height: hT }} onClick={onSkip} />
+      <div style={{ ...panelBase, top: hB, left: 0, right: 0, bottom: 0 }} onClick={onSkip} />
+      <div style={{ ...panelBase, top: hT, left: 0, width: hL, height: hH }} onClick={onSkip} />
+      <div style={{ ...panelBase, top: hT, left: hR, right: 0, height: hH }} onClick={onSkip} />
+
+      <div style={{
+        position: "fixed", top: hT, left: hL, width: hW, height: hH,
+        border: "2px solid #00C2FF", borderRadius: 14,
+        boxShadow: "0 0 0 4px rgba(0,194,255,0.12), 0 0 28px rgba(0,194,255,0.35)",
+        zIndex: 1001, pointerEvents: "none",
+      }} />
+
+      <div style={{
+        position: "fixed", left: arrowX, top: arrowY,
+        width: 0, height: 0, zIndex: 1002, pointerEvents: "none",
+        borderLeft: "8px solid transparent", borderRight: "8px solid transparent",
+        ...(above ? { borderTop: "10px solid #111E33" } : { borderBottom: "10px solid #111E33" }),
+      }} />
+
+      <div style={{
+        position: "fixed", top: tY, left: tX, width: tooltipW,
+        background: "#111E33", border: "1px solid #1E2D4A",
+        borderRadius: 16, padding: "16px",
+        boxShadow: "0 8px 40px rgba(0,0,0,0.75)",
+        zIndex: 1002, pointerEvents: "all",
+        fontFamily: "'Inter',-apple-system,sans-serif",
+      }}>
+        <div style={{ fontSize: 10, color: "#4A5E7A", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>
+          {t("onboarding.step_of", { step: stepIdx + 1, total: totalSteps })}
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", marginBottom: 6, lineHeight: 1.3 }}>
+          {config.title}
+        </div>
+        <div style={{ fontSize: 12, color: "#9AA4B2", lineHeight: 1.6, marginBottom: 14 }}>
+          {config.description}
+        </div>
+        <div style={{ display: "flex", gap: 3, marginBottom: 14 }}>
+          {Array.from({ length: totalSteps }).map((_, i) => (
+            <div key={i} style={{ height: 3, flex: 1, borderRadius: 99, background: i <= stepIdx ? "#00C2FF" : "#1E2D4A", transition: "background 0.3s" }} />
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onSkip} style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid #1E2D4A", background: "none", color: "#4A5E7A", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'Inter',-apple-system,sans-serif" }}>
+            {t("onboarding.skip")}
+          </button>
+          <button onClick={onNext} style={{ padding: "7px 18px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#00C2FF,#2F80FF)", color: "#000", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "'Inter',-apple-system,sans-serif" }}>
+            {stepIdx === totalSteps - 1 ? t("onboarding.done_btn") : t("onboarding.next_btn")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function HelpButton({ onRestart, onMiniTour }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const items = [
+    { label: t("onboarding.help_restart"),      action: () => onRestart() },
+    { label: t("onboarding.help_connect_bank"), action: () => onMiniTour("connect-bank"), divider: true },
+    { label: t("onboarding.help_ai_insights"),  action: () => onMiniTour("ai-insights") },
+    { label: t("onboarding.help_invest"),        action: () => onMiniTour("invest") },
+    { label: t("onboarding.help_budget"),        action: () => onMiniTour("budget") },
+  ];
+  return (
+    <div style={{ position: "relative" }}>
+      {open && <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 148 }} />}
+      {open && (
+        <div style={{
+          position: "absolute", top: 40, right: 0,
+          background: "#111E33", border: "1px solid #1E2D4A",
+          borderRadius: 14, padding: "6px 0", zIndex: 150,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.6)", minWidth: 220,
+          fontFamily: "'Inter',-apple-system,sans-serif",
+        }}>
+          {items.map((item, i) => (
+            <button key={i} onClick={() => { setOpen(false); item.action(); }} style={{
+              display: "block", width: "100%", textAlign: "left",
+              padding: "10px 16px", background: "none",
+              border: "none",
+              borderTop: item.divider ? "1px solid #1E2D4A" : "none",
+              color: i === 0 ? "#00C2FF" : "#9AA4B2",
+              fontSize: 13, fontWeight: i === 0 ? 700 : 400,
+              cursor: "pointer", fontFamily: "'Inter',-apple-system,sans-serif",
+            }}>
+              {i === 0 ? "▶  " : "→  "}{item.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          width: 36, height: 36, borderRadius: "50%",
+          background: open ? "#1E2D4A" : C.bgSecondary,
+          border: `1px solid ${open ? C.cyan + "44" : C.border}`,
+          color: open ? "#00C2FF" : "#9AA4B2",
+          fontSize: 15, fontWeight: 800,
+          cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "background 0.2s, color 0.2s",
+          fontFamily: FONT,
+        }}
+      >
+        ?
+      </button>
+    </div>
+  );
+}
+
+export default function OnboardingFlow({ user, profile, linkToken, getLinkToken, onPlaidSuccess, onSaveProfile, trialCancelled }) {
+  const { t } = useTranslation();
+  const [step, setStep] = useState(trialCancelled ? 5 : 1);
+  const [budget, setBudget] = useState("3000");
+  const [savingBudget, setSavingBudget] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
+  const TOTAL_STEPS = 5;
+
+  async function startTrialCheckout() {
+    console.log('[Trial] startTrialCheckout called');
+    setCheckoutLoading(true);
+    setCheckoutError("");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('[Trial] session:', session ? 'ok' : 'null', 'url:', `${SUPABASE_URL}/functions/v1/stripe-checkout`);
+      const res = await fetch(
+        `${SUPABASE_URL}/functions/v1/stripe-checkout`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+            "apikey": SUPABASE_KEY,
+          },
+        }
+      );
+      const data = await res.json();
+      console.log('[Trial] stripe response:', data, 'status:', res.status);
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setCheckoutError(data.error ?? "Could not start checkout. Try again.");
+        setCheckoutLoading(false);
+      }
+    } catch (err) {
+      console.log('[Trial] fetch error:', err);
+      setCheckoutError("Network error. Please try again.");
+      setCheckoutLoading(false);
+    }
+  }
+
+  const name = profile?.full_name?.split(" ")[0] || user?.user_metadata?.full_name?.split(" ")[0] || "there";
+
+  const dots = (
+    <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 36 }}>
+      {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+        <div key={i} style={{
+          width: i + 1 === step ? 22 : 8, height: 8,
+          borderRadius: 99,
+          background: i + 1 <= step ? C.cyan : C.border,
+          transition: "all 0.3s",
+        }} />
+      ))}
+    </div>
+  );
+
+  const wrap = (children) => (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 20px", fontFamily: FONT }}>
+      <div style={{ width: "100%", maxWidth: 390 }}>
+        {dots}
+        {children}
+      </div>
+    </div>
+  );
+
+  if (step === 1) return wrap(
+    <div style={{ textAlign: "center" }}>
+      <div style={{
+        width: 80, height: 80, borderRadius: 24, margin: "0 auto 24px",
+        background: `linear-gradient(135deg, ${C.cyan}33, ${C.blue}22)`,
+        border: `1px solid ${C.cyan}44`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <svg width={36} height={36} viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <div style={{ fontSize: 26, fontWeight: 800, color: C.text, marginBottom: 10, lineHeight: 1.2 }}>
+        {t("onboarding.welcome_title", { name })}
+      </div>
+      <div style={{ fontSize: 15, color: C.muted, lineHeight: 1.65, marginBottom: 40, maxWidth: 300, margin: "0 auto 40px" }}>
+        {t("onboarding.welcome_body")}
+      </div>
+      <button
+        onClick={() => setStep(2)}
+        style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.cyan}, ${C.blue})`, border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 24px ${C.cyan}44` }}
+      >
+        {t("onboarding.get_started")}
+      </button>
+    </div>
+  );
+
+  if (step === 2) return wrap(
+    <div>
+      <div style={{ textAlign: "center", marginBottom: 32 }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: 22, margin: "0 auto 20px",
+          background: "rgba(26,86,219,0.15)", border: "1px solid rgba(26,86,219,0.3)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="#2F80FF" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="22" x2="21" y2="22"/>
+            <line x1="6" y1="18" x2="6" y2="11"/>
+            <line x1="10" y1="18" x2="10" y2="11"/>
+            <line x1="14" y1="18" x2="14" y2="11"/>
+            <line x1="18" y1="18" x2="18" y2="11"/>
+            <polygon points="12 2 20 7 4 7"/>
+          </svg>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 10 }}>{t("onboarding.connect_bank_title")}</div>
+        <div style={{ fontSize: 14, color: C.muted, lineHeight: 1.65 }}>
+          {t("onboarding.connect_bank_body")}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+        {[t("onboarding.feature_sync"), t("onboarding.feature_ai"), t("onboarding.feature_recurring")].map(f => (
+          <div key={f} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: C.bgSecondary, borderRadius: 12, border: `1px solid ${C.border}` }}>
+            <div style={{ width: 20, height: 20, borderRadius: "50%", background: C.green + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <span style={{ fontSize: 13, color: C.text }}>{f}</span>
+          </div>
+        ))}
+      </div>
+
+      {linkToken ? (
+        <PlaidLinkButton
+          linkToken={linkToken}
+          onSuccess={async (tok, meta) => { await onPlaidSuccess(tok, meta); setStep(3); }}
+          onExit={() => {}}
+          autoOpen={false}
+        />
+      ) : (
+        <button
+          className="pulse-connect-bank"
+          onClick={getLinkToken}
+          style={{ width: "100%", padding: 16, background: `linear-gradient(135deg,#1A56DB,#2F80FF)`, border: "none", borderRadius: 16, color: "#fff", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: "0 4px 20px rgba(26,86,219,0.4)" }}
+        >
+          {t("onboarding.connect_bank_btn")}
+        </button>
+      )}
+
+      <button
+        onClick={() => setStep(3)}
+        style={{ width: "100%", marginTop: 12, padding: "12px", background: "none", border: `1px solid ${C.border}`, borderRadius: 14, color: C.muted, fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}
+      >
+        {t("onboarding.skip_for_now")}
+      </button>
+    </div>
+  );
+
+  if (step === 3) return wrap(
+    <div>
+      <div style={{ textAlign: "center", marginBottom: 32 }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: 22, margin: "0 auto 20px",
+          background: C.green + "18", border: `1px solid ${C.green}33`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 10 }}>{t("onboarding.set_budget_title")}</div>
+        <div style={{ fontSize: 14, color: C.muted, lineHeight: 1.65 }}>
+          {t("onboarding.set_budget_body")}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 8 }}>{t("onboarding.monthly_budget")}</div>
+        <div style={{ position: "relative" }}>
+          <span style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", fontSize: 18, fontWeight: 700, color: C.text }}>$</span>
+          <input
+            type="number"
+            value={budget}
+            onChange={e => setBudget(e.target.value)}
+            style={{ width: "100%", padding: "16px 16px 16px 34px", background: C.bgSecondary, border: `2px solid ${C.cyan}44`, borderRadius: 14, color: C.text, fontSize: 22, fontWeight: 700, outline: "none", fontFamily: FONT, boxSizing: "border-box" }}
+            placeholder="3000"
+          />
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          {["1500", "2500", "3000", "5000"].map(v => (
+            <button key={v} onClick={() => setBudget(v)}
+              style={{ flex: 1, padding: "7px 0", borderRadius: 10, border: `1px solid ${budget === v ? C.cyan + "66" : C.border}`, background: budget === v ? C.cyan + "18" : C.bgSecondary, color: budget === v ? C.cyan : C.muted, fontSize: 12, fontWeight: budget === v ? 700 : 400, cursor: "pointer", fontFamily: FONT }}>
+              ${v}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button
+        onClick={async () => {
+          setSavingBudget(true);
+          const val = Math.max(100, Number(budget) || 3000);
+          await onSaveProfile({ monthly_budget: val });
+          setSavingBudget(false);
+          setStep(4);
+        }}
+        disabled={savingBudget}
+        style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.green}, ${C.cyan})`, border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, opacity: savingBudget ? 0.7 : 1 }}
+      >
+        {savingBudget ? t("onboarding.saving") : t("onboarding.looks_good")}
+      </button>
+    </div>
+  );
+
+  if (step === 4) return wrap(
+    <div>
+      <div style={{ textAlign: "center", marginBottom: 28 }}>
+        <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 8 }}>{t("onboarding.ready_title")}</div>
+        <div style={{ fontSize: 14, color: C.muted }}>{t("onboarding.ready_subtitle")}</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+        {[
+          { emoji: "🏦", label: t("onboarding.feature_bank_sync"),    desc: t("onboarding.feature_bank_sync_sub"),    bg: "#1A56DB22", border: "#1A56DB44" },
+          { emoji: "🤖", label: t("onboarding.feature_ai_insights"),  desc: t("onboarding.feature_ai_insights_sub"),  bg: C.cyan + "18", border: C.cyan + "44" },
+          { emoji: "📊", label: t("onboarding.feature_health_score"), desc: t("onboarding.feature_health_score_sub"), bg: C.green + "18", border: C.green + "44" },
+          { emoji: "📈", label: t("onboarding.feature_investing"),    desc: t("onboarding.feature_investing_sub"),    bg: C.purple + "18", border: C.purple + "44" },
+        ].map(({ emoji, label, desc, bg, border }) => (
+          <div key={label} style={{ background: C.bgSecondary, border: `1px solid #1E293B`, borderRadius: 16, padding: "16px 14px" }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: bg, border: `1px solid ${border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, marginBottom: 10 }}>
+              {emoji}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 }}>{label}</div>
+            <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.5 }}>{desc}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ textAlign: "center", fontSize: 12, color: C.faint, marginBottom: 20 }}>{t("onboarding.trusted")}</div>
+      <button
+        onClick={() => setStep(5)}
+        style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.cyan}, ${C.blue})`, border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 24px ${C.cyan}44` }}
+      >
+        {t("onboarding.continue")}
+      </button>
+    </div>
+  );
+
+  return wrap(
+    <div style={{ textAlign: "center" }}>
+      <div style={{
+        width: 88, height: 88, borderRadius: 28, margin: "0 auto 28px",
+        background: `linear-gradient(135deg, ${C.green}33, ${C.cyan}22)`,
+        border: `1px solid ${C.green}44`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 40,
+      }}>
+        🎉
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 800, color: C.text, marginBottom: 12 }}>{t("onboarding.all_set_title")}</div>
+      <div style={{ fontSize: 15, color: C.muted, lineHeight: 1.65, marginBottom: 32 }}>
+        {t("onboarding.all_set_body")}
+      </div>
+      {trialCancelled && (
+        <div style={{ color: C.yellow, fontSize: 13, background: C.yellow + "18", padding: "10px 14px", borderRadius: 10, marginBottom: 16 }}>
+          {t("onboarding.card_required")}
+        </div>
+      )}
+      {checkoutError && (
+        <div style={{ color: C.red, fontSize: 13, background: C.red + "18", padding: "10px 14px", borderRadius: 10, marginBottom: 16 }}>
+          {checkoutError}
+        </div>
+      )}
+      <button
+        onClick={startTrialCheckout}
+        disabled={checkoutLoading}
+        style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.cyan}, ${C.blue})`, border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: checkoutLoading ? "not-allowed" : "pointer", fontFamily: FONT, boxShadow: `0 4px 24px ${C.cyan}44`, opacity: checkoutLoading ? 0.7 : 1 }}
+      >
+        {checkoutLoading ? t("onboarding.redirecting") : t("onboarding.start_trial")}
+      </button>
+      <div style={{ marginTop: 12, fontSize: 12, color: C.faint }}>
+        {t("onboarding.trial_tagline")}
+      </div>
+    </div>
+  );
+}

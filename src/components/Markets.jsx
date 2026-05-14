@@ -1,0 +1,1141 @@
+import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import { supabase } from "../utils/supabase";
+import { SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
+import { C, FONT } from "../utils/colors";
+import { fmtPct } from "../utils/helpers";
+import GlassCard from "./shared/GlassCard";
+import Icon from "./shared/Icon";
+
+// ─── Constants ────────────────────────────────────────────────
+
+const DEFAULT_WATCHLIST = ["SPY", "QQQ", "BTC", "ETH"];
+
+const MARKET_META = {
+  SPY:  { label: "S&P 500",  color: "#2F80FF", icon: "bar-chart", isCrypto: false },
+  QQQ:  { label: "NASDAQ",   color: "#A78BFA", icon: "activity",  isCrypto: false },
+  BTC:  { label: "Bitcoin",  color: "#F59E0B", icon: "zap",       isCrypto: true  },
+  ETH:  { label: "Ethereum", color: "#34D399", icon: "zap",       isCrypto: true  },
+  SOL:  { label: "Solana",   color: "#9945FF", icon: "zap",       isCrypto: true  },
+  DOGE: { label: "Dogecoin", color: "#C2A633", icon: "zap",       isCrypto: true  },
+};
+
+const TRENDING = [
+  { symbol: "AAPL", name: "Apple Inc.",   color: "#9AA4B2" },
+  { symbol: "TSLA", name: "Tesla, Inc.",  color: "#E05C5C" },
+  { symbol: "NVDA", name: "NVIDIA Corp.", color: "#76B900" },
+];
+
+const SECTORS = [
+  { name: "Tech",       etf: "XLK", color: "#2F80FF", stocks: ["AAPL", "MSFT", "NVDA"]  },
+  { name: "Finance",    etf: "XLF", color: "#A78BFA", stocks: ["JPM",  "BAC",  "GS"]    },
+  { name: "Energy",     etf: "XLE", color: "#F59E0B", stocks: ["XOM",  "CVX",  "COP"]   },
+  { name: "Healthcare", etf: "XLV", color: "#34D399", stocks: ["UNH",  "JNJ",  "ABBV"]  },
+  { name: "Consumer",   etf: "XLY", color: "#FF6B9D", stocks: ["AMZN", "HD",   "MCD"]   },
+];
+
+// Alpaca uses BTCUSD / ETHUSD for crypto orders
+const ALPACA_SYMBOL_MAP = { BTC: "BTCUSD", ETH: "ETHUSD", SOL: "SOLUSD", DOGE: "DOGEUSD" };
+function alpacaSym(s) { return ALPACA_SYMBOL_MAP[s] ?? s; }
+
+const STOCK_LOGOS = {
+  AAPL: "apple.com",      MSFT: "microsoft.com",   AMZN: "amazon.com",
+  GOOGL: "google.com",   GOOG: "google.com",        META: "meta.com",
+  TSLA: "tesla.com",      NVDA: "nvidia.com",        NFLX: "netflix.com",
+  DIS: "disney.com",      V: "visa.com",             MA: "mastercard.com",
+  JPM: "jpmorganchase.com", BAC: "bankofamerica.com", GS: "goldmansachs.com",
+  WMT: "walmart.com",    COST: "costco.com",         HD: "homedepot.com",
+  MCD: "mcdonalds.com",  KO: "coca-cola.com",        PEP: "pepsico.com",
+  XOM: "exxonmobil.com", CVX: "chevron.com",         COP: "conocophillips.com",
+  UNH: "unitedhealthgroup.com", JNJ: "jnj.com",      ABBV: "abbvie.com",
+  AMD: "amd.com",         INTC: "intel.com",         ORCL: "oracle.com",
+  CRM: "salesforce.com", ADBE: "adobe.com",           PYPL: "paypal.com",
+  UBER: "uber.com",       ABNB: "airbnb.com",         DASH: "doordash.com",
+  SHOP: "shopify.com",    COIN: "coinbase.com",       HOOD: "robinhood.com",
+  PLTR: "palantir.com",   RBLX: "roblox.com",         SPOT: "spotify.com",
+  ZM: "zoom.us",          SNAP: "snap.com",           ROKU: "roku.com",
+  SQ: "squareup.com",     LYFT: "lyft.com",
+};
+
+function cleanCompanyName(name) {
+  if (!name) return name;
+  return name.replace(/,?\s+(Inc|Corp|Ltd|LLC|Co|PLC|LP|NV|SA|SE|AG|GmbH)\.?\s*$/i, "").trim();
+}
+
+function fmtPrice(n, isCrypto = false) {
+  if (n == null) return "—";
+  if (isCrypto && n >= 1000) return "$" + Number(n).toLocaleString("en-US", { maximumFractionDigits: 0 });
+  if (isCrypto) return "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  return "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+async function callMarketData(body) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/market-data`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session?.access_token ?? ""}`,
+      "apikey": SUPABASE_KEY,
+    },
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
+// ─── Stock Logo ───────────────────────────────────────────────
+
+function StockLogo({ symbol, color, icon, size = 36, borderRadius = 10 }) {
+  const [failed, setFailed] = useState(false);
+  const domain = STOCK_LOGOS[symbol];
+  const bg = (color ?? C.cyan) + "1A";
+  const border = `1px solid ${(color ?? C.cyan)}30`;
+  if (domain && !failed) {
+    return (
+      <div style={{ width: size, height: size, borderRadius, background: bg, border, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <img
+          src={`https://logo.clearbit.com/${domain}`}
+          alt={symbol}
+          onError={() => setFailed(true)}
+          style={{ width: "72%", height: "72%", objectFit: "contain" }}
+        />
+      </div>
+    );
+  }
+  return (
+    <div style={{ width: size, height: size, borderRadius, background: bg, border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      {icon
+        ? <Icon name={icon} size={Math.round(size * 0.42)} color={color ?? C.cyan} strokeWidth={2.5} />
+        : <span style={{ fontSize: Math.round(size * 0.28), fontWeight: 800, color: color ?? C.cyan, letterSpacing: -0.3 }}>{(symbol || "?").slice(0, 2)}</span>
+      }
+    </div>
+  );
+}
+
+// ─── Price Chart (SVG, no dependencies) ──────────────────────
+
+function PriceChart({ candles = [], color, height = 130 }) {
+  const { t } = useTranslation();
+  const [crosshair, setCrosshair] = useState(null);
+  const svgRef = useRef(null);
+
+  if (!candles.length) return (
+    <div style={{ height, display: "flex", alignItems: "center", justifyContent: "center", color: C.faint, fontSize: 12 }}>
+      {t("markets.no_chart_data")}
+    </div>
+  );
+
+  const valid = candles.filter(c => typeof c.c === "number" && isFinite(c.c));
+  const prices = valid.map(c => c.c);
+  const timestamps = valid.map(c => c.t);
+
+  if (prices.length < 2) {
+    if (prices.length === 1) prices.push(prices[0]);
+    else return (
+      <div style={{ height, display: "flex", alignItems: "center", justifyContent: "center", color: C.faint, fontSize: 12 }}>
+        {t("markets.no_chart_data")}
+      </div>
+    );
+  }
+
+  const min    = Math.min(...prices);
+  const max    = Math.max(...prices);
+  const range  = max - min || 1;
+  const W = 320, PAD = 6;
+  const isPositive = prices[prices.length - 1] >= prices[0];
+  const lineColor  = color ?? (isPositive ? C.green : C.red);
+  const gradId = `cg_${lineColor.replace("#", "")}`;
+
+  const pts = prices.map((p, i) => ({
+    x: PAD + (i / (prices.length - 1)) * (W - PAD * 2),
+    y: PAD + (1 - (p - min) / range) * (height - PAD * 2),
+  }));
+  const ptsStr = pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`);
+  const linePath = `M ${ptsStr.join(" L ")}`;
+  const fillPath = `${linePath} L ${(W - PAD).toFixed(1)},${height} L ${PAD},${height} Z`;
+
+  function handleMove(clientX) {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const idx  = Math.round(frac * (prices.length - 1));
+    setCrosshair({ idx, frac, price: prices[idx], ts: timestamps[idx], pt: pts[idx] });
+  }
+
+  const fmtCrosshairPrice = (p) =>
+    p >= 1000 ? "$" + Number(p).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              : "$" + Number(p).toFixed(p < 1 ? 4 : 2);
+
+  const tooltipLeft = crosshair
+    ? Math.min(Math.max(crosshair.frac * 100, 8), 92) + "%"
+    : "50%";
+
+  return (
+    <div style={{ position: "relative", userSelect: "none" }}>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${height}`}
+        style={{ width: "100%", height, display: "block", touchAction: "none" }}
+        preserveAspectRatio="none"
+        onPointerMove={e => handleMove(e.clientX)}
+        onPointerLeave={() => setCrosshair(null)}
+        onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); handleMove(e.clientX); }}
+      >
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor={lineColor} stopOpacity="0.25" />
+            <stop offset="100%" stopColor={lineColor} stopOpacity="0"    />
+          </linearGradient>
+        </defs>
+        <path d={fillPath} fill={`url(#${gradId})`} />
+        <path d={linePath} fill="none" stroke={lineColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        {crosshair && (
+          <>
+            <line
+              x1={crosshair.pt.x} y1={PAD}
+              x2={crosshair.pt.x} y2={height - PAD}
+              stroke={lineColor} strokeWidth="1" strokeDasharray="3,3" opacity="0.55"
+            />
+            <circle cx={crosshair.pt.x} cy={crosshair.pt.y} r="4" fill={lineColor} />
+            <circle cx={crosshair.pt.x} cy={crosshair.pt.y} r="7" fill={lineColor} fillOpacity="0.2" />
+          </>
+        )}
+      </svg>
+      {crosshair && (
+        <div style={{
+          position: "absolute", top: 0,
+          left: tooltipLeft,
+          transform: "translateX(-50%)",
+          background: C.card,
+          border: `1px solid ${lineColor}55`,
+          borderRadius: 8,
+          padding: "4px 8px",
+          fontSize: 12,
+          fontWeight: 700,
+          color: C.text,
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+          zIndex: 10,
+        }}>
+          {fmtCrosshairPrice(crosshair.price)}
+          <span style={{ color: C.faint, fontWeight: 400, fontSize: 10, marginLeft: 5 }}>
+            {new Date(crosshair.ts * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Stock Detail Screen ──────────────────────────────────────
+
+function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, isPro, isTrial, onUpgrade }) {
+  const { t } = useTranslation();
+  const meta    = MARKET_META[symbol] ?? { label: symbol, color: C.cyan, icon: "activity", isCrypto: false };
+  const [tab, setTab]         = useState("overview");
+  const [period, setPeriod]   = useState("1M");
+  const [stats, setStats]     = useState(null);
+  const [candles, setCandles] = useState([]);
+  const [ai, setAi]           = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
+  const [loadingStats, setLoadingStats]   = useState(true);
+  const [loadingChart, setLoadingChart]   = useState(false);
+  const [chartError, setChartError]       = useState(null);
+  const [buyAmt, setBuyAmt]   = useState("100");
+  const [buying, setBuying]   = useState(false);
+  const [buyResult, setBuyResult] = useState(null);
+
+  // Use a ref so loadAi always reads the latest stats without being in effect deps
+  const statsRef = useRef(null);
+  useEffect(() => {
+    setLoadingStats(true);
+    callMarketData({ type: "stats", symbol })
+      .then(d => { statsRef.current = d; setStats(d); setLoadingStats(false); })
+      .catch(() => setLoadingStats(false));
+  }, [symbol]);
+
+  useEffect(() => {
+    setLoadingChart(true);
+    setChartError(null);
+    callMarketData({ type: "chart", symbol, period })
+      .then(d => {
+        if (d?.error) {
+          console.error("[Chart] API error:", d.error);
+          setChartError(d.error);
+          setCandles([]);
+        } else {
+          setCandles(d?.candles ?? []);
+        }
+        setLoadingChart(false);
+      })
+      .catch(err => {
+        console.error("[Chart] fetch error:", err);
+        setChartError(String(err));
+        setLoadingChart(false);
+      });
+  }, [symbol, period]);
+
+  // Use a ref to guard against double-invocation (StrictMode / fast deps)
+  const aiCalledRef = useRef(false);
+
+  async function runAiAnalysis() {
+    if (aiCalledRef.current) return;
+    aiCalledRef.current = true;
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const s = statsRef.current;
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/stock-ai-analysis`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token ?? ""}`,
+          "apikey": SUPABASE_KEY,
+        },
+        body: JSON.stringify({
+          symbol,
+          name:      s?.name ?? symbol,
+          price:     s?.price ?? null,
+          pe:        s?.pe ?? null,
+          high52w:   s?.high52w ?? null,
+          low52w:    s?.low52w ?? null,
+          changePct: s?.changePct ?? null,
+          isCrypto:  meta.isCrypto,
+        }),
+      });
+      if (!res.ok && res.status !== 200) {
+        let errMsg = `HTTP ${res.status}`;
+        try { const j = await res.json(); errMsg = j.error ?? errMsg; } catch {}
+        throw new Error(errMsg);
+      }
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setAi(data);
+    } catch (e) {
+      console.error("[AI Analysis] error:", e);
+      setAiError(e.message ?? "Analysis failed");
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (tab === "ai") runAiAnalysis();
+  }, [tab]);
+
+  async function handleBuy() {
+    if (buying || !buyAmt || Number(buyAmt) < 1) return;
+    setBuying(true);
+    setBuyResult(null);
+    try {
+      const { data: result, error } = await supabase.functions.invoke("alpaca-invest", {
+        body: { amount: Number(buyAmt), symbol: alpacaSym(symbol) },
+      });
+      if (error) {
+        // supabase.functions.invoke wraps non-2xx in FunctionsHttpError —
+        // the real error body is in error.context, not error.message
+        let msg = error.message ?? "Order failed";
+        try {
+          const body = typeof error.context?.json === "function"
+            ? await error.context.json()
+            : null;
+          if (body?.error)   msg = body.error;
+          if (body?.details) console.error("[Buy] Alpaca details:", body.details);
+        } catch {}
+        console.error("[Buy] invoke error:", msg);
+        if (msg.includes("Insufficient buying power") || msg.includes("not configured") || msg.includes("ALPACA_API_KEY")) {
+          setBuyResult({ notConnected: true });
+        } else {
+          setBuyResult({ error: msg });
+        }
+      } else if (result?.error) {
+        if (result.error.includes("Insufficient buying power") || result.error.includes("not configured")) {
+          setBuyResult({ notConnected: true });
+        } else {
+          setBuyResult({ error: result.error });
+        }
+      } else {
+        setBuyResult({ success: true, message: result?.message ?? `$${buyAmt} order placed` });
+      }
+    } catch (e) { setBuyResult({ error: String(e) }); }
+    setBuying(false);
+  }
+
+  const isPos = (stats?.changePct ?? 0) >= 0;
+  const chColor = isPos ? C.green : C.red;
+  const PERIODS = ["1D", "1W", "1M", "1Y"];
+  const TABS = ["overview", "chart", "ai", "buy"];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", paddingBottom: 80, fontFamily: FONT }}>
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+        <button onClick={onBack} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+          <Icon name="arrow-left" size={16} color={C.text} />
+        </button>
+        <StockLogo symbol={symbol} color={meta.color} icon={meta.icon} size={38} borderRadius={12} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 16 }}>{cleanCompanyName(meta.label) || symbol}</div>
+          <div style={{ fontSize: 12, color: C.muted }}>{symbol}</div>
+        </div>
+        {stats && (
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: -0.5 }}>{fmtPrice(stats.price, meta.isCrypto)}</div>
+            <div style={{ fontSize: 12, color: chColor, fontWeight: 600 }}>{fmtPct(stats.changePct)}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 16, background: C.bgSecondary, borderRadius: 12, padding: 4 }}>
+        {TABS.map(tabId => (
+          <button key={tabId} onClick={() => setTab(tabId)}
+            style={{ flex: 1, padding: "7px 0", borderRadius: 9, border: "none", background: tab === tabId ? C.card : "transparent", color: tab === tabId ? C.text : C.faint, fontWeight: tab === tabId ? 700 : 400, fontSize: 12, cursor: "pointer", fontFamily: FONT, textTransform: "capitalize" }}>
+            {t("markets.tab_" + tabId)}
+          </button>
+        ))}
+      </div>
+
+      {/* ── OVERVIEW TAB ─────────────────────────────────────── */}
+      {tab === "overview" && (
+        <GlassCard>
+          {loadingStats ? (
+            <div style={{ color: C.faint, fontSize: 13, textAlign: "center", padding: "20px 0" }}>{t("markets.loading_stats")}</div>
+          ) : stats?.error ? (
+            <div style={{ color: C.red, fontSize: 12 }}>{t("markets.could_not_load_stats")}</div>
+          ) : (
+            <>
+              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14 }}>{t("markets.key_stats")}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                {[
+                  { label: t("markets.price"),      value: fmtPrice(stats?.price, meta.isCrypto) },
+                  { label: t("markets.change"),     value: fmtPct(stats?.changePct), color: (stats?.changePct ?? 0) >= 0 ? C.green : C.red },
+                  !meta.isCrypto && { label: t("markets.beta"),       value: stats?.beta != null ? Number(stats.beta).toFixed(2) : "—" },
+                  !meta.isCrypto && { label: t("markets.div_yield"), value: stats?.dividendYield != null ? Number(stats.dividendYield).toFixed(2) + "%" : "—" },
+                ].filter(Boolean).map((s) => (
+                  <div key={s.label} style={{ background: C.bgSecondary, borderRadius: 10, padding: "10px 12px" }}>
+                    <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: s.color ?? C.text }}>{s.value}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Range bars */}
+              {(() => {
+                const p = stats?.price, dh = stats?.dayHigh, dl = stats?.dayLow;
+                const wh = stats?.high52w, wl = stats?.low52w;
+                const dayPct  = (dh != null && dl != null && dh > dl) ? Math.round((p - dl) / (dh - dl) * 100) : null;
+                const w52Pct  = (wh != null && wl != null && wh > wl) ? Math.round((p - wl) / (wh - wl) * 100) : null;
+                const RangeBar = ({ label, lo, hi, pct, isCrypto: ic }) => (
+                  <div style={{ background: C.bgSecondary, borderRadius: 10, padding: "10px 12px" }}>
+                    <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>{label}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                      <span style={{ fontSize: 11, color: C.muted }}>{fmtPrice(lo, ic)}</span>
+                      <div style={{ flex: 1, height: 4, background: C.border, borderRadius: 2, position: "relative" }}>
+                        {pct != null && (
+                          <div style={{ position: "absolute", left: `${Math.max(1, Math.min(97, pct))}%`, top: "50%", transform: "translate(-50%, -50%)", width: 8, height: 8, borderRadius: "50%", background: meta.color }} />
+                        )}
+                        <div style={{ height: "100%", width: pct != null ? `${pct}%` : "0%", background: meta.color + "44", borderRadius: 2 }} />
+                      </div>
+                      <span style={{ fontSize: 11, color: C.muted }}>{fmtPrice(hi, ic)}</span>
+                    </div>
+                  </div>
+                );
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+                    {dh != null && dl != null && <RangeBar label={t("markets.day_range")} lo={dl} hi={dh} pct={dayPct} isCrypto={meta.isCrypto} />}
+                    {wh != null && wl != null && <RangeBar label={t("markets.week_52_range")} lo={wl} hi={wh} pct={w52Pct} isCrypto={meta.isCrypto} />}
+                  </div>
+                );
+              })()}
+
+              {/* OHLC day stats */}
+              {(stats?.dayOpen != null || stats?.dayHigh != null || stats?.dayLow != null || stats?.prevClose != null) && (
+                <>
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10 }}>{t("markets.open_high_low_close")}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {[
+                      { label: t("markets.open"),       value: fmtPrice(stats?.dayOpen,    meta.isCrypto) },
+                      { label: t("markets.day_high"),   value: fmtPrice(stats?.dayHigh,    meta.isCrypto), color: C.green },
+                      { label: t("markets.day_low"),    value: fmtPrice(stats?.dayLow,     meta.isCrypto), color: C.red },
+                      { label: t("markets.prev_close"), value: fmtPrice(stats?.prevClose,  meta.isCrypto) },
+                    ].map(s => (
+                      <div key={s.label} style={{ background: C.bgSecondary, borderRadius: 10, padding: "10px 12px" }}>
+                        <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: s.color ?? C.text }}>{s.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </GlassCard>
+      )}
+
+      {/* ── CHART TAB ────────────────────────────────────────── */}
+      {tab === "chart" && (
+        <GlassCard>
+          <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
+            {PERIODS.map(p => (
+              <button key={p} onClick={() => setPeriod(p)}
+                style={{ flex: 1, padding: "5px 0", borderRadius: 8, border: `1px solid ${period === p ? meta.color + "66" : C.border}`, background: period === p ? meta.color + "18" : "transparent", color: period === p ? meta.color : C.faint, fontWeight: period === p ? 700 : 400, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
+                {p}
+              </button>
+            ))}
+          </div>
+          {loadingChart ? (
+            <div style={{ height: 130, display: "flex", alignItems: "center", justifyContent: "center", color: C.faint, fontSize: 12 }}>{t("markets.loading_chart")}</div>
+          ) : chartError ? (
+            <div style={{ background: C.red + "12", border: `1px solid ${C.red}33`, borderRadius: 10, padding: "12px 14px", margin: "4px 0" }}>
+              <div style={{ fontSize: 13, color: C.red, fontWeight: 600, marginBottom: 4 }}>{t("markets.chart_unavailable")}</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
+                {chartError}
+              </div>
+            </div>
+          ) : (
+            <>
+              <PriceChart candles={candles} color={meta.color} height={140} />
+              {candles.length > 0 ? (
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                  <span style={{ fontSize: 11, color: C.faint }}>
+                    {new Date(candles[0].t * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </span>
+                  <span style={{ fontSize: 11, color: C.faint }}>
+                    {new Date(candles[candles.length - 1].t * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </span>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: C.faint, textAlign: "center", marginTop: 8 }}>
+                  {meta.isCrypto ? t("markets.no_chart_crypto") : t("markets.no_chart_stock")}
+                </div>
+              )}
+              <div style={{ fontSize: 10, color: C.faint, textAlign: "right", marginTop: 6 }}>{t("markets.powered_by_finnhub")}</div>
+            </>
+          )}
+        </GlassCard>
+      )}
+
+      {/* ── AI TAB ───────────────────────────────────────────── */}
+      {tab === "ai" && (
+        <GlassCard style={{ border: `1px solid ${C.cyan}22` }}>
+          <style>{`@keyframes aiDot{0%,80%,100%{transform:translateY(0);opacity:0.4}40%{transform:translateY(-5px);opacity:1}}`}</style>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <div style={{ width: 30, height: 30, borderRadius: 8, background: C.cyan + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="activity" size={14} color={C.cyan} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{t("markets.ai_analysis")}</div>
+              <div style={{ fontSize: 11, color: C.faint }}>{t("markets.powered_by_claude")}</div>
+            </div>
+            {aiError && !aiLoading && (
+              <button onClick={() => { aiCalledRef.current = false; setAi(null); setAiError(null); runAiAnalysis(); }}
+                style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 10px", color: C.muted, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
+                {t("common.retry")}
+              </button>
+            )}
+          </div>
+
+          {aiLoading ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "28px 0" }}>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[0,1,2].map(i => (
+                  <span key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: C.cyan, display: "inline-block", animation: `aiDot 1.2s ease-in-out ${i*0.2}s infinite` }} />
+                ))}
+              </div>
+              <div style={{ fontSize: 13, color: C.muted }}>{t("markets.analyzing", { symbol })}</div>
+            </div>
+          ) : aiError ? (
+            <div style={{ background: C.red + "12", border: `1px solid ${C.red}33`, borderRadius: 10, padding: "12px 14px" }}>
+              <div style={{ fontSize: 13, color: C.red, fontWeight: 600, marginBottom: 4 }}>{t("markets.analysis_unavailable")}</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
+                {aiError.includes("ANTHROPIC_API_KEY")
+                  ? "ANTHROPIC_API_KEY is not configured in Supabase secrets. Run: supabase secrets set ANTHROPIC_API_KEY=your_key"
+                  : aiError}
+              </div>
+            </div>
+          ) : ai ? (
+            <>
+              {ai.trend ? (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, color: C.cyan, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>{t("markets.trend_analysis")}</div>
+                  <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6 }}>{ai.trend}</div>
+                </div>
+              ) : null}
+              {Array.isArray(ai.risks) && ai.risks.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, color: C.yellow, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>{t("markets.key_risks")}</div>
+                  {ai.risks.map((r, i) => (
+                    <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+                      <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.yellow, marginTop: 5, flexShrink: 0 }} />
+                      <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>{String(r)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {ai.analystView ? (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, color: C.purple, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>{t("markets.market_note")}</div>
+                  <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6 }}>{ai.analystView}</div>
+                </div>
+              ) : null}
+              {ai.disclaimer ? (
+                <div style={{ background: C.bgSecondary, borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
+                  <div style={{ fontSize: 11, color: C.faint, lineHeight: 1.6 }}>{ai.disclaimer}</div>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div style={{ textAlign: "center", padding: "24px 0", color: C.faint, fontSize: 13 }}>
+              {t("markets.retry_analysis")}
+              <div style={{ marginTop: 12 }}>
+                <button onClick={() => { aiCalledRef.current = false; runAiAnalysis(); }}
+                  style={{ background: C.cyan + "18", border: `1px solid ${C.cyan}44`, borderRadius: 10, padding: "8px 20px", color: C.cyan, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+                  {t("markets.analyze", { symbol })}
+                </button>
+              </div>
+            </div>
+          )}
+        </GlassCard>
+      )}
+
+      {/* ── BUY TAB ──────────────────────────────────────────── */}
+      {tab === "buy" && (
+        <>
+          {(!isPro || isTrial) ? (
+            <GlassCard style={{ marginBottom: 12, textAlign: "center", padding: "36px 20px" }}>
+              <div style={{ width: 52, height: 52, borderRadius: 16, background: C.purple + "18", border: `1px solid ${C.purple}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+                <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={C.purple} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              </div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 6 }}>{t("markets.pro_only_title")}</div>
+              <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 20 }}>
+                {t("markets.pro_only_body")}
+              </div>
+              <button
+                onClick={onUpgrade}
+                style={{ width: "100%", padding: "14px 0", background: `linear-gradient(135deg,#7C6BFF,#38B6FF)`, border: "none", borderRadius: 12, color: "#000", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, marginBottom: 10 }}
+              >
+                {t("markets.upgrade_pro")}
+              </button>
+              <div style={{ fontSize: 11, color: C.faint }}>{t("markets.cancel_anytime")}</div>
+            </GlassCard>
+          ) : !alpacaConnected ? (
+            <GlassCard style={{ marginBottom: 12, textAlign: "center", padding: "28px 20px" }}>
+              <div style={{ width: 52, height: 52, borderRadius: 16, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+                <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" />
+                </svg>
+              </div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 6 }}>{t("markets.connect_alpaca_title")}</div>
+              <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 20 }}>
+                {t("markets.connect_alpaca_body")}
+              </div>
+              <div style={{ background: "rgba(245,200,66,0.07)", border: "1px solid rgba(245,200,66,0.35)", borderRadius: 12, padding: "14px 16px", marginBottom: 16, textAlign: "left" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#F5C842", marginBottom: 8, letterSpacing: 0.3 }}>{t("markets.authorize_alpaca")}</div>
+                <div style={{ fontSize: 12, color: "#C8B86A", lineHeight: 1.65 }}>
+                  {t("markets.alpaca_disclaimer1")}
+                </div>
+                <div style={{ fontSize: 12, color: "#C8B86A", lineHeight: 1.65, marginTop: 8 }}>
+                  {t("markets.alpaca_disclaimer2")}
+                </div>
+              </div>
+              <button
+                onClick={onConnectAlpaca}
+                style={{ width: "100%", padding: "14px 0", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#000", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, marginBottom: 10 }}
+              >
+                {t("markets.connect_alpaca_btn")}
+              </button>
+              <div style={{ fontSize: 11, color: C.faint, lineHeight: 1.6 }}>
+                {t("markets.alpaca_tagline")}
+              </div>
+            </GlassCard>
+          ) : (
+          <GlassCard style={{ marginBottom: 12 }}>
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16 }}>{t("markets.buy_title", { label: meta.label || symbol })}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
+              <div style={{ background: C.bgSecondary, borderRadius: 10, padding: "10px 12px" }}>
+                <div style={{ fontSize: 10, color: C.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.current_price")}</div>
+                <div style={{ fontSize: 15, fontWeight: 700 }}>{fmtPrice(stats?.price, meta.isCrypto)}</div>
+              </div>
+              <div style={{ background: C.bgSecondary, borderRadius: 10, padding: "10px 12px" }}>
+                <div style={{ fontSize: 10, color: C.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.est_shares")}</div>
+                <div style={{ fontSize: 15, fontWeight: 700 }}>
+                  {stats?.price && buyAmt ? (Number(buyAmt) / stats.price).toFixed(4) : "—"}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ color: C.muted, fontSize: 12, fontWeight: 500, marginBottom: 6 }}>{t("markets.amount_usd")}</div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              <input
+                type="number" value={buyAmt}
+                onChange={e => setBuyAmt(e.target.value)}
+                style={{ flex: 1, padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 16, outline: "none", fontFamily: FONT }}
+                placeholder="100"
+              />
+            </div>
+            {["25","50","100","250"].map(amt => (
+              <button key={amt} onClick={() => setBuyAmt(amt)}
+                style={{ marginRight: 8, marginBottom: 14, padding: "5px 12px", background: buyAmt === amt ? meta.color + "22" : C.bgSecondary, border: `1px solid ${buyAmt === amt ? meta.color + "55" : C.border}`, borderRadius: 99, color: buyAmt === amt ? meta.color : C.muted, fontSize: 12, fontWeight: buyAmt === amt ? 700 : 400, cursor: "pointer", fontFamily: FONT }}>
+                ${amt}
+              </button>
+            ))}
+
+            <button onClick={handleBuy} disabled={buying || !buyAmt || Number(buyAmt) < 1}
+              style={{ width: "100%", padding: 15, background: buying ? C.bgTertiary : `linear-gradient(90deg,${meta.color},${meta.color}BB)`, border: "none", borderRadius: 13, color: buying ? C.faint : "#fff", fontWeight: 700, fontSize: 15, cursor: buying ? "not-allowed" : "pointer", fontFamily: FONT }}>
+              {buying ? t("markets.placing_order") : t("markets.buy_btn", { amount: buyAmt || "—", symbol })}
+            </button>
+
+            {buyResult && (
+              (buyResult.notConnected || buyResult.noFunds) ? (
+                <div style={{ marginTop: 14, padding: "18px 16px", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 14, textAlign: "center" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
+                    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" />
+                    </svg>
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 4 }}>{t("markets.connect_to_invest")}</div>
+                  <div style={{ fontSize: 13, color: C.muted, marginBottom: 14, lineHeight: 1.5 }}>{t("markets.create_alpaca")}</div>
+                  <a
+                    href="https://app.alpaca.markets"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: "inline-block", padding: "11px 28px", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, borderRadius: 10, color: "#000", fontWeight: 700, fontSize: 14, textDecoration: "none", fontFamily: FONT }}
+                  >
+                    {t("markets.open_alpaca")}
+                  </a>
+                  <div style={{ fontSize: 11, color: C.faint, marginTop: 10 }}>{t("markets.after_alpaca")}</div>
+                </div>
+              ) : (
+                <div style={{ marginTop: 12, padding: "10px 14px", background: buyResult.success ? C.green + "12" : C.red + "12", border: `1px solid ${buyResult.success ? C.green : C.red}33`, borderRadius: 10 }}>
+                  <div style={{ fontSize: 13, color: buyResult.success ? C.green : C.red, fontWeight: 600 }}>
+                    {buyResult.success ? "✓ " + buyResult.message : "✗ " + buyResult.error}
+                  </div>
+                </div>
+              )
+            )}
+          </GlassCard>
+          )}
+
+          {alpacaConnected && (
+          <div style={{ padding: "0 2px" }}>
+            <div style={{ fontSize: 10, color: C.faint, lineHeight: 1.7 }}>
+              {t("markets.investment_disclaimer")}
+            </div>
+          </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Markets Screen ───────────────────────────────────────────
+
+export default function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit, alpacaConnected, onConnectAlpaca, isPro, isTrial, onUpgrade }) {
+  const { t } = useTranslation();
+  const defaultWatchlist = profile?.watchlist ?? DEFAULT_WATCHLIST;
+
+  const [watchlist, setWatchlist]       = useState(defaultWatchlist);
+  const [editMode, setEditMode]         = useState(false);
+  const [addQuery, setAddQuery]         = useState("");
+  const [addResults, setAddResults]     = useState([]);
+  const [searchingAdd, setSearchingAdd] = useState(false);
+  const [quotes, setQuotes]             = useState({});
+  const [loadingQuotes, setLoadingQuotes] = useState(true);
+  const [selectedSymbol, setSelectedSymbol] = useState(initialSymbol ?? null);
+  const [exploreQuery, setExploreQuery] = useState("");
+  const [exploreResults, setExploreResults] = useState([]);
+  const [searchingExplore, setSearchingExplore] = useState(false);
+  const [exploreNonUS, setExploreNonUS] = useState(false);
+  const [dragging, setDragging]         = useState(null);
+  const [dragList, setDragList]         = useState(watchlist);
+  const dragRef = useRef(watchlist);
+  const [extraQuotes, setExtraQuotes]   = useState({});
+  const [loadingExtra, setLoadingExtra] = useState(true);
+  const [activeSector, setActiveSector] = useState(null);
+  const [loadingSectorStocks, setLoadingSectorStocks] = useState(false);
+
+  useEffect(() => {
+    if (initialSymbol) { setSelectedSymbol(initialSymbol); onClearInit?.(); }
+  }, [initialSymbol]);
+
+  useEffect(() => {
+    const syms = [...new Set([...TRENDING.map(t => t.symbol), ...SECTORS.map(s => s.etf)])];
+    Promise.allSettled(syms.map(s => callMarketData({ type: "quote", symbol: s }))).then(results => {
+      const map = {};
+      syms.forEach((s, i) => { if (results[i].status === "fulfilled") map[s] = results[i].value; });
+      setExtraQuotes(map);
+      setLoadingExtra(false);
+    });
+  }, []);
+
+  async function toggleSector(sector) {
+    if (activeSector?.name === sector.name) { setActiveSector(null); return; }
+    setActiveSector(sector);
+    const missing = sector.stocks.filter(s => !extraQuotes[s]);
+    if (missing.length > 0) {
+      setLoadingSectorStocks(true);
+      const results = await Promise.allSettled(missing.map(s => callMarketData({ type: "quote", symbol: s })));
+      setExtraQuotes(prev => {
+        const next = { ...prev };
+        missing.forEach((s, i) => { if (results[i].status === "fulfilled") next[s] = results[i].value; });
+        return next;
+      });
+      setLoadingSectorStocks(false);
+    }
+  }
+
+  async function loadQuotes(list) {
+    setLoadingQuotes(true);
+    const results = await Promise.allSettled(list.map(s => callMarketData({ type: "quote", symbol: s })));
+    const map = {};
+    list.forEach((s, i) => {
+      if (results[i].status === "fulfilled") map[s] = results[i].value;
+    });
+    setQuotes(map);
+    setLoadingQuotes(false);
+  }
+
+  useEffect(() => { loadQuotes(watchlist); }, []);
+
+  function saveWatchlist(list) {
+    setWatchlist(list);
+    dragRef.current = list;
+    onSaveProfile({ watchlist: list });
+  }
+
+  function removeFromWatchlist(sym) {
+    const next = watchlist.filter(s => s !== sym);
+    saveWatchlist(next);
+    setDragList(next);
+  }
+
+  function onDragStart(e, idx) {
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    setDragging({ idx, startY: y, curY: y });
+    setDragList([...watchlist]);
+  }
+  function onDragMove(e) {
+    if (!dragging) return;
+    const y = e.touches ? e.touches[0].clientY : e.clientY;
+    setDragging(d => d ? { ...d, curY: y } : null);
+    const delta = y - dragging.startY;
+    const ITEM_H = 56;
+    const moved = Math.round(delta / ITEM_H);
+    if (moved === 0) return;
+    const newIdx = Math.max(0, Math.min(dragRef.current.length - 1, dragging.idx + moved));
+    if (newIdx !== dragging.idx) {
+      const next = [...dragRef.current];
+      const [item] = next.splice(dragging.idx, 1);
+      next.splice(newIdx, 0, item);
+      dragRef.current = next;
+      setDragList([...next]);
+      setDragging(d => d ? { ...d, idx: newIdx, startY: y } : null);
+    }
+  }
+  function onDragEnd() {
+    if (dragging) saveWatchlist(dragRef.current);
+    setDragging(null);
+  }
+
+  const US_EXCHANGES = ["NYSE", "NASDAQ", "ARCA", "BATS", "NYSE ARCA"];
+  function filterUSStocks(results) {
+    return (results ?? []).filter(r => {
+      if (r.symbol?.includes(".")) return false;
+      const ex = (r.exchange || r.primary_exchange || "").toUpperCase();
+      return US_EXCHANGES.some(e => ex.includes(e));
+    });
+  }
+
+  const addSearchTimer = useRef(null);
+  function onAddQueryChange(q) {
+    setAddQuery(q);
+    clearTimeout(addSearchTimer.current);
+    if (!q.trim()) { setAddResults([]); return; }
+    addSearchTimer.current = setTimeout(async () => {
+      setSearchingAdd(true);
+      const d = await callMarketData({ type: "search", query: q });
+      setAddResults(filterUSStocks(d.results));
+      setSearchingAdd(false);
+    }, 400);
+  }
+
+  const exploreTimer = useRef(null);
+  function onExploreChange(q) {
+    setExploreQuery(q);
+    clearTimeout(exploreTimer.current);
+    if (!q.trim()) { setExploreResults([]); setExploreNonUS(false); return; }
+    exploreTimer.current = setTimeout(async () => {
+      setSearchingExplore(true);
+      const d = await callMarketData({ type: "search", query: q });
+      const filtered = filterUSStocks(d.results);
+      setExploreResults(filtered);
+      setExploreNonUS(!filtered.length && (d.results ?? []).length > 0);
+      setSearchingExplore(false);
+    }, 400);
+  }
+
+  function addToWatchlist(sym) {
+    if (watchlist.includes(sym) || watchlist.length >= 12) return;
+    const next = [...watchlist, sym];
+    saveWatchlist(next);
+    setDragList(next);
+    loadQuotes(next);
+    setAddQuery("");
+    setAddResults([]);
+  }
+
+  if (selectedSymbol) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <StockDetail symbol={selectedSymbol} onBack={() => setSelectedSymbol(null)} user={user} alpacaConnected={alpacaConnected} onConnectAlpaca={onConnectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingBottom: 80 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>{t("markets.title")}</h2>
+        <button onClick={() => { setEditMode(e => !e); setDragList([...watchlist]); }}
+          style={{ padding: "6px 14px", background: editMode ? C.cyan + "22" : C.bgSecondary, border: `1px solid ${editMode ? C.cyan + "55" : C.border}`, borderRadius: 10, color: editMode ? C.cyan : C.muted, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+          {editMode ? t("markets.done") : t("markets.edit")}
+        </button>
+      </div>
+
+      {/* ── WATCHLIST ──────────────────────────────────────── */}
+      <GlassCard style={{ padding: "14px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>{t("markets.watchlist")}</span>
+          <span style={{ fontSize: 11, color: C.faint }}>{watchlist.length}/12</span>
+        </div>
+
+        {editMode ? (
+          <>
+            <div
+              onMouseMove={onDragMove} onMouseUp={onDragEnd}
+              onTouchMove={onDragMove} onTouchEnd={onDragEnd}
+              style={{ touchAction: "none" }}
+            >
+              {dragList.map((sym, idx) => {
+                const meta = MARKET_META[sym] ?? { label: sym, color: C.cyan, icon: "activity" };
+                return (
+                  <div key={sym}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: idx < dragList.length - 1 ? `1px solid ${C.sep}` : "none", userSelect: "none", opacity: dragging?.idx === idx ? 0.5 : 1 }}>
+                    <div
+                      onMouseDown={e => onDragStart(e, idx)}
+                      onTouchStart={e => onDragStart(e, idx)}
+                      style={{ cursor: "grab", padding: "4px 6px", color: C.faint, fontSize: 14 }}>⋮⋮</div>
+                    <div style={{ width: 32, height: 32, borderRadius: 9, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Icon name={meta.icon} size={13} color={meta.color} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{meta.label || sym}</div>
+                      <div style={{ fontSize: 11, color: C.faint }}>{sym}</div>
+                    </div>
+                    <button onClick={() => removeFromWatchlist(sym)}
+                      style={{ background: C.red + "18", border: `1px solid ${C.red}33`, borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                      <Icon name="x" size={12} color={C.red} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {watchlist.length < 12 && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ position: "relative" }}>
+                  <Icon name="search" size={14} color={C.faint} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
+                  <input
+                    value={addQuery}
+                    onChange={e => onAddQueryChange(e.target.value)}
+                    placeholder={t("markets.search_ticker")}
+                    style={{ width: "100%", padding: "10px 12px 10px 34px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: FONT }}
+                  />
+                </div>
+                {searchingAdd && <div style={{ color: C.faint, fontSize: 12, marginTop: 8 }}>{t("markets.searching")}</div>}
+                {addResults.map(r => (
+                  <div key={r.symbol} onClick={() => addToWatchlist(r.symbol)}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.sep}`, cursor: "pointer" }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{r.symbol}</div>
+                      <div style={{ fontSize: 11, color: C.faint }}>{r.description}</div>
+                    </div>
+                    <div style={{ background: C.green + "18", border: `1px solid ${C.green}33`, borderRadius: 8, padding: "3px 10px", fontSize: 12, color: C.green, fontWeight: 600 }}>
+                      {watchlist.includes(r.symbol) ? t("markets.added") : t("markets.add")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {watchlist.map(sym => {
+              const meta = MARKET_META[sym] ?? { label: sym, color: C.cyan, icon: "activity", isCrypto: false };
+              const q    = quotes[sym];
+              const pos  = (q?.changePct ?? 0) >= 0;
+              return (
+                <div key={sym} onClick={() => setSelectedSymbol(sym)}
+                  style={{ background: C.bgTertiary, borderRadius: 12, padding: "10px 12px", border: `1px solid ${C.border}`, cursor: "pointer" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <StockLogo symbol={sym} color={meta.color} icon={meta.icon} size={24} borderRadius={7} />
+                    <span style={{ fontSize: 11, color: C.muted, fontWeight: 500 }}>{meta.label || sym}</span>
+                  </div>
+                  {loadingQuotes ? (
+                    <div style={{ height: 20, background: C.border, borderRadius: 4, width: "70%", marginBottom: 4 }} />
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: -0.3 }}>
+                        {fmtPrice(q?.price, meta.isCrypto)}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
+                        <Icon name={pos ? "trending-up" : "trending-down"} size={10} color={pos ? C.green : C.red} strokeWidth={2.5} />
+                        <span style={{ fontSize: 11, color: pos ? C.green : C.red, fontWeight: 600 }}>
+                          {fmtPct(q?.changePct)}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </GlassCard>
+
+      {/* ── EXPLORE ────────────────────────────────────────── */}
+      <GlassCard>
+        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12 }}>{t("markets.explore_stocks")}</div>
+        <div style={{ position: "relative", marginBottom: 12 }}>
+          <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+            <Icon name="search" size={14} color={C.faint} />
+          </div>
+          <input
+            value={exploreQuery}
+            onChange={e => onExploreChange(e.target.value)}
+            placeholder={t("markets.search_stock")}
+            style={{ width: "100%", padding: "11px 12px 11px 34px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: FONT }}
+          />
+        </div>
+        {searchingExplore && <div style={{ color: C.faint, fontSize: 12, textAlign: "center", padding: "8px 0" }}>{t("markets.searching")}</div>}
+        {!searchingExplore && exploreNonUS && (
+          <div style={{ fontSize: 12, color: "#F5A623", padding: "8px 12px", background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.25)", borderRadius: 10, marginBottom: 8 }}>
+            {t("markets.us_only")}
+          </div>
+        )}
+        {exploreResults.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {exploreResults.map((r, i) => (
+              <div key={r.symbol} onClick={() => setSelectedSymbol(r.symbol)}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: i < exploreResults.length - 1 ? `1px solid ${C.sep}` : "none", cursor: "pointer" }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{r.symbol}</div>
+                  <div style={{ fontSize: 12, color: C.faint, marginTop: 1 }}>{r.description}</div>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontSize: 11, color: C.faint, background: C.bgSecondary, borderRadius: 6, padding: "2px 7px" }}>{r.type}</span>
+                  <Icon name="chevron" size={14} color={C.faint} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : !exploreQuery && (
+          <>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.faint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>{t("markets.trending_today")}</div>
+              {TRENDING.map((t, i) => {
+                const q = extraQuotes[t.symbol];
+                const pos = (q?.changePct ?? 0) >= 0;
+                return (
+                  <div key={t.symbol} onClick={() => setSelectedSymbol(t.symbol)}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 6px", borderBottom: i < TRENDING.length - 1 ? `1px solid ${C.sep}` : "none", cursor: "pointer" }}>
+                    <StockLogo symbol={t.symbol} color={t.color} size={36} borderRadius={10} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cleanCompanyName(t.name)}</div>
+                      <div style={{ fontSize: 11, color: C.faint }}>{t.symbol}</div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      {loadingExtra
+                        ? <div style={{ width: 48, height: 12, background: C.border, borderRadius: 4 }} />
+                        : <>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmtPrice(q?.price)}</div>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: pos ? C.green : C.red }}>{fmtPct(q?.changePct)}</div>
+                          </>
+                      }
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.faint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>{t("markets.sectors")}</div>
+              <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 6, scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                {SECTORS.map(sector => {
+                  const q = extraQuotes[sector.etf];
+                  const pct = q?.changePct ?? null;
+                  const pos = (pct ?? 0) >= 0;
+                  const active = activeSector?.name === sector.name;
+                  return (
+                    <button key={sector.name} onClick={() => toggleSector(sector)} style={{
+                      flexShrink: 0, minWidth: 80, padding: "8px 12px", borderRadius: 12, textAlign: "left",
+                      background: active ? sector.color + "18" : C.bgTertiary,
+                      border: `1px solid ${active ? sector.color + "55" : C.border}`,
+                      cursor: "pointer", fontFamily: FONT,
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: active ? sector.color : C.text, marginBottom: 3 }}>{sector.name}</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: loadingExtra ? C.faint : pos ? C.green : C.red }}>
+                        {loadingExtra ? "—" : fmtPct(pct)}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {activeSector && (
+                <div style={{ marginTop: 10, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+                  {loadingSectorStocks
+                    ? <div style={{ padding: "12px 14px", color: C.faint, fontSize: 12 }}>{t("markets.loading")}</div>
+                    : activeSector.stocks.map((sym, i) => {
+                        const q = extraQuotes[sym];
+                        const pos = (q?.changePct ?? 0) >= 0;
+                        return (
+                          <div key={sym} onClick={() => setSelectedSymbol(sym)}
+                            style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", borderTop: i > 0 ? `1px solid ${C.sep}` : "none", background: C.bgTertiary }}>
+                            <StockLogo symbol={sym} color={activeSector.color} size={28} borderRadius={8} />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{sym}</div>
+                            </div>
+                            <div style={{ textAlign: "right" }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmtPrice(q?.price)}</div>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: pos ? C.green : C.red }}>{fmtPct(q?.changePct)}</div>
+                            </div>
+                            <Icon name="chevron" size={12} color={C.faint} />
+                          </div>
+                        );
+                      })
+                  }
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </GlassCard>
+
+      <div style={{ padding: "4px 2px" }}>
+        <div style={{ fontSize: 10, color: C.faint, lineHeight: 1.7 }}>
+          {t("markets.investment_disclaimer")}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -86,8 +86,8 @@ const PRIMARY_MAP: Record<string, string> = {
   INCOME:                    'Income',         // wages, dividends, interest, retirement, refunds
   TRANSFER_IN:               'Income',         // deposits, account transfers in
 
-  // ── Other ─────────────────────────────────────────────────────────────────
-  TRANSFER_OUT:              'Other',          // withdrawals, account transfers out
+  // ── Transfers (excluded from spending totals) ─────────────────────────────
+  TRANSFER_OUT:              'Transfer',       // withdrawals, account transfers out
 };
 
 // Detailed subcategory overrides — checked BEFORE primary.
@@ -117,14 +117,31 @@ const DETAILED_OVERRIDE: Array<[substring: string, category: string]> = [
   // Mortgage → Housing (overrides LOAN_PAYMENTS primary → 'Bills')
   ['MORTGAGE',                                  'Housing'],
 
-  // ATM fees → Other (overrides BANK_FEES primary → 'Bills')
-  ['BANK_FEES_ATM_FEES',                        'Other'],
+  // ATM withdrawals & fees → Transfer (excluded from spending, not "Other")
+  ['BANK_FEES_ATM_FEES',                        'Transfer'],
+  ['TRANSFER_OUT_WITHDRAWAL',                   'Transfer'],
+  ['TRANSFER_OUT_ACCOUNT_TRANSFER',             'Transfer'],
 
-  // Cash advance → Other (overrides TRANSFER_IN primary → 'Income')
-  ['CASH_ADVANCES_AND_LOANS',                   'Other'],
+  // Cash advances → Bills (it's real spending, not a transfer)
+  ['CASH_ADVANCES_AND_LOANS',                   'Bills'],
 
-  // Specific income subtypes (TRANSFER_IN and INCOME primary both map well,
-  // but cash deposits and payroll are explicitly Income)
+  // Government & taxes → own category
+  ['GOVERNMENT_AND_NON_PROFIT_TAX_PAYMENT',     'Taxes'],
+  ['GOVERNMENT_AND_NON_PROFIT_GOVERNMENT_DEPARTMENTS_AND_AGENCIES', 'Government'],
+
+  // Automotive services → Transport
+  ['GENERAL_SERVICES_AUTOMOTIVE',               'Transport'],
+
+  // Gyms & fitness → Health & Fitness (more specific than Entertainment)
+  ['GYMS_AND_FITNESS_CENTERS',                  'Health & Fitness'],
+
+  // Laundry & dry cleaning → Personal Care
+  ['PERSONAL_CARE_LAUNDRY_AND_DRY_CLEANING',    'Personal Care'],
+
+  // Charitable giving → Charity
+  ['GOVERNMENT_AND_NON_PROFIT_DONATIONS',       'Charity'],
+
+  // Specific income subtypes
   ['TRANSFER_IN_DEPOSIT',                       'Income'],
   ['INCOME_WAGES',                              'Income'],
   ['INCOME_TAX_REFUND',                         'Income'],
@@ -170,9 +187,18 @@ interface PlaidRemovedTransaction { transaction_id: string }
 function plaidTxToRow(tx: PlaidTransaction, userId: string) {
   const primaryCat = tx.personal_finance_category?.primary  ?? '';
   const detailCat  = tx.personal_finance_category?.detailed ?? '';
-  const catName    = mapCategory(primaryCat, detailCat);
+  let   catName    = mapCategory(primaryCat, detailCat);
   // Income: Plaid credits are negative amounts, OR the category resolved to Income
   const isIncome   = tx.amount < 0 || catName === 'Income';
+
+  const description = tx.merchant_name ?? tx.name ?? '';
+
+  // Peer-to-peer transfers: visible in chart and counted in spending.
+  // Override regardless of Plaid's category (Zelle rent → RENT_AND_UTILITIES → Housing
+  // without this check, double-counting actual rent).
+  if (!isIncome && /\bzelle\b|\bvenmo\b/i.test(description)) {
+    catName = 'Transfers';
+  }
 
   return {
     user_id:              userId,
@@ -180,7 +206,7 @@ function plaidTxToRow(tx: PlaidTransaction, userId: string) {
     date:                 tx.date,
     amount:               Math.abs(tx.amount),
     type:                 isIncome ? 'income' : 'expense',
-    description:          tx.merchant_name ?? tx.name,
+    description,
     category_name:        isIncome ? 'Income' : catName,
   };
 }

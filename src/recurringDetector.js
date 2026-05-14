@@ -8,11 +8,11 @@
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
 
-const AMOUNT_TOLERANCE    = 0.02;   // ±2% — subscriptions charge the exact same amount
+const AMOUNT_TOLERANCE    = 0.50;   // ±$0.50 flat — real subscriptions are always exact same price
 const INTERVAL_TARGET     = 30;     // monthly billing cycle
 const INTERVAL_TOLERANCE  = 5;      // accept 25–35 day gap between charges
 const DAY_OF_MONTH_TOL    = 5;      // charge must land within ±5 days of same DOM
-const MIN_OCCURRENCES     = 2;      // need ≥2 confirmed charges
+const MIN_OCCURRENCES     = 2;      // need ≥2 confirmed charges in consecutive months
 const MIN_AMOUNT          = 10;     // ignore anything under $10 (coffee, small tips)
 const LOOKBACK_DAYS       = 90;
 const UPCOMING_DAYS       = 7;
@@ -72,8 +72,19 @@ const SUBSCRIPTION_KEYWORDS = [
 
 const SUBSCRIPTION_CATEGORIES = new Set([
   'bills', 'subscriptions', 'utilities', 'insurance', 'phone', 'internet',
-  'rent', 'mortgage', 'health', 'fitness', 'software', 'streaming',
+  'rent', 'mortgage', 'fitness', 'software', 'streaming',
   'telecom', 'loan', 'finance',
+]);
+
+// ─── Category block-list: never treat these as subscriptions ─────────────────
+// Grocery stores, pharmacies, and retailers repeat regularly but are NOT subs.
+
+const EXCLUDED_CATEGORIES = new Set([
+  'food & dining', 'food and dining', 'groceries', 'grocery', 'supermarkets',
+  'gas', 'gas stations', 'fuel',
+  'pharmacies', 'pharmacy', 'drug stores',
+  'retail', 'shopping', 'department stores', 'clothing', 'electronics',
+  'home improvement', 'sporting goods', 'pet supplies',
 ]);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -94,9 +105,7 @@ function titleCase(str) {
 }
 
 function amountsMatch(a, b) {
-  const max = Math.max(Math.abs(a), Math.abs(b));
-  if (max === 0) return true;
-  return Math.abs(a - b) / max <= AMOUNT_TOLERANCE;
+  return Math.abs(a - b) <= AMOUNT_TOLERANCE;
 }
 
 function daysBetween(dateA, dateB) {
@@ -105,8 +114,12 @@ function daysBetween(dateA, dateB) {
 
 /** Check if the merchant name or category signals a subscription/bill. */
 function isLikelySubscription(description, categoryName) {
-  // Category match is the strongest signal
   const cat = (categoryName || '').toLowerCase().trim();
+
+  // Block-list takes priority — groceries, pharmacies, retail are never subscriptions
+  if (EXCLUDED_CATEGORIES.has(cat)) return false;
+
+  // Category allow-list
   if (SUBSCRIPTION_CATEGORIES.has(cat)) return true;
 
   // Keyword match against description

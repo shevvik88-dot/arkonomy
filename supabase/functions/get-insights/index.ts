@@ -440,30 +440,61 @@ function detectCashRisk(m: any) {
   return [];
 }
 
-// Normalize merchant name the same way as the recurring merchant map
+// Categories that are inherently recurring — never label as "one-time"
+const ALWAYS_RECURRING_CATEGORIES = new Set([
+  'housing', 'rent', 'mortgage', 'bills', 'utilities', 'insurance',
+  'subscriptions', 'phone', 'internet', 'loan', 'finance',
+  'health insurance', 'car payment', 'auto loan', 'auto insurance',
+]);
+
 function normalizeMerchant(raw: string): string {
   return (raw || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-// Returns true if the description appears in the historical transactions in 2+ distinct
-// calendar months with a tight amount spread (≤ $10) — i.e. it is a recurring charge.
-function isKnownRecurringMerchant(description: string, historical: any[]): boolean {
+// Returns true if the transaction is a known recurring charge, checked three ways:
+//   0. Category shortcut: category_name is in ALWAYS_RECURRING_CATEGORIES
+//   1. Category: same category_name appears in 2+ historical months (no spread check needed)
+//   2. Description: meaningful token overlap in 2+ historical months, spread ≤ $10
+function isKnownRecurringMerchant(description: string, categoryName: string, historical: any[]): boolean {
+  // ── 0. Always-recurring category shortcut ───────────────────────────────
+  if (categoryName && ALWAYS_RECURRING_CATEGORIES.has(categoryName.toLowerCase())) return true;
+
+  // ── 1. Category-level check ──────────────────────────────────────────────
+  if (categoryName) {
+    const catLower = categoryName.toLowerCase();
+    const catMonths = new Set<string>();
+    for (const t of historical) {
+      if (t.type !== 'expense') continue;
+      if ((t.category_name || '').toLowerCase() === catLower) {
+        catMonths.add((t.date || '').slice(0, 7));
+      }
+    }
+    if (catMonths.size >= 2) return true;
+  }
+
+  // ── 2. Description token-overlap check ──────────────────────────────────
   const key = normalizeMerchant(description);
   if (!key || key.length < 3) return false;
-  const monthAmounts: Record<string, number[]> = {};
+  // Extract meaningful tokens (4+ chars) to avoid matching "rent" in "current"
+  const keyTokens = key.split(' ').filter((tok: string) => tok.length >= 4);
+  if (keyTokens.length === 0) return false;
+
+  // Use the largest amount per month to represent the primary charge; avoids
+  // inflating spread when multiple sub-transactions match the same token.
+  const monthMaxAmount: Record<string, number> = {};
   for (const t of historical) {
     if (t.type !== 'expense') continue;
     const tKey = normalizeMerchant(t.description || '');
-    // Accept if either is a substring of the other (handles truncated descriptions)
-    if (!tKey || (!tKey.includes(key.slice(0, 10)) && !key.includes(tKey.slice(0, 10)))) continue;
+    if (!tKey) continue;
+    const hasTokenMatch = keyTokens.some((tok: string) => tKey.includes(tok));
+    if (!hasTokenMatch) continue;
     const mo = (t.date || '').slice(0, 7);
-    if (!monthAmounts[mo]) monthAmounts[mo] = [];
-    monthAmounts[mo].push(Number(t.amount));
+    const amt = Number(t.amount);
+    monthMaxAmount[mo] = Math.max(monthMaxAmount[mo] ?? 0, amt);
   }
-  const months = Object.values(monthAmounts);
-  if (months.length < 2) return false;
-  const allAmounts = months.flat();
-  const spread = Math.max(...allAmounts) - Math.min(...allAmounts);
+  const monthAmounts = Object.values(monthMaxAmount);
+  if (monthAmounts.length < 2) return false;
+  const spread = Math.max(...monthAmounts) - Math.min(...monthAmounts);
   return spread <= 10;
 }
 
@@ -473,11 +504,12 @@ function detectCategorySpike(m: any) {
   const topTx = m.topCategoryTransaction;
 
   // A transaction is only "one-time" if it dominates the category spend AND
-  // is NOT a known recurring merchant (e.g. rent paid via Turbotenant).
+  // is NOT a known recurring merchant/category.
   const dominatesCategory = topTx && s.currentSpend > 0 &&
     (Number(topTx.amount) / s.currentSpend) >= 0.60;
-  const merchantIsRecurring = topTx &&
-    isKnownRecurringMerchant(topTx.description || '', m.historicalTransactions || []);
+  const categoryAlwaysRecurring = ALWAYS_RECURRING_CATEGORIES.has((s.name || '').toLowerCase());
+  const merchantIsRecurring = categoryAlwaysRecurring || (topTx &&
+    isKnownRecurringMerchant(topTx.description || '', topTx.category_name || '', m.historicalTransactions || []));
   const isOneTime = dominatesCategory && !merchantIsRecurring;
 
   return [{ type: 'category_spike', priority: PRIORITY.category_spike, data: {
@@ -725,7 +757,7 @@ function renderInsight(signal: any, ctx: RenderContext) {
         : '';
 
       return {
-        headline: `You're $${fmt(shortfall)} away from "${goalName}"`,
+        headline: `You're $${fmt(shortfall)} away from ${goalName}`,
         body:     `${progressLine} You can add $${fmt(recommendedContribution)} from your available balance while keeping your buffer stable.${roundUpLine}\n\n→ ${timeNote}`,
         cta:    `Add $${fmt(recommendedContribution)} to savings`,
         range:  null,

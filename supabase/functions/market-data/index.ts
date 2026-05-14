@@ -209,7 +209,9 @@ Deno.serve(async (req) => {
       if (crypto) {
         const q = await fh(`/quote?symbol=${encodeURIComponent(finnhubSym(symbol))}`);
         return new Response(JSON.stringify({
-          symbol, name: symbol, price: q.c, high: q.h, low: q.l, isCrypto: true,
+          symbol, name: symbol, price: q.c ?? null,
+          dayOpen: q.o ?? null, dayHigh: q.h ?? null, dayLow: q.l ?? null, prevClose: q.pc ?? null,
+          changePct: q.dp ?? null, isCrypto: true,
         }), { headers: { ...CORS, 'Content-Type': 'application/json' } });
       }
       const [profile, metrics, quote] = await Promise.all([
@@ -231,6 +233,10 @@ Deno.serve(async (req) => {
         beta:       m.beta ?? null,
         dividendYield: m.dividendYieldIndicatedAnnual ?? null,
         price:      quote?.c ?? null,
+        dayOpen:    quote?.o ?? null,
+        dayHigh:    quote?.h ?? null,
+        dayLow:     quote?.l ?? null,
+        prevClose:  quote?.pc ?? null,
         changePct:  quote?.dp ?? null,
         isCrypto:   false,
       }), { headers: { ...CORS, 'Content-Type': 'application/json' } });

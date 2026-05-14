@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const C = {
   bg: "#0B1426",
@@ -52,15 +53,16 @@ const BenefitIcon = ({ type, color }) => {
   return icons[type] ?? null;
 };
 
-const BENEFITS = [
-  { icon: "bank",    color: "#38B6FF", title: "Multiple Bank Accounts", desc: "Connect unlimited banks and track everything in one place" },
-  { icon: "ai",     color: "#7C6BFF", title: "Full AI Insights",        desc: "Unlock all AI-powered spending analyses and recommendations" },
-  { icon: "savings",color: "#00E5A0", title: "Savings Round-Ups",       desc: "Automatically round up spare change and grow your savings" },
-  { icon: "invest", color: "#00E5A0", title: "Alpaca Investing",         desc: "Invest your spare change directly into the stock market" },
-  { icon: "chart",  color: "#38B6FF", title: "Spending Charts",          desc: "Full interactive breakdown of spending by category" },
+const BENEFIT_KEYS = [
+  { icon: "bank",    color: "#38B6FF", titleKey: "upgrade.benefit_banks_title",    descKey: "upgrade.benefit_banks_desc" },
+  { icon: "ai",     color: "#7C6BFF", titleKey: "upgrade.benefit_ai_title",       descKey: "upgrade.benefit_ai_desc" },
+  { icon: "savings",color: "#00E5A0", titleKey: "upgrade.benefit_cashflow_title", descKey: "upgrade.benefit_cashflow_desc" },
+  { icon: "invest", color: "#00E5A0", titleKey: "upgrade.benefit_investing_title",descKey: "upgrade.benefit_investing_desc" },
+  { icon: "chart",  color: "#38B6FF", titleKey: "upgrade.benefit_charts_title",   descKey: "upgrade.benefit_charts_desc" },
 ];
 
 export default function UpgradeModal({ onClose, supabase }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -128,8 +130,8 @@ export default function UpgradeModal({ onClose, supabase }) {
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
             </svg>
           </div>
-          <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Upgrade to Pro</div>
-          <div style={{ fontSize: 14, color: C.muted }}>Unlock the full Arkonomy experience</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{t("upgrade.title")}</div>
+          <div style={{ fontSize: 14, color: C.muted }}>{t("upgrade.subtitle")}</div>
         </div>
 
         {/* Price */}
@@ -140,14 +142,14 @@ export default function UpgradeModal({ onClose, supabase }) {
           textAlign: "center", marginBottom: 20,
         }}>
           <span style={{ fontSize: 36, fontWeight: 800, color: C.text }}>$9.99</span>
-          <span style={{ fontSize: 14, color: C.muted }}> / month</span>
-          <div style={{ fontSize: 12, color: C.faint, marginTop: 4 }}>Cancel anytime</div>
+          <span style={{ fontSize: 14, color: C.muted }}> {t("upgrade.per_month")}</span>
+          <div style={{ fontSize: 12, color: C.faint, marginTop: 4 }}>{t("upgrade.cancel_anytime")}</div>
         </div>
 
         {/* Benefits */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
-          {BENEFITS.map(b => (
-            <div key={b.title} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {BENEFIT_KEYS.map(b => (
+            <div key={b.titleKey} style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{
                 width: 36, height: 36, borderRadius: 10, flexShrink: 0,
                 background: b.color + "18",
@@ -157,8 +159,8 @@ export default function UpgradeModal({ onClose, supabase }) {
                 <BenefitIcon type={b.icon} color={b.color} />
               </div>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 1 }}>{b.title}</div>
-                <div style={{ fontSize: 12, color: C.muted }}>{b.desc}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 1 }}>{t(b.titleKey)}</div>
+                <div style={{ fontSize: 12, color: C.muted }}>{t(b.descKey)}</div>
               </div>
             </div>
           ))}
@@ -190,7 +192,7 @@ export default function UpgradeModal({ onClose, supabase }) {
             marginBottom: 12,
           }}
         >
-          {loading ? "Processing..." : "Upgrade Now — $9.99/mo"}
+          {loading ? t("upgrade.processing") : t("upgrade.upgrade_now")}
         </button>
 
         <button
@@ -203,7 +205,7 @@ export default function UpgradeModal({ onClose, supabase }) {
             cursor: "pointer", fontFamily: FONT,
           }}
         >
-          Maybe later
+          {t("upgrade.maybe_later")}
         </button>
       </div>
     </div>

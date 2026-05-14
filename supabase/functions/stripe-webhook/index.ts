@@ -50,17 +50,33 @@ Deno.serve(async (req) => {
   try {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-      const userId  = session.client_reference_id;
+      const userId     = session.client_reference_id;
       const customerId = session.customer as string;
 
       if (userId) {
+        const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
         const { error } = await supabase
           .from('profiles')
-          .update({ plan: 'pro', stripe_customer_id: customerId })
+          .update({ plan: 'pro', stripe_customer_id: customerId, trial_ends_at: trialEndsAt })
           .eq('id', userId);
 
-        if (error) console.error('Failed to update profile to pro:', error);
-        else console.log(`User ${userId} upgraded to pro, customer: ${customerId}`);
+        if (error) console.error('Failed to update profile to trial:', error);
+        else console.log(`User ${userId} started trial, customer: ${customerId}`);
+      }
+    }
+
+    // Trial converts to paid subscription after first real charge
+    if (event.type === 'invoice.payment_succeeded') {
+      const invoice = event.data.object as Stripe.Invoice;
+      const customerId = invoice.customer as string;
+      // Only clear trial on subscription cycle (not the $0 trial invoice)
+      if ((invoice as any).billing_reason === 'subscription_cycle' && Number(invoice.amount_paid) > 0) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ trial_ends_at: null })
+          .eq('stripe_customer_id', customerId);
+        if (error) console.error('Failed to clear trial_ends_at:', error);
+        else console.log(`Customer ${customerId} trial converted to paid`);
       }
     }
 
@@ -70,7 +86,7 @@ Deno.serve(async (req) => {
 
       const { error } = await supabase
         .from('profiles')
-        .update({ plan: 'free' })
+        .update({ plan: 'free', trial_ends_at: null })
         .eq('stripe_customer_id', customerId);
 
       if (error) console.error('Failed to downgrade profile:', error);

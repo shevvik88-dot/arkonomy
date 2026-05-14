@@ -53,8 +53,9 @@ Deno.serve(async (req) => {
       line_items: [
         { price: STRIPE_PRICE_ID, quantity: 1 },
       ],
-      success_url: 'https://app.arkonomy.com?upgraded=true',
-      cancel_url:  'https://app.arkonomy.com',
+      subscription_data: { trial_period_days: 7 },
+      success_url: 'https://app.arkonomy.com?trial_started=true',
+      cancel_url:  'https://app.arkonomy.com?trial_cancelled=true',
     });
 
     return new Response(JSON.stringify({ url: session.url }), {
