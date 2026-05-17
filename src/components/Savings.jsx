@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
 import { C, FONT } from "../utils/colors";
 import { fmt } from "../utils/helpers";
@@ -76,10 +77,8 @@ function SavingsAccountEmptyState({ onTrackManually }) {
   );
 }
 
-const FORECAST_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
 function formatForecastDate(date) {
-  return `${FORECAST_MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+  return date.toLocaleDateString(i18n.language || "en-US", { month: "short", year: "numeric" });
 }
 
 function computeGoalForecast(remaining, monthlySurplus, numGoals) {
