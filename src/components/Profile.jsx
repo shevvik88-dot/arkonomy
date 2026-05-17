@@ -15,7 +15,7 @@ function maskEmail(email) {
 }
 
 export default function Profile({ profile, user, onSave, onSignOut, autopilot, setAutopilot, bankConnected, bankName, bankCount, linkToken, getLinkToken, onPlaidSuccess, syncBankTransactions, syncingBank, lastSyncedAt, backgroundSyncing, isPro, onUpgrade, transactions = [] }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [budget, setBudget] = useState(profile?.monthly_budget || 3000);
   const [goal, setGoal] = useState(profile?.savings_goal || 10000);
   const [saved, setSaved] = useState(false);
@@ -253,44 +253,6 @@ export default function Profile({ profile, user, onSave, onSignOut, autopilot, s
           style={{ width: "100%", padding: 14, background: saved ? C.green : `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: saved ? C.bg : "#fff", fontWeight: 700, cursor: "pointer", transition: "background 0.3s", fontFamily: FONT }}>
           {saved ? t("profile.saved") : t("profile.save_settings")}
         </button>
-      </GlassCard>
-
-      {/* ── LANGUAGE SWITCHER ── */}
-      <GlassCard>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: C.cyan + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Icon name="globe" size={16} color={C.cyan} />
-          </div>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>{t("profile.language")}</div>
-            <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>{t("profile.language_subtitle")}</div>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {[
-            { code: "en", label: "English" },
-            { code: "ru", label: "Русский" },
-            { code: "es", label: "Español" },
-          ].map(lang => {
-            const active = i18n.language?.startsWith(lang.code);
-            return (
-              <button
-                key={lang.code}
-                onClick={() => i18n.changeLanguage(lang.code)}
-                style={{
-                  flex: 1, padding: "10px 0", borderRadius: 10,
-                  border: `1px solid ${active ? C.cyan : C.border}`,
-                  background: active ? C.cyan + "22" : "transparent",
-                  color: active ? C.cyan : C.muted,
-                  fontWeight: active ? 700 : 500, fontSize: 13,
-                  cursor: "pointer", fontFamily: FONT, transition: "all 0.2s",
-                }}
-              >
-                {lang.label}
-              </button>
-            );
-          })}
-        </div>
       </GlassCard>
 
       <GlassCard>

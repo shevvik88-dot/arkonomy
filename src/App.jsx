@@ -1,5 +1,6 @@
 ﻿// arkonomy v1
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { createClient } from "@supabase/supabase-js";
 import { App as CapApp } from "@capacitor/app";
 import { usePlaidOAuth, PLAID_REDIRECT_URI } from "./hooks/usePlaidOAuth";
@@ -345,6 +346,9 @@ function buildContextGreeting(screen, { totalIncome, totalSpent, spendingByCateg
 
 // ─── Main App ─────────────────────────────────────────────────
 export default function App() {
+  const { i18n } = useTranslation();
+  const [langOpen, setLangOpen] = useState(false);
+  const langRef = useRef(null);
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [screen, setScreen] = useState("dashboard");
@@ -429,6 +433,13 @@ export default function App() {
 
   const { isPro, isTrial, trialDaysLeft, trialExpired } = usePlan(profile);
   useEffect(() => { if (trialExpired) setShowTrialExpiredModal(true); }, [trialExpired]);
+
+  useEffect(() => {
+    if (!langOpen) return;
+    function handleClick(e) { if (langRef.current && !langRef.current.contains(e.target)) setLangOpen(false); }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [langOpen]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setUser(session?.user ?? null); setLoading(false); });
@@ -1220,6 +1231,33 @@ export default function App() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {/* Globe / language picker */}
+          <div ref={langRef} style={{ position: "relative" }}>
+            <button onClick={() => setLangOpen(v => !v)} style={{ background: langOpen ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${langOpen ? C.cyan + "44" : C.border}`, borderRadius: 10, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <Icon name="globe" size={19} color={langOpen ? C.cyan : C.muted} />
+            </button>
+            {langOpen && (
+              <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.5)", zIndex: 200, minWidth: 150, overflow: "hidden" }}>
+                {[
+                  { code: "en", label: "English" },
+                  { code: "ru", label: "Русский" },
+                  { code: "es", label: "Español" },
+                ].map((lang, idx, arr) => {
+                  const active = i18n.language?.startsWith(lang.code);
+                  return (
+                    <button
+                      key={lang.code}
+                      onClick={() => { i18n.changeLanguage(lang.code); setLangOpen(false); }}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "12px 16px", background: active ? C.cyan + "14" : "transparent", border: "none", borderBottom: idx < arr.length - 1 ? `1px solid ${C.sep}` : "none", color: active ? C.cyan : C.text, fontSize: 14, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: FONT, textAlign: "left" }}
+                    >
+                      {lang.label}
+                      {active && <Icon name="check" size={14} color={C.cyan} strokeWidth={2.5} />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <button data-tutorial="settings-btn" onClick={() => setScreen("profile")} style={{ background: screen === "profile" ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${screen === "profile" ? C.cyan + "44" : C.border}`, borderRadius: 10, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <Icon name="settings" size={21} color={screen === "profile" ? C.cyan : C.muted} />
           </button>
