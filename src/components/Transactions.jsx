@@ -939,7 +939,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
       {catFilter && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: (CAT_COLORS[catFilter] || C.cyan) + "18", borderRadius: 12, border: `1px solid ${(CAT_COLORS[catFilter] || C.cyan)}33` }}>
           <div style={{ width: 8, height: 8, borderRadius: 99, background: CAT_COLORS[catFilter] || C.cyan }} />
-          <span style={{ fontSize: 13, color: CAT_COLORS[catFilter] || C.cyan, fontWeight: 600, flex: 1 }}>{catFilter}</span>
+          <span style={{ fontSize: 13, color: CAT_COLORS[catFilter] || C.cyan, fontWeight: 600, flex: 1 }}>{tCat(catFilter, t)}</span>
           <button onClick={onClearCatFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4, minHeight: 28 }}>
             <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
           </button>
@@ -1002,7 +1002,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
                 onClick={() => setShowCatDropdown(v => !v)}
                 style={{ padding: "7px 12px", borderRadius: 20, border: `1px solid ${active ? C.cyan : C.border}`, background: active ? C.cyan + "22" : "transparent", color: active ? C.cyan : C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: active ? 600 : 400, display: "flex", alignItems: "center", gap: 4, minHeight: 38, transition: "all 0.15s ease" }}
               >
-                {active || t("transactions.category")} <span style={{ fontSize: 10, opacity: 0.7 }}>▾</span>
+                {active ? tCat(active, t) : t("transactions.category")} <span style={{ fontSize: 10, opacity: 0.7 }}>▾</span>
               </button>
               {showCatDropdown && (
                 <div style={{ position: "absolute", top: 44, left: 0, zIndex: 99, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "6px 0", boxShadow: "0 8px 32px rgba(0,0,0,0.55)", minWidth: 190, maxHeight: 260, overflowY: "auto" }}>
@@ -1015,7 +1015,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
                     <button key={cat} onClick={() => { setLocalCatFilter(cat); setShowCatDropdown(false); }}
                       style={{ display: "flex", width: "100%", textAlign: "left", padding: "9px 14px", background: cat === active ? C.cyan + "18" : "none", border: "none", color: cat === active ? C.cyan : C.text, fontSize: 13, cursor: "pointer", fontFamily: FONT, alignItems: "center", gap: 10 }}>
                       <div style={{ width: 8, height: 8, borderRadius: 99, background: CAT_COLORS[cat] || C.blue, flexShrink: 0 }} />
-                      {cat}
+                      {tCat(cat, t)}
                     </button>
                   ))}
                 </div>

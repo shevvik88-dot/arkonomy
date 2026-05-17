@@ -216,7 +216,10 @@
     "mostly_cat": " · mostly {{cat}}",
     "on_track_for": "On track for {{date}}",
     "need_more_for": "Need +${{amount}}/mo to reach by {{date}}",
-    "pct_total": "total"
+    "pct_total": "total",
+    "goal_saved": "saved",
+    "goal_label": "goal",
+    "start_saving_mo": "Start saving ${{amount}}/mo to reach by {{date}}"
   },
   "day": {
     "mon": "Mon",

@@ -216,7 +216,10 @@
     "mostly_cat": " · principalmente {{cat}}",
     "on_track_for": "En camino para {{date}}",
     "need_more_for": "Necesitas +${{amount}}/mes para alcanzar el {{date}}",
-    "pct_total": "total"
+    "pct_total": "total",
+    "goal_saved": "ahorrado",
+    "goal_label": "meta",
+    "start_saving_mo": "Ahorra ${{amount}}/mes para alcanzar el {{date}}"
   },
   "day": {
     "mon": "Lun",

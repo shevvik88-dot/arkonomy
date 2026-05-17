@@ -220,7 +220,10 @@
     "mostly_cat": " · в основном {{cat}}",
     "on_track_for": "По плану до {{date}}",
     "need_more_for": "Нужно +${{amount}}/мес чтобы достичь к {{date}}",
-    "pct_total": "всего"
+    "pct_total": "всего",
+    "goal_saved": "накоплено",
+    "goal_label": "цель",
+    "start_saving_mo": "Откладывайте ${{amount}}/мес чтобы достичь к {{date}}"
   },
   "day": {
     "mon": "Пн",

@@ -406,6 +406,7 @@ function InsightCardGroup({ insights, onAction }) {
 }
 
 export function InsightCard({ insight, onAction }) {
+  const { t, i18n } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
@@ -503,7 +504,7 @@ export function InsightCard({ insight, onAction }) {
             const targetDate   = (() => {
               const d = new Date();
               d.setMonth(d.getMonth() + 12);
-              return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+              return d.toLocaleDateString(i18n.language || "en-US", { month: "short", year: "numeric" });
             })();
             return (
               <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
@@ -520,12 +521,12 @@ export function InsightCard({ insight, onAction }) {
                   )}
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(154,164,178,0.6)", marginBottom: 10 }}>
-                  <span>${goalCurrent.toLocaleString("en-US", { maximumFractionDigits: 0 })} saved</span>
-                  <span>${goalTarget.toLocaleString("en-US", { maximumFractionDigits: 0 })} goal</span>
+                  <span>${goalCurrent.toLocaleString("en-US", { maximumFractionDigits: 0 })} {t("insights.goal_saved")}</span>
+                  <span>${goalTarget.toLocaleString("en-US", { maximumFractionDigits: 0 })} {t("insights.goal_label")}</span>
                 </div>
                 {monthlyRate > 0 && (
                   <div style={{ fontSize: 12, color: accent, fontWeight: 600 }}>
-                    Start saving ${monthlyRate.toLocaleString("en-US", { maximumFractionDigits: 0 })}/mo to reach by {targetDate}
+                    {t("insights.start_saving_mo", { amount: monthlyRate.toLocaleString("en-US", { maximumFractionDigits: 0 }), date: targetDate })}
                   </div>
                 )}
               </div>
