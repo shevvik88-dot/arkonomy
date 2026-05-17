@@ -45,10 +45,11 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { symbol, name, price, pe, high52w, low52w, changePct, isCrypto } = body as {
+    const { symbol, name, price, pe, high52w, low52w, changePct, isCrypto, lang } = body as {
       symbol: string; name: string; price?: number; pe?: number;
-      high52w?: number; low52w?: number; changePct?: number; isCrypto?: boolean;
+      high52w?: number; low52w?: number; changePct?: number; isCrypto?: boolean; lang?: string;
     };
+    const responseLang = lang?.startsWith('ru') ? 'Russian' : lang?.startsWith('es') ? 'Spanish' : 'English';
 
     if (!symbol) {
       return new Response(JSON.stringify({ error: 'symbol required' }), {
@@ -82,7 +83,7 @@ STRICT RULES — violations are unacceptable:
 - If you lack current data, state that clearly without making up information
 - Keep response concise — mobile screen
 
-Respond with ONLY valid JSON, no markdown, no extra text.`;
+Respond in ${responseLang}. Respond with ONLY valid JSON, no markdown, no extra text.`;
 
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

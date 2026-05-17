@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
 import { supabase } from "../utils/supabase";
 import { SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
 import { C, FONT } from "../utils/colors";
@@ -305,6 +306,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
           low52w:    s?.low52w ?? null,
           changePct: s?.changePct ?? null,
           isCrypto:  meta.isCrypto,
+          lang:      i18n.language ?? "en",
         }),
       });
       if (!res.ok && res.status !== 200) {
