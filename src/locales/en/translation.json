@@ -215,7 +215,8 @@
     "week_start": "Mon",
     "mostly_cat": " · mostly {{cat}}",
     "on_track_for": "On track for {{date}}",
-    "need_more_for": "Need +${{amount}}/mo to reach by {{date}}"
+    "need_more_for": "Need +${{amount}}/mo to reach by {{date}}",
+    "pct_total": "total"
   },
   "day": {
     "mon": "Mon",

@@ -219,7 +219,8 @@
     "week_start": "Пн",
     "mostly_cat": " · в основном {{cat}}",
     "on_track_for": "По плану до {{date}}",
-    "need_more_for": "Нужно +${{amount}}/мес чтобы достичь к {{date}}"
+    "need_more_for": "Нужно +${{amount}}/мес чтобы достичь к {{date}}",
+    "pct_total": "всего"
   },
   "day": {
     "mon": "Пн",

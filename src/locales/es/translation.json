@@ -215,7 +215,8 @@
     "week_start": "Lun",
     "mostly_cat": " · principalmente {{cat}}",
     "on_track_for": "En camino para {{date}}",
-    "need_more_for": "Necesitas +${{amount}}/mes para alcanzar el {{date}}"
+    "need_more_for": "Necesitas +${{amount}}/mes para alcanzar el {{date}}",
+    "pct_total": "total"
   },
   "day": {
     "mon": "Lun",

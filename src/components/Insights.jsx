@@ -1320,7 +1320,7 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
                 <span style={{ fontWeight: 700, fontSize: 14, color: C.green }}>{t("insights.goal_progress")}</span>
               </div>
               <div style={{ background: C.green + "22", borderRadius: 100, padding: "3px 10px" }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.green }}>{overallPct.toFixed(0)}% total</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: C.green }}>{overallPct.toFixed(0)}% {t("insights.pct_total")}</span>
               </div>
             </div>
             <div style={{ height: 5, background: C.bgTertiary, borderRadius: 99, marginBottom: 14, overflow: "visible" }}>
