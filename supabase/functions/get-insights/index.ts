@@ -18,7 +18,8 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    const { userId } = await req.json();
+    const body = await req.json();
+    const { userId, lang } = body;
     if (!userId) {
       return new Response(
         JSON.stringify({ error: 'userId required' }),
@@ -27,7 +28,8 @@ Deno.serve(async (req) => {
     }
 
     const input = await buildFinancialInput(supabase, userId);
-    const result = generateInsights(input);
+    const responseLang: 'ru' | 'es' | 'en' = (lang ?? '').startsWith('ru') ? 'ru' : (lang ?? '').startsWith('es') ? 'es' : 'en';
+    const result = generateInsights(input, responseLang);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -260,13 +262,13 @@ async function buildFinancialInput(supabase: any, userId: string) {
 // AI BRAIN
 // ══════════════════════════════════════════════════════════════════════════════
 
-function generateInsights(input: any) {
+function generateInsights(input: any, lang: 'en' | 'ru' | 'es' = 'en') {
   const ctx        = buildRenderContext(input);
   const metrics    = computeMetrics(input, ctx);
   const allSignals = detectSignals(metrics);
   const deduped    = deduplicateSignals(allSignals);
-  const { winner } = prioritize(deduped, ctx);
-  const screens    = resolveScreens(deduped, winner, ctx);
+  const { winner } = prioritize(deduped, ctx, lang);
+  const screens    = resolveScreens(deduped, winner, ctx, lang);
 
   return {
     generatedAt: new Date().toISOString(),
@@ -604,7 +606,7 @@ function shouldAutoExpand(signal: any, topSignal: any): boolean {
 // PRIORITY & SUPPRESSION
 // ══════════════════════════════════════════════════════════════════════════════
 
-function prioritize(signals: any[], ctx: RenderContext) {
+function prioritize(signals: any[], ctx: RenderContext, lang: 'en' | 'ru' | 'es' = 'en') {
   if (!signals.length) return { winner: null, suppressedTypes: [] };
   const suppressed = new Set<string>();
   const types      = new Set(signals.map((s: any) => s.type));
@@ -626,13 +628,13 @@ function prioritize(signals: any[], ctx: RenderContext) {
       priority:   top.priority,
       autoExpand: shouldAutoExpand(top, top),
       data:       top.data,
-      rendered:   renderInsight(top, ctx),
+      rendered:   renderInsight(top, ctx, lang),
     },
     suppressedTypes: [...suppressed],
   };
 }
 
-function prioritizeTop(signals: any[], n: number, ctx: RenderContext) {
+function prioritizeTop(signals: any[], n: number, ctx: RenderContext, lang: 'en' | 'ru' | 'es' = 'en') {
   if (!signals.length) return [];
   const suppressed = new Set<string>();
   const types      = new Set(signals.map((s: any) => s.type));
@@ -652,7 +654,7 @@ function prioritizeTop(signals: any[], n: number, ctx: RenderContext) {
     priority:   s.priority,
     autoExpand: shouldAutoExpand(s, topSignal),
     data:       s.data,
-    rendered:   renderInsight(s, ctx),
+    rendered:   renderInsight(s, ctx, lang),
   }));
 }
 
@@ -660,55 +662,99 @@ function prioritizeTop(signals: any[], n: number, ctx: RenderContext) {
 // RENDER INSIGHT
 // ══════════════════════════════════════════════════════════════════════════════
 
-function renderInsight(signal: any, ctx: RenderContext) {
+function renderInsight(signal: any, ctx: RenderContext, lang: 'en' | 'ru' | 'es' = 'en') {
   const d = signal.data;
+  const ru = lang === 'ru';
+  const es = lang === 'es';
 
   switch (signal.type) {
 
     case 'cash_risk': {
-      const urgency = ctx.daysLeft <= 3 ? 'very soon' : 'in the next 7 days';
-      return {
+      const urgency = ru
+        ? (ctx.daysLeft <= 3 ? 'очень скоро' : 'в ближайшие 7 дней')
+        : es
+        ? (ctx.daysLeft <= 3 ? 'muy pronto' : 'en los próximos 7 días')
+        : (ctx.daysLeft <= 3 ? 'very soon' : 'in the next 7 days');
+      return ru ? {
+        headline: `Вам не хватает $${fmt(d.shortfall)} для предстоящих счетов`,
+        body:     `На вашем счёте $${fmt(d.currentBalance)}, но счета на $${fmt(d.upcomingBills7d)} должны быть оплачены ${urgency}. Пополните счёт заранее.`,
+        cta:      'Посмотреть счета',
+        range:    null, action: 'view_bills',
+      } : es ? {
+        headline: `Te faltan $${fmt(d.shortfall)} para las próximas facturas`,
+        body:     `Tienes $${fmt(d.currentBalance)} disponibles, pero hay facturas por $${fmt(d.upcomingBills7d)} que vencen ${urgency}. Transfiere fondos antes de que venzan.`,
+        cta:      'Ver facturas',
+        range:    null, action: 'view_bills',
+      } : {
         headline: `You're $${fmt(d.shortfall)} short for upcoming bills`,
         body:     `You have $${fmt(d.currentBalance)} available, but $${fmt(d.upcomingBills7d)} in bills due ${urgency}. Move funds before they're due.`,
         cta:      'View Bills',
-        range:    null,
-        action:   'view_bills',
+        range:    null, action: 'view_bills',
       };
     }
 
     case 'category_spike': {
       const pct          = Math.round(d.pctIncrease * 100);
-      const midMonthNote = ctx.monthPhase !== 'late' ? ` ${ctx.daysLeft} days left to adjust.` : '';
+      const midMonthNote = ctx.monthPhase !== 'late'
+        ? (ru ? ` Осталось ${ctx.daysLeft} дней для корректировки.` : es ? ` Quedan ${ctx.daysLeft} días para ajustar.` : ` ${ctx.daysLeft} days left to adjust.`)
+        : '';
       if (d.subtype === 'one_time_driver' && d.primaryDriver) {
-        return {
+        return ru ? {
+          headline: `${d.categoryName} вырос на ${pct}% — разовая трата`,
+          body:     `Рост вызван ${d.primaryDriver.label} на $${fmt(d.primaryDriver.amount)}. Ваши обычные расходы на ${d.categoryName} значительно ниже.\n\n→ Это разовая трата, не тренд.\n→ Пока ничего менять не нужно, но отслеживайте следующий месяц.`,
+          cta:      'Отслеживать расходы',
+          range:    null, action: 'reduce_category',
+        } : es ? {
+          headline: `${d.categoryName} subió ${pct}% — gasto único`,
+          body:     `Este aumento fue causado por ${d.primaryDriver.label} de $${fmt(d.primaryDriver.amount)}. Tu gasto habitual en ${d.categoryName} es mucho menor.\n\n→ Es un gasto único, no una tendencia.\n→ No necesitas hacer cambios ahora, pero revisa el próximo mes.`,
+          cta:      'Monitorear gastos',
+          range:    null, action: 'reduce_category',
+        } : {
           headline: `${d.categoryName} up ${pct}% — one-time expense`,
           body:     `This increase was caused by a $${fmt(d.primaryDriver.amount)} ${d.primaryDriver.label}. Your usual ${d.categoryName} spending is much lower.\n\n→ This is a one-time expense, not a trend.\n→ No changes needed now, but monitor next month to confirm stability.`,
           cta:      'Monitor Spending',
-          range:    null,
-          action:   'reduce_category',
+          range:    null, action: 'reduce_category',
         };
       }
-      return {
+      return ru ? {
+        headline: `Сократите ${d.categoryName} на ~$${fmt(d.delta)} для возврата в норму`,
+        body:     `Вы потратили $${fmt(d.currentSpend)} на ${d.categoryName} — на $${fmt(d.delta)} выше обычных $${fmt(d.avgSpend)}/мес.${midMonthNote}\n\n→ Это повторяющийся паттерн. Сокращение сейчас поможет в следующем месяце.`,
+        cta:      'Просмотреть категорию',
+        range:    null, action: 'reduce_category',
+      } : es ? {
+        headline: `Reduce ${d.categoryName} ~$${fmt(d.delta)} para retomar el rumbo`,
+        body:     `Has gastado $${fmt(d.currentSpend)} en ${d.categoryName} — $${fmt(d.delta)} más de tu promedio de $${fmt(d.avgSpend)}/mes.${midMonthNote}\n\n→ Es un patrón recurrente. Reducir ahora te ayuda a estar en camino el próximo mes.`,
+        cta:      'Revisar categoría',
+        range:    null, action: 'reduce_category',
+      } : {
         headline: `Cut ${d.categoryName} by ~$${fmt(d.delta)} to get back on track`,
         body:     `You've spent $${fmt(d.currentSpend)} on ${d.categoryName} — $${fmt(d.delta)} above your usual $${fmt(d.avgSpend)}/month.${midMonthNote}\n\n→ This is a recurring pattern. Reducing now keeps you on track for next month.`,
         cta:      'Review Category',
-        range:    null,
-        action:   'reduce_category',
+        range:    null, action: 'reduce_category',
       };
     }
 
     case 'overspending': {
-      const timeNote = ctx.monthPhase === 'early'
-        ? "It's early — there's still time to course-correct."
-        : ctx.monthPhase === 'mid'
-        ? `${ctx.daysLeft} days left to bring it down.`
-        : 'Worth reviewing what drove the extra spend.';
-      return {
+      const timeNote = ru
+        ? (ctx.monthPhase === 'early' ? 'Ещё начало месяца — есть время скорректировать.' : ctx.monthPhase === 'mid' ? `Осталось ${ctx.daysLeft} дней, чтобы снизить.` : 'Стоит разобраться, что привело к перерасходу.')
+        : es
+        ? (ctx.monthPhase === 'early' ? 'Es temprano — aún hay tiempo para corregir el rumbo.' : ctx.monthPhase === 'mid' ? `Quedan ${ctx.daysLeft} días para reducirlo.` : 'Vale la pena revisar qué generó el gasto extra.')
+        : (ctx.monthPhase === 'early' ? "It's early — there's still time to course-correct." : ctx.monthPhase === 'mid' ? `${ctx.daysLeft} days left to bring it down.` : 'Worth reviewing what drove the extra spend.');
+      return ru ? {
+        headline: `Расходы на $${fmt(d.delta)} выше обычного темпа`,
+        body:     `$${fmt(d.currentMonthSpend)} в этом месяце против среднего $${fmt(d.avg3mSpend)}.\n\n→ ${timeNote}`,
+        cta:      'Просмотреть расходы',
+        range:    null, action: 'review_spending',
+      } : es ? {
+        headline: `El gasto está $${fmt(d.delta)} sobre tu ritmo habitual`,
+        body:     `$${fmt(d.currentMonthSpend)} este mes vs tu promedio de $${fmt(d.avg3mSpend)}.\n\n→ ${timeNote}`,
+        cta:      'Revisar gastos',
+        range:    null, action: 'review_spending',
+      } : {
         headline: `Spending is $${fmt(d.delta)} above your usual pace`,
         body:     `$${fmt(d.currentMonthSpend)} this month vs your $${fmt(d.avg3mSpend)} average.\n\n→ ${timeNote}`,
         cta:      'Review Spending',
-        range:    null,
-        action:   'review_spending',
+        range:    null, action: 'review_spending',
       };
     }
 
@@ -717,51 +763,77 @@ function renderInsight(signal: any, ctx: RenderContext) {
       const recHigh = Math.min(rec + 100, Math.round(d.availableSafe));
       const { saveRangeLow, saveRangeHigh, availableSafe } = d;
 
-      const timeNote = ctx.monthPhase === 'late'
-        ? 'The month is wrapping up — a good time to lock in savings.'
-        : ctx.monthPhase === 'mid'
-        ? `Still ${ctx.daysLeft} days left — this keeps a comfortable buffer.`
-        : `It's early in the month, so this is a conservative starting amount.`;
+      const timeNote = ru
+        ? (ctx.monthPhase === 'late' ? 'Месяц заканчивается — хороший момент зафиксировать накопления.' : ctx.monthPhase === 'mid' ? `Ещё ${ctx.daysLeft} дней — это сохранит комфортный буфер.` : 'Начало месяца, поэтому это консервативная стартовая сумма.')
+        : es
+        ? (ctx.monthPhase === 'late' ? 'El mes está terminando — un buen momento para asegurar los ahorros.' : ctx.monthPhase === 'mid' ? `Aún quedan ${ctx.daysLeft} días — esto mantiene un margen cómodo.` : 'Es temprano en el mes, así que este es un monto inicial conservador.')
+        : (ctx.monthPhase === 'late' ? 'The month is wrapping up — a good time to lock in savings.' : ctx.monthPhase === 'mid' ? `Still ${ctx.daysLeft} days left — this keeps a comfortable buffer.` : `It's early in the month, so this is a conservative starting amount.`);
 
       const spareChangeLine = d.roundUpMonthly > 0
-        ? ` You also have $${fmt(d.roundUpMonthly)} in spare change from round-ups you can invest.`
+        ? (ru ? ` У вас также есть $${fmt(d.roundUpMonthly)} сдачи от округления для инвестирования.` : es ? ` También tienes $${fmt(d.roundUpMonthly)} en cambio de redondeos que puedes invertir.` : ` You also have $${fmt(d.roundUpMonthly)} in spare change from round-ups you can invest.`)
         : '';
 
-      return {
+      return ru ? {
+        headline: `Вы можете отложить $${fmt(rec)}–$${fmt(recHigh)} в накопления`,
+        body:     `Расходы под контролем. Безопасный взнос — $${fmt(rec)}–$${fmt(recHigh)} для сохранения буфера.${spareChangeLine}\n\n→ ${timeNote}`,
+        cta:      `Добавить $${fmt(rec)}–$${fmt(recHigh)} безопасно`,
+        range:    `Безопасный диапазон: $${fmt(saveRangeLow)} – $${fmt(saveRangeHigh)}`,
+        action:   'move_to_savings',
+        breakdown: { available: availableSafe + BUFFER, suggestedSave: rec, keepAfterSave: d.keepAfterSave, bufferAmount: BUFFER },
+        roundUpPrompt: d.roundUpPrompt ?? true,
+      } : es ? {
+        headline: `Puedes mover $${fmt(rec)}–$${fmt(recHigh)} a ahorros`,
+        body:     `Tus gastos están bajo control. Una contribución segura es $${fmt(rec)}–$${fmt(recHigh)} para mantener tu colchón estable.${spareChangeLine}\n\n→ ${timeNote}`,
+        cta:      `Agregar $${fmt(rec)}–$${fmt(recHigh)} de forma segura`,
+        range:    `Rango seguro: $${fmt(saveRangeLow)} – $${fmt(saveRangeHigh)}`,
+        action:   'move_to_savings',
+        breakdown: { available: availableSafe + BUFFER, suggestedSave: rec, keepAfterSave: d.keepAfterSave, bufferAmount: BUFFER },
+        roundUpPrompt: d.roundUpPrompt ?? true,
+      } : {
         headline: `You can move $${fmt(rec)}–$${fmt(recHigh)} to savings`,
         body:     `Your spending is under control. A safer contribution is $${fmt(rec)}–$${fmt(recHigh)} to keep your buffer stable.${spareChangeLine}\n\n→ ${timeNote}`,
         cta:      `Add $${fmt(rec)}–$${fmt(recHigh)} safely`,
         range:    `Safe range: $${fmt(saveRangeLow)} – $${fmt(saveRangeHigh)}`,
         action:   'move_to_savings',
-        breakdown: {
-          available:     availableSafe + BUFFER,
-          suggestedSave: rec,
-          keepAfterSave: d.keepAfterSave,
-          bufferAmount:  BUFFER,
-        },
+        breakdown: { available: availableSafe + BUFFER, suggestedSave: rec, keepAfterSave: d.keepAfterSave, bufferAmount: BUFFER },
         roundUpPrompt: d.roundUpPrompt ?? true,
       };
     }
 
     case 'goal_off_track': {
-      const { shortfall, recommendedContribution, goalName,
-              monthlyActual, monthlyTarget } = d;
+      const { shortfall, recommendedContribution, goalName, monthlyActual, monthlyTarget } = d;
 
       const timeNote = ctx.monthPhase !== 'late'
-        ? `${ctx.daysLeft} days left to close the gap.`
-        : 'A partial contribution still keeps you on track.';
+        ? (ru ? `Осталось ${ctx.daysLeft} дней, чтобы закрыть разрыв.` : es ? `Quedan ${ctx.daysLeft} días para cerrar la brecha.` : `${ctx.daysLeft} days left to close the gap.`)
+        : (ru ? 'Частичный взнос всё равно поможет не отстать.' : es ? 'Una contribución parcial igual te mantiene en camino.' : 'A partial contribution still keeps you on track.');
 
-      const progressLine = `You've saved $${fmt(monthlyActual)} of your $${fmt(monthlyTarget)} goal.`;
-      const roundUpLine  = d.roundUpMonthly > 0
-        ? ` You've also generated $${fmt(d.roundUpMonthly)} in spare change from round-ups.`
+      const progressLine = ru
+        ? `Вы накопили $${fmt(monthlyActual)} из цели $${fmt(monthlyTarget)}.`
+        : es
+        ? `Has ahorrado $${fmt(monthlyActual)} de tu meta de $${fmt(monthlyTarget)}.`
+        : `You've saved $${fmt(monthlyActual)} of your $${fmt(monthlyTarget)} goal.`;
+
+      const roundUpLine = d.roundUpMonthly > 0
+        ? (ru ? ` Также у вас есть $${fmt(d.roundUpMonthly)} сдачи от округления.` : es ? ` También tienes $${fmt(d.roundUpMonthly)} en cambio de redondeos.` : ` You've also generated $${fmt(d.roundUpMonthly)} in spare change from round-ups.`)
         : '';
 
-      return {
+      return ru ? {
+        headline: `Вам не хватает $${fmt(shortfall)} до цели «${goalName}»`,
+        body:     `${progressLine} Вы можете добавить $${fmt(recommendedContribution)} из доступного баланса, сохраняя буфер.${roundUpLine}\n\n→ ${timeNote}`,
+        cta:      `Добавить $${fmt(recommendedContribution)} в накопления`,
+        range:    null, action: 'catch_up_goal',
+        contribution: { recommended: recommendedContribution, shortfall },
+      } : es ? {
+        headline: `Te faltan $${fmt(shortfall)} para «${goalName}»`,
+        body:     `${progressLine} Puedes agregar $${fmt(recommendedContribution)} de tu saldo disponible manteniendo tu colchón estable.${roundUpLine}\n\n→ ${timeNote}`,
+        cta:      `Agregar $${fmt(recommendedContribution)} a ahorros`,
+        range:    null, action: 'catch_up_goal',
+        contribution: { recommended: recommendedContribution, shortfall },
+      } : {
         headline: `You're $${fmt(shortfall)} away from ${goalName}`,
         body:     `${progressLine} You can add $${fmt(recommendedContribution)} from your available balance while keeping your buffer stable.${roundUpLine}\n\n→ ${timeNote}`,
-        cta:    `Add $${fmt(recommendedContribution)} to savings`,
-        range:  null,
-        action: 'catch_up_goal',
+        cta:      `Add $${fmt(recommendedContribution)} to savings`,
+        range:    null, action: 'catch_up_goal',
         contribution: { recommended: recommendedContribution, shortfall },
       };
     }
@@ -769,14 +841,23 @@ function renderInsight(signal: any, ctx: RenderContext) {
     case 'positive_progress': {
       const approx  = roundTo50(d.delta);
       const endNote = ctx.monthPhase === 'late'
-        ? 'Strong finish — consider moving the surplus to savings.'
-        : `Keep it up for the remaining ${ctx.daysLeft} days.`;
-      return {
+        ? (ru ? 'Отличный финиш — рассмотрите перевод излишков в накопления.' : es ? 'Excelente cierre — considera mover el excedente a ahorros.' : 'Strong finish — consider moving the surplus to savings.')
+        : (ru ? `Продолжайте в том же духе ещё ${ctx.daysLeft} дней.` : es ? `¡Sigue así los ${ctx.daysLeft} días restantes!` : `Keep it up for the remaining ${ctx.daysLeft} days.`);
+      return ru ? {
+        headline: `Вы укладываетесь в бюджет на $${fmt(approx)}`,
+        body:     `Расходы ниже среднего за 3 месяца.\n\n→ ${endNote}`,
+        cta:      'Посмотреть прогресс',
+        range:    null, action: 'view_progress',
+      } : es ? {
+        headline: `Estás $${fmt(approx)} por debajo del presupuesto`,
+        body:     `El gasto está por debajo de tu promedio de 3 meses.\n\n→ ${endNote}`,
+        cta:      'Ver progreso',
+        range:    null, action: 'view_progress',
+      } : {
         headline: `You're $${fmt(approx)} under budget this month`,
         body:     `Spending is tracking below your 3-month average.\n\n→ ${endNote}`,
         cta:      'View Progress',
-        range:    null,
-        action:   'view_progress',
+        range:    null, action: 'view_progress',
       };
     }
 
@@ -795,12 +876,12 @@ const SCREEN_PREFERENCES: Record<string, string[]> = {
   savings:      ['goal_off_track', 'savings_opportunity', 'positive_progress'],
 };
 
-function resolveScreens(signals: any[], globalWinner: any, ctx: RenderContext) {
+function resolveScreens(signals: any[], globalWinner: any, ctx: RenderContext, lang: 'en' | 'ru' | 'es' = 'en') {
   return {
-    home:         resolveScreen('home', signals, globalWinner, ctx),
-    transactions: resolveScreen('transactions', signals, globalWinner, ctx),
-    savings:      resolveScreen('savings', signals, globalWinner, ctx),
-    insights:     prioritizeTop(signals, 3, ctx),
+    home:         resolveScreen('home', signals, globalWinner, ctx, lang),
+    transactions: resolveScreen('transactions', signals, globalWinner, ctx, lang),
+    savings:      resolveScreen('savings', signals, globalWinner, ctx, lang),
+    insights:     prioritizeTop(signals, 3, ctx, lang),
     ai: { activeSignals: signals, topInsight: globalWinner },
   };
 }
@@ -809,7 +890,8 @@ function resolveScreen(
   screen: string,
   signals: any[],
   globalWinner: any,
-  ctx: RenderContext
+  ctx: RenderContext,
+  lang: 'en' | 'ru' | 'es' = 'en'
 ) {
   for (const preferredType of SCREEN_PREFERENCES[screen]) {
     const match = signals.find((s: any) => s.type === preferredType);
@@ -819,7 +901,7 @@ function resolveScreen(
         priority:   match.priority,
         autoExpand: shouldAutoExpand(match, match),
         data:       match.data,
-        rendered:   renderInsight(match, ctx),
+        rendered:   renderInsight(match, ctx, lang),
       };
     }
   }

@@ -27,18 +27,18 @@ import Insights, { InsightCard } from "./components/Insights";
 import Dashboard from "./components/Dashboard";
 
 // ─── AI Brain: useInsights hook ───────────────────────────────
-function useInsights(screen, userId) {
+function useInsights(screen, userId, lang) {
   const [data, setData] = useState(null);
 
   useEffect(() => {
     if (!userId) return;
     supabase.functions
-      .invoke("get-insights", { body: { userId } })
+      .invoke("get-insights", { body: { userId, lang: lang ?? "en" } })
       .then(({ data: result, error }) => {
         if (error) { console.error("useInsights error:", error); return; }
         setData(result);
       });
-  }, [userId]);
+  }, [userId, lang]);
 
   if (!data) return { insight: null, allInsights: [], aiContext: null };
 
@@ -955,7 +955,7 @@ export default function App() {
     screen === "savings"      ? "savings" :
     screen === "insights"     ? "insights" : "home";
 
-  const { insight, allInsights, aiContext } = useInsights(insightScreen, user?.id);
+  const { insight, allInsights, aiContext } = useInsights(insightScreen, user?.id, i18n.language);
 
   useEffect(() => {
     if (!loading) window.hideSplash?.();
