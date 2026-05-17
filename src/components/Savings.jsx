@@ -868,7 +868,6 @@ export default function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, to
               {roundupEnabled
                 ? t("savings.at_mult_on", { n: roundupMultiplier, monthly: currentProjMonthly })
                 : t("savings.at_mult_off", { n: roundupMultiplier, monthly: currentProjMonthly })}
-              }
             </div>
           </>
         ) : (
