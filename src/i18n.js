@@ -25,6 +25,11 @@ i18n
     interpolation: {
       escapeValue: false,
     },
+    // Force sync init so components don't suspend before i18n is ready
+    initImmediate: false,
+    react: {
+      useSuspense: false,
+    },
   });
 
 export default i18n;

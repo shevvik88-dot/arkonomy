@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import i18n from "../i18n.js";
 import { supabase } from "../utils/supabase";
 import { C, FONT } from "../utils/colors";
 import { resolveCategory, timeAgo } from "../utils/helpers";
@@ -16,7 +15,7 @@ function maskEmail(email) {
 }
 
 export default function Profile({ profile, user, onSave, onSignOut, autopilot, setAutopilot, bankConnected, bankName, bankCount, linkToken, getLinkToken, onPlaidSuccess, syncBankTransactions, syncingBank, lastSyncedAt, backgroundSyncing, isPro, onUpgrade, transactions = [] }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [budget, setBudget] = useState(profile?.monthly_budget || 3000);
   const [goal, setGoal] = useState(profile?.savings_goal || 10000);
   const [saved, setSaved] = useState(false);

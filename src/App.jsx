@@ -1196,32 +1196,32 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT, maxWidth: 430, margin: "0 auto", position: "relative", overflow: "visible" }}>
       {/* Header */}
-      <div ref={headerRef} style={{ paddingTop: "calc(env(safe-area-inset-top) + 12px)", paddingBottom: "12px", paddingLeft: "18px", paddingRight: "18px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(11,20,38,0.99)", backdropFilter: "blur(20px)", zIndex: 50, borderBottom: `1px solid ${C.sep}` }}>
+      <div ref={headerRef} style={{ paddingTop: "calc(env(safe-area-inset-top) + 14px)", paddingBottom: "14px", paddingLeft: "18px", paddingRight: "18px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(11,20,38,0.99)", backdropFilter: "blur(20px)", zIndex: 50, borderBottom: `1px solid ${C.sep}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="https://i.postimg.cc/k4tv1XgB/Remove-the-dark-background-completely-make-it-tran-delpmaspu-removebg-preview.png" alt="Arkonomy" style={{ width: 72, height: 36, objectFit: "contain" }} />
+          <img src="https://i.postimg.cc/k4tv1XgB/Remove-the-dark-background-completely-make-it-tran-delpmaspu-removebg-preview.png" alt="Arkonomy" style={{ width: 94, height: 47, objectFit: "contain" }} />
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ color: C.muted, fontSize: 12, fontWeight: 500 }}>{profile?.full_name || user.email?.split("@")[0]}</span>
+              <span style={{ color: C.muted, fontSize: 16, fontWeight: 600 }}>{profile?.full_name || user.email?.split("@")[0]}</span>
               {console.log('[Header] isTrial:', isTrial, 'trialExpired:', trialExpired, 'trialDaysLeft:', trialDaysLeft, 'plan:', profile?.plan, 'trial_ends_at:', profile?.trial_ends_at)}
               {isTrial
-                ? <span onClick={onUpgrade} style={{ fontSize: 11, fontWeight: 700, color: "#F59E0B", background: "#F59E0B20", borderRadius: 20, padding: "2px 8px", cursor: "pointer" }}>Trial: {trialDaysLeft}d left</span>
+                ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: "#F59E0B", background: "#F59E0B20", borderRadius: 20, padding: "3px 9px", cursor: "pointer" }}>Trial: {trialDaysLeft}d left</span>
                 : trialExpired
-                ? <span onClick={onUpgrade} style={{ fontSize: 11, fontWeight: 700, color: "#EF4444", background: "#EF444420", borderRadius: 20, padding: "2px 8px", cursor: "pointer" }}>Trial ended</span>
-                : isPro && <span style={{ fontSize: 9, fontWeight: 700, color: "#7C6BFF", background: "#7C6BFF18", border: "1px solid #7C6BFF44", borderRadius: 99, padding: "1px 6px", letterSpacing: 0.5 }}>PRO</span>
+                ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: "#EF4444", background: "#EF444420", borderRadius: 20, padding: "3px 9px", cursor: "pointer" }}>Trial ended</span>
+                : isPro && <span style={{ fontSize: 10, fontWeight: 700, color: "#7C6BFF", background: "#7C6BFF18", border: "1px solid #7C6BFF44", borderRadius: 99, padding: "2px 8px", letterSpacing: 0.5 }}>PRO</span>
               }
             </div>
             {backgroundSyncing
-              ? <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: C.green }}>
+              ? <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: C.green }}>
                   <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.green, animation: "pulse 1.2s ease-in-out infinite" }} />
                   Syncing…
                 </div>
-              : <div style={{ color: C.faint, fontSize: 10 }}>AI Financial Autopilot</div>
+              : <div style={{ color: C.faint, fontSize: 12 }}>AI Financial Autopilot</div>
             }
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button data-tutorial="settings-btn" onClick={() => setScreen("profile")} style={{ background: screen === "profile" ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${screen === "profile" ? C.cyan + "44" : C.border}`, borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-            <Icon name="settings" size={16} color={screen === "profile" ? C.cyan : C.muted} />
+          <button data-tutorial="settings-btn" onClick={() => setScreen("profile")} style={{ background: screen === "profile" ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${screen === "profile" ? C.cyan + "44" : C.border}`, borderRadius: 10, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <Icon name="settings" size={21} color={screen === "profile" ? C.cyan : C.muted} />
           </button>
         </div>
       </div>
