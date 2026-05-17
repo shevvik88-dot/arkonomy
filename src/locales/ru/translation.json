@@ -403,6 +403,8 @@
     "add_another_bank": "Добавить банк ({{count}} подключено)",
     "encryption": "256-битное шифрование · Только чтение",
     "financial_settings": "Финансовые настройки",
+    "language": "Язык",
+    "language_subtitle": "Выберите предпочитаемый язык",
     "monthly_budget": "Ежемесячный бюджет ($)",
     "budget_suggestion": "По вашей истории: ${{amount}}/мес в среднем",
     "use_this": "Использовать",

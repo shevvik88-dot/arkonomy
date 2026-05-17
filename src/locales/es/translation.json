@@ -399,6 +399,8 @@
     "add_another_bank": "Agregar banco ({{count}} conectados)",
     "encryption": "Cifrado de 256 bits · Solo lectura",
     "financial_settings": "Configuración financiera",
+    "language": "Idioma",
+    "language_subtitle": "Elige tu idioma preferido",
     "monthly_budget": "Presupuesto mensual ($)",
     "budget_suggestion": "Según tu historial: ${{amount}}/mes en promedio",
     "use_this": "Usar este",
