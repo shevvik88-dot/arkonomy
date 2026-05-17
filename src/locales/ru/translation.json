@@ -215,7 +215,20 @@
     "vs_last_week": "по сравнению с прошлой",
     "transaction_one": "транзакция",
     "transaction_few": "транзакции",
-    "transaction_many": "транзакций"
+    "transaction_many": "транзакций",
+    "week_start": "Пн",
+    "mostly_cat": " · в основном {{cat}}",
+    "on_track_for": "По плану до {{date}}",
+    "need_more_for": "Нужно +${{amount}}/мес чтобы достичь к {{date}}"
+  },
+  "day": {
+    "mon": "Пн",
+    "tue": "Вт",
+    "wed": "Ср",
+    "thu": "Чт",
+    "fri": "Пт",
+    "sat": "Сб",
+    "sun": "Вс"
   },
   "markets": {
     "title": "Рынки",

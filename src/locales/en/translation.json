@@ -211,7 +211,20 @@
     "this_week": "This Week",
     "vs_last_week": "vs last week",
     "transaction_one": "transaction",
-    "transaction_other": "transactions"
+    "transaction_other": "transactions",
+    "week_start": "Mon",
+    "mostly_cat": " · mostly {{cat}}",
+    "on_track_for": "On track for {{date}}",
+    "need_more_for": "Need +${{amount}}/mo to reach by {{date}}"
+  },
+  "day": {
+    "mon": "Mon",
+    "tue": "Tue",
+    "wed": "Wed",
+    "thu": "Thu",
+    "fri": "Fri",
+    "sat": "Sat",
+    "sun": "Sun"
   },
   "markets": {
     "title": "Markets",

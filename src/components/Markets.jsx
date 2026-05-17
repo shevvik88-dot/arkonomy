@@ -368,7 +368,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
   const isPos = (stats?.changePct ?? 0) >= 0;
   const chColor = isPos ? C.green : C.red;
   const PERIODS = ["1D", "1W", "1M", "1Y"];
-  const TABS = ["overview", "chart", "ai", "buy"];
+  const TABS = ["overview", "chart", "ai"];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", paddingBottom: 80, fontFamily: FONT }}>

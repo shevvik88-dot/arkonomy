@@ -211,7 +211,20 @@
     "this_week": "Esta semana",
     "vs_last_week": "vs semana pasada",
     "transaction_one": "transacción",
-    "transaction_other": "transacciones"
+    "transaction_other": "transacciones",
+    "week_start": "Lun",
+    "mostly_cat": " · principalmente {{cat}}",
+    "on_track_for": "En camino para {{date}}",
+    "need_more_for": "Necesitas +${{amount}}/mes para alcanzar el {{date}}"
+  },
+  "day": {
+    "mon": "Lun",
+    "tue": "Mar",
+    "wed": "Mié",
+    "thu": "Jue",
+    "fri": "Vie",
+    "sat": "Sáb",
+    "sun": "Dom"
   },
   "markets": {
     "title": "Mercados",

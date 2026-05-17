@@ -740,7 +740,7 @@ export default function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, to
         </div>
       )}
 
-      <div style={{ background: "linear-gradient(135deg,#0D2233,#0B1426)", borderRadius: 20, padding: 20, border: `1px solid ${C.cyan}30`, position: "relative", overflow: "hidden" }}>
+      {false && <div style={{ background: "linear-gradient(135deg,#0D2233,#0B1426)", borderRadius: 20, padding: 20, border: `1px solid ${C.cyan}30`, position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: -20, right: -20, width: 100, height: 100, borderRadius: "50%", background: C.cyan + "0A", pointerEvents: "none" }} />
         {!alpacaConnected && (
           (!isPro || isTrial) ? (
@@ -876,7 +876,7 @@ export default function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, to
           </div>
         )}
         </>}
-      </div>
+      </div>}
 
       {showAlpacaSheet && (
         <div onClick={() => setShowAlpacaSheet(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 150, display: "flex", alignItems: "flex-end", maxWidth: 430, margin: "0 auto" }}>

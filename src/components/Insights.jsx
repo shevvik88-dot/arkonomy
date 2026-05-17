@@ -819,7 +819,8 @@ function WeeklySummary({ transactions }) {
 
   const maxDay = Math.max(...dailyTotals, 1);
   const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
-  const todayLabel = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][todayIdx];
+  const DAY_SHORT = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+  const todayLabel = t("day." + DAY_SHORT[todayIdx]);
 
   // Top category
   const catMap = {};
@@ -867,7 +868,7 @@ function WeeklySummary({ transactions }) {
 
       <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 3 }}>${fmt(thisWeek)}</div>
       <div style={{ fontSize: 12, color: C.muted }}>
-        Mon–{todayLabel}{topCat ? ` · mostly ${topCat[0]}` : ""}
+        {t("insights.week_start")}–{todayLabel}{topCat ? t("insights.mostly_cat", { cat: tCat(topCat[0], t) }) : ""}
       </div>
     </GlassCard>
   );
@@ -1341,8 +1342,8 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
                   {fc.type !== 'complete' && (
                     <div style={{ fontSize: 11, color: fc.type === 'on_track' ? C.green : C.yellow, lineHeight: 1.4 }}>
                       {fc.type === 'on_track'
-                        ? `On track for ${formatForecastDate(fc.date)}`
-                        : `Need +$${fmt(fc.shortfall, 0)}/mo to reach by ${formatForecastDate(fc.targetDate)}`}
+                        ? t("insights.on_track_for", { date: formatForecastDate(fc.date) })
+                        : t("insights.need_more_for", { amount: fmt(fc.shortfall, 0), date: formatForecastDate(fc.targetDate) })}
                     </div>
                   )}
                 </div>
