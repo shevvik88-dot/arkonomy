@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { C, FONT } from "../utils/colors";
-import { fmt, fmtDate, parseDate, guessCategory } from "../utils/helpers";
+import { fmt, fmtDate, parseDate, guessCategory, tCat } from "../utils/helpers";
 import Icon from "./shared/Icon";
 
 const CAT_COLORS = {
@@ -601,12 +601,13 @@ function AIInsightCard({ summary, transactions, onAction }) {
 }
 
 function QuickActionsMenu({ tx, onClose, onEdit, onDelete, onMoveToSavings, onFlag, onDuplicate }) {
+  const { t } = useTranslation();
   const actions = [
-    { label: "Edit transaction",  desc: "Fix amount, category or date", icon: "edit",         color: "#2F80FF", fn: () => { onClose(); onEdit(tx); } },
-    { label: "Move to savings",   desc: "Allocate to a goal",           icon: "target",       color: "#12D18E", fn: () => { onClose(); onMoveToSavings(tx); } },
-    { label: "Flag as unusual",   desc: "Mark for review",              icon: "alert-circle", color: "#FFB800", fn: () => { onClose(); onFlag(tx); } },
-    { label: "Duplicate",         desc: "Copy this transaction",        icon: "repeat",       color: "#2F80FF", fn: () => { onClose(); onDuplicate(tx); } },
-    { label: "Delete",            desc: "Remove permanently",           icon: "x",            color: "#FF5C7A", danger: true, fn: () => { onClose(); onDelete(tx.id); } },
+    { label: t("transactions.action_edit"),          desc: t("transactions.action_edit_desc"),          icon: "edit",         color: "#2F80FF", fn: () => { onClose(); onEdit(tx); } },
+    { label: t("transactions.action_move_savings"),  desc: t("transactions.action_move_savings_desc"),  icon: "target",       color: "#12D18E", fn: () => { onClose(); onMoveToSavings(tx); } },
+    { label: t("transactions.action_flag"),          desc: t("transactions.action_flag_desc"),          icon: "alert-circle", color: "#FFB800", fn: () => { onClose(); onFlag(tx); } },
+    { label: t("transactions.action_duplicate"),     desc: t("transactions.action_duplicate_desc"),     icon: "repeat",       color: "#2F80FF", fn: () => { onClose(); onDuplicate(tx); } },
+    { label: t("transactions.delete"),               desc: t("transactions.action_delete_desc"),        icon: "x",            color: "#FF5C7A", danger: true, fn: () => { onClose(); onDelete(tx.id); } },
   ];
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 150, display: "flex", alignItems: "flex-end", maxWidth: 430, margin: "0 auto" }} onClick={onClose}>
@@ -630,7 +631,7 @@ function QuickActionsMenu({ tx, onClose, onEdit, onDelete, onMoveToSavings, onFl
           </button>
         ))}
         <button onClick={onClose} style={{ display: "block", width: "calc(100% - 32px)", margin: "4px 16px 0", padding: 13, textAlign: "center", fontSize: 13, fontWeight: 500, color: C.muted, background: C.bgSecondary, border: "none", borderRadius: 10, cursor: "pointer", fontFamily: FONT, minHeight: 48 }}>
-          Cancel
+          {t("transactions.cancel")}
         </button>
       </div>
     </div>
@@ -784,7 +785,7 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
         <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
           <div style={{ fontSize: 14, fontWeight: 500, color: C.text, letterSpacing: -0.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{displayName}</div>
           <div style={{ fontSize: 11, color: C.faint, marginTop: 2, display: "flex", alignItems: "center", gap: 4, overflow: "hidden", fontFamily: FONT }}>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1 }}>{t.category_name || guessCategory(t.description, t.type) || "Other"} · {fmtDate(t.date)}</span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1 }}>{tCat(t.category_name || guessCategory(t.description, t.type) || "Other", i18t)} · {fmtDate(t.date)}</span>
             {signal && (
               <span style={{ fontSize: 10, fontWeight: 700, color: SIGNAL_STYLE[signal].color, background: SIGNAL_STYLE[signal].bg, padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>
                 {i18t("transactions.signal_" + signal)}

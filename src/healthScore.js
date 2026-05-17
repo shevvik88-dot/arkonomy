@@ -85,10 +85,10 @@ export function calculateHealthScore({
 }
 
 /**
- * Returns a single-line insight comment based on the score breakdown.
+ * Returns a { key, rawCat?, params } object for i18n. Callers must call t(key, params).
+ * If rawCat is present, callers should resolve it via tCat() and merge into params as {cat}.
  */
 export function generateHealthComment({ score, breakdown, spendingByCategory, prevSpendingByCategory }) {
-  // Find biggest category increase vs last month
   let topCat = null;
   let topPct  = 0;
   for (const [cat, amt] of Object.entries(spendingByCategory || {})) {
@@ -101,42 +101,24 @@ export function generateHealthComment({ score, breakdown, spendingByCategory, pr
 
   const trendDrop = breakdown.trend.thisBalance < breakdown.trend.lastBalance;
 
-  if (breakdown.trend.thisBalance < 0) {
-    return "You're spending more than you earn — focus on reducing expenses first.";
-  }
-  if (breakdown.savings.rate < 0.05) {
-    return "Saving less than 5% of income — try cutting discretionary spend.";
-  }
-  if (breakdown.budget.points < 8) {
-    return "Spending is over budget — review your largest expense categories.";
-  }
-  if (topCat && topPct > 20) {
-    return `${topCat} expenses increased ${Math.round(topPct)}% vs last month.`;
-  }
-  if (trendDrop) {
-    return "Balance is shrinking month over month — watch your spending pace.";
-  }
-  if (breakdown.recurring.ratio > 0.25) {
-    return "Recurring charges are above 25% of income — review subscriptions.";
-  }
-  if (score >= 81) {
-    return "Great financial discipline — savings and budget are on track.";
-  }
-  if (score >= 61) {
-    return "Solid score — small savings increases could push you into green.";
-  }
-  if (score >= 31) {
-    return "Making progress — focus on saving a bit more each month.";
-  }
-  return "Just getting started — small consistent steps add up fast.";
+  if (breakdown.trend.thisBalance < 0) return { key: "health.comment_overspend" };
+  if (breakdown.savings.rate < 0.05)   return { key: "health.comment_low_savings" };
+  if (breakdown.budget.points < 8)     return { key: "health.comment_over_budget" };
+  if (topCat && topPct > 20)           return { key: "health.comment_cat_spike", rawCat: topCat, params: { pct: Math.round(topPct) } };
+  if (trendDrop)                       return { key: "health.comment_shrinking" };
+  if (breakdown.recurring.ratio > 0.25) return { key: "health.comment_high_recurring" };
+  if (score >= 81)  return { key: "health.comment_great" };
+  if (score >= 61)  return { key: "health.comment_solid" };
+  if (score >= 31)  return { key: "health.comment_making_progress" };
+  return { key: "health.comment_getting_started" };
 }
 
 /**
- * Returns a label for the score range.
+ * Returns an i18n key for the score range. Callers must wrap with t().
  */
 export function getScoreLabel(score) {
-  if (score >= 81) return "Excellent";
-  if (score >= 61) return "Doing well";
-  if (score >= 31) return "Making progress";
-  return "Getting started";
+  if (score >= 81) return "health.label_excellent";
+  if (score >= 61) return "health.label_doing_well";
+  if (score >= 31) return "health.label_making_progress";
+  return "health.label_getting_started";
 }

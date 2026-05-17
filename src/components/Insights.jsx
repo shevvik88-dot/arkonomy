@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { C, FONT } from "../utils/colors";
-import { fmt, parseDate } from "../utils/helpers";
+import { fmt, parseDate, tCat } from "../utils/helpers";
 import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "../healthScore";
@@ -687,7 +687,7 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
       color: C.purple,
       desc: rawBreakdown.recurring.ratio < 0.1
         ? t("insights.less_than_10pct")
-        : `${Math.round(rawBreakdown.recurring.ratio * 100)}% of income`,
+        : t("dashboard.pct_income", { pct: Math.round(rawBreakdown.recurring.ratio * 100) }),
     },
     {
       label: t("insights.balance_trend"),
@@ -740,7 +740,7 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 10, color: C.faint, fontWeight: 600, letterSpacing: 1, marginBottom: 4 }}>{t("insights.financial_health")}</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 4 }}>{label} <span style={{ color, fontSize: 13 }}>{score}/100</span></div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 4 }}>{t(label)} <span style={{ color, fontSize: 13 }}>{score}/100</span></div>
           <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
             {score >= 75 ? t("insights.score_great") : score >= 50 ? t("insights.score_decent") : t("insights.score_focus")}
           </div>

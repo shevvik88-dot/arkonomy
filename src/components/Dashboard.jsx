@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
 import { C, FONT } from "../utils/colors";
-import { fmt, fmtDate, parseDate, fmtPct, resolveCategory } from "../utils/helpers";
+import { fmt, fmtDate, parseDate, fmtPct, resolveCategory, tCat } from "../utils/helpers";
 import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "../healthScore";
@@ -77,7 +77,7 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true }) {
       pts: breakdown?.savings?.points ?? 0,
       max: 30,
       detail: breakdown?.savings?.rate != null
-        ? `${Math.round(breakdown.savings.rate * 100)}% of income saved`
+        ? t("dashboard.pct_income_saved", { pct: Math.round(breakdown.savings.rate * 100) })
         : null,
       na: !hasData,
     },
@@ -95,7 +95,7 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true }) {
       pts: breakdown?.recurring?.points ?? 0,
       max: 20,
       detail: breakdown?.recurring?.ratio != null
-        ? `${Math.round(breakdown.recurring.ratio * 100)}% of income`
+        ? t("dashboard.pct_income", { pct: Math.round(breakdown.recurring.ratio * 100) })
         : null,
       na: !hasData,
     },
@@ -109,8 +109,8 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true }) {
         if (!d) return null;
         const delta = d.thisBalance - d.lastBalance;
         return delta >= 0
-          ? `+$${Math.round(delta)} vs last month`
-          : `-$${Math.round(Math.abs(delta))} vs last month`;
+          ? t("dashboard.vs_last_month_pos", { delta: Math.round(delta) })
+          : t("dashboard.vs_last_month_neg", { delta: Math.round(Math.abs(delta)) });
       })(),
       na: !hasData,
     },
@@ -158,7 +158,7 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true }) {
           overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
           flex: 1, minWidth: 0,
         }}>
-          {label} — {comment}
+          {t(label)} — {comment.rawCat ? t(comment.key, { cat: tCat(comment.rawCat, t), ...comment.params }) : t(comment.key)}
         </span>
 
         {/* Chevron */}
@@ -220,13 +220,15 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true }) {
   );
 }
 
-function StatBadge({ value, suffix = "vs last month" }) {
+function StatBadge({ value, suffix }) {
+  const { t } = useTranslation();
   const pos = value >= 0;
   const color = pos ? C.green : C.red;
+  const sfx = suffix !== undefined ? suffix : t("dashboard.vs_last_month");
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: color + "22", color, borderRadius: 100, padding: "2px 8px", fontSize: 10, fontWeight: 600, fontFamily: FONT, whiteSpace: "nowrap" }}>
       <Icon name={pos ? "trending-up" : "trending-down"} size={9} color={color} strokeWidth={2.5} />
-      {pos ? "+" : ""}{Math.abs(value).toFixed(1)}% {suffix}
+      {pos ? "+" : ""}{Math.abs(value).toFixed(1)}% {sfx}
     </span>
   );
 }
@@ -298,7 +300,7 @@ const sw = 22;
         <div style={{ position: "absolute", left: cx - innerR, top: cy - innerR, width: innerR * 2, height: innerR * 2, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#0e1829", pointerEvents: "none" }}>
           {hovered ? (
             <>
-              <div style={{ fontSize: 10, color: "#ffffff", fontWeight: 600, letterSpacing: 0.5, marginBottom: 2, textAlign: "center", padding: "0 4px" }}>{hovered}</div>
+              <div style={{ fontSize: 10, color: "#ffffff", fontWeight: 600, letterSpacing: 0.5, marginBottom: 2, textAlign: "center", padding: "0 4px" }}>{tCat(hovered, t)}</div>
               <div style={{ fontSize: 17, fontWeight: 800, color: CAT_COLORS[hovered] || C.cyan }}>{hideAmounts ? "••••" : `$${fmt((data[hovered] || 0), 0)}`}</div>
               <div style={{ fontSize: 11, color: "#ffffff", fontWeight: 600 }}>{Math.round(((data[hovered] || 0) / total) * 100)}%</div>
             </>
@@ -319,7 +321,7 @@ const sw = 22;
               style={{ display: "flex", alignItems: "center", gap: 10, cursor: onCatClick ? "pointer" : "default", padding: "6px 10px", borderRadius: 10, background: hovered === s.cat ? s.color + "18" : C.bgTertiary, border: `1px solid ${hovered === s.cat ? s.color + "44" : "transparent"}`, transition: "all 0.15s" }}
               onMouseEnter={() => setHovered(s.cat)} onMouseLeave={() => setHovered(null)}>
               <div style={{ width: 10, height: 10, borderRadius: 99, background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}88` }} />
-              <span style={{ fontSize: 13, color: i === 0 ? C.text : C.muted, fontWeight: i === 0 ? 600 : 400, flex: 1 }}>{s.cat}</span>
+              <span style={{ fontSize: 13, color: i === 0 ? C.text : C.muted, fontWeight: i === 0 ? 600 : 400, flex: 1 }}>{tCat(s.cat, t)}</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: i === 0 ? '#ffffff' : C.text }}>{hideAmounts ? "••••" : `$${fmt(s.val, 0)}`}</span>
               <span style={{ fontSize: 11, color: s.color, fontWeight: i === 0 ? 700 : 500, minWidth: 36, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>
               {onCatClick && <Icon name="chevron" size={12} color={C.faint} />}

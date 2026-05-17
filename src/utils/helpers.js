@@ -46,6 +46,37 @@ export function resolveCategory(t) {
   return raw || 'Other';
 }
 
+const CAT_KEY_MAP = {
+  "Housing":       "cat.housing",
+  "Bills":         "cat.bills",
+  "Subscriptions": "cat.subscriptions",
+  "Shopping":      "cat.shopping",
+  "Food & Dining": "cat.food_dining",
+  "Transport":     "cat.transport",
+  "Transportation":"cat.transport",
+  "Entertainment": "cat.entertainment",
+  "Health":        "cat.health",
+  "Health & Fitness":"cat.health_fitness",
+  "Personal Care": "cat.personal_care",
+  "Travel":        "cat.travel",
+  "Education":     "cat.education",
+  "Taxes":         "cat.taxes",
+  "Government":    "cat.government",
+  "Charity":       "cat.charity",
+  "Fees":          "cat.fees",
+  "Cost of Debt":  "cat.cost_of_debt",
+  "Utilities":     "cat.utilities",
+  "Transfers":     "cat.transfers",
+  "Transfer":      "cat.transfers",
+  "Other":         "cat.other",
+  "Income":        "cat.income",
+};
+
+export function tCat(name, t) {
+  const key = CAT_KEY_MAP[name];
+  return key ? t(key) : (name || "");
+}
+
 export function timeAgo(iso) {
   if (!iso) return null;
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
