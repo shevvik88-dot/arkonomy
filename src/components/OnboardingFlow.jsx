@@ -1,19 +1,19 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../utils/supabase";
-import { SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
 import { C, FONT } from "../utils/colors";
 import PlaidLinkButton from "./shared/PlaidLinkButton";
+import AppPreviewStep from "./AppPreviewStep";
 
 export const TUTORIAL_STEPS = [
-  { selector: '[data-tutorial="net-balance"]',   screen: "dashboard", title: "Your financial snapshot",         description: "See income, expenses and balance at a glance" },
-  { selector: '[data-tutorial="health-score"]',  screen: "dashboard", title: "Your financial health score",     description: "Updated daily based on your spending habits" },
-  { selector: '[data-tutorial="ai-insight"]',    screen: "dashboard", title: "AI-powered insights",             description: "Tap to see personalized recommendations" },
-  { selector: '[data-tutorial="nav-transactions"]', screen: null,     title: "All your transactions",           description: "Automatically synced from your bank" },
-  { selector: '[data-tutorial="nav-markets"]',   screen: null,        title: "Invest directly",                 description: "Buy stocks and crypto with spare change" },
-  { selector: '[data-tutorial="nav-savings"]',   screen: null,        title: "Track your savings goals",        description: "Automate round-ups and build your wealth" },
-  { selector: '[data-tutorial="nav-insights"]',  screen: null,        title: "Deep spending analysis",          description: "See where your money really goes" },
-  { selector: '[data-tutorial="ai-chat"]',       screen: null,        title: "Ask anything about your finances", description: "Your personal AI advisor, always on hand" },
+  { selector: '[data-tutorial="net-balance"]',      screen: "dashboard", title: "onboarding.tut_1_title", description: "onboarding.tut_1_desc" },
+  { selector: '[data-tutorial="health-score"]',     screen: "dashboard", title: "onboarding.tut_2_title", description: "onboarding.tut_2_desc" },
+  { selector: '[data-tutorial="ai-insight"]',       screen: "dashboard", title: "onboarding.tut_3_title", description: "onboarding.tut_3_desc" },
+  { selector: '[data-tutorial="nav-transactions"]', screen: null,        title: "onboarding.tut_4_title", description: "onboarding.tut_4_desc" },
+  { selector: '[data-tutorial="nav-markets"]',      screen: null,        title: "onboarding.tut_5_title", description: "onboarding.tut_5_desc" },
+  { selector: '[data-tutorial="nav-savings"]',      screen: null,        title: "onboarding.tut_6_title", description: "onboarding.tut_6_desc" },
+  { selector: '[data-tutorial="nav-insights"]',     screen: null,        title: "onboarding.tut_7_title", description: "onboarding.tut_7_desc" },
+  { selector: '[data-tutorial="ai-chat"]',          screen: null,        title: "onboarding.tut_8_title", description: "onboarding.tut_8_desc" },
 ];
 
 export const MINI_TOURS = {
@@ -123,10 +123,10 @@ export function TutorialOverlay({ stepIdx, totalSteps, steps, onNext, onSkip }) 
           {t("onboarding.step_of", { step: stepIdx + 1, total: totalSteps })}
         </div>
         <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", marginBottom: 6, lineHeight: 1.3 }}>
-          {config.title}
+          {t(config.title)}
         </div>
         <div style={{ fontSize: 12, color: "#9AA4B2", lineHeight: 1.6, marginBottom: 14 }}>
-          {config.description}
+          {t(config.description)}
         </div>
         <div style={{ display: "flex", gap: 3, marginBottom: 14 }}>
           {Array.from({ length: totalSteps }).map((_, i) => (
@@ -204,44 +204,28 @@ export function HelpButton({ onRestart, onMiniTour }) {
 
 export default function OnboardingFlow({ user, profile, linkToken, getLinkToken, onPlaidSuccess, onSaveProfile, trialCancelled }) {
   const { t } = useTranslation();
-  const [step, setStep] = useState(trialCancelled ? 5 : 1);
+  const [step, setStep] = useState(trialCancelled ? 6 : 1);
   const [budget, setBudget] = useState("3000");
   const [savingBudget, setSavingBudget] = useState(false);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [checkoutError, setCheckoutError] = useState("");
-  const TOTAL_STEPS = 5;
+  const [trialLoading, setTrialLoading] = useState(false);
+  const [trialError, setTrialError] = useState("");
+  const TOTAL_STEPS = 6;
 
-  async function startTrialCheckout() {
-    console.log('[Trial] startTrialCheckout called');
-    setCheckoutLoading(true);
-    setCheckoutError("");
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log('[Trial] session:', session ? 'ok' : 'null', 'url:', `${SUPABASE_URL}/functions/v1/stripe-checkout`);
-      const res = await fetch(
-        `${SUPABASE_URL}/functions/v1/stripe-checkout`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${session.access_token}`,
-            "apikey": SUPABASE_KEY,
-          },
-        }
-      );
-      const data = await res.json();
-      console.log('[Trial] stripe response:', data, 'status:', res.status);
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        setCheckoutError(data.error ?? "Could not start checkout. Try again.");
-        setCheckoutLoading(false);
-      }
-    } catch (err) {
-      console.log('[Trial] fetch error:', err);
-      setCheckoutError("Network error. Please try again.");
-      setCheckoutLoading(false);
+  async function startFreeTrial() {
+    setTrialLoading(true);
+    setTrialError("");
+    const trialEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { error } = await supabase
+      .from("profiles")
+      .update({ trial_ends_at: trialEnd })
+      .eq("id", user.id);
+    if (error) {
+      setTrialError("Could not start trial. Please try again.");
+      setTrialLoading(false);
+      return;
     }
+    try { localStorage.setItem("arkonomy_onboarding_done", "1"); } catch {}
+    window.location.href = window.location.origin + "?trial_started=true";
   }
 
   const name = profile?.full_name?.split(" ")[0] || user?.user_metadata?.full_name?.split(" ")[0] || "there";
@@ -413,7 +397,11 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
     </div>
   );
 
-  if (step === 4) return wrap(
+  if (step === 4) return (
+    <AppPreviewStep onNext={() => setStep(5)} onBack={() => setStep(3)} />
+  );
+
+  if (step === 5) return wrap(
     <div>
       <div style={{ textAlign: "center", marginBottom: 28 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 8 }}>{t("onboarding.ready_title")}</div>
@@ -437,7 +425,7 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
       </div>
       <div style={{ textAlign: "center", fontSize: 12, color: C.faint, marginBottom: 20 }}>{t("onboarding.trusted")}</div>
       <button
-        onClick={() => setStep(5)}
+        onClick={() => setStep(6)}
         style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.cyan}, ${C.blue})`, border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 24px ${C.cyan}44` }}
       >
         {t("onboarding.continue")}
@@ -445,41 +433,74 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
     </div>
   );
 
+  function completeFree() {
+    try { localStorage.setItem("arkonomy_onboarding_done", "1"); } catch {}
+    window.location.reload();
+  }
+
+  const TRIAL_PERKS = [
+    "AI spending insights",
+    "Unlimited bank accounts",
+    "Monthly Excel reports",
+    "Health Score tracking",
+    "Investment tracking via Alpaca",
+  ];
+
   return wrap(
-    <div style={{ textAlign: "center" }}>
-      <div style={{
-        width: 88, height: 88, borderRadius: 28, margin: "0 auto 28px",
-        background: `linear-gradient(135deg, ${C.green}33, ${C.cyan}22)`,
-        border: `1px solid ${C.green}44`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 40,
-      }}>
-        🎉
+    <div>
+      {/* Icon */}
+      <div style={{ textAlign: "center", marginBottom: 20 }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: 22, margin: "0 auto 20px",
+          background: C.green + "18",
+          border: `1px solid ${C.green}44`,
+          boxShadow: `0 0 32px ${C.green}33`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <svg width={34} height={34} viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+        </div>
+        <div style={{ fontSize: 26, fontWeight: 800, color: C.text, marginBottom: 8, lineHeight: 1.2 }}>
+          Try Pro free for 7 days
+        </div>
+        <div style={{ fontSize: 14, color: C.muted }}>No credit card required. Cancel anytime.</div>
       </div>
-      <div style={{ fontSize: 28, fontWeight: 800, color: C.text, marginBottom: 12 }}>{t("onboarding.all_set_title")}</div>
-      <div style={{ fontSize: 15, color: C.muted, lineHeight: 1.65, marginBottom: 32 }}>
-        {t("onboarding.all_set_body")}
+
+      {/* Feature list */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 28, padding: "16px", background: C.bgSecondary, borderRadius: 16, border: `1px solid ${C.border}` }}>
+        {TRIAL_PERKS.map(p => (
+          <div key={p} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 20, height: 20, borderRadius: "50%", background: C.green + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <span style={{ fontSize: 13, color: C.text }}>{p}</span>
+          </div>
+        ))}
       </div>
-      {trialCancelled && (
-        <div style={{ color: C.yellow, fontSize: 13, background: C.yellow + "18", padding: "10px 14px", borderRadius: 10, marginBottom: 16 }}>
-          {t("onboarding.card_required")}
+
+      {trialError && (
+        <div style={{ color: C.red, fontSize: 13, background: C.red + "18", padding: "10px 14px", borderRadius: 10, marginBottom: 14 }}>
+          {trialError}
         </div>
       )}
-      {checkoutError && (
-        <div style={{ color: C.red, fontSize: 13, background: C.red + "18", padding: "10px 14px", borderRadius: 10, marginBottom: 16 }}>
-          {checkoutError}
-        </div>
-      )}
+
       <button
-        onClick={startTrialCheckout}
-        disabled={checkoutLoading}
-        style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.cyan}, ${C.blue})`, border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: checkoutLoading ? "not-allowed" : "pointer", fontFamily: FONT, boxShadow: `0 4px 24px ${C.cyan}44`, opacity: checkoutLoading ? 0.7 : 1 }}
+        onClick={startFreeTrial}
+        disabled={trialLoading}
+        style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.green}, ${C.cyan})`, border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: trialLoading ? "not-allowed" : "pointer", fontFamily: FONT, boxShadow: `0 4px 24px ${C.green}44`, opacity: trialLoading ? 0.7 : 1, marginBottom: 14 }}
       >
-        {checkoutLoading ? t("onboarding.redirecting") : t("onboarding.start_trial")}
+        {trialLoading ? "Starting trial…" : "Start Free Trial →"}
       </button>
-      <div style={{ marginTop: 12, fontSize: 12, color: C.faint }}>
-        {t("onboarding.trial_tagline")}
-      </div>
+
+      <button
+        onClick={completeFree}
+        style={{ width: "100%", padding: 0, background: "none", border: "none", color: C.muted, fontWeight: 500, fontSize: 13, cursor: "pointer", fontFamily: FONT, textDecoration: "underline", textUnderlineOffset: 3 }}
+      >
+        Continue with Free plan
+      </button>
     </div>
   );
 }

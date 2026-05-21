@@ -1266,6 +1266,22 @@ export default function App() {
 
       {/* Content — paddingTop = measured header height + 8px gap */}
       <div style={{ paddingTop: `${headerHeight + 8}px`, paddingRight: "14px", paddingBottom: "85px", paddingLeft: "14px" }}>
+        {isTrial && trialDaysLeft <= 2 && (
+          <div
+            onClick={onUpgrade}
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", background: "#F59E0B18", border: "1px solid #F59E0B44", borderRadius: 14, marginBottom: 14, cursor: "pointer" }}
+          >
+            <span style={{ fontSize: 16 }}>⚡</span>
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#F59E0B" }}>
+                Your trial ends in {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} —{" "}
+              </span>
+              <span style={{ fontSize: 13, color: "#F59E0B", textDecoration: "underline", textUnderlineOffset: 2 }}>
+                Upgrade to keep Pro
+              </span>
+            </div>
+          </div>
+        )}
         {loading ? (() => {
           const shimmerStyle = { background: `linear-gradient(90deg, ${C.bgSecondary} 0%, ${C.bgTertiary} 40%, ${C.bgSecondary} 100%)`, backgroundSize: "300% 100%", animation: "shimmer 1.6s ease-in-out infinite", borderRadius: 10 };
           const row = (w, h = 14, extra = {}) => <div style={{ ...shimmerStyle, width: w, height: h, marginBottom: 6, borderRadius: 8, ...extra }} />;
