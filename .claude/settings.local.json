@@ -14,7 +14,30 @@
       "Bash(npx supabase:*)",
       "mcp__supabase__get_logs",
       "mcp__supabase__apply_migration",
-      "mcp__supabase__deploy_edge_function"
+      "mcp__supabase__deploy_edge_function",
+      "Bash(vercel --version)",
+      "Bash(vercel --prod)",
+      "Bash(npm install *)",
+      "Bash(npm list *)",
+      "Bash(npm run *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(node -e \"const ExcelJS = require\\('exceljs'\\); console.log\\(typeof ExcelJS.Workbook\\)\")",
+      "Bash(Get-Content \"C:\\\\Users\\\\camek\\\\arkonomy\\\\src\\\\App.jsx\")",
+      "Bash(Measure-Object -Line)",
+      "Bash(vercel deploy *)",
+      "Bash(python3 *)",
+      "Bash(node -e ' *)",
+      "Bash(git -C C:/Users/camek/arkonomy status --porcelain)",
+      "Bash(node *)",
+      "Bash(awk -F: '$1 > 2800 && $1 < 3200 {print}')",
+      "Bash(awk -F: '$1 > 1600 && $1 < 3200 {print}')",
+      "Bash(awk -F: '$1 > 4700 && $1 < 4895 {print}')",
+      "PowerShell(Get-Command *)",
+      "PowerShell(git add *)",
+      "PowerShell(git push *)",
+      "PowerShell(Set-ExecutionPolicy *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\camek\\\\arkonomy\" -Directory -Force)",
+      "Bash(Select-Object -First 20)"
     ]
   }
 }

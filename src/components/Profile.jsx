@@ -57,6 +57,19 @@ export default function Profile({ profile, user, onSave, onSignOut, autopilot, s
   }
   const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT };
 
+  const avgMonthlyIncome = useMemo(() => {
+    const incomes = transactions.filter(t => t.type === "income");
+    const byMonth = {};
+    for (const t of incomes) {
+      const month = (t.date || "").slice(0, 7);
+      if (!month) continue;
+      byMonth[month] = (byMonth[month] || 0) + Number(t.amount);
+    }
+    const months = Object.keys(byMonth);
+    if (!months.length) return null;
+    return Math.round(months.reduce((s, m) => s + byMonth[m], 0) / months.length);
+  }, [transactions]);
+
   const budgetSuggestion = useMemo(() => {
     const expenses = transactions.filter(t => t.type === "expense");
     const byMonth = {};
@@ -231,6 +244,11 @@ export default function Profile({ profile, user, onSave, onSignOut, autopilot, s
         <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16 }}>{t("profile.financial_settings")}</div>
         <div style={{ color: C.muted, fontSize: 12, fontWeight: 500, marginBottom: 6 }}>{t("profile.monthly_budget")}</div>
         <input style={{ ...inp, marginBottom: 8 }} type="number" value={budget} onChange={e => setBudget(e.target.value)} />
+        {avgMonthlyIncome !== null && Number(budget) > avgMonthlyIncome && (
+          <div style={{ fontSize: 12, color: "#F59E0B", background: "#F59E0B14", border: "1px solid #F59E0B33", borderRadius: 10, padding: "8px 12px", marginBottom: 8 }}>
+            ⚠️ Your budget exceeds your average income (${avgMonthlyIncome.toLocaleString()}/mo)
+          </div>
+        )}
         {budgetSuggestion !== null ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: C.cyan + "12", border: `1px solid ${C.cyan}33`, borderRadius: 10, padding: "9px 12px", marginBottom: 14, gap: 8 }}>
             <div style={{ fontSize: 12, color: C.cyan, fontWeight: 500 }}>

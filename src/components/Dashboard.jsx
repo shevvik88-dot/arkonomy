@@ -596,7 +596,10 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
   const projectedIncome = Math.max(currentMonthIncome, avgMonthlyIncome);
   const remainingIncome = Math.max(0, projectedIncome - currentMonthIncome);
   const upcomingTotal   = upcomingCharges.reduce((s, c) => s + Number(c.amount), 0);
-  const projectedBalance = startBalance + remainingIncome - projectedVariable;
+  const projectedBalance = Math.min(
+    startBalance + remainingIncome - projectedVariable,
+    startBalance + avgMonthlyIncome
+  );
 
   if (dailyVariableRate < 0.01 && upcomingTotal === 0) return null;
 

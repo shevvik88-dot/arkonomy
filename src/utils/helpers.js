@@ -12,13 +12,19 @@ export function guessCategory(description, type = "expense") {
     return null;
   }
   if (/transfer|zelle|venmo|paypal|cash.?app|wire|ach|atm |atm$|cash withdrawal|teller|check cashing/.test(d)) return "Transfer";
+  if (/\bopenai\b/.test(d)) return "Bills";
+  if (/\bclaude\b/.test(d)) return "Bills";
+  if (/apple\.com\/bill/.test(d)) return "Bills";
+  if (/\byoutube\b|\bnetflix\b|\bhulu\b|\bspotify\b|\bdisney\b/.test(d)) return "Entertainment";
+  if (/insurance/.test(d)) return "Bills";
+  if (/\btherapy\b|psych|\bmental\b|counseling/.test(d)) return "Health";
   if (/rent|lease|mortgage|apartment|hoa|homeowner|property mgmt|management fee/.test(d)) return "Housing";
   if (/grocery|groceries|supermarket|walmart|target|costco|trader.?joe|whole.?food|safeway|kroger|aldi|publix|h\.e\.b|wegman|food.?4.?less|sprouts|fresh market/.test(d)) return "Food & Dining";
   if (/restaurant|mcdonald|burger.?king|pizza|subway|starbucks|chipotle|taco.?bell|wendy|dunkin|chick.?fil|panera|doordash|ubereats|uber.?eats|grubhub|postmates|instacart|coffee|cafe|diner|bistro|sushi|grill|tavern|bbq|bakery|deli/.test(d)) return "Food & Dining";
   if (/uber|lyft|taxi|cab |parking|gas.?station|shell|chevron|exxon|bp |mobil|fuel|transit|metro|train|bus |amtrak|airline|delta|united|southwest|spirit|jetblue|toll |sunpass|fastrak|automobile|auto.?repair|mechanic|jiffy.?lube|oil.?change/.test(d)) return "Transport";
   if (/hotel|airbnb|vrbo|expedia|booking\.com|hotels\.com|marriott|hilton|hyatt|radisson|hampton.?inn|rental.?car|hertz|enterprise.?rent|avis|budget.?rent/.test(d)) return "Travel";
   if (/netflix|hulu|spotify|disney\+|amazon.?prime|apple.?tv|youtube.?premium|hbo|peacock|paramount\+|subscription|crunchyroll|tidal|siriusxm|pandora/.test(d)) return "Subscriptions";
-  if (/doctor|physician|hospital|pharmacy|cvs|walgreens|rite.?aid|medical|dental|vision|health.?insur|urgent.?care|clinic|therapist|counseling|optometrist|youtalk|talkspace|betterhelp|cerebral|headspace|calm\.com|hims|hers|noom/.test(d)) return "Health";
+  if (/doctor|physician|hospital|pharmacy|cvs|walgreens|rite.?aid|medical|dental|vision|health.?insur|urgent.?care|clinic|therapist|\btherapy\b|counseling|psych|\bmental\b|optometrist|youtalk|talkspace|betterhelp|cerebral|headspace|calm\.com|hims|hers|noom/.test(d)) return "Health";
   if (/electric|electricity|water.?bill|sewer|gas.?bill|utility|at&t|verizon|t-mobile|sprint|comcast|xfinity|spectrum|internet|phone.?bill|pge|pg&e|sdge/.test(d)) return "Utilities";
   if (/amazon|ebay|etsy|best.?buy|apple.?store|nike|zara|h&m|nordstrom|gap |old.?navy|macy|target\.com|walmart\.com|wayfair|shein|temu|wish\.com|shopify/.test(d)) return "Shopping";
   if (/gym|fitness|planet.?fitness|equinox|crossfit|yoga|peloton|24.?hour|la.?fitness|anytime.?fitness|crunch.?fitness/.test(d)) return "Health & Fitness";

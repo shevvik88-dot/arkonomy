@@ -118,7 +118,7 @@ const FORECAST_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','
 function formatForecastDate(date) { return FORECAST_MONTHS[date.getMonth()] + ' ' + date.getFullYear(); }
 function computeGoalForecast(remaining, monthlySurplus, numGoals) {
   if (remaining <= 0) return { type: 'complete' };
-  const rate = Math.max(monthlySurplus, 0) * 0.5 / Math.max(numGoals, 1);
+  const rate = Math.max(monthlySurplus, 0) / Math.max(numGoals, 1);
   if (rate >= 5) {
     const months = Math.ceil(remaining / rate);
     const date = new Date();

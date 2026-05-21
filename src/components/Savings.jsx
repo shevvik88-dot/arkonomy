@@ -83,7 +83,7 @@ function formatForecastDate(date) {
 
 function computeGoalForecast(remaining, monthlySurplus, numGoals) {
   if (remaining <= 0) return { type: 'complete' };
-  const rate = Math.max(monthlySurplus, 0) * 0.5 / Math.max(numGoals, 1);
+  const rate = Math.max(monthlySurplus, 0) / Math.max(numGoals, 1);
   if (rate >= 5) {
     const months = Math.ceil(remaining / rate);
     const date = new Date();
@@ -678,8 +678,8 @@ export default function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, to
       ? Math.min(Math.max(Math.round(safeAmount * 0.6), 50), 100)
       : Math.min(Math.max(Math.round(safeAmount * 0.6), SAFE_MIN), SAFE_MAX);
 
-  const safeSavingsAmount = recommendedAmount;
   const maxSavingsAmount  = Math.round(safeAmount);
+  const safeSavingsAmount = Math.min(recommendedAmount, maxSavingsAmount);
 
   function getGoalIcon(name) {
     const n = (name || "").toLowerCase();
@@ -694,7 +694,7 @@ export default function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, to
   function monthsToGoal(sv) {
     const remaining = Number(sv.target) - Number(sv.current);
     if (monthlySurplus <= 0 || remaining <= 0) return null;
-    return Math.ceil(remaining / (monthlySurplus * 0.5));
+    return Math.ceil(remaining / monthlySurplus);
   }
 
   const projMap = { 1: roundupMonth, 2: roundupMonth * 2, 5: roundupMonth * 5, 10: roundupMonth * 10 };
