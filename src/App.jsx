@@ -408,6 +408,10 @@ export default function App() {
         localStorage.setItem("arkonomy_onboarding_done", "1");
         return true;
       }
+      if (params.get("reset_onboarding") === "1") {
+        localStorage.removeItem("arkonomy_onboarding_done");
+        return false;
+      }
       return !!localStorage.getItem("arkonomy_onboarding_done");
     } catch { return false; }
   });
@@ -479,6 +483,10 @@ export default function App() {
     }
 
     if (params.get("trial_cancelled") === "true") {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+
+    if (params.get("reset_onboarding") === "1") {
       window.history.replaceState({}, "", window.location.pathname);
     }
 
