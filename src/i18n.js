@@ -7,9 +7,8 @@ import es from './locales/es/translation.json';
 
 const savedLang = (() => {
   try {
-    return localStorage.getItem('arkonomy_language')
-      || localStorage.getItem('arkonomy_lang')  // migrate old key
-      || 'en';
+    localStorage.removeItem('arkonomy_lang'); // remove auto-detected legacy key
+    return localStorage.getItem('arkonomy_language') || 'en';
   } catch { return 'en'; }
 })();
 
