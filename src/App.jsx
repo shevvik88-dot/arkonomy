@@ -567,6 +567,13 @@ export default function App() {
         setLastSyncedAt(p.data.last_synced_at);
         try { localStorage.setItem("arkonomy_last_synced", p.data.last_synced_at); } catch {}
       }
+      const lang = p.data.preferred_language
+        || (() => { try { return localStorage.getItem('arkonomy_language'); } catch { return null; } })()
+        || 'en';
+      if (i18n.language !== lang) {
+        i18n.changeLanguage(lang);
+        try { localStorage.setItem('arkonomy_language', lang); } catch {}
+      }
     }
     if (t.data) {
       setTransactions(t.data);
@@ -1255,7 +1262,12 @@ export default function App() {
                   return (
                     <button
                       key={lang.code}
-                      onClick={() => { i18n.changeLanguage(lang.code); setLangOpen(false); }}
+                      onClick={() => {
+                        i18n.changeLanguage(lang.code);
+                        try { localStorage.setItem('arkonomy_language', lang.code); } catch {}
+                        if (user) supabase.from('profiles').update({ preferred_language: lang.code }).eq('id', user.id);
+                        setLangOpen(false);
+                      }}
                       style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "12px 16px", background: active ? C.cyan + "14" : "transparent", border: "none", borderBottom: idx < arr.length - 1 ? `1px solid ${C.sep}` : "none", color: active ? C.cyan : C.text, fontSize: 14, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: FONT, textAlign: "left" }}
                     >
                       {lang.label}
