@@ -671,7 +671,7 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
 }
 
 // ─── Dashboard ────────────────────────────────────────────────
-export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId }) {
+export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, hideWelcomeBanner = false }) {
   const { t } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
@@ -758,8 +758,8 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   return (
    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
 
-      {/* 0a ── Onboarding welcome card (shown only when no transactions exist) */}
-      {transactions.length === 0 && (
+      {/* 0a ── Onboarding welcome card (shown only when no transactions exist and no active trial toast) */}
+      {transactions.length === 0 && !hideWelcomeBanner && (
         <div style={{ background: "linear-gradient(135deg,#0D2A4A,#0B1A30)", borderRadius: 20, padding: "20px 18px", border: `1px solid ${C.cyan}33`, boxShadow: `0 4px 24px ${C.cyan}12` }}>
           <div style={{ fontSize: 22, marginBottom: 6 }}>👋</div>
           <div style={{ fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 4 }}>{t("dashboard.welcome_title")}</div>

@@ -142,7 +142,7 @@ export default function AppPreviewStep({ onNext }) {
             borderRadius: 40,
             border: "2px solid rgba(255,255,255,0.1)",
             background: SHELL,
-            boxShadow: "0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(124,58,237,0.2)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(124,58,237,0.35)",
             overflow: "hidden",
             flexShrink: 0,
           }}

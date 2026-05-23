@@ -228,7 +228,8 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
     window.location.href = window.location.origin + "?trial_started=true";
   }
 
-  const name = profile?.full_name?.split(" ")[0] || user?.user_metadata?.full_name?.split(" ")[0] || "there";
+  const displayName = profile?.full_name?.split(" ")[0]?.slice(0, 12) || user?.user_metadata?.full_name?.split(" ")[0]?.slice(0, 12) || "there";
+  const name = displayName;
 
   const dots = (
     <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 36 }}>
