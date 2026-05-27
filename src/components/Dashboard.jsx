@@ -804,7 +804,9 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
             {accountBalance != null ? t("dashboard.account_balance") : t("dashboard.net_balance")}
           </span>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {isShowingLastMonth && <span style={{ fontSize: 9, color: C.yellow, fontWeight: 600, background: C.yellow + "18", padding: "2px 7px", borderRadius: 99, letterSpacing: 0.3 }}>Mar data</span>}
+            {isShowingLastMonth && <span style={{ fontSize: 9, color: C.yellow, fontWeight: 600, background: C.yellow + "18", padding: "2px 7px", borderRadius: 99, letterSpacing: 0.3 }}>
+              {new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleString('en-US', { month: 'short' })} data
+            </span>}
             <button onClick={() => setBalanceVisible(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex" }}>
               <Icon name={balanceVisible ? "eye" : "eye-off"} size={15} color={C.faint} />
             </button>

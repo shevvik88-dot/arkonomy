@@ -359,7 +359,16 @@ export default function App() {
   const [showAddTx, setShowAddTx] = useState(false);
   const [editTx, setEditTx] = useState(null);
   const [catFilter, setCatFilter] = useState(null);
-  const [chatMessages, setChatMessages] = useState([{ role: "assistant", text: "Hi! I'm your Arkonomy AI assistant. Ask me anything about your finances." }]);
+  const [chatMessages, setChatMessages] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('arkonomy_chat_history');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [{ role: "assistant", text: "Hi! I'm your Arkonomy AI assistant. Ask me anything about your finances." }];
+  });
   const [chatInput, setChatInput] = useState("");
   const [autopilot, setAutopilot] = useState(() => {
     try {
@@ -774,6 +783,22 @@ export default function App() {
     setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]);
   }
 
+  async function deleteAccount() {
+    try {
+      await Promise.all([
+        supabase.from("transactions").delete().eq("user_id", user.id),
+        supabase.from("savings").delete().eq("user_id", user.id),
+        supabase.from("categories").delete().eq("user_id", user.id),
+        supabase.from("plaid_items").delete().eq("user_id", user.id),
+      ]);
+      await supabase.from("profiles").delete().eq("id", user.id);
+    } catch (e) {
+      console.error("[deleteAccount]", e);
+    }
+    await supabase.auth.signOut();
+    setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]);
+  }
+
   async function addTransaction(tx) {
     // Auto-assign category from description keywords if none provided
     if (!tx.category_name) {
@@ -1004,6 +1029,13 @@ export default function App() {
     return () => el.removeEventListener('touchmove', onMove);
   }, [showChat]);
 
+  useEffect(() => {
+    try {
+      const toSave = chatMessages.filter(m => !m.loading);
+      sessionStorage.setItem('arkonomy_chat_history', JSON.stringify(toSave));
+    } catch {}
+  }, [chatMessages]);
+
   // Must be before any early return — Rules of Hooks
   useEffect(() => {
     if (screen === 'insights' && (allInsights?.length ?? 0) > 0) {
@@ -1015,6 +1047,9 @@ export default function App() {
 
   // Keep showChatRef in sync so idle timer closure always sees latest value
   useEffect(() => { showChatRef.current = showChat; }, [showChat]);
+
+  // Close chat when user navigates to a different screen
+  useEffect(() => { if (showChat) setShowChat(false); }, [screen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // AI bubble idle mode — show insight nudge after 30-60s of inactivity
   useEffect(() => {
@@ -1156,18 +1191,31 @@ export default function App() {
     try { localStorage.setItem('arkonomy_insights_seen', JSON.stringify({ count, at: Date.now() })); } catch {}
   }
 
-  function openChatWithContext() {
+  function buildChatGreeting() {
     const budget = Number(profile?.monthly_budget) || 3000;
     const SUB_CATS_HS = ['Subscriptions', 'Bills', 'Utilities', 'Phone', 'Internet', 'Insurance'];
     const subSpend = SUB_CATS_HS.reduce((s, c) => s + (spendingByCategory[c] || 0), 0);
     const { score: hs } = calculateHealthScore({ totalIncome: effectiveIncome, totalSpent, lastIncome, lastSpent, budget, subscriptionSpend: subSpend });
-    const greeting = buildContextGreeting(screen, {
+    return buildContextGreeting(screen, {
       totalIncome: effectiveIncome, totalSpent, spendingByCategory, savings,
       transactions, profile, allInsights, healthScore: hs,
     });
-    setChatMessages([{ role: "assistant", text: greeting }]);
+  }
+
+  function openChatWithContext() {
+    // Preserve existing history; only set greeting when chat is fresh
+    const hasHistory = chatMessages.some(m => m.role === "user");
+    if (!hasHistory) {
+      setChatMessages([{ role: "assistant", text: buildChatGreeting() }]);
+    }
     setShowChat(true);
     markInsightsSeen();
+  }
+
+  function startNewChat() {
+    const fresh = [{ role: "assistant", text: buildChatGreeting() }];
+    setChatMessages(fresh);
+    try { sessionStorage.setItem('arkonomy_chat_history', JSON.stringify(fresh)); } catch {}
   }
 
   async function sendChat(input, baseMessages) {
@@ -1210,9 +1258,10 @@ export default function App() {
 
     try {
       const res = await supabase.functions.invoke("ai-chat", {
-        body: { messages: updated.filter(m => !m.loading), financialContext: ctx }
+        body: { messages: updated.filter(m => !m.loading), financialContext: ctx, plan: profile?.plan ?? 'free' }
       });
-      const reply = res.data?.reply || "Sorry, something went wrong.";
+      const raw = res.data?.reply || "Sorry, something went wrong.";
+      const reply = raw.replace(/^[\s.,!?;:]+/, '');
       setChatMessages(prev => prev.map(m => m.id === lid ? { role: "assistant", text: reply } : m));
     } catch {
       setChatMessages(prev => prev.map(m => m.id === lid ? { role: "assistant", text: "Could not reach AI. Check your connection." } : m));
@@ -1284,8 +1333,8 @@ export default function App() {
         </div>
       </div>
 
-      {/* Content — paddingTop = measured header height + 8px gap */}
-      <div style={{ paddingTop: `${headerHeight + 8}px`, paddingRight: "14px", paddingBottom: "85px", paddingLeft: "14px" }}>
+      {/* Content — paddingTop = measured header height + 8px gap; paddingBottom clears FAB + nav */}
+      <div style={{ paddingTop: `${headerHeight + 8}px`, paddingRight: "14px", paddingBottom: "160px", paddingLeft: "14px" }}>
         {isTrial && trialDaysLeft <= 2 && (
           <div
             onClick={onUpgrade}
@@ -1364,7 +1413,7 @@ export default function App() {
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} InsightCard={InsightCard} />}
             {screen === "insights" && <Insights {...shared} onOpenChat={msg => { const budget = Number(profile?.monthly_budget)||3000; const sub = ['Subscriptions','Bills','Utilities','Phone','Internet','Insurance'].reduce((s,c)=>s+(spendingByCategory[c]||0),0); const {score:hs}=calculateHealthScore({totalIncome:effectiveIncome,totalSpent,lastIncome,lastSpent,budget,subscriptionSpend:sub}); const greeting=buildContextGreeting('insights',{totalIncome:effectiveIncome,totalSpent,spendingByCategory,savings,transactions,profile,allInsights,healthScore:hs}); const base=[{role:"assistant",text:greeting}]; setChatMessages(base); setShowChat(true); sendChat(msg,base); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
-            {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} onSignOut={signOut} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} lastSyncedAt={lastSyncedAt} backgroundSyncing={backgroundSyncing} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
+            {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} onSignOut={signOut} onDeleteAccount={deleteAccount} onBack={() => setScreen("dashboard")} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} lastSyncedAt={lastSyncedAt} backgroundSyncing={backgroundSyncing} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
           </>
         )}
       </div>
@@ -1508,6 +1557,15 @@ export default function App() {
                 </div>
               </div>
               <button
+                onClick={startNewChat}
+                title="New chat"
+                style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+              >
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
+              </button>
+              <button
                 onClick={() => setShowChat(false)}
                 style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
               >
@@ -1519,7 +1577,7 @@ export default function App() {
             </div>{/* end drag zone */}
             {/* Chat body — touchAction:auto restores scroll inside the message list */}
             <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", padding: "0 14px 14px", touchAction: "auto" }}>
-              <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={msg => sendChat(msg ?? chatInput)} onClose={() => setShowChat(false)} suggestions={(() => {
+              <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={msg => sendChat(msg ?? chatInput)} onClose={() => setShowChat(false)} isPro={isPro} suggestions={(() => {
                 const base = CHAT_SUGGESTIONS_BY_SCREEN[screen] ?? CHAT_SUGGESTIONS_BY_SCREEN.dashboard;
                 if (screen !== 'dashboard') return base;
                 const first = buildFirstDashboardSuggestion({ spendingByCategory, prevSpendingByCategory, transactions, balance: effectiveIncome - totalSpent, upcomingCharges });

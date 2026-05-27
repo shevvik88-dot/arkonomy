@@ -3,8 +3,8 @@ export function usePlan(profile) {
   const trialEnd = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : null;
   const hasActiveTrial  = trialEnd !== null && trialEnd > now;
   const hasExpiredTrial = trialEnd !== null && trialEnd <= now;
-  // Paid pro: plan === 'pro' with no trial_ends_at (cleared by Stripe webhook)
-  const isPaidPro    = profile?.plan === 'pro' && trialEnd === null;
+  // Paid pro: plan === 'pro' — regardless of whether trial_ends_at was cleared
+  const isPaidPro    = profile?.plan === 'pro';
   const isPro        = isPaidPro || hasActiveTrial;
   const isTrial      = hasActiveTrial;
   const trialExpired = hasExpiredTrial && !isPaidPro;

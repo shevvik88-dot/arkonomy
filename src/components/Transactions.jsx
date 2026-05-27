@@ -836,7 +836,15 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
   const toast = onToast || _localToast;
   const catFilter = activeCatFilter || localCatFilter || null;
 
-  const [monthOffset, setMonthOffset] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(() => {
+    const now = new Date();
+    const hasCurrentMonth = transactions.some(t => {
+      const d = new Date(t.date + 'T00:00:00');
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+    if (!hasCurrentMonth && transactions.length > 0) return -1;
+    return 0;
+  });
   const realNow = new Date();
   const now     = new Date(realNow.getFullYear(), realNow.getMonth() + monthOffset, 1);
   const prevMo  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -905,6 +913,15 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
           <Icon name="plus" size={18} color="#fff" strokeWidth={2.5} />
         </button>
       </div>
+
+      {monthOffset === -1 && (() => {
+        const currentMonthLabel = new Date().toLocaleString('en-US', { month: 'long' });
+        return (
+          <div style={{ fontSize: 12, color: "#F59E0B", background: "#F59E0B10", border: "1px solid #F59E0B30", borderRadius: 10, padding: "8px 12px", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+            <span>No transactions in {currentMonthLabel} yet — showing {monthLabel}.</span>
+          </div>
+        );
+      })()}
 
       <SummaryCards
         summary={summary}

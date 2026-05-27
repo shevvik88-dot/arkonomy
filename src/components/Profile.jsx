@@ -14,7 +14,7 @@ function maskEmail(email) {
   return `${local.slice(0, 2)}***@${domain}`;
 }
 
-export default function Profile({ profile, user, onSave, onSignOut, autopilot, setAutopilot, bankConnected, bankName, bankCount, linkToken, getLinkToken, onPlaidSuccess, syncBankTransactions, syncingBank, lastSyncedAt, backgroundSyncing, isPro, onUpgrade, transactions = [] }) {
+export default function Profile({ profile, user, onSave, onSignOut, onDeleteAccount, onBack, autopilot, setAutopilot, bankConnected, bankName, bankCount, linkToken, getLinkToken, onPlaidSuccess, syncBankTransactions, syncingBank, lastSyncedAt, backgroundSyncing, isPro, onUpgrade, transactions = [] }) {
   const { t } = useTranslation();
   const [budget, setBudget] = useState(profile?.monthly_budget || 3000);
   const [goal, setGoal] = useState(profile?.savings_goal || 10000);
@@ -25,6 +25,9 @@ export default function Profile({ profile, user, onSave, onSignOut, autopilot, s
   const [pwMsg, setPwMsg] = useState(null); // { type: "success"|"error", text }
   const [pwLoading, setPwLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteInput, setDeleteInput] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const handleExport = async () => {
     console.log('[handleExport] called, will use generateExcelReport');
@@ -92,9 +95,32 @@ export default function Profile({ profile, user, onSave, onSignOut, autopilot, s
     );
   }
 
+  async function handleDeleteAccount() {
+    if (deleteInput !== "DELETE") return;
+    setDeleting(true);
+    try {
+      await onDeleteAccount();
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingBottom: 80 }}>
-      <h2 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>{t("profile.title")}</h2>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {onBack && (
+          <button
+            onClick={onBack}
+            style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+          >
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+        )}
+        <h2 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>{t("profile.title")}</h2>
+      </div>
 
       <GlassCard>
         <div style={{ color: C.faint, fontSize: 10, letterSpacing: 1.2, fontWeight: 600, marginBottom: 8 }}>{t("profile.account_label")}</div>
@@ -370,10 +396,59 @@ export default function Profile({ profile, user, onSave, onSignOut, autopilot, s
 
       <button
         onClick={onSignOut}
-        style={{ width: "100%", padding: "13px 0", borderRadius: 12, border: `1px solid ${C.border}`, background: "none", color: C.red, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: FONT, marginBottom: 16 }}
+        style={{ width: "100%", padding: "13px 0", borderRadius: 12, border: `1px solid ${C.border}`, background: "none", color: C.red, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}
       >
         {t("profile.sign_out")}
       </button>
+
+      <button
+        onClick={() => { setShowDeleteConfirm(true); setDeleteInput(""); }}
+        style={{ width: "100%", padding: "11px 0", borderRadius: 12, border: `1px solid ${C.red}33`, background: "none", color: C.red, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: FONT, marginBottom: 16, opacity: 0.7 }}
+      >
+        Delete Account
+      </button>
+
+      {showDeleteConfirm && (
+        <div
+          onClick={() => setShowDeleteConfirm(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(7,12,24,0.88)", display: "flex", alignItems: "flex-end", justifyContent: "center", backdropFilter: "blur(4px)" }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 430, background: "#131C2E", borderRadius: "24px 24px 0 0", border: `1px solid ${C.red}33`, borderBottom: "none", padding: "28px 20px 40px", fontFamily: FONT }}
+          >
+            <div style={{ width: 36, height: 4, borderRadius: 99, background: C.border, margin: "0 auto 24px" }} />
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>⚠️</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: C.text, marginBottom: 8 }}>Delete your account?</div>
+              <div style={{ fontSize: 14, color: C.muted, lineHeight: 1.6 }}>
+                This permanently deletes all your transactions, savings goals, and financial data. This action cannot be undone.
+              </div>
+            </div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 8 }}>Type <strong style={{ color: C.red }}>DELETE</strong> to confirm:</div>
+            <input
+              type="text"
+              value={deleteInput}
+              onChange={e => setDeleteInput(e.target.value)}
+              placeholder="DELETE"
+              style={{ width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${deleteInput === "DELETE" ? C.red : C.border}`, borderRadius: 12, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT, marginBottom: 14 }}
+            />
+            <button
+              onClick={handleDeleteAccount}
+              disabled={deleteInput !== "DELETE" || deleting}
+              style={{ width: "100%", padding: 15, background: deleteInput === "DELETE" ? C.red : C.bgTertiary, border: "none", borderRadius: 14, color: deleteInput === "DELETE" ? "#fff" : C.faint, fontWeight: 700, fontSize: 15, cursor: deleteInput === "DELETE" ? "pointer" : "not-allowed", fontFamily: FONT, marginBottom: 10, transition: "background 0.2s" }}
+            >
+              {deleting ? "Deleting…" : "Delete Account Permanently"}
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              style={{ width: "100%", padding: 13, background: "none", border: `1px solid ${C.border}`, borderRadius: 14, color: C.muted, fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <div style={{ textAlign: "center", padding: "4px 0 8px", fontSize: 12, color: C.faint, fontFamily: FONT }}>
         <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style={{ color: C.faint, textDecoration: "none" }}>{t("profile.privacy_policy")}</a>

@@ -34,9 +34,9 @@ function GoogleLogo() {
   );
 }
 
-function AppleLogo() {
+function AppleLogo({ color = "#000" }) {
   return (
-    <svg width="24" height="24" viewBox="0 0 814 1000" fill="#fff" style={{ flexShrink: 0 }}>
+    <svg width="20" height="20" viewBox="0 0 814 1000" fill={color} style={{ flexShrink: 0 }}>
       <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-37.5-155.5-122.7C46.3 683.6 0 582.6 0 487.8c0-176.2 115.3-269.1 228.4-269.1 60.4 0 110.8 39.8 148.2 39.8 35.7 0 92.8-42.1 162.8-42.1 26.3 0 116.3 2.6 178.2 86.1zm-116.3-87.1c-28.5-35.1-78-60-125.7-60-6.4 0-12.8.6-19.2 1.3 1.3-10.3 1.9-20.5 1.9-30.8C528.8 67.5 469.1 6.5 391.9.9c2.5 16.7 3.5 32.8 3.5 48.3 0 89.8-60.5 155.4-94 176.8l.1.2c49.5 0 95.9-30.5 121.4-30.5 49.8 0 101.8 32.7 149.9 57.1z"/>
     </svg>
   );
@@ -194,7 +194,7 @@ export default function AuthScreen({ onAuth }) {
 
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {mode === "signup" && <input style={inp} placeholder={t("auth.full_name")} value={name} onChange={e => setName(e.target.value)} autoComplete="name" />}
-            <input style={inp} type="email" placeholder={t("auth.email")} value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" />
+            <input style={inp} type="email" placeholder={t("auth.email")} value={email} onChange={e => { setEmail(e.target.value); if (error) setError(""); }} autoComplete="email" />
 
             {/* Password field */}
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -283,33 +283,45 @@ export default function AuthScreen({ onAuth }) {
             <span style={{ color: "#64748B", fontSize: 12, whiteSpace: "nowrap" }}>or continue with</span>
             <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.08)" }} />
           </div>
-          <div style={{ display: "flex", justifyContent: "center", gap: 16 }}>
-            {[
-              { key: "google", logo: <GoogleLogo />, label: "Google" },
-              { key: "apple",  logo: <AppleLogo />,  label: "Apple" },
-            ].map(({ key, logo, label }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => handleOAuth(key)}
-                onMouseEnter={() => setHoverSocial(key)}
-                onMouseLeave={() => setHoverSocial(null)}
-                aria-label={`Continue with ${label}`}
-                style={{
-                  width: 52, height: 52,
-                  borderRadius: "50%",
-                  border: "1.5px solid rgba(255,255,255,0.15)",
-                  background: hoverSocial === key ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  cursor: "pointer",
-                  transform: hoverSocial === key ? "scale(1.05)" : "scale(1)",
-                  transition: "background 0.15s, transform 0.15s",
-                }}
-              >
-                {logo}
-              </button>
-            ))}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => handleOAuth("google")}
+              onMouseEnter={() => setHoverSocial("google")}
+              onMouseLeave={() => setHoverSocial(null)}
+              style={{
+                width: "100%", height: 48,
+                borderRadius: 12,
+                border: "1.5px solid rgba(255,255,255,0.15)",
+                background: hoverSocial === "google" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                cursor: "pointer",
+                transition: "background 0.15s",
+                fontFamily: FONT, fontSize: 15, fontWeight: 600, color: C.text,
+              }}
+            >
+              <GoogleLogo />
+              Continue with Google
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOAuth("apple")}
+              onMouseEnter={() => setHoverSocial("apple")}
+              onMouseLeave={() => setHoverSocial(null)}
+              style={{
+                width: "100%", height: 48,
+                borderRadius: 12,
+                border: "none",
+                background: hoverSocial === "apple" ? "#e0e0e0" : "#fff",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                cursor: "pointer",
+                transition: "background 0.15s",
+                fontFamily: "-apple-system, 'SF Pro Display', sans-serif", fontSize: 15, fontWeight: 600, color: "#000",
+              }}
+            >
+              <AppleLogo />
+              Sign in with Apple
+            </button>
           </div>
         </GlassCard>
       </div>
