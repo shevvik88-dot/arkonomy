@@ -1,5 +1,20 @@
 ﻿# Arkonomy
 
+## Current status (2026-05-30)
+- Production live at app.arkonomy.com — last stable commit: `9ecd09a`
+- Bank connection restored via `check-bank-connection` edge function (RLS audit removed SELECT on plaid_items — see Security section)
+- Recurring detector fixed: `housing` category now detected, DOM-based date projection replaces gap-based
+- Upcoming charges redesigned as horizontal peek carousel
+
+## Next tasks (priority order)
+1. **Security fixes** — were reverted in hotfix, re-apply one by one:
+   - a) Brute force: 30s lockout after 5 failed sign-in attempts (AuthScreen.jsx)
+   - b) User enumeration: generic error message on sign-up failure (AuthScreen.jsx)
+   - c) Stripe redirect: hostname check before following redirect URL
+   - d) `notification_preferences` row deletion inside `deleteAccount` edge function
+2. **Merchant navigation** — tap a transaction in Dashboard "Recent Transactions" → navigate to Transactions screen filtered by that merchant (`cleanMerchantName` already exported from Transactions.jsx; was causing black screen before — apply carefully)
+3. **Notification preferences UI** — Settings screen section: frequency selector + email digest content toggles; table `notification_preferences` already exists in Supabase
+
 ## Self-improvement protocol
 - После любой моей коррекции предложи лаконичное правило и допиши его в подходящую секцию этого файла.
 - Формат правила: одно императивное предложение, без обоснования и без примеров, если случай не двусмысленный.
@@ -44,11 +59,18 @@
 - Keep components in the file where they are used unless explicitly asked to extract.
 - When editing a file, re-read it first; never rely on stale context.
 
+## Security decisions — DO NOT CHANGE without explicit instruction
+- **plaid_items has NO SELECT RLS policy** — intentional. Removed during security audit to prevent `access_token` from being exposed to the client. Never add a SELECT policy back.
+- **checkBankConnection() calls `check-bank-connection` edge function** (supabase/functions/check-bank-connection/) — uses service role key server-side, returns only `{ connected, institution_name, count }`. Never revert to direct `.from("plaid_items").select()` in the frontend.
+- **Plaid env vars** — Production approval in progress; do not touch.
+- **usePlan.js** — Free/Pro gating is core business logic; never bypass.
+
 ## Supabase rules
 - Test user UUID: 90eb11c3-c1e9-4241-8362-9e15ce231c33
 - Never run destructive migrations without showing the SQL first.
 - RLS policies must be verified after any schema change.
 - Edge functions deploy via: supabase functions deploy <name>
+- Accounts cache key: `arkonomy_accounts_v1` (localStorage, 1hr TTL) — only cache non-empty arrays.
 
 ## Business context
 - Free/Pro plan gating is core — never bypass or break usePlan.js logic.
