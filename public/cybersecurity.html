@@ -127,7 +127,7 @@
       <li><strong>Multi-factor authentication (MFA)</strong> is required on all production platforms, including Supabase, Vercel, GitHub, and Stripe.</li>
       <li><strong>Row-level security (RLS)</strong> is enforced at the database layer via Supabase — each user can only access their own records, regardless of application-layer behaviour.</li>
       <li><strong>Encrypted environment variables</strong> — all API keys, secrets, and service credentials are stored as encrypted environment variables. They are never embedded in source code, client bundles, or version control.</li>
-      <li><strong>Server-side execution</strong> — all calls to third-party APIs (Plaid, Alpaca, Stripe, Anthropic) are made exclusively from authenticated server-side edge functions, never from the client.</li>
+      <li><strong>Server-side execution</strong> — all calls to third-party APIs (Plaid, Stripe, Anthropic) are made exclusively from authenticated server-side edge functions, never from the client.</li>
       <li>Access rights are reviewed regularly and revoked promptly when no longer required.</li>
     </ul>
 
@@ -187,11 +187,6 @@
     <div class="card">
       <div class="card-title">Plaid</div>
       <p>PCI DSS Level 1 and SOC 2 Type II certified. Handles all bank credential exchange and financial data aggregation. Arkonomy never receives or stores bank usernames, passwords, or MFA codes. <a href="https://plaid.com/legal/privacy-notice/" target="_blank" rel="noopener">plaid.com/legal/privacy-notice</a></p>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Alpaca Markets</div>
-      <p>FINRA-registered broker-dealer subject to SEC and FINRA security requirements. Brokerage accounts are held with Alpaca, not Arkonomy. <a href="https://alpaca.markets/disclosures" target="_blank" rel="noopener">alpaca.markets/disclosures</a></p>
     </div>
 
     <div class="card">
