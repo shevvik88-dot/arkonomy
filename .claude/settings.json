@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"systemMessage\": \"SESSION END: Update CLAUDE.md before finishing — (1) what was done today, (2) status of each feature, (3) known issues, (4) next priority tasks. Then git add CLAUDE.md && git commit && git push.\"}'",
+            "statusMessage": "Reminding to update CLAUDE.md..."
+          }
+        ]
+      }
+    ]
+  }
+}
