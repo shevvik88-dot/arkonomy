@@ -15,7 +15,7 @@ const DAY_OF_MONTH_TOL    = 5;      // charge must land within ±5 days of same 
 const MIN_OCCURRENCES     = 2;      // need ≥2 confirmed charges in consecutive months
 const MIN_AMOUNT          = 10;     // ignore anything under $10 (coffee, small tips)
 const LOOKBACK_DAYS       = 90;
-const UPCOMING_DAYS       = 7;
+const UPCOMING_DAYS       = 10;
 const MAX_RESULTS         = 4;      // cap at 4 most critical items
 const MIN_CONFIRMED       = 2;      // hide the section if fewer than this confirmed
 
@@ -72,7 +72,7 @@ const SUBSCRIPTION_KEYWORDS = [
 
 const SUBSCRIPTION_CATEGORIES = new Set([
   'bills', 'subscriptions', 'utilities', 'insurance', 'phone', 'internet',
-  'rent', 'mortgage', 'fitness', 'software', 'streaming',
+  'rent', 'mortgage', 'housing', 'fitness', 'software', 'streaming',
   'telecom', 'loan', 'finance',
 ]);
 
@@ -204,14 +204,24 @@ export function detectRecurringCharges(transactions) {
       // Step 6: day-of-month consistency — charges must hit on roughly the same date
       if (!sameDayOfMonth(cs)) continue;
 
-      // Step 7: project next charge
-      const avgGap    = gaps.reduce((s, g) => s + g, 0) / gaps.length;
-      const lastTx    = cs[cs.length - 1];
-      const nextDate  = new Date(new Date(lastTx.date).getTime() + avgGap * 86_400_000);
+      // Step 7: project next charge using DOM-based approach.
+      // Additive gap math breaks when a billing cycle goes un-synced (projection
+      // lands in the past). Instead, find the next calendar occurrence of the
+      // average billing day-of-month — this is always a future date.
+      const domAvg = Math.floor(
+        cs.map(t => parseInt(t.date.split('-')[2], 10)).reduce((s, d) => s + d, 0) / cs.length
+      );
+      let nextDate = new Date(now.getFullYear(), now.getMonth(), domAvg);
+      if (nextDate.getTime() <= now.getTime()) {
+        nextDate = new Date(now.getFullYear(), now.getMonth() + 1, domAvg);
+      }
       const daysUntil = Math.round((nextDate.getTime() - now.getTime()) / 86_400_000);
-
       if (daysUntil < 0 || daysUntil > UPCOMING_DAYS) continue;
 
+      const pad = n => String(n).padStart(2, '0');
+      const expectedDateStr = `${nextDate.getFullYear()}-${pad(nextDate.getMonth() + 1)}-${pad(nextDate.getDate())}`;
+
+      const lastTx      = cs[cs.length - 1];
       const rawName     = lastTx.description || lastTx.category_name || key;
       const displayName = titleCase(normalizeMerchant(rawName) || rawName);
 
@@ -219,7 +229,7 @@ export function detectRecurringCharges(transactions) {
         merchant:     displayName,
         amount:       Math.round(cluster.ref * 100) / 100,
         daysUntil,
-        expectedDate: nextDate.toISOString().split('T')[0],
+        expectedDate: expectedDateStr,
         category:     lastTx.category_name || 'Bills',
       });
     }

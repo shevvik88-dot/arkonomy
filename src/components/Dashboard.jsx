@@ -8,7 +8,7 @@ import GlassCard from "./shared/GlassCard";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "../healthScore";
 import { InsightCard } from "./Insights";
 import UpcomingChargesCard from "./UpcomingChargesCard";
-import { TxRow, cleanMerchantName } from "./Transactions";
+import { TxRow } from "./Transactions";
 
 const ACCOUNTS_CACHE_KEY = "arkonomy_accounts_v1";
 const ACCOUNTS_CACHE_TTL = 60 * 60 * 1000;
@@ -783,17 +783,9 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         </div>
       )}
 
-      {/* 0b ── Upcoming Recurring Charges (highest priority) */}
+      {/* 0b ── Upcoming Recurring Charges — horizontal carousel */}
       {upcomingCharges.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 2px" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#FF9320", letterSpacing: 0.4 }}>{t("dashboard.upcoming_charges")}</span>
-            <span style={{ fontSize: 10, color: "#4A5E7A", background: "#FF932018", border: "1px solid #FF932033", borderRadius: 4, padding: "1px 6px", fontWeight: 600 }}>{upcomingCharges.length}</span>
-          </div>
-          {upcomingCharges.map((charge, i) => (
-            <UpcomingChargesCard key={`${charge.merchant}-${i}`} charge={charge} />
-          ))}
-        </div>
+        <UpcomingChargesCard charges={upcomingCharges} />
       )}
 
       {/* 1 ── Account Balance */}
@@ -837,21 +829,6 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         balanceVisible={balanceVisible}
       />
 
-      {/* 2b ── Next big payment pill */}
-      {upcomingCharges.length > 0 && (() => {
-        const next = [...upcomingCharges].sort((a, b) => a.daysUntil - b.daysUntil)[0];
-        return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: C.yellow + '10', border: `1px solid ${C.yellow}28`, borderRadius: 12 }}>
-            <Icon name="calendar" size={13} color={C.yellow} />
-            <span style={{ fontSize: 12, color: C.muted, flex: 1 }}>
-              <span style={{ color: C.text, fontWeight: 600 }}>{t("dashboard.next")} </span>
-              {cleanMerchantName(next.merchant) || next.merchant}
-              <span style={{ color: C.yellow, fontWeight: 700 }}> ${fmt(next.amount)}</span>
-              <span style={{ color: C.faint }}> {t("dashboard.days_left", { count: next.daysUntil })}</span>
-            </span>
-          </div>
-        );
-      })()}
 
       {/* 3 ── Monthly Cash Flow */}
       <div style={{ background: "linear-gradient(145deg,#0D1F3C,#0B1426)", borderRadius: 16, padding: "14px 18px", border: `1px solid #1E2D4A` }}>

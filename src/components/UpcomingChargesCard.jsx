@@ -1,93 +1,180 @@
-// src/components/UpcomingChargesCard.jsx
-// Warning card for an upcoming detected recurring charge.
-// Orange/yellow accent normally; red + "Tomorrow!" if daysUntil <= 1.
+import { useState, useRef } from "react";
+import Icon from "./shared/Icon";
 
 const FONT = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
 
-function fmt(n) {
-  return Number(n).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+const CAT_ICON = {
+  housing: "home", rent: "home", mortgage: "home",
+  utilities: "zap", electric: "zap",
+  insurance: "shield",
+  phone: "phone", telecom: "phone",
+  internet: "globe",
+  streaming: "film", entertainment: "film",
+  fitness: "heart", gym: "heart",
+  software: "smartphone",
+  loan: "bank", finance: "bank", credit: "credit",
+  subscriptions: "repeat",
+  bills: "file-text",
+};
+
+function catIcon(cat) {
+  return CAT_ICON[(cat || "").toLowerCase()] ?? "repeat";
 }
 
-function alpha(hex, a) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${a})`;
+function accentColor(daysUntil) {
+  if (daysUntil <= 1) return "#FF5C7A";
+  if (daysUntil <= 3) return "#FFB800";
+  return "#FF9320";
 }
 
-export default function UpcomingChargesCard({ charge }) {
-  const { merchant, amount, daysUntil, expectedDate } = charge;
+function urgencyLabel(daysUntil) {
+  if (daysUntil === 0) return "Today";
+  if (daysUntil === 1) return "Tomorrow";
+  return `${daysUntil}d`;
+}
 
-  const isToday  = daysUntil === 0;
-  const isUrgent = daysUntil <= 1;        // today or tomorrow → red
-  const isSoon   = daysUntil <= 3;        // within 3 days → yellow
+function fmtAmt(n) {
+  return Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
-  const accent = isUrgent ? '#FF5C7A' : isSoon ? '#FFB800' : '#FF9320';
-  const bg     = isUrgent ? '#120609'  : isSoon ? '#120D00'  : '#120900';
-  const border = isUrgent ? '#3D0A12'  : isSoon ? '#3D2C00'  : '#3D1E00';
+export default function UpcomingChargesCarousel({ charges }) {
+  const sorted = [...charges].sort((a, b) => a.daysUntil - b.daysUntil);
+  const [active, setActive] = useState(0);
+  const scrollRef = useRef(null);
 
-  const urgencyLabel = isToday
-    ? 'Due Today!'
-    : isUrgent
-    ? 'Tomorrow!'
-    : `In ${daysUntil} day${daysUntil !== 1 ? 's' : ''}`;
+  function handleScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    const cardW = el.offsetWidth - 36;
+    if (cardW <= 0) return;
+    setActive(Math.round(el.scrollLeft / (cardW + 10)));
+  }
+
+  if (!sorted.length) return null;
 
   return (
-    <div style={{
-      background: bg,
-      border: `1px solid ${border}`,
-      borderRadius: 14,
-      padding: '11px 14px',
-      fontFamily: FONT,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 12,
-      boxShadow: `0 2px 12px ${alpha(accent, 0.07)}`,
-    }}>
-      {/* Icon */}
-      <div style={{
-        width: 38, height: 38, borderRadius: 11, flexShrink: 0,
-        background: alpha(accent, 0.12),
-        border: `1px solid ${alpha(accent, 0.25)}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 18,
-      }}>
-        ⚠️
-      </div>
+    <div style={{ fontFamily: FONT }}>
+      {/* Hide webkit scrollbar */}
+      <style>{`.ark-upcoming::-webkit-scrollbar{display:none}`}</style>
 
-      {/* Content */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          display: 'flex', justifyContent: 'space-between',
-          alignItems: 'baseline', gap: 8,
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, padding: "0 2px" }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "#FF9320", letterSpacing: 0.5, textTransform: "uppercase" }}>
+          Upcoming Charges
+        </span>
+        <span style={{
+          fontSize: 10, color: "#4A5E7A", background: "#FF932018",
+          border: "1px solid #FF932033", borderRadius: 4,
+          padding: "1px 6px", fontWeight: 600,
         }}>
-          <span style={{
-            fontWeight: 700, fontSize: 14, color: '#eef4ff',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {merchant}
-          </span>
-          <span style={{ fontWeight: 800, fontSize: 15, color: accent, flexShrink: 0 }}>
-            ${fmt(amount)}
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-          <span style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: '.5px',
-            color: accent,
-            background: alpha(accent, 0.14),
-            border: `1px solid ${alpha(accent, 0.35)}`,
-            borderRadius: 4, padding: '2px 7px',
-          }}>
-            {urgencyLabel}
-          </span>
-          <span style={{ fontSize: 11, color: '#3a5570' }}>{expectedDate}</span>
-        </div>
+          {sorted.length}
+        </span>
       </div>
+
+      {/* Scroll container — padding-right lets next card peek */}
+      <div
+        ref={scrollRef}
+        className="ark-upcoming"
+        onScroll={handleScroll}
+        style={{
+          display: "flex",
+          gap: 10,
+          overflowX: "auto",
+          scrollSnapType: "x mandatory",
+          WebkitOverflowScrolling: "touch",
+          scrollbarWidth: "none",
+          paddingBottom: 2,
+        }}
+      >
+        {sorted.map((charge, i) => {
+          const col = accentColor(charge.daysUntil);
+          const isActive = i === active;
+
+          return (
+            <div
+              key={`${charge.merchant}-${i}`}
+              style={{
+                // Card width leaves ~36px of next card visible as peek
+                minWidth: "calc(100% - 36px)",
+                maxWidth: "calc(100% - 36px)",
+                scrollSnapAlign: "start",
+                flexShrink: 0,
+                // Opacity: active = 1, others = 0.55
+                opacity: isActive ? 1 : 0.55,
+                transition: "opacity 0.2s ease, box-shadow 0.2s ease",
+                // Glassmorphism card
+                background: "linear-gradient(135deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.02) 100%)",
+                backdropFilter: "blur(10px)",
+                border: `1px solid ${isActive ? `rgba(255,255,255,0.1)` : "rgba(255,255,255,0.05)"}`,
+                borderRadius: 16,
+                boxShadow: isActive ? `0 4px 24px ${col}1A` : "none",
+                // Layout
+                height: 80,
+                boxSizing: "border-box",
+                padding: "0 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              {/* Category icon */}
+              <div style={{
+                width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+                background: `${col}18`,
+                border: `1px solid ${col}28`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <Icon name={catIcon(charge.category)} size={18} color={col} />
+              </div>
+
+              {/* Merchant + date */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontWeight: 700, fontSize: 14, color: "#EEF4FF",
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                }}>
+                  {charge.merchant}
+                </div>
+                <div style={{ fontSize: 11, color: "#4A6480", marginTop: 3 }}>
+                  {charge.expectedDate}
+                </div>
+              </div>
+
+              {/* Amount + urgency badge */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, flexShrink: 0 }}>
+                <span style={{ fontWeight: 800, fontSize: 16, color: col, letterSpacing: -0.3 }}>
+                  ${fmtAmt(charge.amount)}
+                </span>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: 0.3,
+                  color: col,
+                  background: `${col}18`,
+                  border: `1px solid ${col}30`,
+                  borderRadius: 6, padding: "2px 8px",
+                  whiteSpace: "nowrap",
+                }}>
+                  {urgencyLabel(charge.daysUntil)}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Dot indicators */}
+      {sorted.length > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", gap: 5, marginTop: 9 }}>
+          {sorted.map((_, i) => (
+            <div key={i} style={{
+              width: i === active ? 16 : 5,
+              height: 5,
+              borderRadius: 99,
+              background: i === active ? "#FF9320" : "#1E2D4A",
+              transition: "width 0.2s ease, background 0.2s ease",
+            }} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
