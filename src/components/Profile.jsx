@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../utils/supabase";
 import { C, FONT } from "../utils/colors";
@@ -28,34 +28,6 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteInput, setDeleteInput] = useState("");
   const [deleting, setDeleting] = useState(false);
-  const [notifPrefs, setNotifPrefs] = useState(null);
-  const [notifSaved, setNotifSaved] = useState(false);
-
-  const DEFAULT_NOTIF_PREFS = {
-    frequency: "weekly",
-    include_spending: true,
-    include_balance: true,
-    include_upcoming_bills: true,
-    include_ai_tip: true,
-    include_market_update: false,
-    excel_frequency: "monthly",
-  };
-
-  useEffect(() => {
-    supabase.from("notification_preferences").select("*").eq("user_id", user.id).maybeSingle()
-      .then(({ data }) => setNotifPrefs(data ?? { ...DEFAULT_NOTIF_PREFS }))
-      .catch(() => setNotifPrefs({ ...DEFAULT_NOTIF_PREFS }));
-  }, [user.id]);
-
-  async function saveNotifPrefs() {
-    try {
-      const { error } = await supabase.from("notification_preferences")
-        .upsert({ user_id: user.id, ...notifPrefs }, { onConflict: "user_id" });
-      if (!error) { setNotifSaved(true); setTimeout(() => setNotifSaved(false), 2000); }
-    } catch (err) {
-      console.error("[saveNotifPrefs]", err);
-    }
-  }
 
   const handleExport = async () => {
     console.log('[handleExport] called, will use generateExcelReport');
@@ -361,71 +333,6 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           </div>
         ))}
       </GlassCard>
-
-      {notifPrefs && (
-        <GlassCard>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-            <Icon name="bell" size={15} color={C.cyan} />
-            <span style={{ fontWeight: 600, fontSize: 15 }}>Notifications & Reports</span>
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 8 }}>Email digest frequency</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {["weekly", "biweekly", "monthly", "off"].map(f => {
-                const on = notifPrefs.frequency === f;
-                return (
-                  <button key={f} onClick={() => setNotifPrefs(p => ({ ...p, frequency: f }))}
-                    style={{ padding: "7px 13px", borderRadius: 20, border: `1px solid ${on ? C.cyan : C.border}`, background: on ? C.cyan + "22" : "transparent", color: on ? C.cyan : C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: on ? 600 : 400, transition: "all 0.15s" }}>
-                    {f.charAt(0).toUpperCase() + f.slice(1)}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {notifPrefs.frequency !== "off" && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 10 }}>Include in digest</div>
-              {[
-                { key: "include_spending",        label: "Weekly spending summary" },
-                { key: "include_balance",          label: "Financial health score" },
-                { key: "include_upcoming_bills",   label: "Upcoming recurring bills" },
-                { key: "include_ai_tip",           label: "AI financial tip" },
-                { key: "include_market_update",    label: "Market update" },
-              ].map((item, i, arr) => (
-                <div key={item.key}>
-                  {i > 0 && <div style={{ height: 1, background: C.sep, margin: "10px 0" }} />}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 14, color: C.text }}>{item.label}</span>
-                    <Toggle value={notifPrefs[item.key]} onChange={v => setNotifPrefs(p => ({ ...p, [item.key]: v }))} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 8 }}>Excel report frequency</div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {["monthly", "quarterly", "off"].map(f => {
-                const on = notifPrefs.excel_frequency === f;
-                return (
-                  <button key={f} onClick={() => setNotifPrefs(p => ({ ...p, excel_frequency: f }))}
-                    style={{ padding: "7px 13px", borderRadius: 20, border: `1px solid ${on ? C.purple : C.border}`, background: on ? C.purple + "22" : "transparent", color: on ? C.purple : C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: on ? 600 : 400, transition: "all 0.15s" }}>
-                    {f.charAt(0).toUpperCase() + f.slice(1)}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <button onClick={saveNotifPrefs}
-            style={{ width: "100%", padding: 13, background: notifSaved ? C.green : `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: notifSaved ? C.bg : "#fff", fontWeight: 700, cursor: "pointer", transition: "background 0.3s", fontFamily: FONT }}>
-            {notifSaved ? "Saved!" : "Save Preferences"}
-          </button>
-        </GlassCard>
-      )}
 
       <GlassCard style={{ border: `1px solid ${C.yellow}22` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>

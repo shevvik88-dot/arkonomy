@@ -80,8 +80,6 @@ export default function UpgradeModal({ onClose, supabase }) {
         throw new Error(msg);
       }
       if (data?.url) {
-        const redirectUrl = new URL(data.url);
-        if (redirectUrl.hostname !== "checkout.stripe.com") throw new Error("Unexpected checkout URL");
         window.location.href = data.url;
       } else {
         throw new Error("No checkout URL returned");

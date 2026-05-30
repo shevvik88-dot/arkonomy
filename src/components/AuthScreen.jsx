@@ -90,7 +90,6 @@ export default function AuthScreen({ onAuth }) {
   const [showPw, setShowPw] = useState(false);
   const [pwTouched, setPwTouched] = useState(false);
   const [cooldown, setCooldown] = useState(0);
-  const [failCount, setFailCount] = useState(0);
   const [hoverSocial, setHoverSocial] = useState(null);
   const timerRef = useRef(null);
 
@@ -111,7 +110,7 @@ export default function AuthScreen({ onAuth }) {
     setEmail(""); setPassword(""); setName("");
     setError(""); setMsg("");
     setShowPw(false); setPwTouched(false);
-    setCooldown(0); setFailCount(0);
+    setCooldown(0);
     clearInterval(timerRef.current);
   }
 
@@ -135,7 +134,6 @@ export default function AuthScreen({ onAuth }) {
 
   async function handleSubmit(e) {
     if (e) e.preventDefault();
-    if (cooldown > 0) return;
     setError(""); setMsg("");
     if (mode === "signup" && pwError(password)) {
       setPwTouched(true);
@@ -144,24 +142,13 @@ export default function AuthScreen({ onAuth }) {
     setLoading(true);
     try {
       if (mode === "signup") {
-        await supabase.auth.signUp({ email, password, options: { data: { full_name: name }, emailRedirectTo: 'https://app.arkonomy.com' } });
+        const { error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name }, emailRedirectTo: 'https://app.arkonomy.com' } });
+        if (error) throw error;
         setMsg(t("auth.success_check_email"));
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-          const next = failCount + 1;
-          if (next >= 5) {
-            setFailCount(0);
-            startCooldown();
-            setError(`Too many failed attempts — try again in ${RESEND_COOLDOWN}s.`);
-          } else {
-            setFailCount(next);
-            setError(friendlyError(error.message));
-          }
-        } else {
-          setFailCount(0);
-          onAuth(data.user);
-        }
+        if (error) throw error;
+        onAuth(data.user);
       }
     } catch (e) { setError(friendlyError(e.message)); }
     finally { setLoading(false); }
@@ -268,14 +255,12 @@ export default function AuthScreen({ onAuth }) {
             )}
             <button
               type="submit"
-              disabled={loading || cooldown > 0}
-              style={{ width: "100%", marginTop: 8, padding: 15, background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 15, cursor: (loading || cooldown > 0) ? "not-allowed" : "pointer", opacity: (loading || cooldown > 0) ? 0.7 : 1, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center" }}
+              disabled={loading}
+              style={{ width: "100%", marginTop: 8, padding: 15, background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 15, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1, fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center" }}
             >
               {loading && <Spinner />}
               {loading
                 ? (mode === "login" ? "Signing in..." : "Creating account...")
-                : cooldown > 0
-                ? `Try again in ${cooldown}s`
                 : (mode === "login" ? t("auth.sign_in") : t("auth.sign_up"))
               }
             </button>
