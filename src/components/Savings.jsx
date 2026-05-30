@@ -641,7 +641,7 @@ export default function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, to
       if (!res.ok) { setAccountsError(d.error || d.message || `HTTP ${res.status}`); return; }
       if (d.accounts) {
         setPlaidAccounts(d.accounts);
-        setCachedAccounts(d.accounts);
+        if (d.accounts.length) setCachedAccounts(d.accounts);
       }
     } catch (err) {
       setAccountsError(String(err));

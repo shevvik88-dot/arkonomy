@@ -599,14 +599,14 @@ export default function App() {
   }
 
   async function checkBankConnection() {
-    const { data } = await supabase
-      .from("plaid_items")
-      .select("institution_name")
-      .eq("user_id", user.id);
-    if (data && data.length > 0) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const { data, error } = await supabase.functions.invoke("check-bank-connection", {
+      headers: { Authorization: `Bearer ${session?.access_token}` },
+    });
+    if (!error && data?.connected) {
       setBankConnected(true);
-      setBankName(data[0].institution_name);
-      setBankCount(data.length);
+      setBankName(data.institution_name);
+      setBankCount(data.count ?? 1);
     }
   }
 
