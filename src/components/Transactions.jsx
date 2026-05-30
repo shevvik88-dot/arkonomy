@@ -806,10 +806,10 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
   );
 }
 
-export default function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter, insight, onInsightAction, onToast }) {
+export default function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter, initialSearch, insight, onInsightAction, onToast }) {
   const { t } = useTranslation();
   const [filter,          setFilter]          = useState("all");
-  const [search,          setSearch]          = useState("");
+  const [search,          setSearch]          = useState(initialSearch || "");
   const [searchFocused,   setSearchFocused]   = useState(false);
   const [localCatFilter,  setLocalCatFilter]  = useState(null);
   const [showCatDropdown, setShowCatDropdown] = useState(false);

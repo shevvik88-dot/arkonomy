@@ -18,17 +18,24 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    const body = await req.json();
-    const { userId, lang } = body;
-    if (!userId) {
-      return new Response(
-        JSON.stringify({ error: 'userId required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // ── Auth — reject any request without a valid user JWT ────────────────────
+    const token = req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
+    if (!token) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+    if (authErr || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    const input = await buildFinancialInput(supabase, userId);
+    // userId from body is ignored — always use the authenticated user
+    const { lang } = await req.json().catch(() => ({} as { lang?: string }));
     const responseLang: 'ru' | 'es' | 'en' = (lang ?? '').startsWith('ru') ? 'ru' : (lang ?? '').startsWith('es') ? 'es' : 'en';
+    const input = await buildFinancialInput(supabase, user.id);
     const result = generateInsights(input, responseLang);
 
     return new Response(JSON.stringify(result), {

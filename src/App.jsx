@@ -359,6 +359,8 @@ export default function App() {
   const [showAddTx, setShowAddTx] = useState(false);
   const [editTx, setEditTx] = useState(null);
   const [catFilter, setCatFilter] = useState(null);
+  const [descFilter, setDescFilter] = useState(null);
+  const navigateTo = (s) => { setDescFilter(null); setScreen(s); };
   const [chatMessages, setChatMessages] = useState(() => {
     try {
       const saved = sessionStorage.getItem('arkonomy_chat_history');
@@ -790,8 +792,11 @@ export default function App() {
         supabase.from("savings").delete().eq("user_id", user.id),
         supabase.from("categories").delete().eq("user_id", user.id),
         supabase.from("plaid_items").delete().eq("user_id", user.id),
+        supabase.from("investments").delete().eq("user_id", user.id),
+        supabase.from("notification_preferences").delete().eq("user_id", user.id),
       ]);
       await supabase.from("profiles").delete().eq("id", user.id);
+      await supabase.functions.invoke("delete-account");
     } catch (e) {
       console.error("[deleteAccount]", e);
     }
@@ -1120,17 +1125,17 @@ export default function App() {
   function handleInsightAction(action, data) {
     if (action === "reduce_category") {
       if (data?.categoryName) setCatFilter(data.categoryName);
-      setScreen("transactions");
+      navigateTo("transactions");
     } else if (action === "review_spending" || action === "view_bills") {
-      setScreen("transactions");
+      navigateTo("transactions");
     } else if (action === "move_to_savings" || action === "catch_up_goal") {
-      setScreen("savings");
+      navigateTo("savings");
     } else if (action === "view_progress") {
-      setScreen("insights");
+      navigateTo("insights");
     } else if (action === "invest_alpaca") {
-      investAlpaca(data); setScreen("savings");
+      investAlpaca(data); navigateTo("savings");
     } else {
-      setScreen("transactions");
+      navigateTo("transactions");
     }
   }
 
@@ -1408,9 +1413,9 @@ export default function App() {
           );
         })() : (
           <>
-            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} hideWelcomeBanner={proToast} />}
+            {screen === "dashboard" && <Dashboard {...shared} onNavigate={navigateTo} onMerchantClick={desc => { setDescFilter(desc); setScreen("transactions"); }} onCatClick={cat => { setCatFilter(cat); navigateTo("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} hideWelcomeBanner={proToast} />}
             {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} />}
-            {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
+            {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} initialSearch={descFilter} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} InsightCard={InsightCard} />}
             {screen === "insights" && <Insights {...shared} onOpenChat={msg => { const budget = Number(profile?.monthly_budget)||3000; const sub = ['Subscriptions','Bills','Utilities','Phone','Internet','Insurance'].reduce((s,c)=>s+(spendingByCategory[c]||0),0); const {score:hs}=calculateHealthScore({totalIncome:effectiveIncome,totalSpent,lastIncome,lastSpent,budget,subscriptionSpend:sub}); const greeting=buildContextGreeting('insights',{totalIncome:effectiveIncome,totalSpent,spendingByCategory,savings,transactions,profile,allInsights,healthScore:hs}); const base=[{role:"assistant",text:greeting}]; setChatMessages(base); setShowChat(true); sendChat(msg,base); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
             {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} onSignOut={signOut} onDeleteAccount={deleteAccount} onBack={() => setScreen("dashboard")} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} lastSyncedAt={lastSyncedAt} backgroundSyncing={backgroundSyncing} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
@@ -1622,7 +1627,7 @@ export default function App() {
         </div>
       )}
 
-      <BottomNav screen={screen} setScreen={setScreen} onOpenChat={() => { setIdleBubble(null); clearTimeout(idleDismissRef.current); openChatWithContext(); }} showChat={showChat} insightCount={Math.max(0, (allInsights?.length ?? 0) - seenInsightCount)} />
+      <BottomNav screen={screen} setScreen={navigateTo} onOpenChat={() => { setIdleBubble(null); clearTimeout(idleDismissRef.current); openChatWithContext(); }} showChat={showChat} insightCount={Math.max(0, (allInsights?.length ?? 0) - seenInsightCount)} />
 
       {/* ── Tutorial Overlay ───────────────────────────────────── */}
       {tutorialActive && (

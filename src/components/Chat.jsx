@@ -51,7 +51,7 @@ const FAQ_ANSWERS = {
     "Arkonomy shows your recurring charges but can't cancel them — that has to be done through the service directly.\n\nTo find subscriptions: check Dashboard → Upcoming Charges, or go to Transactions and filter by Subscriptions. Then cancel via that service's website or app settings.",
 };
 
-export default function Chat({ messages, input, setInput, onSend, onClose, suggestions = CHAT_SUGGESTIONS_BY_SCREEN.dashboard, onHelpAnswer }) {
+export default function Chat({ messages, input, setInput, onSend, onClose, suggestions = CHAT_SUGGESTIONS_BY_SCREEN.dashboard, onHelpAnswer, isPro }) {
   const { t } = useTranslation();
   const bottomRef = useRef(null);
   const [showFaqMenu, setShowFaqMenu] = useState(false);
@@ -122,6 +122,11 @@ export default function Chat({ messages, input, setInput, onSend, onClose, sugge
       <div style={{ fontSize: 10, color: C.faint, textAlign: "center", marginBottom: 8, lineHeight: 1.5, flexShrink: 0 }}>
         {t("chat.disclaimer")}
       </div>
+      {!isPro && (
+        <div style={{ fontSize: 12, color: "#F59E0B", background: "#F59E0B10", border: "1px solid #F59E0B30", borderRadius: 10, padding: "8px 12px", marginBottom: 8, flexShrink: 0, lineHeight: 1.5 }}>
+          🔍 Web search is a Pro feature. Upgrade to get real-time market news and IPO updates.
+        </div>
+      )}
       <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
         <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && onSend()} placeholder={t("chat.ask_placeholder")} style={{ flex: 1, padding: "13px 16px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 14, outline: "none", fontFamily: FONT }} />
         <button onClick={onSend} style={{ padding: "13px 18px", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center" }}>

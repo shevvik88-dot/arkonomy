@@ -179,6 +179,11 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── Auth ─────────────────────────────────────────────────────────────────
+    const token = req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const isCron = token === serviceRoleKey;
+
     // ── Mode 1: direct notification ───────────────────────────────────────────
     // POST { user_id, title, body, icon } → send push to that user immediately
     let reqBody: Record<string, unknown> = {};
@@ -187,6 +192,20 @@ Deno.serve(async (req) => {
     }
 
     if (reqBody.user_id) {
+      // Validate JWT and ensure the caller can only notify themselves
+      if (!token) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (!isCron) {
+        const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+        if (authErr || !user || user.id !== String(reqBody.user_id)) {
+          return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
       const { data: profile } = await supabase
         .from('profiles')
         .select('push_subscription')
@@ -229,6 +248,13 @@ Deno.serve(async (req) => {
     }
 
     // ── Mode 2: batch recurring-charges scan ──────────────────────────────────
+    // Only the cron job (service role key) may run the full-user batch scan
+    if (!isCron) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Fetch all users with push subscriptions
     const { data: profiles, error } = await supabase
       .from('profiles')

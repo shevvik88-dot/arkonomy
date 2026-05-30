@@ -31,20 +31,20 @@ Deno.serve(async (req) => {
   const body = await req.text();
   let event: Stripe.Event;
 
-  if (STRIPE_WEBHOOK_SECRET) {
-    const sig = req.headers.get('stripe-signature');
-    if (!sig) {
-      return new Response('Missing stripe-signature', { status: 400 });
-    }
-    try {
-      event = await stripe.webhooks.constructEventAsync(body, sig, STRIPE_WEBHOOK_SECRET);
-    } catch (err) {
-      console.error('Webhook signature verification failed:', err);
-      return new Response(`Webhook Error: ${String(err)}`, { status: 400 });
-    }
-  } else {
-    // No webhook secret configured — parse without verification (dev mode)
-    event = JSON.parse(body) as Stripe.Event;
+  if (!STRIPE_WEBHOOK_SECRET) {
+    console.error('STRIPE_WEBHOOK_SECRET is not configured');
+    return new Response('Webhook secret not configured', { status: 500 });
+  }
+
+  const sig = req.headers.get('stripe-signature');
+  if (!sig) {
+    return new Response('Missing stripe-signature', { status: 400 });
+  }
+  try {
+    event = await stripe.webhooks.constructEventAsync(body, sig, STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err);
+    return new Response(`Webhook Error: ${String(err)}`, { status: 400 });
   }
 
   try {

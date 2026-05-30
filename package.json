@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.1",
@@ -26,7 +28,9 @@
     "react-plaid-link": "^3.5.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@vitejs/plugin-react": "^4.0.0",
+    "dotenv": "^17.4.2",
     "pdfkit": "^0.18.0",
     "playwright": "^1.59.1",
     "sharp": "^0.34.5",

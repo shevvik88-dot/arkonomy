@@ -35,41 +35,54 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Optionally target a single user from request body ─────────────────────
-    let targetUserId: string | null = null;
-    let emailOverride: string | null = null;
-    if (req.method === 'POST') {
-      try {
-        const body = await req.json();
-        targetUserId  = body?.userId ?? null;
-        emailOverride = body?.email  ?? null;
-      } catch { /* no body */ }
+    // ── Auth ──────────────────────────────────────────────────────────────────
+    // Cron path:  Authorization: Bearer <service_role_key>  → sends to all users
+    // User path:  Authorization: Bearer <user_jwt>          → sends only to that user
+    const token = req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
+    if (!token) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
+    const isCron = token === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
     // ── Load users ─────────────────────────────────────────────────────────────
-    let profiles: { id: string; full_name: string | null; email: string | null }[];
+    const PREFS_SELECT = 'frequency,include_spending,include_balance,include_ai_tip,next_digest_at';
+    let profiles: { id: string; full_name: string | null; email: string | null; _prefs?: any }[];
 
-    if (targetUserId && emailOverride) {
-      // Caller supplied both — skip the DB lookup
-      profiles = [{ id: targetUserId, full_name: null, email: emailOverride }];
-    } else {
-      const profilesQuery = supabase
+    if (isCron) {
+      // Batch mode — cron job only; email always comes from DB
+      const { data, error: profileErr } = await supabase
         .from('profiles')
-        .select('id, full_name, email');
-      if (targetUserId) profilesQuery.eq('id', targetUserId);
-
-      const { data, error: profileErr } = await profilesQuery;
+        .select(`id, full_name, email, notification_preferences(${PREFS_SELECT})`);
       if (profileErr || !data?.length) {
         return new Response(
           JSON.stringify({ error: 'No users found', detail: profileErr }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      // Allow overriding the email even when we loaded from DB
-      profiles = data.map((p: any) => ({
-        ...p,
-        email: (targetUserId && emailOverride) ? emailOverride : (p.email ?? null),
-      }));
+      profiles = (data as any[]).map(p => ({ ...p, _prefs: (p.notification_preferences as any[])?.[0] ?? null }));
+    } else {
+      // User mode — validate JWT; email always comes from DB, never from request body
+      const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+      if (authErr || !user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const { data: p, error: profileErr } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .eq('id', user.id)
+        .single();
+      if (profileErr || !p) {
+        return new Response(JSON.stringify({ error: 'User profile not found' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const { data: prefsRow } = await supabase.from('notification_preferences').select(PREFS_SELECT).eq('user_id', user.id).maybeSingle();
+      profiles = [{ ...p, _prefs: prefsRow ?? null }];
     }
 
     const results: { userId: string; status: string; error?: string }[] = [];
@@ -77,8 +90,21 @@ Deno.serve(async (req) => {
     for (const user of profiles) {
       if (!user.email) continue;
       try {
+        const prefs = { ...DEFAULT_PREFS, ...(user._prefs ?? {}) };
+        const now = new Date();
+
+        // Cron-only: respect frequency & schedule
+        if (isCron) {
+          if (prefs.frequency === 'off') { results.push({ userId: user.id, status: 'skipped', error: 'frequency=off' }); continue; }
+          if (prefs.next_digest_at && new Date(prefs.next_digest_at) > now) { results.push({ userId: user.id, status: 'skipped', error: 'not_due_yet' }); continue; }
+        }
+
+        if (!prefs.include_spending && !prefs.include_balance && !prefs.include_ai_tip) {
+          results.push({ userId: user.id, status: 'skipped', error: 'no_sections_enabled' }); continue;
+        }
+
         const report = await buildReport(supabase, user.id);
-        const html   = buildEmailHtml(user.full_name || user.email, report);
+        const html   = buildEmailHtml(user.full_name || user.email, report, prefs);
 
         const res = await fetch('https://api.resend.com/emails', {
           method:  'POST',
@@ -96,6 +122,16 @@ Deno.serve(async (req) => {
 
         const resBody = await res.json();
         if (!res.ok) throw new Error(resBody.message ?? JSON.stringify(resBody));
+
+        // Update next_digest_at after successful send (cron only)
+        if (isCron) {
+          const freqDays = prefs.frequency === 'weekly' ? 7 : prefs.frequency === 'biweekly' ? 14 : 30;
+          const nextAt = new Date(now.getTime() + freqDays * 86_400_000).toISOString();
+          await supabase.from('notification_preferences').upsert(
+            { user_id: user.id, ...DEFAULT_PREFS, ...prefs, next_digest_at: nextAt },
+            { onConflict: 'user_id' }
+          );
+        }
 
         results.push({ userId: user.id, status: 'sent' });
       } catch (err) {
@@ -119,6 +155,8 @@ Deno.serve(async (req) => {
 // ══════════════════════════════════════════════════════════════════════════════
 // DATA
 // ══════════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_PREFS = { frequency: 'weekly', include_spending: true, include_balance: true, include_ai_tip: true, next_digest_at: null as string | null };
 
 interface CategoryTotal { name: string; amount: number }
 
@@ -227,7 +265,9 @@ function fmtAmt(n: number): string {
 // EMAIL TEMPLATE
 // ══════════════════════════════════════════════════════════════════════════════
 
-function buildEmailHtml(name: string, r: WeekReport): string {
+const esc = (s: string) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function buildEmailHtml(name: string, r: WeekReport, prefs = DEFAULT_PREFS): string {
   const deltaColor  = r.weekDelta <= 0 ? '#12D18E' : '#FF5C7A';
   const deltaSign   = r.weekDelta > 0 ? '+' : '';
   const scoreColor  = r.scoreColor;
@@ -238,7 +278,7 @@ function buildEmailHtml(name: string, r: WeekReport): string {
     return `
       <tr>
         <td style="padding:8px 0; border-bottom:1px solid #1E2D4A; color:#9AA4B2; font-size:13px;">
-          ${medals[i] ?? ''} ${c.name}
+          ${medals[i] ?? ''} ${esc(c.name)}
         </td>
         <td style="padding:8px 0; border-bottom:1px solid #1E2D4A; text-align:right; font-weight:700; color:#FFFFFF; font-size:13px;">
           $${fmtAmt(c.amount)}
@@ -246,30 +286,7 @@ function buildEmailHtml(name: string, r: WeekReport): string {
       </tr>`;
   }).join('');
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Arkonomy Weekly Report</title>
-</head>
-<body style="margin:0;padding:0;background:#060E1C;font-family:'Inter',Arial,sans-serif;color:#FFFFFF;">
-  <div style="max-width:520px;margin:0 auto;background:#060E1C;">
-
-    <!-- Header -->
-    <div style="background:linear-gradient(135deg,#0D1F3C 0%,#0B1426 100%);padding:28px 32px;border-bottom:1px solid #1E2D4A;">
-      <div style="font-size:22px;font-weight:800;letter-spacing:-0.5px;color:#FFFFFF;">
-        Arkonomy
-        <span style="font-size:10px;font-weight:600;color:#00C2FF;background:#00C2FF18;border:1px solid #00C2FF33;border-radius:99px;padding:2px 8px;margin-left:8px;vertical-align:middle;letter-spacing:0.5px;">WEEKLY DIGEST</span>
-      </div>
-      <div style="font-size:13px;color:#9AA4B2;margin-top:4px;">
-        ${r.dateRange} · Hi ${name.split(' ')[0]}
-      </div>
-    </div>
-
-    <!-- Body -->
-    <div style="padding:28px 32px;">
-
+  const spendingSection = prefs.include_spending ? `
       <!-- Week spend summary -->
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
         <tr>
@@ -294,8 +311,9 @@ function buildEmailHtml(name: string, r: WeekReport): string {
         <table width="100%" cellpadding="0" cellspacing="0">
           ${catRows || '<tr><td style="color:#4A5E7A;font-size:13px;padding:8px 0;">No expenses this week.</td></tr>'}
         </table>
-      </div>
+      </div>` : '';
 
+  const balanceSection = prefs.include_balance ? `
       <!-- Health Score -->
       <div style="background:#111E33;border:1px solid #1E2D4A;border-radius:14px;padding:20px;margin-bottom:20px;">
         <div style="font-size:11px;font-weight:700;color:#9AA4B2;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:14px;">Financial Health Score</div>
@@ -303,25 +321,52 @@ function buildEmailHtml(name: string, r: WeekReport): string {
           <div style="font-size:48px;font-weight:800;color:${scoreColor};letter-spacing:-2px;line-height:1;">${r.healthScore}</div>
           <div>
             <div style="font-size:14px;font-weight:700;color:${scoreColor};margin-bottom:4px;">${scoreLabel}</div>
-            <!-- Score bar -->
             <div style="height:6px;background:#1E2D4A;border-radius:99px;width:160px;overflow:hidden;">
               <div style="height:6px;border-radius:99px;width:${r.healthScore}%;background:${scoreColor};"></div>
             </div>
             <div style="font-size:10px;color:#4A5E7A;margin-top:4px;">${r.healthScore} / 100</div>
           </div>
         </div>
-      </div>
+      </div>` : '';
 
+  const aiSection = prefs.include_ai_tip ? `
       <!-- AI Insight -->
       <div style="background:linear-gradient(135deg,#0D1F3C 0%,#111E33 100%);border:1px solid #00C2FF22;border-radius:14px;padding:20px;margin-bottom:28px;">
         <div style="display:flex;align-items:flex-start;gap:12px;">
           <div style="width:32px;height:32px;border-radius:50%;background:#00C2FF18;border:1px solid #00C2FF33;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;">💡</div>
           <div>
             <div style="font-size:11px;font-weight:600;color:#00C2FF;letter-spacing:0.5px;margin-bottom:6px;">AI INSIGHT</div>
-            <div style="font-size:14px;color:#E8EDF5;line-height:1.5;">${r.aiInsight}</div>
+            <div style="font-size:14px;color:#E8EDF5;line-height:1.5;">${esc(r.aiInsight)}</div>
           </div>
         </div>
+      </div>` : '';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Arkonomy Weekly Report</title>
+</head>
+<body style="margin:0;padding:0;background:#060E1C;font-family:'Inter',Arial,sans-serif;color:#FFFFFF;">
+  <div style="max-width:520px;margin:0 auto;background:#060E1C;">
+
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#0D1F3C 0%,#0B1426 100%);padding:28px 32px;border-bottom:1px solid #1E2D4A;">
+      <div style="font-size:22px;font-weight:800;letter-spacing:-0.5px;color:#FFFFFF;">
+        Arkonomy
+        <span style="font-size:10px;font-weight:600;color:#00C2FF;background:#00C2FF18;border:1px solid #00C2FF33;border-radius:99px;padding:2px 8px;margin-left:8px;vertical-align:middle;letter-spacing:0.5px;">WEEKLY DIGEST</span>
       </div>
+      <div style="font-size:13px;color:#9AA4B2;margin-top:4px;">
+        ${r.dateRange} · Hi ${esc(name.split(' ')[0])}
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:28px 32px;">
+      ${spendingSection}
+      ${balanceSection}
+      ${aiSection}
 
       <!-- CTA -->
       <div style="text-align:center;margin-bottom:28px;">

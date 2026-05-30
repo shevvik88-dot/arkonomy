@@ -948,7 +948,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         {transactions.length === 0
           ? <div style={{ color: C.muted, textAlign: "center", padding: "16px 0", fontSize: 13 }}>{t("dashboard.no_transactions")}</div>
           : transactions.slice(0, 3).map((t, i, arr) => (
-              <div key={t.id}>
+              <div key={t.id} onClick={() => onMerchantClick && onMerchantClick(cleanMerchantName(t.description) || t.category_name || "")} style={{ cursor: "pointer" }}>
                 <TxRow t={t} hideAmount={!balanceVisible} />
                 {i < arr.length - 1 && <div style={{ height: 1, background: C.sep }} />}
               </div>

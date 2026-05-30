@@ -33,6 +33,9 @@
 - No external UI libraries (no MUI, no shadcn).
 - Never hardcode hex values — always use the existing C color object.
 
+## Storage conventions
+- Chat history uses sessionStorage (key: arkonomy_chat_history) — clears on tab close; never switch to localStorage for this key.
+
 ## Coding rules
 - One step at a time — show the change, wait for confirmation before proceeding.
 - Never rewrite large blocks when a targeted edit suffices.
@@ -54,7 +57,7 @@
 - Target market: US personal finance, competing with Copilot / Monarch.
 
 ## Communication style
-- Respond in Russian.
+- Respond in the same language the user writes in — Russian if they write Russian, English if English.
 - Direct and informal — no filler, no apologies, no preamble.
 - Provide exact ready-to-use code blocks.
 - Ask before making architectural decisions.

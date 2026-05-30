@@ -6,3 +6,7 @@ node_modules/
 supabase/.temp/
 supabase/supabase/
 .env*.local
+.env.test
+screenshots/
+playwright-report/
+test-results/

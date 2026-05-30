@@ -109,43 +109,72 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Optional: single-user targeting from POST body
-    let targetUserId: string | null  = null;
-    let emailOverride: string | null = null;
-    if (req.method === 'POST') {
-      try {
-        const body = await req.json();
-        targetUserId  = body?.userId ?? null;
-        emailOverride = body?.email  ?? null;
-      } catch { /* no body — cron call */ }
+    // ── Auth ──────────────────────────────────────────────────────────────────
+    // Cron path:  Authorization: Bearer <service_role_key>  → sends to all users
+    // User path:  Authorization: Bearer <user_jwt>          → sends only to that user
+    const token = req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
+    if (!token) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...CORS, 'Content-Type': 'application/json' },
+      });
     }
 
+    const isCron = token === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
     // ── Load profiles ─────────────────────────────────────────────────────────
-    type Profile = { id: string; full_name: string | null; email: string | null; monthly_budget: number | null };
+    const EXCEL_PREFS_SELECT = 'excel_frequency,next_excel_at';
+    type Profile = { id: string; full_name: string | null; email: string | null; monthly_budget: number | null; _prefs?: any };
     let profiles: Profile[];
 
-    if (targetUserId && emailOverride) {
-      const { data: p } = await supabase
-        .from('profiles').select('id, full_name, email, monthly_budget')
-        .eq('id', targetUserId).single();
-      profiles = [{ id: targetUserId, full_name: p?.full_name ?? null, email: emailOverride, monthly_budget: p?.monthly_budget ?? null }];
-    } else {
-      const q = supabase.from('profiles').select('id, full_name, email, monthly_budget');
-      if (targetUserId) q.eq('id', targetUserId);
-      const { data, error } = await q;
+    if (isCron) {
+      // Batch mode — cron job only; email always comes from DB
+      const { data, error } = await supabase
+        .from('profiles').select(`id, full_name, email, monthly_budget, notification_preferences(${EXCEL_PREFS_SELECT})`);
       if (error || !data?.length) {
         return new Response(JSON.stringify({ error: 'No users found', detail: error }), {
           status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
         });
       }
-      profiles = data as Profile[];
+      profiles = (data as any[]).map(p => ({ ...p, _prefs: (p.notification_preferences as any[])?.[0] ?? null }));
+    } else {
+      // User mode — validate JWT; email always comes from DB, never from request body
+      const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+      if (authErr || !user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401, headers: { ...CORS, 'Content-Type': 'application/json' },
+        });
+      }
+      const { data: p, error: profileErr } = await supabase
+        .from('profiles').select('id, full_name, email, monthly_budget')
+        .eq('id', user.id).single();
+      if (profileErr || !p) {
+        return new Response(JSON.stringify({ error: 'User profile not found' }), {
+          status: 404, headers: { ...CORS, 'Content-Type': 'application/json' },
+        });
+      }
+      profiles = [{ ...(p as Profile), _prefs: null }];
     }
 
     const results: { userId: string; status: string; error?: string }[] = [];
 
+    const DEFAULT_EXCEL_PREFS = { excel_frequency: 'monthly', next_excel_at: null as string | null };
+
     for (const user of profiles) {
       if (!user.email) continue;
       try {
+        const now = new Date();
+        const excelPrefs = { ...DEFAULT_EXCEL_PREFS, ...(user._prefs ?? {}) };
+
+        // Cron-only: respect excel_frequency & schedule
+        if (isCron) {
+          if (excelPrefs.excel_frequency === 'off') {
+            results.push({ userId: user.id, status: 'skipped', error: 'excel_frequency=off' }); continue;
+          }
+          if (excelPrefs.next_excel_at && new Date(excelPrefs.next_excel_at) > now) {
+            results.push({ userId: user.id, status: 'skipped', error: 'not_due_yet' }); continue;
+          }
+        }
+
         // ── Fetch all transactions ──────────────────────────────────────────
         const { data: txns, error: txErr } = await supabase
           .from('transactions')
@@ -176,7 +205,6 @@ Deno.serve(async (req) => {
         const base64 = btoa(binary);
 
         // ── Determine report label (previous calendar month) ────────────────
-        const now         = new Date();
         const reportDate  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const reportLabel = reportDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
         const filename    = `Arkonomy_Report_${reportDate.getFullYear()}.xlsx`;
@@ -196,6 +224,16 @@ Deno.serve(async (req) => {
 
         const resBody = await res.json();
         if (!res.ok) throw new Error(resBody.message ?? JSON.stringify(resBody));
+
+        // Update next_excel_at after successful send (cron only)
+        if (isCron) {
+          const freqDays = excelPrefs.excel_frequency === 'quarterly' ? 90 : 30;
+          const nextAt = new Date(now.getTime() + freqDays * 86_400_000).toISOString();
+          await supabase.from('notification_preferences').upsert(
+            { user_id: user.id, ...DEFAULT_EXCEL_PREFS, ...excelPrefs, next_excel_at: nextAt },
+            { onConflict: 'user_id' }
+          );
+        }
 
         results.push({ userId: user.id, status: 'sent' });
       } catch (err) {
@@ -588,8 +626,10 @@ function styleCell(cell: ExcelJS.Cell, opts: CellStyle) {
 // EMAIL BODY
 // ═════════════════════════════════════════════════════════════════════════════
 
+const esc = (s: string) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
 function buildEmailHtml(name: string, reportLabel: string): string {
-  const firstName = (name || '').split(' ')[0] || 'there';
+  const firstName = esc((name || '').split(' ')[0] || 'there');
   return `<!DOCTYPE html>
 <html lang="en">
 <head>

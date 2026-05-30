@@ -37,7 +37,19 @@
       "PowerShell(git push *)",
       "PowerShell(Set-ExecutionPolicy *)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\camek\\\\arkonomy\" -Directory -Force)",
-      "Bash(Select-Object -First 20)"
+      "Bash(Select-Object -First 20)",
+      "Bash(git mv *)",
+      "Bash(npx playwright *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173)",
+      "Bash(vercel)",
+      "Bash(Start-Sleep -Seconds 100)",
+      "Bash(Write-Host \"Ready to test\")",
+      "mcp__supabase__get_project_url",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST \"https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/get-insights\" -H \"Content-Type: application/json\" -d '{\"userId\":\"90eb11c3-c1e9-4241-8362-9e15ce231c33\"}')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST \"https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/get-insights\" -H \"Content-Type: application/json\" -H \"Authorization: Bearer notavalidtoken\" -d '{\"userId\":\"90eb11c3-c1e9-4241-8362-9e15ce231c33\"}')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST \"https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/weekly-report\" -H \"Content-Type: application/json\" -d '{\"userId\":\"90eb11c3-c1e9-4241-8362-9e15ce231c33\",\"email\":\"attacker@evil.com\"}')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST \"https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/generate-monthly-report\" -H \"Content-Type: application/json\" -d '{\"userId\":\"90eb11c3-c1e9-4241-8362-9e15ce231c33\",\"email\":\"attacker@evil.com\"}')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST \"https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/push-notify\" -H \"Content-Type: application/json\" -d '{}')"
     ]
   }
 }
