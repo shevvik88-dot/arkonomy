@@ -8,7 +8,7 @@ import GlassCard from "./shared/GlassCard";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "../healthScore";
 import { InsightCard } from "./Insights";
 import UpcomingChargesCard from "./UpcomingChargesCard";
-import { TxRow } from "./Transactions";
+import { TxRow, cleanMerchantName } from "./Transactions";
 
 const ACCOUNTS_CACHE_KEY = "arkonomy_accounts_v1";
 const ACCOUNTS_CACHE_TTL = 60 * 60 * 1000;
