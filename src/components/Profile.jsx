@@ -43,13 +43,18 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
 
   useEffect(() => {
     supabase.from("notification_preferences").select("*").eq("user_id", user.id).maybeSingle()
-      .then(({ data }) => setNotifPrefs(data ?? { ...DEFAULT_NOTIF_PREFS }));
+      .then(({ data }) => setNotifPrefs(data ?? { ...DEFAULT_NOTIF_PREFS }))
+      .catch(() => setNotifPrefs({ ...DEFAULT_NOTIF_PREFS }));
   }, [user.id]);
 
   async function saveNotifPrefs() {
-    const { error } = await supabase.from("notification_preferences")
-      .upsert({ user_id: user.id, ...notifPrefs }, { onConflict: "user_id" });
-    if (!error) { setNotifSaved(true); setTimeout(() => setNotifSaved(false), 2000); }
+    try {
+      const { error } = await supabase.from("notification_preferences")
+        .upsert({ user_id: user.id, ...notifPrefs }, { onConflict: "user_id" });
+      if (!error) { setNotifSaved(true); setTimeout(() => setNotifSaved(false), 2000); }
+    } catch (err) {
+      console.error("[saveNotifPrefs]", err);
+    }
   }
 
   const handleExport = async () => {

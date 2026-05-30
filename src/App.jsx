@@ -565,50 +565,58 @@ export default function App() {
 
   async function loadAll() {
     setLoading(true);
-    const [p, t, c, sv] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", user.id).single(),
-      supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }),
-      supabase.from("categories").select("*").eq("user_id", user.id),
-      supabase.from("savings").select("*").eq("user_id", user.id),
-    ]);
-    if (p.data) {
-      setProfile(p.data);
-      setAlpacaConnected(!!p.data.alpaca_access_token);
-      if (p.data.last_synced_at) {
-        setLastSyncedAt(p.data.last_synced_at);
-        try { localStorage.setItem("arkonomy_last_synced", p.data.last_synced_at); } catch {}
+    try {
+      const [p, t, c, sv] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", user.id).single(),
+        supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }),
+        supabase.from("categories").select("*").eq("user_id", user.id),
+        supabase.from("savings").select("*").eq("user_id", user.id),
+      ]);
+      if (p.data) {
+        setProfile(p.data);
+        setAlpacaConnected(!!p.data.alpaca_access_token);
+        if (p.data.last_synced_at) {
+          setLastSyncedAt(p.data.last_synced_at);
+          try { localStorage.setItem("arkonomy_last_synced", p.data.last_synced_at); } catch {}
+        }
+        const lang = p.data.preferred_language
+          || (() => { try { return localStorage.getItem('arkonomy_language'); } catch { return null; } })()
+          || 'en';
+        if (i18n.language !== lang) {
+          i18n.changeLanguage(lang);
+          try { localStorage.setItem('arkonomy_language', lang); } catch {}
+        }
       }
-      const lang = p.data.preferred_language
-        || (() => { try { return localStorage.getItem('arkonomy_language'); } catch { return null; } })()
-        || 'en';
-      if (i18n.language !== lang) {
-        i18n.changeLanguage(lang);
-        try { localStorage.setItem('arkonomy_language', lang); } catch {}
+      if (t.data) {
+        setTransactions(t.data);
+        const detected = detectRecurringCharges(t.data);
+        setUpcomingCharges(detected);
+        if (detected.length > 0) {
+          console.log('[Arkonomy] Detected recurring charges:', detected);
+        }
       }
+      if (sv.data) setSavings(sv.data);
+      if (c.data) { setCategories(c.data); if (c.data.length === 0) await seedCategories(); }
+    } catch (err) {
+      console.error("[loadAll]", err);
+    } finally {
+      setLoading(false);
     }
-    if (t.data) {
-      setTransactions(t.data);
-      // Detect recurring charges from loaded transactions
-      const detected = detectRecurringCharges(t.data);
-      setUpcomingCharges(detected);
-      if (detected.length > 0) {
-        console.log('[Arkonomy] Detected recurring charges:', detected);
-      }
-    }
-    if (sv.data) setSavings(sv.data);
-    if (c.data) { setCategories(c.data); if (c.data.length === 0) await seedCategories(); }
-    setLoading(false);
   }
 
   async function checkBankConnection() {
-    const { data } = await supabase
-      .from("plaid_items")
-      .select("institution_name")
-      .eq("user_id", user.id);
-    if (data && data.length > 0) {
-      setBankConnected(true);
-      setBankName(data[0].institution_name);
-      setBankCount(data.length);
+    try {
+      const { data } = await supabase
+        .from("plaid_items")
+        .select("institution_name")
+        .eq("user_id", user.id);
+      if (data && data.length > 0) {
+        setBankConnected(true);
+        setBankName(data[0].institution_name);
+        setBankCount(data.length);
+      }
+    } catch (err) {
+      console.error("[checkBankConnection]", err);
     }
   }
 
