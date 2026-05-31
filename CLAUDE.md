@@ -1,19 +1,16 @@
 ﻿# Arkonomy
 
-## Current status (2026-05-30)
-- Production live at app.arkonomy.com — last stable commit: `9ecd09a`
-- Bank connection restored via `check-bank-connection` edge function (RLS audit removed SELECT on plaid_items — see Security section)
-- Recurring detector fixed: `housing` category now detected, DOM-based date projection replaces gap-based
-- Upcoming charges redesigned as horizontal peek carousel
+## Current status (2026-05-31)
+- Production live at app.arkonomy.com — last stable commit: `5e57f6e`
+- QA audit complete: 12 security and stability fixes deployed
+- Security: brute force lockout, user enumeration fix, Stripe URL validation, deleteAccount cleanup
+- Stability: Error Boundary, bgSync race condition fix, chat loading state
+- Refactored: cleanMerchantName extracted to src/utils/helpers.js (single source of truth)
 
 ## Next tasks (priority order)
-1. **Security fixes** — were reverted in hotfix, re-apply one by one:
-   - a) Brute force: 30s lockout after 5 failed sign-in attempts (AuthScreen.jsx)
-   - b) User enumeration: generic error message on sign-up failure (AuthScreen.jsx)
-   - c) Stripe redirect: hostname check before following redirect URL
-   - d) `notification_preferences` row deletion inside `deleteAccount` edge function
-2. **Merchant navigation** — tap a transaction in Dashboard "Recent Transactions" → navigate to Transactions screen filtered by that merchant (`cleanMerchantName` already exported from Transactions.jsx; was causing black screen before — apply carefully)
-3. **Notification preferences UI** — Settings screen section: frequency selector + email digest content toggles; table `notification_preferences` already exists in Supabase
+1. **Merchant navigation** — tap a transaction in Dashboard "Recent Transactions" → navigate to Transactions screen filtered by that merchant (cleanMerchantName now in helpers.js)
+2. **Notification preferences UI** — Settings screen section: frequency selector + email digest content toggles; table `notification_preferences` already exists in Supabase
+3. **E2E testing** — Playwright tests for critical flows (auth, bank connection, transaction add)
 
 ## Self-improvement protocol
 - После любой моей коррекции предложи лаконичное правило и допиши его в подходящую секцию этого файла.
@@ -34,11 +31,10 @@
 
 ## Project structure
 - src/App.jsx — main shell, routing, screen switching
+- src/main.jsx — entry point with Error Boundary
+- src/utils/helpers.js — shared utilities (fmt, parseDate, cleanMerchantName, etc.)
 - src/hooks/usePlan.js — free/pro plan gating via Supabase profiles table
-- src/lib/aiBrain.js — AI insight engine, 6 signal types
-- src/lib/recurringDetector.js — recurring charges detection
-- src/lib/checkInEngine.js — AI Financial Autopilot, 7 mutually exclusive states
-- src/lib/sanitize.js — sanitizeAiBody(), sanitizeCta() language enforcement
+- src/recurringDetector.js — recurring charges detection
 - supabase/functions/ — edge functions (Finnhub market data, etc.)
 - public/ — PWA manifest, service worker, icons
 
