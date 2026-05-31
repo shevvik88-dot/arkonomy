@@ -1031,6 +1031,7 @@ export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
   const [type, setType] = useState(existing?.type || "expense");
   const [date, setDate] = useState(existing?.date || localDateString());
   const [showCats, setShowCats] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const isEdit = !!existing;
 
   const noSpinStyle = `input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}`;
@@ -1094,9 +1095,10 @@ export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
           <input style={inp} type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
         <button
-          onClick={() => { if (!amount) return; onAdd({ amount: parseFloat(amount), description: desc || catName, category_id: type === "expense" ? (catId || null) : null, category_name: catName, date, type }); }}
-          style={{ width: "100%", marginTop: 18, padding: 15, background: `linear-gradient(90deg,${type === "expense" ? C.red : C.green},${type === "expense" ? "#CC1A3A" : "#00A67E"})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT }}>
-          {isEdit ? t("transactions.save_changes") : type === "expense" ? t("transactions.add_expense") : t("transactions.add_income")}
+          disabled={submitting}
+          onClick={() => { if (!amount || submitting) return; setSubmitting(true); onAdd({ amount: parseFloat(amount), description: desc || catName, category_id: type === "expense" ? (catId || null) : null, category_name: catName, date, type }); }}
+          style={{ width: "100%", marginTop: 18, padding: 15, background: submitting ? C.border : `linear-gradient(90deg,${type === "expense" ? C.red : C.green},${type === "expense" ? "#CC1A3A" : "#00A67E"})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: submitting ? "not-allowed" : "pointer", fontFamily: FONT, opacity: submitting ? 0.6 : 1 }}>
+          {submitting ? "Saving..." : isEdit ? t("transactions.save_changes") : type === "expense" ? t("transactions.add_expense") : t("transactions.add_income")}
         </button>
       </div>
     </div>
