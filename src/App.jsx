@@ -816,7 +816,11 @@ export default function App() {
         // Use current transactions + newly saved one for accurate totals
         const allTx = [data, ...transactions];
         const monthlyExpenses = allTx
-          .filter(t => t.type === "expense" && new Date(t.date) >= monthStart)
+          .filter(t => {
+            if (t.type !== "expense" || new Date(t.date) < monthStart) return false;
+            const cat = resolveCategory(t);
+            return cat !== "Transfer" && cat !== "Transfers";
+          })
           .reduce((s, t) => s + Number(t.amount), 0);
         const budget = profile?.monthly_budget || 3000;
         const remaining = budget - monthlyExpenses;
@@ -968,7 +972,11 @@ export default function App() {
     return transactions.filter(t => { const d = parseDate(t.date); return d.getMonth() === twoMonthsAgo.getMonth() && d.getFullYear() === twoMonthsAgo.getFullYear(); });
   })();
 
-  const isRealExpense = t => t.type === "expense" && resolveCategory(t) !== "Transfer";
+  const isRealExpense = t => {
+    if (t.type !== "expense") return false;
+    const cat = resolveCategory(t);
+    return cat !== "Transfer" && cat !== "Transfers";
+  };
   const totalSpent = thisMonth.filter(isRealExpense).reduce((s, t) => s + Number(t.amount), 0);
   const totalIncome = thisMonth.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
   const totalTransfers = thisMonth.filter(t => t.category_name === "Transfer").reduce((s, t) => s + Number(t.amount), 0);
