@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { C, FONT } from "../utils/colors";
-import { fmt, fmtDate, parseDate, guessCategory, tCat } from "../utils/helpers";
+import { fmt, fmtDate, parseDate, guessCategory, tCat, cleanMerchantName } from "../utils/helpers";
 import Icon from "./shared/Icon";
 
 const CAT_COLORS = {
@@ -53,114 +53,6 @@ function CatIcon({ name, type, size = 18 }) {
       <Icon name={icon} size={size} color="#fff" strokeWidth={2} />
     </div>
   );
-}
-
-export function cleanMerchantName(raw) {
-  if (!raw) return '';
-  let s = raw.trim();
-
-  // 0. Semicolon separator — take the last non-empty segment
-  //    e.g. "Zelle ; Sunlit Styles" → "Sunlit Styles"
-  if (s.includes(';')) {
-    const parts = s.split(';').map(p => p.trim()).filter(Boolean);
-    if (parts.length > 1) s = parts[parts.length - 1];
-  }
-
-  // 1a. Strip leading bank operation prefixes
-  s = s.replace(/^(ACH\s+HOLD|ACH|POS\s+PURCHASE|POS|CHECKCARD|CHECK\s*CARD|PURCHASE|PREAUTH|PRE-AUTH|RECURRING\s+PMT|RECURRING|PYMT|PMT|DEBIT\s+CARD|DEBIT)\b\s*/i, '');
-
-  // 1b. Strip leading 4-digit MMDD date codes (run AFTER prefix strip so "ACH 0420 X" → "0420 X" → "X")
-  s = s.replace(/^\d{4}\s+/, '');
-
-  // 2. Strip "ONLINE PAY[MENT]" suffix
-  s = s.replace(/\s+ONLINE\s+PAY(?:MENT)?\s*$/i, '');
-
-  // 3. Strip "Des:XXXX" and "Indn:XXXX" bank description codes
-  s = s.replace(/\b(?:Des|Indn):\S+/gi, '');
-
-  // 4. Strip "Sub XXXX" middle patterns — extract everything after "Sub "
-  //    e.g. "Rent Reporting Sub Turbotenant" → "Turbotenant"
-  const subMatch = s.match(/\bSub\s+(.+)/i);
-  if (subMatch) s = subMatch[1].trim();
-
-  // 5. Strip confirmation/reference codes: "Conf# ABC123", "Ref# 12345", "Trans# …"
-  s = s.replace(/\b(?:Conf|Confirmation|Ref|Reference|Trans|Trace|Auth|Seq|Ck|Trn)[#:\s]*[\w-]{3,}/gi, '');
-
-  // 6. Strip # followed by alphanumeric (reference IDs like "#000sgu59l")
-  s = s.replace(/#[A-Za-z0-9]{3,}/g, '');
-
-  // 7. Strip date patterns: "04/23", "04/23/2026", "MM/DD" style
-  s = s.replace(/\b\d{1,2}\/\d{2}(?:\/\d{2,4})?\b/g, '');
-
-  // 8. Strip trailing store/location numbers: "#1234" at end
-  s = s.replace(/\s*#\s*\d{3,}\s*$/g, '');
-
-  // 9. Strip long standalone digit sequences (8+ = reference numbers, not prices)
-  s = s.replace(/\b\d{8,}\b/g, '');
-
-  // 10. Strip "Id:XXXXX" ID code patterns
-  s = s.replace(/\bId:\S+/gi, '');
-
-  // 11. Strip street addresses — number followed by street name keywords
-  s = s.replace(/\b\d+\s+\w+\s+(?:Blvd?|Blv|Ave?|St|Dr|Rd|Ln|Ct|Pl|Way|Pkwy|Hwy)\b.*/i, '');
-
-  // 12. Strip corporate suffixes (including mid-string before address)
-  s = s.replace(/,?\s*(Inc\.?|LLC\.?|Corp\.?|Ltd\.?|Co\.)\b.*/i, '');
-
-  // 13. Strip trailing " Pos" suffix (e.g. "Deals By Del Pos")
-  s = s.replace(/\s+Pos\s*$/i, '');
-
-  // 14. Strip domain-style suffixes like ".Cco", ".Com", ".Net" that slip through
-  s = s.replace(/\.\w{2,4}$/i, '');
-
-  // 15. Strip everything after a comma if the remainder contains any digit mixed with letters
-  //     e.g. "Youtalk Wan Chai, Xxxxx3261xx" → "Youtalk Wan Chai"
-  s = s.replace(/,\s*[^,]*\d[^,]*$/, '');
-
-  // 16. Strip ACH SEC-code suffixes: " Co Ppd", " Co Web", " Viktor Co", " Sheviakov Co"
-  s = s.replace(/\s+(?:\w+\s+)?Co\s+(?:Ppd|Web|Tel|Ccd|Iat|Arc|Ctx|Mte|Pop|Rck|Trc)\s*$/i, '');
-  // Personal name + " Co" at end (4+ char word = not "The Co", not "De Co" etc.)
-  s = s.replace(/\s+[A-Za-z]{4,}\s+Co\s*$/i, '');
-
-  // 6. Collapse whitespace
-  s = s.replace(/\s+/g, ' ').trim();
-
-  if (!s) return '';
-
-  // 7. Title Case — lowercase everything then capitalize first letter of each word
-  s = s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
-
-  // 7b. Fix possessive 'S → 's (title case incorrectly uppercases after apostrophe)
-  s = s.replace(/'S\b/g, "'s");
-
-  // 8. Brand-name corrections applied after title-casing
-  const BRAND_FIX = [
-    [/\bBkofamerica\b/i,         'Bank of America'],
-    [/\bMcdonald'?s\b/i,         "McDonald's"],
-    [/\bMcdonalds\b/i,           "McDonald's"],
-    [/\bTrader\s+Joe'?s\b/i,     "Trader Joe's"],
-    [/\bCvs\b/i,                 'CVS'],
-    [/\bEbay\b/i,                'eBay'],
-    [/\bPaypal\b/i,              'PayPal'],
-    [/\bGithub\b/i,              'GitHub'],
-    [/\bYoutube\b/i,             'YouTube'],
-    [/\bLinkedin\b/i,            'LinkedIn'],
-    [/\bWalmart\b/i,             'Walmart'],
-    [/\bGood\s+Life\s+Restor\w*/i, 'Good Life Restoration'],
-    [/\bYoutalk\b.*/i,             'YouTalk'],
-    [/\bUsps\b/i,           'USPS'],
-    [/\bAtm\b/i,            'ATM'],
-    [/\bAch\b/i,            'ACH'],
-    [/\bgolden\s*one\b.*/i, 'Golden One Credit Union'],
-  ];
-  for (const [pattern, replacement] of BRAND_FIX) {
-    s = s.replace(pattern, replacement);
-  }
-
-  // 9. Truncate to 30 chars
-  if (s.length > 30) s = s.slice(0, 29).trimEnd() + '…';
-
-  return s;
 }
 
 function normalizeTxName(t) {

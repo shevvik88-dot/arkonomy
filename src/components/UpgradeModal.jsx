@@ -80,6 +80,13 @@ export default function UpgradeModal({ onClose, supabase }) {
         throw new Error(msg);
       }
       if (data?.url) {
+        const allowed = ["checkout.stripe.com", "buy.stripe.com"];
+        try {
+          const host = new URL(data.url).hostname;
+          if (!allowed.includes(host)) throw new Error("Invalid checkout URL");
+        } catch {
+          throw new Error("Invalid checkout URL");
+        }
         window.location.href = data.url;
       } else {
         throw new Error("No checkout URL returned");

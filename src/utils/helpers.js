@@ -94,7 +94,7 @@ export function timeAgo(iso) {
 
 // Appends T00:00:00 to force local-time parsing (bare YYYY-MM-DD parses as UTC midnight).
 export function parseDate(dateStr) {
-  if (!dateStr) return new Date();
+  if (!dateStr) return null;
   return new Date(dateStr + "T00:00:00");
 }
 
@@ -114,4 +114,69 @@ export function fmtPct(pct) {
   if (pct === null || pct === undefined) return "—";
   const v = Number(pct);
   return (v >= 0 ? "+" : "") + v.toFixed(2) + "%";
+}
+
+export function cleanMerchantName(raw) {
+  if (!raw) return '';
+  let s = raw.trim();
+
+  if (s.includes(';')) {
+    const parts = s.split(';').map(p => p.trim()).filter(Boolean);
+    if (parts.length > 1) s = parts[parts.length - 1];
+  }
+
+  s = s.replace(/^(ACH\s+HOLD|ACH|POS\s+PURCHASE|POS|CHECKCARD|CHECK\s*CARD|PURCHASE|PREAUTH|PRE-AUTH|RECURRING\s+PMT|RECURRING|PYMT|PMT|DEBIT\s+CARD|DEBIT)\b\s*/i, '');
+  s = s.replace(/^\d{4}\s+/, '');
+  s = s.replace(/\s+ONLINE\s+PAY(?:MENT)?\s*$/i, '');
+  s = s.replace(/\b(?:Des|Indn):\S+/gi, '');
+
+  const subMatch = s.match(/\bSub\s+(.+)/i);
+  if (subMatch) s = subMatch[1].trim();
+
+  s = s.replace(/\b(?:Conf|Confirmation|Ref|Reference|Trans|Trace|Auth|Seq|Ck|Trn)[#:\s]*[\w-]{3,}/gi, '');
+  s = s.replace(/#[A-Za-z0-9]{3,}/g, '');
+  s = s.replace(/\b\d{1,2}\/\d{2}(?:\/\d{2,4})?\b/g, '');
+  s = s.replace(/\s*#\s*\d{3,}\s*$/g, '');
+  s = s.replace(/\b\d{8,}\b/g, '');
+  s = s.replace(/\bId:\S+/gi, '');
+  s = s.replace(/\b\d+\s+\w+\s+(?:Blvd?|Blv|Ave?|St|Dr|Rd|Ln|Ct|Pl|Way|Pkwy|Hwy)\b.*/i, '');
+  s = s.replace(/,?\s*(Inc\.?|LLC\.?|Corp\.?|Ltd\.?|Co\.)\b.*/i, '');
+  s = s.replace(/\s+Pos\s*$/i, '');
+  s = s.replace(/\.\w{2,4}$/i, '');
+  s = s.replace(/,\s*[^,]*\d[^,]*$/, '');
+  s = s.replace(/\s+(?:\w+\s+)?Co\s+(?:Ppd|Web|Tel|Ccd|Iat|Arc|Ctx|Mte|Pop|Rck|Trc)\s*$/i, '');
+  s = s.replace(/\s+[A-Za-z]{4,}\s+Co\s*$/i, '');
+  s = s.replace(/\s+/g, ' ').trim();
+
+  if (!s) return '';
+
+  s = s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  s = s.replace(/'S\b/g, "'s");
+
+  const BRAND_FIX = [
+    [/\bBkofamerica\b/i,         'Bank of America'],
+    [/\bMcdonald'?s\b/i,         "McDonald's"],
+    [/\bMcdonalds\b/i,           "McDonald's"],
+    [/\bTrader\s+Joe'?s\b/i,     "Trader Joe's"],
+    [/\bCvs\b/i,                 'CVS'],
+    [/\bEbay\b/i,                'eBay'],
+    [/\bPaypal\b/i,              'PayPal'],
+    [/\bGithub\b/i,              'GitHub'],
+    [/\bYoutube\b/i,             'YouTube'],
+    [/\bLinkedin\b/i,            'LinkedIn'],
+    [/\bWalmart\b/i,             'Walmart'],
+    [/\bGood\s+Life\s+Restor\w*/i, 'Good Life Restoration'],
+    [/\bYoutalk\b.*/i,             'YouTalk'],
+    [/\bUsps\b/i,           'USPS'],
+    [/\bAtm\b/i,            'ATM'],
+    [/\bAch\b/i,            'ACH'],
+    [/\bgolden\s*one\b.*/i, 'Golden One Credit Union'],
+  ];
+  for (const [pattern, replacement] of BRAND_FIX) {
+    s = s.replace(pattern, replacement);
+  }
+
+  if (s.length > 30) s = s.slice(0, 29).trimEnd() + '…';
+
+  return s;
 }

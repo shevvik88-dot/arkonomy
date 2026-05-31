@@ -22,7 +22,8 @@ import Chat, { CHAT_SUGGESTIONS_BY_SCREEN } from "./components/Chat";
 import Profile from "./components/Profile";
 import Markets from "./components/Markets";
 import Savings from "./components/Savings";
-import Transactions, { AddTransactionModal, useToasts, ToastStack, fmtMoney, cleanMerchantName } from "./components/Transactions";
+import Transactions, { AddTransactionModal, useToasts, ToastStack, fmtMoney } from "./components/Transactions";
+import { cleanMerchantName } from "./utils/helpers";
 import Insights, { InsightCard } from "./components/Insights";
 import Dashboard from "./components/Dashboard";
 
@@ -74,25 +75,22 @@ const SYNC_CACHE_TTL     = 60 * 60 * 1000; // 1 hour
 function getCachedAccounts() {
   try {
     const raw = localStorage.getItem(ACCOUNTS_CACHE_KEY);
-    if (!raw) { console.log("[accounts-cache] miss — no entry"); return null; }
+    if (!raw) return null;
     const { ts, accounts } = JSON.parse(raw);
     const ageMin = Math.round((Date.now() - ts) / 60000);
     if (Date.now() - ts > ACCOUNTS_CACHE_TTL) {
-      console.log(`[accounts-cache] miss — expired (${ageMin}m old)`);
       return null;
     }
-    console.log(`[accounts-cache] hit — ${ageMin}m old, ${accounts.length} accounts`);
     return accounts;
   } catch { return null; }
 }
 function setCachedAccounts(accounts) {
   try {
     localStorage.setItem(ACCOUNTS_CACHE_KEY, JSON.stringify({ ts: Date.now(), accounts }));
-    console.log(`[accounts-cache] stored ${accounts.length} accounts`);
   } catch {}
 }
 function clearAccountsCache() {
-  try { localStorage.removeItem(ACCOUNTS_CACHE_KEY); console.log("[accounts-cache] cleared"); } catch {}
+  try { localStorage.removeItem(ACCOUNTS_CACHE_KEY); } catch {}
 }
 function isSyncStale(lastSyncedAt) {
   if (!lastSyncedAt) return true;
@@ -435,6 +433,7 @@ export default function App() {
   });
   const [backgroundSyncing, setBackgroundSyncing] = useState(false);
   const bgSyncRef = useRef(null);
+  const bgSyncLockRef = useRef(false);
   const [tutorialActive, setTutorialActive] = useState(false);
   const [tutorialStepIdx, setTutorialStepIdx] = useState(0);
   const [activeTourSteps, setActiveTourSteps] = useState(TUTORIAL_STEPS);
@@ -589,9 +588,6 @@ export default function App() {
       // Detect recurring charges from loaded transactions
       const detected = detectRecurringCharges(t.data);
       setUpcomingCharges(detected);
-      if (detected.length > 0) {
-        console.log('[Arkonomy] Detected recurring charges:', detected);
-      }
     }
     if (sv.data) setSavings(sv.data);
     if (c.data) { setCategories(c.data); if (c.data.length === 0) await seedCategories(); }
@@ -719,7 +715,8 @@ export default function App() {
 
   // Background (silent) sync — always checks 1-hour staleness before hitting Plaid
   async function bgSync() {
-    if (backgroundSyncing || syncingBank) return;
+    if (bgSyncLockRef.current || syncingBank) return;
+    bgSyncLockRef.current = true;
 
     // Staleness guard — query profiles.last_synced_at from Supabase so all
     // tabs and devices share the same timestamp (not per-device localStorage).
@@ -730,12 +727,10 @@ export default function App() {
       .single();
     const lastTs = profileSnap?.last_synced_at ?? null;
     if (!isSyncStale(lastTs)) {
-      const ageMin = lastTs ? Math.round((Date.now() - new Date(lastTs).getTime()) / 60000) : null;
-      console.log(`[bgSync] skipped — last sync ${ageMin != null ? ageMin + "m ago" : "unknown"}, TTL 60m`);
+      bgSyncLockRef.current = false;
       return;
     }
 
-    console.log("[bgSync] stale — calling plaid-sync-transactions");
     setBackgroundSyncing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -754,13 +749,12 @@ export default function App() {
         setLastSyncedAt(now);
         try { localStorage.setItem("arkonomy_last_synced", now); } catch {} // keep local cache in sync
         await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
-        console.log(`[bgSync] done — synced ${data.synced ?? 0} transactions`);
         if ((data.synced ?? 0) > 0) await loadAll();
       }
-    } catch (err) {
-      console.error("[bgSync] error:", err);
+    } catch {
     } finally {
       setBackgroundSyncing(false);
+      bgSyncLockRef.current = false;
     }
   }
   bgSyncRef.current = bgSync;
@@ -779,6 +773,7 @@ export default function App() {
   }
 
   async function signOut() {
+    clearAccountsCache();
     await supabase.auth.signOut();
     setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]);
   }
@@ -790,11 +785,14 @@ export default function App() {
         supabase.from("savings").delete().eq("user_id", user.id),
         supabase.from("categories").delete().eq("user_id", user.id),
         supabase.from("plaid_items").delete().eq("user_id", user.id),
+        supabase.from("notification_preferences").delete().eq("user_id", user.id),
+        supabase.from("savings_reminders").delete().eq("user_id", user.id),
       ]);
       await supabase.from("profiles").delete().eq("id", user.id);
     } catch (e) {
-      console.error("[deleteAccount]", e);
+      if (import.meta.env.DEV) console.error("[deleteAccount]", e);
     }
+    clearAccountsCache();
     await supabase.auth.signOut();
     setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]);
   }
@@ -823,8 +821,6 @@ export default function App() {
         const budget = profile?.monthly_budget || 3000;
         const remaining = budget - monthlyExpenses;
 
-        console.log("[Autopilot] largeTxAlerts:", ap.largeTxAlerts, "amount:", Number(tx.amount), "threshold:", ap.largeTxThreshold);
-        console.log("[Autopilot] overspendAlerts:", ap.overspendAlerts, "monthlyExpenses:", monthlyExpenses, "budget:", budget);
 
         // Helper: send push via fetch with explicit session JWT (avoids SDK auth edge cases)
         const sendPush = async (payload) => {
@@ -882,6 +878,8 @@ export default function App() {
           }
         }
       }
+      // Update upcoming charges based on new transaction set
+      setUpcomingCharges(detectRecurringCharges([data, ...transactions]));
     }
     setShowAddTx(false);
   }
@@ -1004,9 +1002,7 @@ export default function App() {
   useEffect(() => {
     function measure() {
       if (!headerRef.current) return;
-      const h = headerRef.current.getBoundingClientRect().height;
-      console.log('[Arkonomy] header height:', h, 'px');
-      setHeaderHeight(h);
+      setHeaderHeight(headerRef.current.getBoundingClientRect().height);
     }
     measure();
     window.addEventListener('resize', measure);
@@ -1155,14 +1151,12 @@ export default function App() {
       const { data: result, error } = await supabase.functions.invoke("alpaca-invest", {
         body: { amount: Number(amount), symbol: "SPY" },
       });
-      console.log('Alpaca response:', result, 'error:', error);
       if (error || result?.error) {
         let errMsg = result?.error || error?.message || "Investment failed";
         let details = result?.details ? JSON.stringify(result.details) : '';
         if (error?.context) {
           try {
             const errBody = await error.context.json();
-            console.log('Alpaca error body:', errBody);
             errMsg = errBody?.error || errMsg;
             details = errBody?.details ? JSON.stringify(errBody.details) : details;
           } catch {}
@@ -1277,7 +1271,6 @@ export default function App() {
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ color: C.muted, fontSize: 16, fontWeight: 600 }}>{profile?.full_name || user.email?.split("@")[0]}</span>
-              {console.log('[Header] isTrial:', isTrial, 'trialExpired:', trialExpired, 'trialDaysLeft:', trialDaysLeft, 'plan:', profile?.plan, 'trial_ends_at:', profile?.trial_ends_at)}
               {isTrial
                 ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: "#F59E0B", background: "#F59E0B20", borderRadius: 20, padding: "3px 9px", cursor: "pointer" }}>Trial: {trialDaysLeft}d left</span>
                 : trialExpired

@@ -77,6 +77,8 @@ function pwError(pw) {
 }
 
 const RESEND_COOLDOWN = 30;
+const LOCKOUT_DURATION = 30000;
+const MAX_ATTEMPTS = 5;
 
 export default function AuthScreen({ onAuth }) {
   const { t } = useTranslation();
@@ -91,6 +93,8 @@ export default function AuthScreen({ onAuth }) {
   const [pwTouched, setPwTouched] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [hoverSocial, setHoverSocial] = useState(null);
+  const [lockoutUntil, setLockoutUntil] = useState(0);
+  const failedAttemptsRef = useRef(0);
   const timerRef = useRef(null);
 
   useEffect(() => () => clearInterval(timerRef.current), []);
@@ -135,6 +139,13 @@ export default function AuthScreen({ onAuth }) {
   async function handleSubmit(e) {
     if (e) e.preventDefault();
     setError(""); setMsg("");
+
+    if (mode === "login" && Date.now() < lockoutUntil) {
+      const sec = Math.ceil((lockoutUntil - Date.now()) / 1000);
+      setError(t("auth.error_lockout", { seconds: sec }) || `Too many attempts. Try again in ${sec}s`);
+      return;
+    }
+
     if (mode === "signup" && pwError(password)) {
       setPwTouched(true);
       return;
@@ -142,12 +153,19 @@ export default function AuthScreen({ onAuth }) {
     setLoading(true);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name }, emailRedirectTo: 'https://app.arkonomy.com' } });
-        if (error) throw error;
+        await supabase.auth.signUp({ email, password, options: { data: { full_name: name }, emailRedirectTo: 'https://app.arkonomy.com' } });
         setMsg(t("auth.success_check_email"));
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        if (error) {
+          failedAttemptsRef.current += 1;
+          if (failedAttemptsRef.current >= MAX_ATTEMPTS) {
+            setLockoutUntil(Date.now() + LOCKOUT_DURATION);
+            failedAttemptsRef.current = 0;
+          }
+          throw error;
+        }
+        failedAttemptsRef.current = 0;
         onAuth(data.user);
       }
     } catch (e) { setError(friendlyError(e.message)); }

@@ -58,6 +58,7 @@ export default function Chat({ messages, input, setInput, onSend, onClose, sugge
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   const isWelcomeOnly = messages.length === 1 && messages[0].role === "assistant";
+  const isLoading = messages.some(m => m.loading);
 
   function sendSuggestion(text) { setInput(text); onSend(text); }
 
@@ -123,8 +124,8 @@ export default function Chat({ messages, input, setInput, onSend, onClose, sugge
         {t("chat.disclaimer")}
       </div>
       <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && onSend()} placeholder={t("chat.ask_placeholder")} style={{ flex: 1, padding: "13px 16px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 14, outline: "none", fontFamily: FONT }} />
-        <button onClick={onSend} style={{ padding: "13px 18px", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 14, cursor: "pointer", display: "flex", alignItems: "center" }}>
+        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && !isLoading && onSend()} placeholder={t("chat.ask_placeholder")} style={{ flex: 1, padding: "13px 16px", background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 14, outline: "none", fontFamily: FONT }} disabled={isLoading} />
+        <button onClick={onSend} disabled={isLoading} style={{ padding: "13px 18px", background: isLoading ? C.border : `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 14, cursor: isLoading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", opacity: isLoading ? 0.5 : 1 }}>
           <Icon name="send" size={16} color="#fff" strokeWidth={2} />
         </button>
       </div>
