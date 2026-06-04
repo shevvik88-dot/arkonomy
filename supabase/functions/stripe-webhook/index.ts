@@ -2,7 +2,7 @@ import Stripe from 'npm:stripe@14';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://app.arkonomy.com',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, stripe-signature',
 };
 
@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     event = await stripe.webhooks.constructEventAsync(body, sig, STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     console.error('Webhook signature verification failed:', err);
-    return new Response(`Webhook Error: ${String(err)}`, { status: 400 });
+    return new Response(`Webhook Error: ${"Internal Server Error"}`, { status: 400 });
   }
 
   try {
@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('stripe-webhook handler error:', err);
-    return new Response(JSON.stringify({ error: String(err) }), {
+    return new Response(JSON.stringify({ error: "Internal Server Error" }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

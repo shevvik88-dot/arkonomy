@@ -12,7 +12,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const CORS = {
-  'Access-Control-Allow-Origin':  '*',
+  'Access-Control-Allow-Origin': 'https://app.arkonomy.com',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -127,7 +127,7 @@ Respond in ${responseLang}. Respond with ONLY valid JSON, no markdown, no extra 
 
   } catch (err) {
     console.error('stock-ai-analysis error:', err);
-    return new Response(JSON.stringify({ error: String(err) }), {
+    return new Response(JSON.stringify({ error: "Internal Server Error" }), {
       status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
     });
   }

@@ -426,6 +426,6 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('plaid-sync-transactions error:', err);
-    return json({ error: String(err) }, 500, cors);
+    return json({ error: "Internal Server Error" }, 500, cors);
   }
 });

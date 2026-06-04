@@ -16,7 +16,7 @@
 //   { type: "search", query:  "apple" }
 
 const CORS = {
-  'Access-Control-Allow-Origin':  '*',
+  'Access-Control-Allow-Origin': 'https://app.arkonomy.com',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -120,8 +120,23 @@ async function stockCandlesYahoo(
       { t: number; o: number; h: number; l: number; c: number; v: number }[];
 }
 
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  );
+  const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '').trim();
+  const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+  if (authErr || !user) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401, headers: { ...CORS, 'Content-Type': 'application/json' },
+    });
+  }
 
   // Key is only needed for Finnhub endpoints (not chart)
   const key = Deno.env.get('FINNHUB_API_KEY');
@@ -264,7 +279,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('market-data error:', err);
-    return new Response(JSON.stringify({ error: String(err) }), {
+    return new Response(JSON.stringify({ error: "Internal Server Error" }), {
       status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
     });
   }
