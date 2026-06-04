@@ -626,7 +626,7 @@ function styleCell(cell: ExcelJS.Cell, opts: CellStyle) {
 // EMAIL BODY
 // ═════════════════════════════════════════════════════════════════════════════
 
-const esc = (s: string) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const esc = (s: string) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 function buildEmailHtml(name: string, reportLabel: string): string {
   const firstName = esc((name || '').split(' ')[0] || 'there');
