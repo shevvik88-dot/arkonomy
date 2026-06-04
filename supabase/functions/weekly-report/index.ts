@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
         }
 
         const report = await buildReport(supabase, user.id);
-        const html   = buildEmailHtml(user.full_name || user.email, report, prefs);
+        const html   = buildEmailHtml(user.full_name || user.email || 'User', report, prefs);
 
         const res = await fetch('https://api.resend.com/emails', {
           method:  'POST',
@@ -265,7 +265,7 @@ function fmtAmt(n: number): string {
 // EMAIL TEMPLATE
 // ══════════════════════════════════════════════════════════════════════════════
 
-const esc = (s: string) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const esc = (s: string) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 function buildEmailHtml(name: string, r: WeekReport, prefs = DEFAULT_PREFS): string {
   const deltaColor  = r.weekDelta <= 0 ? '#12D18E' : '#FF5C7A';

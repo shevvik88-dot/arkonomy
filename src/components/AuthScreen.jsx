@@ -120,9 +120,11 @@ export default function AuthScreen({ onAuth }) {
 
   function friendlyError(m) {
     if (!m) return m;
-    if (m.toLowerCase().includes("missing email or phone")) return t("auth.error_email_required");
-    if (m.toLowerCase().includes("invalid login credentials")) return t("auth.error_invalid_credentials");
-    if (m.toLowerCase().includes("email not confirmed")) return t("auth.error_email_not_confirmed");
+    const low = m.toLowerCase();
+    if (low.includes("missing email or phone")) return t("auth.error_email_required");
+    if (low.includes("invalid login credentials")) return t("auth.error_invalid_credentials");
+    if (low.includes("email not confirmed")) return t("auth.error_email_not_confirmed");
+    if (mode === "signup") return t("auth.success_check_email");
     return m;
   }
 

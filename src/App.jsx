@@ -780,15 +780,25 @@ export default function App() {
 
   async function deleteAccount() {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       await Promise.all([
         supabase.from("transactions").delete().eq("user_id", user.id),
         supabase.from("savings").delete().eq("user_id", user.id),
         supabase.from("categories").delete().eq("user_id", user.id),
         supabase.from("plaid_items").delete().eq("user_id", user.id),
+        supabase.from("investments").delete().eq("user_id", user.id),
         supabase.from("notification_preferences").delete().eq("user_id", user.id),
         supabase.from("savings_reminders").delete().eq("user_id", user.id),
       ]);
       await supabase.from("profiles").delete().eq("id", user.id);
+      // Call edge function to delete auth user via admin API
+      await fetch(`${SUPABASE_URL}/functions/v1/delete-account`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${session?.access_token}`,
+          "apikey": SUPABASE_KEY,
+        }
+      });
     } catch (e) {
       if (import.meta.env.DEV) console.error("[deleteAccount]", e);
     }
