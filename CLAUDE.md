@@ -1,11 +1,12 @@
 ﻿# Arkonomy
 
-## Current status (2026-05-31)
-- Production live at app.arkonomy.com — last stable commit: `5e57f6e`
+## Current status (2026-06-04)
+- Production live at app.arkonomy.com — last stable commit: `50e5fd1`
 - QA audit complete: 12 security and stability fixes deployed
 - Security: brute force lockout, user enumeration fix, Stripe URL validation, deleteAccount cleanup
 - Stability: Error Boundary, bgSync race condition fix, chat loading state
 - Refactored: cleanMerchantName extracted to src/utils/helpers.js (single source of truth)
+- ai-chat edge function now version-controlled; security-hardened (JWT auth, CORS restricted, input validation)
 
 ## Next tasks (priority order)
 1. **Merchant navigation** — tap a transaction in Dashboard "Recent Transactions" → navigate to Transactions screen filtered by that merchant (cleanMerchantName now in helpers.js)
@@ -35,7 +36,8 @@
 - src/utils/helpers.js — shared utilities (fmt, parseDate, cleanMerchantName, etc.)
 - src/hooks/usePlan.js — free/pro plan gating via Supabase profiles table
 - src/recurringDetector.js — recurring charges detection
-- supabase/functions/ — edge functions (Finnhub market data, etc.)
+- supabase/functions/ — edge functions (Finnhub market data, ai-chat, etc.)
+  - supabase/functions/ai-chat/ — AI chat endpoint; version-controlled, deploy via `npx supabase functions deploy ai-chat`
 - public/ — PWA manifest, service worker, icons
 
 ## Styling conventions
