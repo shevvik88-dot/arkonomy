@@ -1318,6 +1318,7 @@ export default function App() {
                   { code: "en", label: "English" },
                   { code: "ru", label: "Русский" },
                   { code: "es", label: "Español" },
+                  { code: "pt", label: "Português (Brasil)" },
                 ].map((lang, idx, arr) => {
                   const active = i18n.language?.startsWith(lang.code);
                   return (
@@ -1495,7 +1496,7 @@ export default function App() {
                   padding: "6px 16px", fontSize: 13, fontWeight: 700,
                   textDecoration: "none", display: "inline-block",
                 }}
-              >Add funds to Alpaca</a>
+              >{t("onboarding.add_funds_alpaca")}</a>
             </>
           ) : alpacaToast.alpacaSuccess ? (
             <>
