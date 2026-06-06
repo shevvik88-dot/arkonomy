@@ -175,7 +175,9 @@ function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
   const SAFE_CAP = 400;
   const breakdown = rawBreakdown ? {
     ...rawBreakdown,
-    suggestedSave: rawBreakdown.suggestedSave > SAFE_CAP ? SAFE_CAP : rawBreakdown.suggestedSave
+    suggestedSave: rawBreakdown.suggestedSave
+      ? Math.min(Number(rawBreakdown.suggestedSave), SAFE_CAP)
+      : rawBreakdown.suggestedSave,
   } : rawBreakdown;
 
   const cleanCta      = (cta || "").replace(/~/g, "").trim();
@@ -193,6 +195,11 @@ function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
     return true;
   })();
 
+  console.log('[InsightCardControlled] type:', insight.type,
+    '| suggestedSave:', breakdown?.suggestedSave,
+    '| goalContribution:', goalContribution,
+    '| showCtaButton:', showCtaButton,
+    '| cleanCta:', cleanCta);
 
   return (
     <div
@@ -221,12 +228,12 @@ function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
           {isSavings && breakdown && (
             <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 12px", marginBottom: 14, display: "flex", flexDirection: "column", gap: 4 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", minWidth: 110 }}>Available</span>
+                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", minWidth: 110 }}>{t("insights.available")}</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "#FFFFFF" }}>${Number(breakdown.available || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
-                  <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", display: "block", paddingTop: 1 }}>Safe to move</span>
+                  <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", display: "block", paddingTop: 1 }}>{t("insights.safe_to_move")}</span>
                   <span style={{ fontSize: 11, color: "rgba(154,164,178,0.60)", display: "block", marginTop: 3, paddingLeft: 2 }}>keeps ~${Number(breakdown.bufferAmount || 1000).toLocaleString("en-US", { maximumFractionDigits: 0 })} buffer</span>
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 600, color: accent, paddingTop: 1 }}>${Number(breakdown.suggestedSave || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
@@ -309,7 +316,9 @@ export function InsightCard({ insight, onAction }) {
   const SAFE_CAP = 400;
   const breakdown = rawBreakdown ? {
     ...rawBreakdown,
-    suggestedSave: rawBreakdown.suggestedSave > SAFE_CAP ? SAFE_CAP : rawBreakdown.suggestedSave
+    suggestedSave: rawBreakdown.suggestedSave
+      ? Math.min(Number(rawBreakdown.suggestedSave), SAFE_CAP)
+      : rawBreakdown.suggestedSave,
   } : rawBreakdown;
 
   const cleanCta      = (cta || "").replace(/~/g, "").trim();
@@ -328,6 +337,11 @@ export function InsightCard({ insight, onAction }) {
     return true;
   })();
 
+  console.log('[InsightCard] type:', insight.type,
+    '| suggestedSave:', breakdown?.suggestedSave,
+    '| goalContribution:', goalContribution,
+    '| showCtaButton:', showCtaButton,
+    '| cleanCta:', cleanCta);
 
   return (
     <div
@@ -426,14 +440,14 @@ export function InsightCard({ insight, onAction }) {
               gap: 4,
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", minWidth: 110 }}>Available</span>
+                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", minWidth: 110 }}>{t("insights.available")}</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "#FFFFFF" }}>
                   ${Number(breakdown.available || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
-                  <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", display: "block", paddingTop: 1 }}>Safe to move</span>
+                  <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", display: "block", paddingTop: 1 }}>{t("insights.safe_to_move")}</span>
                   <span style={{ fontSize: 11, color: "rgba(154,164,178,0.60)", display: "block", marginTop: 3, paddingLeft: 2 }}>
                     keeps ~${Number(breakdown.bufferAmount || 1000).toLocaleString("en-US", { maximumFractionDigits: 0 })} buffer
                   </span>
@@ -1028,6 +1042,7 @@ function RecurringSummary({ transactions }) {
 
 export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, onOpenChat, transactions, savings, profile, allInsights, onInsightAction, isPro, onUpgrade }) {
   const { t } = useTranslation();
+  console.log('[Insights] rendered — allInsights:', allInsights, 'totalIncome:', totalIncome, 'totalSpent:', totalSpent, 'transactions:', transactions?.length);
   const monthlySavings = totalIncome - totalSpent;
   const savingsRate = totalIncome > 0 ? Math.round((monthlySavings / totalIncome) * 100) : 0;
 
@@ -1106,6 +1121,7 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
 
   const colors = { info: C.cyan, warning: C.yellow, danger: C.red, good: C.green };
 
+  console.log('[Insights] rendering, data:', insights);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>

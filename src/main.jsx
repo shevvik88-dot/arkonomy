@@ -1,4 +1,3 @@
-import { logger } from "./utils/logger";
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import './i18n.js'
@@ -8,7 +7,7 @@ class ErrorBoundary extends React.Component {
   state = { hasError: false };
   static getDerivedStateFromError() { return { hasError: true }; }
   componentDidCatch(err, info) {
-    if (import.meta.env.DEV) logger.error('ErrorBoundary caught:', err, info);
+    if (import.meta.env.DEV) console.error('ErrorBoundary caught:', err, info);
   }
   render() {
     if (this.state.hasError) {

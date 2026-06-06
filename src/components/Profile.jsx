@@ -1,4 +1,3 @@
-import { logger } from "../utils/logger";
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../utils/supabase";
@@ -31,6 +30,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
   const [deleting, setDeleting] = useState(false);
 
   const handleExport = async () => {
+    console.log('[handleExport] called, will use generateExcelReport');
     setExporting(true);
     try {
       const resolved = transactions.map(t => ({
@@ -39,7 +39,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
       }));
       await generateExcelReport(resolved);
     } catch (e) {
-      logger.error('Export failed:', e);
+      console.error('Export failed:', e);
     } finally {
       setExporting(false);
     }
