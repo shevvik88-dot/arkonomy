@@ -1,3 +1,4 @@
+import { logger } from "../utils/logger";
 // src/hooks/usePushNotifications.js
 // Registers the browser's push subscription and saves it to Supabase.
 // The subscription is stored in profiles.push_subscription (JSONB).
@@ -63,9 +64,8 @@ export function usePushNotifications(supabase, userId) {
           .eq('id', userId);
 
         registered.current = true;
-        console.log('[Arkonomy] Push subscription registered');
       } catch (err) {
-        console.warn('[Arkonomy] Push registration failed:', err);
+        logger.warn('[Arkonomy] Push registration failed:', err);
       }
     }
 

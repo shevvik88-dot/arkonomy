@@ -10,7 +10,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const CORS = {
-  'Access-Control-Allow-Origin':  '*',
+  'Access-Control-Allow-Origin': 'https://app.arkonomy.com',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -92,6 +92,6 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('plaid-get-accounts error:', err);
-    return json({ error: String(err) }, 500);
+    return json({ error: "Internal Server Error" }, 500);
   }
 });

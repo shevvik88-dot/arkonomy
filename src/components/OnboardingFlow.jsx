@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { logger } from "../utils/logger";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../utils/supabase";
 import { C, FONT } from "../utils/colors";
@@ -214,18 +215,24 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
   async function startFreeTrial() {
     setTrialLoading(true);
     setTrialError("");
-    const trialEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    const { error } = await supabase
-      .from("profiles")
-      .update({ trial_ends_at: trialEnd })
-      .eq("id", user.id);
-    if (error) {
+    try {
+      const trialEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { error } = await supabase
+        .from("profiles")
+        .update({ trial_ends_at: trialEnd })
+        .eq("id", user.id);
+      if (error) {
+        setTrialError("Could not start trial. Please try again.");
+        setTrialLoading(false);
+        return;
+      }
+      try { localStorage.setItem("arkonomy_onboarding_done", "1"); } catch {}
+      window.location.href = window.location.origin + "?trial_started=true";
+    } catch (err) {
+      logger.error("[startFreeTrial] failed:", err);
       setTrialError("Could not start trial. Please try again.");
       setTrialLoading(false);
-      return;
     }
-    try { localStorage.setItem("arkonomy_onboarding_done", "1"); } catch {}
-    window.location.href = window.location.origin + "?trial_started=true";
   }
 
   const displayName = profile?.full_name?.split(" ")[0]?.slice(0, 12) || user?.user_metadata?.full_name?.split(" ")[0]?.slice(0, 12) || "there";
@@ -319,7 +326,7 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
       {linkToken ? (
         <PlaidLinkButton
           linkToken={linkToken}
-          onSuccess={async (tok, meta) => { await onPlaidSuccess(tok, meta); setStep(3); }}
+          onSuccess={async (tok, meta) => { try { await onPlaidSuccess(tok, meta); setStep(3); } catch (err) { logger.error("[Plaid] onSuccess failed:", err); } }}
           onExit={() => {}}
           autoOpen={false}
         />
@@ -386,7 +393,7 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
         onClick={async () => {
           setSavingBudget(true);
           const val = Math.max(100, Number(budget) || 3000);
-          await onSaveProfile({ monthly_budget: val });
+          try { await onSaveProfile({ monthly_budget: val }); } catch (err) { logger.error("[Onboarding] saveProfile failed:", err); }
           setSavingBudget(false);
           setStep(4);
         }}

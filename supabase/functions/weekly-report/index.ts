@@ -10,7 +10,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://app.arkonomy.com',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
 
         results.push({ userId: user.id, status: 'sent' });
       } catch (err) {
-        results.push({ userId: user.id, status: 'failed', error: String(err) });
+        results.push({ userId: user.id, status: 'failed', error: "Internal Server Error" });
       }
     }
 
@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
   } catch (err) {
     console.error('weekly-report error:', err);
     return new Response(
-      JSON.stringify({ error: String(err) }),
+      JSON.stringify({ error: "Internal Server Error" }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

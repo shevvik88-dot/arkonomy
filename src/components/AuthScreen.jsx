@@ -129,7 +129,6 @@ export default function AuthScreen({ onAuth }) {
   }
 
   async function handleOAuth(provider) {
-    console.log('[OAuth] attempting', provider);
     setError("");
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
