@@ -92,7 +92,9 @@
     "pct_income": "{{pct}}% от дохода",
     "vs_last_month_pos": "+${{delta}} к прошлому месяцу",
     "vs_last_month_neg": "-${{delta}} к прошлому месяцу",
-    "vs_last_month": "к прошлому месяцу"
+    "vs_last_month": "к прошлому месяцу",
+    "of_total": "от итого",
+    "surplus": "Профицит"
   },
   "transactions": {
     "title": "Транзакции",

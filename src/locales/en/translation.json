@@ -90,7 +90,9 @@
     "pct_income": "{{pct}}% of income",
     "vs_last_month_pos": "+${{delta}} vs last month",
     "vs_last_month_neg": "-${{delta}} vs last month",
-    "vs_last_month": "vs last month"
+    "vs_last_month": "vs last month",
+    "of_total": "of total",
+    "surplus": "Surplus"
   },
   "transactions": {
     "title": "Transactions",

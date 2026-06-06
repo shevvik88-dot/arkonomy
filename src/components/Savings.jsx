@@ -118,9 +118,11 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
     ? plaidAccounts.find(a => a.account_id === sv.plaid_account_id) ?? null
     : null;
 
-  const current = linkedAccount
-    ? (linkedAccount.balance_available ?? linkedAccount.balance_current ?? sv.current)
-    : sv.current;
+  const current = Number(
+    linkedAccount != null
+      ? (linkedAccount.balance_available ?? linkedAccount.balance_current ?? sv.current ?? 0)
+      : (sv.current ?? 0)
+  ) || 0;
 
   const progress = Math.min(1, Number(current) / Number(sv.target || 1));
   const pct = Math.round(progress * 100);
@@ -378,8 +380,9 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
 }
 
 // ─── Main Savings Screen ──────────────────────────────────────
-export default function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, totalIncome, totalSpent, transactions, insight, onInsightAction, onInvestAlpaca, isPro, onUpgrade, alpacaConnected, onConnectAlpaca, bankConnected, userId, InsightCard }) {
+export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelete, totalIncome = 0, totalSpent = 0, transactions, insight, onInsightAction, onInvestAlpaca, isPro, isTrial, onUpgrade, alpacaConnected, onConnectAlpaca, bankConnected, userId, InsightCard }) {
   const { t } = useTranslation();
+  const [loadError, setLoadError]           = useState(null);
   const [showAdd, setShowAdd]               = useState(false);
   const goalFormRef = useRef(null);
   const [selectedPreset, setSelectedPreset] = useState(null);
@@ -464,6 +467,19 @@ export default function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, to
     setShowAdd(false);
     setNewName(""); setNewTarget(""); setNewAccountId(""); setNewAccountName(""); setSelectedPreset(null);
   }
+
+
+  if (loadError) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 200, gap: 16 }}>
+        <div style={{ fontSize: 14, color: C.red, textAlign: "center" }}>{loadError}</div>
+        <button onClick={() => { setLoadError(null); if (bankConnected) fetchPlaidAccounts(); }} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 20px", color: C.text, cursor: "pointer", fontFamily: FONT, fontSize: 14 }}>
+          {t("common.retry") || "Retry"}
+        </button>
+      </div>
+    );
+  }
+
 
   return (
     <div style={{ paddingBottom: 40, fontFamily: FONT }}>
