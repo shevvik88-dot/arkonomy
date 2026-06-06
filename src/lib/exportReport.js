@@ -87,7 +87,6 @@ function autoFitCols(ws) {
 }
 
 export async function generateExcelReport(transactions) {
-  console.log('[ExportReport] generateExcelReport called, transactions count:', transactions.length);
   // ── Group by month ──────────────────────────────────────────────
   const expCats = new Set();
   const months = {}; // { 'YYYY-MM': { byCat: { cat: total }, income: total, txList: [] } }

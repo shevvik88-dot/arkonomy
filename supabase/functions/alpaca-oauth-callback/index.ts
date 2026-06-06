@@ -107,6 +107,5 @@ Deno.serve(async (req) => {
     return Response.redirect(`${APP_URL}?alpaca_error=db_error`, 302);
   }
 
-  console.log(`[alpaca-oauth-callback] Connected Alpaca for user ${user.id}`);
   return Response.redirect(`${APP_URL}?alpaca_connected=true`, 302);
 });

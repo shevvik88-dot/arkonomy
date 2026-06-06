@@ -61,7 +61,6 @@ Deno.serve(async (req) => {
           .eq('id', userId);
 
         if (error) console.error('Failed to update profile to trial:', error);
-        else console.log(`User ${userId} started trial, customer: ${customerId}`);
       }
     }
 
@@ -76,7 +75,6 @@ Deno.serve(async (req) => {
           .update({ trial_ends_at: null })
           .eq('stripe_customer_id', customerId);
         if (error) console.error('Failed to clear trial_ends_at:', error);
-        else console.log(`Customer ${customerId} trial converted to paid`);
       }
     }
 
@@ -90,7 +88,6 @@ Deno.serve(async (req) => {
         .eq('stripe_customer_id', customerId);
 
       if (error) console.error('Failed to downgrade profile:', error);
-      else console.log(`Customer ${customerId} downgraded to free`);
     }
 
     return new Response(JSON.stringify({ received: true }), {

@@ -1,4 +1,5 @@
 ﻿// arkonomy v1
+import { logger } from "./utils/logger";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { createClient } from "@supabase/supabase-js";
@@ -36,7 +37,7 @@ function useInsights(screen, userId, lang) {
     supabase.functions
       .invoke("get-insights", { body: { userId, lang: lang ?? "en" } })
       .then(({ data: result, error }) => {
-        if (error) { console.error("useInsights error:", error); return; }
+        if (error) { logger.error("useInsights error:", error); return; }
         setData(result);
       });
   }, [userId, lang]);
@@ -562,47 +563,55 @@ export default function App() {
 
   async function loadAll() {
     setLoading(true);
-    const [p, t, c, sv] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", user.id).single(),
-      supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }),
-      supabase.from("categories").select("*").eq("user_id", user.id),
-      supabase.from("savings").select("*").eq("user_id", user.id),
-    ]);
-    if (p.data) {
-      setProfile(p.data);
-      setAlpacaConnected(!!p.data.alpaca_access_token);
-      if (p.data.last_synced_at) {
-        setLastSyncedAt(p.data.last_synced_at);
-        try { localStorage.setItem("arkonomy_last_synced", p.data.last_synced_at); } catch {}
+    try {
+      const [p, t, c, sv] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", user.id).single(),
+        supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }),
+        supabase.from("categories").select("*").eq("user_id", user.id),
+        supabase.from("savings").select("*").eq("user_id", user.id),
+      ]);
+      if (p.data) {
+        setProfile(p.data);
+        setAlpacaConnected(!!p.data.alpaca_access_token);
+        if (p.data.last_synced_at) {
+          setLastSyncedAt(p.data.last_synced_at);
+          try { localStorage.setItem("arkonomy_last_synced", p.data.last_synced_at); } catch {}
+        }
+        const lang = p.data.preferred_language
+          || (() => { try { return localStorage.getItem("arkonomy_language"); } catch { return null; } })()
+          || "en";
+        if (i18n.language !== lang) {
+          i18n.changeLanguage(lang);
+          try { localStorage.setItem("arkonomy_language", lang); } catch {}
+        }
       }
-      const lang = p.data.preferred_language
-        || (() => { try { return localStorage.getItem('arkonomy_language'); } catch { return null; } })()
-        || 'en';
-      if (i18n.language !== lang) {
-        i18n.changeLanguage(lang);
-        try { localStorage.setItem('arkonomy_language', lang); } catch {}
+      if (t.data) {
+        setTransactions(t.data);
+        const detected = detectRecurringCharges(t.data);
+        setUpcomingCharges(detected);
       }
+      if (sv.data) setSavings(sv.data);
+      if (c.data) { setCategories(c.data); if (c.data.length === 0) await seedCategories(); }
+    } catch (err) {
+      logger.error("[loadAll] failed:", err);
+    } finally {
+      setLoading(false);
     }
-    if (t.data) {
-      setTransactions(t.data);
-      // Detect recurring charges from loaded transactions
-      const detected = detectRecurringCharges(t.data);
-      setUpcomingCharges(detected);
-    }
-    if (sv.data) setSavings(sv.data);
-    if (c.data) { setCategories(c.data); if (c.data.length === 0) await seedCategories(); }
-    setLoading(false);
   }
 
   async function checkBankConnection() {
-    const { data: { session } } = await supabase.auth.getSession();
-    const { data, error } = await supabase.functions.invoke("check-bank-connection", {
-      headers: { Authorization: `Bearer ${session?.access_token}` },
-    });
-    if (!error && data?.connected) {
-      setBankConnected(true);
-      setBankName(data.institution_name);
-      setBankCount(data.count ?? 1);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke("check-bank-connection", {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (!error && data?.connected) {
+        setBankConnected(true);
+        setBankName(data.institution_name);
+        setBankCount(data.count ?? 1);
+      }
+    } catch (err) {
+      logger.error("[checkBankConnection] failed:", err);
     }
   }
 
@@ -632,11 +641,11 @@ export default function App() {
         setLinkToken(data.link_token);
       } else {
         const msg = data.error ?? data.message ?? "Failed to start bank connection";
-        console.error("[Plaid] getLinkToken error:", data);
+        logger.error("[Plaid] getLinkToken error:", data);
         showAlert(msg, "danger", "alert-circle");
       }
     } catch (err) {
-      console.error("[Plaid] getLinkToken exception:", err);
+      logger.error("[Plaid] getLinkToken exception:", err);
       showAlert("Could not connect to bank service. Try again.", "danger", "alert-circle");
     }
   }
@@ -662,12 +671,12 @@ export default function App() {
       );
       const exchangeData = await exchangeRes.json();
       if (!exchangeRes.ok || exchangeData.error) {
-        console.error("[Plaid] exchange-token error:", exchangeData);
+        logger.error("[Plaid] exchange-token error:", exchangeData);
         showAlertRef.current(exchangeData.error ?? "Bank connection failed", "danger", "alert-circle");
         return;
       }
     } catch (err) {
-      console.error("[Plaid] exchange-token exception:", err);
+      logger.error("[Plaid] exchange-token exception:", err);
       showAlertRef.current("Bank connection failed. Try again.", "danger", "alert-circle");
       return;
     }
@@ -695,7 +704,7 @@ export default function App() {
       );
       const data = await res.json();
       if (data.error) {
-        console.error("[Plaid] sync-transactions error:", data);
+        logger.error("[Plaid] sync-transactions error:", data);
       }
       // Always reload — even if synced=0 the user may have just connected
       // and needs to see existing transactions. Also covers the case where
@@ -706,13 +715,12 @@ export default function App() {
       await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
       await loadAll();
     } catch (err) {
-      console.error("[Plaid] sync-transactions exception:", err);
+      logger.error("[Plaid] sync-transactions exception:", err);
       await loadAll();
+    } finally {
+      setSyncingBank(false);
     }
-    setSyncingBank(false);
   }
-  syncBankTransactionsRef.current = syncBankTransactions;
-
   // Background (silent) sync — always checks 1-hour staleness before hitting Plaid
   async function bgSync() {
     if (bgSyncLockRef.current || syncingBank) return;
@@ -768,14 +776,23 @@ export default function App() {
       { name: "Health", icon: "heart", color: "#F472B6", budget: 150 },
       { name: "Bills", icon: "file", color: "#60A5FA", budget: 800 },
     ];
-    const { data } = await supabase.from("categories").insert(defaults.map(d => ({ ...d, user_id: user.id }))).select();
-    if (data) setCategories(data);
+    try {
+      const { data } = await supabase.from("categories").insert(defaults.map(d => ({ ...d, user_id: user.id }))).select();
+      if (data) setCategories(data);
+    } catch (err) {
+      logger.error("[seedCategories] failed:", err);
+    }
   }
 
   async function signOut() {
-    clearAccountsCache();
-    await supabase.auth.signOut();
-    setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]);
+    try {
+      clearAccountsCache();
+      await supabase.auth.signOut();
+    } catch (err) {
+      logger.error("[signOut] failed:", err);
+    } finally {
+      setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]);
+    }
   }
 
   async function deleteAccount() {
@@ -800,7 +817,7 @@ export default function App() {
         }
       });
     } catch (e) {
-      if (import.meta.env.DEV) console.error("[deleteAccount]", e);
+      if (import.meta.env.DEV) logger.error("[deleteAccount]", e);
     }
     clearAccountsCache();
     await supabase.auth.signOut();
@@ -808,105 +825,119 @@ export default function App() {
   }
 
   async function addTransaction(tx) {
-    // Auto-assign category from description keywords if none provided
-    if (!tx.category_name) {
-      const guessed = guessCategory(tx.description, tx.type);
-      if (guessed) { tx = { ...tx, category_name: guessed }; }
-    }
-    const { data } = await supabase.from("transactions").insert({ user_id: user.id, ...tx }).select().single();
-    if (data) {
-      // Update state first (pure — no side effects inside the updater)
-      setTransactions(prev => [data, ...prev]);
+    try {
+      // Auto-assign category from description keywords if none provided
+      if (!tx.category_name) {
+        const guessed = guessCategory(tx.description, tx.type);
+        if (guessed) { tx = { ...tx, category_name: guessed }; }
+      }
+      const { data } = await supabase.from("transactions").insert({ user_id: user.id, ...tx }).select().single();
+      if (data) {
+        // Update state first (pure — no side effects inside the updater)
+        setTransactions(prev => [data, ...prev]);
 
-      // ── Alert checks (run outside state updater so showAlert fires reliably) ──
-      // autopilotRef.current used instead of autopilot to avoid stale closure after await
-      if (tx.type === "expense") {
-        const ap = autopilotRef.current;
-        const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
-        // Use current transactions + newly saved one for accurate totals
-        const allTx = [data, ...transactions];
-        const monthlyExpenses = allTx
-          .filter(t => {
-            if (t.type !== "expense" || new Date(t.date) < monthStart) return false;
-            const cat = resolveCategory(t);
-            return cat !== "Transfer" && cat !== "Transfers";
-          })
-          .reduce((s, t) => s + Number(t.amount), 0);
-        const budget = profile?.monthly_budget || 3000;
-        const remaining = budget - monthlyExpenses;
-
-
-        // Helper: send push via fetch with explicit session JWT (avoids SDK auth edge cases)
-        const sendPush = async (payload) => {
-          try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token ?? SUPABASE_KEY;
-            await fetch(`${SUPABASE_URL}/functions/v1/push-notify`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-                "apikey": SUPABASE_KEY,
-              },
-              body: JSON.stringify({ user_id: user?.id, ...payload }),
-            });
-          } catch { /* fire-and-forget */ }
-        };
-
-        // 1. Large Transaction
-        if (ap.largeTxAlerts && Number(tx.amount) > ap.largeTxThreshold) {
-          showAlertRef.current(`Large transaction: ${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, "warning", "alert-circle");
-          sendPush({ title: "Large Transaction", body: `${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, icon: "/icon-192.png", tag: "large-tx" });
-        }
-        // 2. Overspending Alert
-        if (ap.overspendAlerts && monthlyExpenses > budget) {
-          showAlertRef.current(`You've exceeded your monthly budget by ${fmtMoney(monthlyExpenses - budget)}`, "danger", "alert-circle");
-          sendPush({ title: "Budget Exceeded", body: `Monthly spending exceeds your ${fmtMoney(budget)} budget by ${fmtMoney(monthlyExpenses - budget)}`, icon: "/icon-192.png", tag: "budget-exceeded" });
-        }
-        // 3. Low Balance Alert
-        if (ap.lowBalanceAlerts && remaining < ap.lowBalanceThreshold && remaining >= 0) {
-          showAlertRef.current(`Low balance warning: ${fmtMoney(remaining)} remaining in budget`, "warning", "dollar");
-          sendPush({ title: "Low Balance", body: `${fmtMoney(remaining)} remaining in your monthly budget`, icon: "/icon-192.png", tag: "low-balance" });
-        }
-        // 4. Unusual Spending Alert
-        if (ap.unusualSpending && tx.category_name && tx.category_name !== "Transfer") {
-          const cat = tx.category_name;
-          const now = new Date();
-          const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-          const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(),     0, 23, 59, 59, 999);
-          const prevTotal = transactions
-            .filter(t => t.type === "expense" && t.category_name === cat && new Date(t.date) >= prevMonthStart && new Date(t.date) <= prevMonthEnd)
+        // ── Alert checks (run outside state updater so showAlert fires reliably) ──
+        // autopilotRef.current used instead of autopilot to avoid stale closure after await
+        if (tx.type === "expense") {
+          const ap = autopilotRef.current;
+          const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
+          // Use current transactions + newly saved one for accurate totals
+          const allTx = [data, ...transactions];
+          const monthlyExpenses = allTx
+            .filter(t => {
+              if (t.type !== "expense" || new Date(t.date) < monthStart) return false;
+              const cat = resolveCategory(t);
+              return cat !== "Transfer" && cat !== "Transfers";
+            })
             .reduce((s, t) => s + Number(t.amount), 0);
-          const thisTotal = allTx
-            .filter(t => t.type === "expense" && t.category_name === cat && new Date(t.date) >= monthStart)
-            .reduce((s, t) => s + Number(t.amount), 0);
-          if (prevTotal >= 50 && thisTotal >= prevTotal * 1.25) {
-            const pct = Math.round((thisTotal / prevTotal - 1) * 100);
-            showAlertRef.current(`${cat} spending is up ${pct}% vs last month`, "warning", "trending-up");
-            sendPush({
-              title: `⚠️ ${cat} Spending Up`,
-              body:  `${cat} is up ${pct}% vs last month ($${Math.round(thisTotal)} vs $${Math.round(prevTotal)})`,
-              icon:  "/icon-192.png",
-              tag:   `unusual-${cat.toLowerCase().replace(/\s+/g, "-")}`,
-            });
+          const budget = profile?.monthly_budget || 3000;
+          const remaining = budget - monthlyExpenses;
+
+
+          // Helper: send push via fetch with explicit session JWT (avoids SDK auth edge cases)
+          const sendPush = async (payload) => {
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              const token = session?.access_token ?? SUPABASE_KEY;
+              await fetch(`${SUPABASE_URL}/functions/v1/push-notify`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${token}`,
+                  "apikey": SUPABASE_KEY,
+                },
+                body: JSON.stringify({ user_id: user?.id, ...payload }),
+              });
+            } catch { /* fire-and-forget */ }
+          };
+
+          // 1. Large Transaction
+          if (ap.largeTxAlerts && Number(tx.amount) > ap.largeTxThreshold) {
+            showAlertRef.current(`Large transaction: ${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, "warning", "alert-circle");
+            sendPush({ title: "Large Transaction", body: `${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, icon: "/icon-192.png", tag: "large-tx" });
+          }
+          // 2. Overspending Alert
+          if (ap.overspendAlerts && monthlyExpenses > budget) {
+            showAlertRef.current(`You've exceeded your monthly budget by ${fmtMoney(monthlyExpenses - budget)}`, "danger", "alert-circle");
+            sendPush({ title: "Budget Exceeded", body: `Monthly spending exceeds your ${fmtMoney(budget)} budget by ${fmtMoney(monthlyExpenses - budget)}`, icon: "/icon-192.png", tag: "budget-exceeded" });
+          }
+          // 3. Low Balance Alert
+          if (ap.lowBalanceAlerts && remaining < ap.lowBalanceThreshold && remaining >= 0) {
+            showAlertRef.current(`Low balance warning: ${fmtMoney(remaining)} remaining in budget`, "warning", "dollar");
+            sendPush({ title: "Low Balance", body: `${fmtMoney(remaining)} remaining in your monthly budget`, icon: "/icon-192.png", tag: "low-balance" });
+          }
+          // 4. Unusual Spending Alert
+          if (ap.unusualSpending && tx.category_name && tx.category_name !== "Transfer") {
+            const cat = tx.category_name;
+            const now = new Date();
+            const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+            const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(),     0, 23, 59, 59, 999);
+            const prevTotal = transactions
+              .filter(t => t.type === "expense" && t.category_name === cat && new Date(t.date) >= prevMonthStart && new Date(t.date) <= prevMonthEnd)
+              .reduce((s, t) => s + Number(t.amount), 0);
+            const thisTotal = allTx
+              .filter(t => t.type === "expense" && t.category_name === cat && new Date(t.date) >= monthStart)
+              .reduce((s, t) => s + Number(t.amount), 0);
+            if (prevTotal >= 50 && thisTotal >= prevTotal * 1.25) {
+              const pct = Math.round((thisTotal / prevTotal - 1) * 100);
+              showAlertRef.current(`${cat} spending is up ${pct}% vs last month`, "warning", "trending-up");
+              sendPush({
+                title: `⚠️ ${cat} Spending Up`,
+                body:  `${cat} is up ${pct}% vs last month ($${Math.round(thisTotal)} vs $${Math.round(prevTotal)})`,
+                icon:  "/icon-192.png",
+                tag:   `unusual-${cat.toLowerCase().replace(/\s+/g, "-")}`,
+              });
+            }
           }
         }
+        // Update upcoming charges based on new transaction set
+        setUpcomingCharges(detectRecurringCharges([data, ...transactions]));
       }
-      // Update upcoming charges based on new transaction set
-      setUpcomingCharges(detectRecurringCharges([data, ...transactions]));
+    } catch (err) {
+      logger.error("[addTransaction] failed:", err);
+    } finally {
+      setShowAddTx(false);
     }
-    setShowAddTx(false);
   }
 
   async function deleteTransaction(id) {
-    await supabase.from("transactions").delete().eq("id", id);
-    setTransactions(prev => prev.filter(t => t.id !== id));
+    try {
+      await supabase.from("transactions").delete().eq("id", id);
+      setTransactions(prev => prev.filter(t => t.id !== id));
+    } catch (err) {
+      logger.error("[deleteTransaction] failed:", err);
+    }
   }
 
   async function updateTransaction(id, updates) {
-    const { data } = await supabase.from("transactions").update(updates).eq("id", id).select().single();
-    if (data) setTransactions(prev => prev.map(t => t.id === id ? data : t));
-    setEditTx(null);
+    try {
+      const { data } = await supabase.from("transactions").update(updates).eq("id", id).select().single();
+      if (data) setTransactions(prev => prev.map(t => t.id === id ? data : t));
+    } catch (err) {
+      logger.error("[updateTransaction] failed:", err);
+    } finally {
+      setEditTx(null);
+    }
   }
 
   async function addSaving(sv) {
@@ -915,23 +946,39 @@ export default function App() {
   }
 
   async function updateSaving(id, current) {
-    await supabase.from("savings").update({ current }).eq("id", id);
-    setSavings(prev => prev.map(s => s.id === id ? { ...s, current } : s));
+    try {
+      await supabase.from("savings").update({ current }).eq("id", id);
+      setSavings(prev => prev.map(s => s.id === id ? { ...s, current } : s));
+    } catch (err) {
+      logger.error("[updateSaving] failed:", err);
+    }
   }
 
   async function editSaving(id, updates) {
-    await supabase.from("savings").update(updates).eq("id", id);
-    setSavings(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+    try {
+      await supabase.from("savings").update(updates).eq("id", id);
+      setSavings(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+    } catch (err) {
+      logger.error("[editSaving] failed:", err);
+    }
   }
 
   async function deleteSaving(id) {
-    await supabase.from("savings").delete().eq("id", id);
-    setSavings(prev => prev.filter(s => s.id !== id));
+    try {
+      await supabase.from("savings").delete().eq("id", id);
+      setSavings(prev => prev.filter(s => s.id !== id));
+    } catch (err) {
+      logger.error("[deleteSaving] failed:", err);
+    }
   }
 
   async function saveProfile(updates) {
-    await supabase.from("profiles").update(updates).eq("id", user.id);
-    setProfile(prev => ({ ...prev, ...updates }));
+    try {
+      await supabase.from("profiles").update(updates).eq("id", user.id);
+      setProfile(prev => ({ ...prev, ...updates }));
+    } catch (err) {
+      logger.error("[saveProfile] failed:", err);
+    }
   }
 
   function startTutorial() {
