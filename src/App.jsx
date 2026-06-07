@@ -573,7 +573,7 @@ export default function App() {
       if (p.data) {
         setProfile(p.data);
         setAlpacaConnected(!!p.data.alpaca_access_token);
-        if (p.data.last_synced_at) {
+        if (p.data.last_synced_at && !silent) {
           setLastSyncedAt(p.data.last_synced_at);
           try { localStorage.setItem("arkonomy_last_synced", p.data.last_synced_at); } catch {}
         }
@@ -713,10 +713,10 @@ export default function App() {
       setLastSyncedAt(now);
       try { localStorage.setItem("arkonomy_last_synced", now); } catch {}
       await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
-      await loadAll();
+      await loadAll(true); // silent — keep Dashboard mounted, accountBalance must not reset
     } catch (err) {
       logger.error("[Plaid] sync-transactions exception:", err);
-      await loadAll();
+      await loadAll(true);
     } finally {
       setSyncingBank(false);
     }
