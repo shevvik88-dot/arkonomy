@@ -550,21 +550,17 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
             })}
           </div>
 
-          {/* 2×2 grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          {/* 2×2 compact grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {ASSET_TILES.map(r => {
               const pct = totalAssets > 0 ? Math.round((r.amount / totalAssets) * 100) : 0;
               return (
-                <div key={r.key} style={{ background: C.bg, border: `1px solid ${C.sep}`, borderRadius: 14, padding: "12px 14px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 99, background: r.color, flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{r.label}</span>
-                  </div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: r.amount > 0 ? C.text : C.faint, marginBottom: 6 }}>
-                    {fmtMoney(r.amount)}
-                  </div>
-                  <div style={{ display: "inline-flex", background: r.color + "22", borderRadius: 20, padding: "2px 8px" }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: r.color }}>{pct}%</span>
+                <div key={r.key} style={{ background: C.bg, border: `1px solid ${C.sep}`, borderRadius: 12, padding: "9px 11px", display: "flex", alignItems: "center", gap: 7 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: 99, background: r.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: C.muted, fontWeight: 600, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
+                  <span style={{ fontSize: r.amount > 0 ? 13 : 11, fontWeight: 700, color: r.amount > 0 ? C.text : C.faint, whiteSpace: "nowrap" }}>{fmtMoney(r.amount)}</span>
+                  <div style={{ background: pct > 0 ? C.green + "25" : C.faint + "30", borderRadius: 20, padding: "2px 6px", flexShrink: 0 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: pct > 0 ? C.green : C.faint }}>{pct}%</span>
                   </div>
                 </div>
               );
