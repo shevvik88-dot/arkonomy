@@ -456,7 +456,7 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => { if (user) { loadAll(); checkBankConnection(); } }, [user]);
+  useEffect(() => { if (user) { clearAccountsCache(); loadAll(); checkBankConnection(); } }, [user]);
 
   // Android back button: navigate to dashboard instead of closing the app
   useEffect(() => {
