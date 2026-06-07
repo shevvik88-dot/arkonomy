@@ -756,8 +756,9 @@ export default function App() {
         const now = new Date().toISOString();
         setLastSyncedAt(now);
         try { localStorage.setItem("arkonomy_last_synced", now); } catch {} // keep local cache in sync
+        clearAccountsCache();
         await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
-        if ((data.synced ?? 0) > 0) await loadAll();
+        await loadAll();
       }
     } catch {
     } finally {
