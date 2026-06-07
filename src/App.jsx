@@ -3,6 +3,7 @@ import { logger } from "./utils/logger";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "./utils/supabase";
+import { getCachedAccounts, setCachedAccounts, clearAccountsCache } from "./utils/accountsCache";
 import { App as CapApp } from "@capacitor/app";
 import { usePlaidOAuth, PLAID_REDIRECT_URI } from "./hooks/usePlaidOAuth";
 import CheckInCard from "./components/CheckInCard";
@@ -64,31 +65,9 @@ document.head.appendChild(fontLink);
 const APP_VERSION = "1.0.1";
 const FONT = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
 
-// ── Plaid accounts cache ──────────────────────────────────────────────────────
-const ACCOUNTS_CACHE_KEY = "arkonomy_accounts_v1";
-const ACCOUNTS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes — balance must stay fresh
-const SYNC_CACHE_TTL     = 60 * 60 * 1000; // 1 hour
+// ── Sync staleness ────────────────────────────────────────────────────────────
+const SYNC_CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
-function getCachedAccounts() {
-  try {
-    const raw = localStorage.getItem(ACCOUNTS_CACHE_KEY);
-    if (!raw) return null;
-    const { ts, accounts } = JSON.parse(raw);
-    const ageMin = Math.round((Date.now() - ts) / 60000);
-    if (Date.now() - ts > ACCOUNTS_CACHE_TTL) {
-      return null;
-    }
-    return accounts;
-  } catch { return null; }
-}
-function setCachedAccounts(accounts) {
-  try {
-    localStorage.setItem(ACCOUNTS_CACHE_KEY, JSON.stringify({ ts: Date.now(), accounts }));
-  } catch {}
-}
-function clearAccountsCache() {
-  try { localStorage.removeItem(ACCOUNTS_CACHE_KEY); } catch {}
-}
 function isSyncStale(lastSyncedAt) {
   if (!lastSyncedAt) return true;
   return Date.now() - new Date(lastSyncedAt).getTime() > SYNC_CACHE_TTL;

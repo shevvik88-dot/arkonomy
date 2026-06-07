@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
+import { getCachedAccounts, setCachedAccounts } from "../utils/accountsCache";
 import { C, FONT } from "../utils/colors";
 import { fmt, fmtDate, parseDate, fmtPct, resolveCategory, tCat } from "../utils/helpers";
 import Icon from "./shared/Icon";
@@ -10,20 +11,6 @@ import { InsightCard } from "./Insights";
 import UpcomingChargesCard from "./UpcomingChargesCard";
 import { TxRow } from "./Transactions";
 
-const ACCOUNTS_CACHE_KEY = "arkonomy_accounts_v1";
-const ACCOUNTS_CACHE_TTL = 60 * 60 * 1000;
-function getCachedAccounts() {
-  try {
-    const raw = localStorage.getItem(ACCOUNTS_CACHE_KEY);
-    if (!raw) return null;
-    const { ts, accounts } = JSON.parse(raw);
-    if (Date.now() - ts > ACCOUNTS_CACHE_TTL) return null;
-    return accounts;
-  } catch { return null; }
-}
-function setCachedAccounts(accounts) {
-  try { localStorage.setItem(ACCOUNTS_CACHE_KEY, JSON.stringify({ ts: Date.now(), accounts })); } catch {}
-}
 
 const CAT_COLORS = {
   "Housing":       "#60A5FA",

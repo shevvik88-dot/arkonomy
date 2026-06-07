@@ -6,24 +6,11 @@ import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
 import { fmtMoney } from "./Transactions";
 import { logger } from "../utils/logger";
+import { getCachedAccounts, setCachedAccounts } from "../utils/accountsCache";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-function getCachedAccounts() {
-  try {
-    const raw = localStorage.getItem("arkonomy_accounts_v1");
-    if (!raw) return null;
-    const { ts, accounts } = JSON.parse(raw);
-    if (Date.now() - ts > 60 * 60 * 1000) return null;
-    return accounts;
-  } catch { return null; }
-}
-function setCachedAccounts(accounts) {
-  try {
-    localStorage.setItem("arkonomy_accounts_v1", JSON.stringify({ ts: Date.now(), accounts }));
-  } catch {}
-}
 
 // ─── Goal Progress Card ───────────────────────────────────────
 function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, transactions, plaidAccounts, onInvestAlpaca, isPro, onUpgrade, alpacaConnected, onConnectAlpaca, userId }) {
