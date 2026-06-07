@@ -1,12 +1,16 @@
 ﻿# Arkonomy
 
-## Current status (2026-06-04)
-- Production live at app.arkonomy.com — last stable commit: `50e5fd1`
-- QA audit complete: 12 security and stability fixes deployed
-- Security: brute force lockout, user enumeration fix, Stripe URL validation, deleteAccount cleanup
-- Stability: Error Boundary, bgSync race condition fix, chat loading state
-- Refactored: cleanMerchantName extracted to src/utils/helpers.js (single source of truth)
-- ai-chat edge function now version-controlled; security-hardened (JWT auth, CORS restricted, input validation)
+## Current status (2026-06-06)
+- Production live at app.arkonomy.com — last stable commit: `85a3393`
+- Portuguese Brazil (pt) added — src/locales/pt/translation.json, i18n.js, language switcher in App.jsx
+- SW cache bumped to v4 (public/sw.js) to force client refresh after fixes
+- Savings screen crash fixed: `isDeficit` was missing from Savings component scope (only existed in GoalCard)
+- Double $$ fixed in Savings: fmtMoney() returns $-prefixed strings — removed 9 literal `$` prefixes in JSX
+- Duplicate transactions root cause: user has 2 Bank of America Plaid items returning same transactions with different IDs; fixed with cross-item `seenKeys` dedup in plaid-sync-transactions edge function
+- bgSync now calls clearAccountsCache() and loadAll() unconditionally (was only reloading when synced > 0)
+- i18n keys dashboard.of_total and dashboard.surplus added to en/ru/es
+- DonutChart size restored to 196 in Dashboard spending section
+- Security audit bot (Jules) had gutted Dashboard.jsx to 312 lines — restored full 1018-line version
 
 ## Next tasks (priority order)
 1. **Merchant navigation** — tap a transaction in Dashboard "Recent Transactions" → navigate to Transactions screen filtered by that merchant (cleanMerchantName now in helpers.js)
