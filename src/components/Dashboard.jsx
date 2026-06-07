@@ -688,32 +688,45 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   useEffect(() => {
     if (!bankConnected || !userId) return;
     const fetchId = ++balanceFetchIdRef.current;
+    console.log('[balance] effect fired', { fetchId, bankConnected, userId, lastSyncedAt, at: Date.now() });
     (async () => {
       try {
-        // Use cached accounts if fresh (<1 hr)
+        let source = 'cache';
         let accounts = getCachedAccounts();
         if (!accounts) {
-          console.log("[dashboard] cache miss — calling plaid-get-accounts");
+          source = 'plaid-api';
+          console.log('[balance] cache miss — fetching plaid-get-accounts', { fetchId, at: Date.now() });
           const { data: { session } } = await supabase.auth.getSession();
-          if (!session) return;
+          if (!session) { console.log('[balance] no session, aborting', { fetchId }); return; }
           const res = await fetch(`${SUPABASE_URL}/functions/v1/plaid-get-accounts`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}`, "apikey": SUPABASE_KEY },
             body: "{}",
           });
-          if (!res.ok) return;
+          if (!res.ok) { console.log('[balance] plaid-get-accounts error', { fetchId, status: res.status }); return; }
           const d = await res.json();
           accounts = d.accounts ?? [];
+          console.log('[balance] plaid-get-accounts returned', { fetchId, count: accounts.length, accounts: accounts.map(a => ({ name: a.name, subtype: a.subtype, available: a.balance_available, current: a.balance_current })), at: Date.now() });
           if (accounts.length) setCachedAccounts(accounts);
+        } else {
+          console.log('[balance] cache hit', { fetchId, count: accounts.length, at: Date.now() });
         }
-        if (!accounts.length) return;
+        if (!accounts.length) { console.log('[balance] no accounts, aborting', { fetchId }); return; }
         const checking = accounts.find(a => a.subtype === "checking") ?? accounts.find(a => a.type === "depository") ?? accounts[0];
         const bal = checking?.balance_available ?? checking?.balance_current ?? null;
-        // Only apply if this is still the latest fetch — discard stale concurrent responses
-        if (bal != null && fetchId === balanceFetchIdRef.current) setAccountBalance(bal);
-      } catch {}
+        const currentFetchId = balanceFetchIdRef.current;
+        if (bal != null && fetchId === currentFetchId) {
+          console.log('accountBalance set to:', bal, 'source:', source, 'at:', Date.now(), { fetchId });
+          setAccountBalance(bal);
+        } else {
+          console.log('[balance] DISCARDED by fetchId guard', { fetchId, currentFetchId, bal, source, at: Date.now() });
+        }
+      } catch (err) {
+        console.log('[balance] effect threw', { fetchId, err });
+      }
     })();
   }, [bankConnected, userId, lastSyncedAt]);
+  console.log('[balance] render — accountBalance:', accountBalance, 'lastSyncedAt:', lastSyncedAt, 'at:', Date.now());
   const budget = Number(profile?.monthly_budget) || 3000;
   const balance = totalIncome - totalSpent;
   const pct = budget > 0 ? (totalSpent / budget) * 100 : 0;
