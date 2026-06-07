@@ -1177,7 +1177,7 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
             <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>{ins.title}</div>
             <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 14 }}>{ins.desc}</div>
             <button onClick={() => onOpenChat?.(ins.context)} style={{ background: "none", border: "none", cursor: "pointer", color, fontSize: 13, fontWeight: 600, padding: 0, display: "flex", alignItems: "center", gap: 6, fontFamily: FONT }}>
-              <Icon name="message" size={13} color={color} /> Ask AI about this <Icon name="chevron" size={13} color={color} />
+              <Icon name="message" size={13} color={color} /> {t("common.ask_ai_about")} <Icon name="chevron" size={13} color={color} />
             </button>
           </GlassCard>
         );

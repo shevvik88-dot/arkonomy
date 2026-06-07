@@ -3,6 +3,7 @@
     "home": "Início",
     "transactions": "Transações",
     "markets": "Mercados",
+    "markets_news_tab": "NOTÍCIAS",
     "savings": "Economias",
     "insights": "Análises"
   },
@@ -58,6 +59,7 @@
     "budget": "Orçamento",
     "over_budget": "Acima",
     "markets": "Mercados",
+    "markets_news_tab": "NOTÍCIAS",
     "powered_by_finnhub": "Distribuído por Finnhub · atualiza a cada 60s",
     "loading_market_data": "Carregando dados do mercado...",
     "could_not_load_market_data": "Não foi possível carregar dados do mercado",
@@ -667,6 +669,9 @@
     "done": "Concluído",
     "pro_badge": "Pro",
     "free_badge": "Grátis",
-    "user_default": "Usuário"
+    "user_default": "Usuário",
+    "deleting": "Excluindo...",
+    "swipe_explore": "Deslize para explorar",
+    "ask_ai_about": "Pergunte à IA sobre isso"
   }
 }

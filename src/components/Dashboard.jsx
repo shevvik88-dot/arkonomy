@@ -876,7 +876,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           <span style={{ fontWeight: 600, fontSize: 14 }}>{t("dashboard.spending_by_category")}</span>
           {isPro
             ? <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: 99 }}>{t("dashboard.tap_to_filter")}</span>
-            : <span style={{ fontSize: 10, color: C.cyan + "AA", background: C.cyan + "10", padding: "3px 8px", borderRadius: 99, cursor: "pointer" }} onClick={onUpgrade}>Pro</span>
+            : <span style={{ fontSize: 10, color: C.cyan + "AA", background: C.cyan + "10", padding: "3px 8px", borderRadius: 99, cursor: "pointer" }} onClick={onUpgrade}>{t("common.pro_badge")}</span>
           }
         </div>
         {Object.keys(spendingByCategory).length === 0 ? (

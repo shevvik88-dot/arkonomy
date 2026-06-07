@@ -3,6 +3,7 @@
     "home": "Home",
     "transactions": "Txns",
     "markets": "Markets",
+    "markets_news_tab": "NEWS",
     "savings": "Savings",
     "insights": "Insights"
   },
@@ -58,6 +59,7 @@
     "budget": "Budget",
     "over_budget": "Over",
     "markets": "Markets",
+    "markets_news_tab": "NEWS",
     "powered_by_finnhub": "Powered by Finnhub · auto-refreshes every 60s",
     "loading_market_data": "Loading market data...",
     "could_not_load_market_data": "Could not load market data",
@@ -471,7 +473,9 @@
     "terms_of_service": "Terms of Service",
     "cybersecurity_policy": "Cybersecurity Policy",
     "updating": "Updating…",
-    "bank_connected_name": "Bank Connected"
+    "bank_connected_name": "Bank Connected",
+    "delete_confirm_title": "Delete your account?",
+    "delete_confirm_placeholder": "DELETE"
   },
   "onboarding": {
     "welcome_title": "Welcome to Arkonomy, {{name}}!",
@@ -665,6 +669,9 @@
     "done": "Done",
     "pro_badge": "Pro",
     "free_badge": "Free",
-    "user_default": "User"
+    "user_default": "User",
+    "deleting": "Deleting...",
+    "swipe_explore": "Swipe to explore",
+    "ask_ai_about": "Ask AI about this"
   }
 }

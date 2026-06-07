@@ -3,6 +3,7 @@
     "home": "Главная",
     "transactions": "Операции",
     "markets": "Рынки",
+    "markets_news_tab": "НОВОСТИ",
     "savings": "Накопления",
     "insights": "Аналитика"
   },
@@ -60,6 +61,7 @@
     "budget": "Бюджет",
     "over_budget": "Перерасход",
     "markets": "Рынки",
+    "markets_news_tab": "НОВОСТИ",
     "powered_by_finnhub": "Данные Finnhub · обновляется каждые 60с",
     "loading_market_data": "Загрузка рыночных данных...",
     "could_not_load_market_data": "Не удалось загрузить рыночные данные",
@@ -479,7 +481,9 @@
     "terms_of_service": "Условия использования",
     "cybersecurity_policy": "Политика кибербезопасности",
     "updating": "Обновление…",
-    "bank_connected_name": "Банк подключён"
+    "bank_connected_name": "Банк подключён",
+    "delete_confirm_title": "Удалить аккаунт?",
+    "delete_confirm_placeholder": "УДАЛИТЬ"
   },
   "onboarding": {
     "welcome_title": "Добро пожаловать в Arkonomy, {{name}}!",
@@ -673,6 +677,9 @@
     "done": "Готово",
     "pro_badge": "Pro",
     "free_badge": "Бесплатно",
-    "user_default": "Пользователь"
+    "user_default": "Пользователь",
+    "deleting": "Удаление...",
+    "swipe_explore": "Смахните, чтобы изучить",
+    "ask_ai_about": "Спросить ИИ об этом"
   }
 }

@@ -96,7 +96,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
   }
 
   async function handleDeleteAccount() {
-    if (deleteInput !== "DELETE") return;
+    if (deleteInput !== t("profile.delete_confirm_placeholder")) return;
     setDeleting(true);
     try {
       await onDeleteAccount();
@@ -420,25 +420,25 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             <div style={{ width: 36, height: 4, borderRadius: 99, background: C.border, margin: "0 auto 24px" }} />
             <div style={{ textAlign: "center", marginBottom: 20 }}>
               <div style={{ fontSize: 32, marginBottom: 10 }}>⚠️</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: C.text, marginBottom: 8 }}>Delete your account?</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: C.text, marginBottom: 8 }}>{t("profile.delete_confirm_title")}</div>
               <div style={{ fontSize: 14, color: C.muted, lineHeight: 1.6 }}>
                 This permanently deletes all your transactions, savings goals, and financial data. This action cannot be undone.
               </div>
             </div>
-            <div style={{ fontSize: 13, color: C.muted, marginBottom: 8 }}>Type <strong style={{ color: C.red }}>DELETE</strong> to confirm:</div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 8 }}><>{t("profile.delete_confirm_body")} <strong style={{ color: C.red }}>{t("profile.delete_confirm_placeholder")}</strong></></div>
             <input
               type="text"
               value={deleteInput}
               onChange={e => setDeleteInput(e.target.value)}
-              placeholder="DELETE"
-              style={{ width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${deleteInput === "DELETE" ? C.red : C.border}`, borderRadius: 12, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT, marginBottom: 14 }}
+              placeholder={t("profile.delete_confirm_placeholder")}
+              style={{ width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${deleteInput === t("profile.delete_confirm_placeholder") ? C.red : C.border}`, borderRadius: 12, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT, marginBottom: 14 }}
             />
             <button
               onClick={handleDeleteAccount}
-              disabled={deleteInput !== "DELETE" || deleting}
-              style={{ width: "100%", padding: 15, background: deleteInput === "DELETE" ? C.red : C.bgTertiary, border: "none", borderRadius: 14, color: deleteInput === "DELETE" ? "#fff" : C.faint, fontWeight: 700, fontSize: 15, cursor: deleteInput === "DELETE" ? "pointer" : "not-allowed", fontFamily: FONT, marginBottom: 10, transition: "background 0.2s" }}
+              disabled={deleteInput !== t("profile.delete_confirm_placeholder") || deleting}
+              style={{ width: "100%", padding: 15, background: deleteInput === t("profile.delete_confirm_placeholder") ? C.red : C.bgTertiary, border: "none", borderRadius: 14, color: deleteInput === t("profile.delete_confirm_placeholder") ? "#fff" : C.faint, fontWeight: 700, fontSize: 15, cursor: deleteInput === t("profile.delete_confirm_placeholder") ? "pointer" : "not-allowed", fontFamily: FONT, marginBottom: 10, transition: "background 0.2s" }}
             >
-              {deleting ? "Deleting…" : "Delete Account Permanently"}
+              {deleting ? t("common.deleting") : t("common.delete")}
             </button>
             <button
               onClick={() => setShowDeleteConfirm(false)}
