@@ -277,6 +277,7 @@ const INSIGHT_DEFS = [
             m.includes(s._topExpenseDesc) ||        // tx desc is substring of merchant key
             (s._topExpenseDesc.length >= 6 && m.includes(s._topExpenseDesc.slice(0, 12)))
           ));
+      console.log("[AIInsightCard] isRecurring:", isRecurring, "| catLower:", catLower, "| _topExpenseTxCat:", s._topExpenseTxCat);
 
       const cause = `This increase was caused by ${amt} in ${cat}. Your usual ${cat.toLowerCase()} spending is much lower.`;
       const interpretation = isRecurring
@@ -394,6 +395,10 @@ function AIInsightCard({ summary, transactions, onAction }) {
       enriched._topExpenseDesc    = norm(topTx.description);
       enriched._topExpenseTxCat   = (topTx.category_name || "").toLowerCase();
     }
+    console.log("[AIInsightCard] _recurringMerchants:", [...recurringMerchantNames]);
+    console.log("[AIInsightCard] _topExpenseDesc (normalized):", enriched._topExpenseDesc);
+    console.log("[AIInsightCard] _topExpenseCat (highest total category):", enriched._topExpenseCat);
+    console.log("[AIInsightCard] _topExpenseTxCat (category of biggest tx):", enriched._topExpenseTxCat);
   }
 
   const def = INSIGHT_DEFS

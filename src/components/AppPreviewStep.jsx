@@ -100,7 +100,7 @@ export default function AppPreviewStep({ onNext }) {
         <div style={{ fontSize: 28, fontWeight: 800, color: "#fff", marginBottom: 8, lineHeight: 1.2 }}>
           Here's what you get
         </div>
-        <div style={{ fontSize: 13, color: MUTED }}>{t("common.swipe_explore")}</div>
+        <div style={{ fontSize: 13, color: MUTED }}>Swipe to explore</div>
       </div>
 
       {/* Phone + arrows */}
@@ -264,7 +264,7 @@ export default function AppPreviewStep({ onNext }) {
               fontFamily: FONT,
             }}
           >
-            {t("common.swipe_explore")} →
+            Swipe to explore →
           </button>
         )}
       </div>

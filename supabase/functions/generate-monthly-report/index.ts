@@ -87,7 +87,7 @@ function fmt(n: number) {
 // ═════════════════════════════════════════════════════════════════════════════
 
 const CORS = {
-  'Access-Control-Allow-Origin': 'https://app.arkonomy.com',
+  'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -238,7 +238,7 @@ Deno.serve(async (req) => {
         results.push({ userId: user.id, status: 'sent' });
       } catch (err) {
         console.error(`Report failed for user ${user.id}:`, err);
-        results.push({ userId: user.id, status: 'failed', error: "Internal Server Error" });
+        results.push({ userId: user.id, status: 'failed', error: String(err) });
       }
     }
 
@@ -248,7 +248,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('generate-monthly-report error:', err);
-    return new Response(JSON.stringify({ error: "Internal Server Error" }), {
+    return new Response(JSON.stringify({ error: String(err) }), {
       status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
     });
   }
@@ -626,7 +626,7 @@ function styleCell(cell: ExcelJS.Cell, opts: CellStyle) {
 // EMAIL BODY
 // ═════════════════════════════════════════════════════════════════════════════
 
-const esc = (s: string) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const esc = (s: string) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 function buildEmailHtml(name: string, reportLabel: string): string {
   const firstName = esc((name || '').split(' ')[0] || 'there');

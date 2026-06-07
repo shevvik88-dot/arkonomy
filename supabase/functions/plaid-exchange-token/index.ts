@@ -118,6 +118,6 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('plaid-exchange-token error:', err);
-    return json({ error: "Internal Server Error" }, 500, cors);
+    return json({ error: String(err) }, 500, cors);
   }
 });

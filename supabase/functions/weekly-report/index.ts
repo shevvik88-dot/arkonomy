@@ -10,7 +10,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://app.arkonomy.com',
+  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
         }
 
         const report = await buildReport(supabase, user.id);
-        const html   = buildEmailHtml(user.full_name || user.email || 'User', report, prefs);
+        const html   = buildEmailHtml(user.full_name || user.email, report, prefs);
 
         const res = await fetch('https://api.resend.com/emails', {
           method:  'POST',
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
 
         results.push({ userId: user.id, status: 'sent' });
       } catch (err) {
-        results.push({ userId: user.id, status: 'failed', error: "Internal Server Error" });
+        results.push({ userId: user.id, status: 'failed', error: String(err) });
       }
     }
 
@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
   } catch (err) {
     console.error('weekly-report error:', err);
     return new Response(
-      JSON.stringify({ error: "Internal Server Error" }),
+      JSON.stringify({ error: String(err) }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -265,7 +265,7 @@ function fmtAmt(n: number): string {
 // EMAIL TEMPLATE
 // ══════════════════════════════════════════════════════════════════════════════
 
-const esc = (s: string) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const esc = (s: string) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 function buildEmailHtml(name: string, r: WeekReport, prefs = DEFAULT_PREFS): string {
   const deltaColor  = r.weekDelta <= 0 ? '#12D18E' : '#FF5C7A';

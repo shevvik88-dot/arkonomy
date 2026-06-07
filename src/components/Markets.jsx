@@ -1,4 +1,3 @@
-import { logger } from "../utils/logger";
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
@@ -72,24 +71,19 @@ function fmtPrice(n, isCrypto = false) {
 }
 
 async function callMarketData(body) {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/market-data`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${session?.access_token ?? ""}`,
-        "apikey": SUPABASE_KEY,
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  } catch (err) {
-    logger.error("[callMarketData] failed:", err);
-    return { error: "Failed to load market data" };
-  }
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/market-data`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session?.access_token ?? ""}`,
+      "apikey": SUPABASE_KEY,
+    },
+    body: JSON.stringify(body),
+  });
+  return res.json();
 }
+
 // ─── Stock Logo ───────────────────────────────────────────────
 
 function StockLogo({ symbol, color, icon, size = 36, borderRadius = 10 }) {
@@ -270,7 +264,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
     callMarketData({ type: "chart", symbol, period })
       .then(d => {
         if (d?.error) {
-          logger.error("[Chart] API error:", d.error);
+          console.error("[Chart] API error:", d.error);
           setChartError(d.error);
           setCandles([]);
         } else {
@@ -279,7 +273,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
         setLoadingChart(false);
       })
       .catch(err => {
-        logger.error("[Chart] fetch error:", err);
+        console.error("[Chart] fetch error:", err);
         setChartError(String(err));
         setLoadingChart(false);
       });
@@ -324,7 +318,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
       if (data.error) throw new Error(data.error);
       setAi(data);
     } catch (e) {
-      logger.error("[AI Analysis] error:", e);
+      console.error("[AI Analysis] error:", e);
       setAiError(e.message ?? "Analysis failed");
     } finally {
       setAiLoading(false);
@@ -352,9 +346,9 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
             ? await error.context.json()
             : null;
           if (body?.error)   msg = body.error;
-          if (body?.details) logger.error("[Buy] Alpaca details:", body.details);
+          if (body?.details) console.error("[Buy] Alpaca details:", body.details);
         } catch {}
-        logger.error("[Buy] invoke error:", msg);
+        console.error("[Buy] invoke error:", msg);
         if (msg.includes("Insufficient buying power") || msg.includes("not configured") || msg.includes("ALPACA_API_KEY")) {
           setBuyResult({ notConnected: true });
         } else {

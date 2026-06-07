@@ -1,4 +1,3 @@
-import { logger } from "../utils/logger";
 function useInsights(screen, userId) {
   const [data, setData] = useState(null);
 
@@ -7,7 +6,7 @@ function useInsights(screen, userId) {
     supabase.functions
       .invoke('get-insights', { body: { userId } })
       .then(({ data: result, error }) => {
-        if (error) { logger.error('useInsights error:', error); return; }
+        if (error) { console.error('useInsights error:', error); return; }
         setData(result);
       });
   }, [userId]);

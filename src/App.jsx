@@ -789,19 +789,8 @@ export default function App() {
         supabase.from("savings_reminders").delete().eq("user_id", user.id),
       ]);
       await supabase.from("profiles").delete().eq("id", user.id);
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-      }
     } catch (e) {
-      logger.error("[deleteAccount] failed:", e);
+      if (import.meta.env.DEV) console.error("[deleteAccount]", e);
     }
     clearAccountsCache();
     await supabase.auth.signOut();
@@ -1293,7 +1282,7 @@ export default function App() {
               {isTrial
                 ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: "#F59E0B", background: "#F59E0B20", borderRadius: 20, padding: "3px 9px", cursor: "pointer" }}>Trial: {trialDaysLeft}d left</span>
                 : trialExpired
-                ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: "#EF4444", background: "#EF444420", borderRadius: 20, padding: "3px 9px", cursor: "pointer" }}>{t("onboarding.trial_ended_badge")}</span>
+                ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: "#EF4444", background: "#EF444420", borderRadius: 20, padding: "3px 9px", cursor: "pointer" }}>Trial ended</span>
                 : isPro && <span style={{ fontSize: 10, fontWeight: 700, color: "#7C6BFF", background: "#7C6BFF18", border: "1px solid #7C6BFF44", borderRadius: 99, padding: "2px 8px", letterSpacing: 0.5 }}>PRO</span>
               }
             </div>
@@ -1318,7 +1307,6 @@ export default function App() {
                   { code: "en", label: "English" },
                   { code: "ru", label: "Русский" },
                   { code: "es", label: "Español" },
-                  { code: "pt", label: "Português (Brasil)" },
                 ].map((lang, idx, arr) => {
                   const active = i18n.language?.startsWith(lang.code);
                   return (
@@ -1445,8 +1433,8 @@ export default function App() {
           minWidth: 260,
         }}>
           <div style={{ fontSize: 28, marginBottom: 6 }}>⚡</div>
-          <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>{t("onboarding.welcome_pro_title")}</div>
-          <div style={{ fontSize: 13, color: "#7A8BA8" }}>{t("onboarding.welcome_pro_body")}</div>
+          <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>Welcome to Pro!</div>
+          <div style={{ fontSize: 13, color: "#7A8BA8" }}>Your account has been upgraded. Enjoy all features.</div>
         </div>
       )}
       {showUpgradeModal && <UpgradeModal onClose={() => setShowUpgradeModal(false)} supabase={supabase} />}
@@ -1460,8 +1448,8 @@ export default function App() {
                   <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
                 </svg>
               </div>
-              <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{t("onboarding.trial_ended_title")}</div>
-              <div style={{ fontSize: 14, color: "#7A8BA8" }}>{t("onboarding.trial_ended_body")}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Your free trial ended</div>
+              <div style={{ fontSize: 14, color: "#7A8BA8" }}>Upgrade to keep full access to AI insights, Alpaca investing, and all Pro features.</div>
             </div>
             <button onClick={() => { setShowTrialExpiredModal(false); setShowUpgradeModal(true); }} style={{ width: "100%", padding: 16, background: "linear-gradient(135deg,#7C6BFF,#38B6FF)", border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: "0 4px 24px rgba(124,107,255,0.44)", marginBottom: 12 }}>
               Upgrade to Pro — $9.99/mo
@@ -1496,7 +1484,7 @@ export default function App() {
                   padding: "6px 16px", fontSize: 13, fontWeight: 700,
                   textDecoration: "none", display: "inline-block",
                 }}
-              >{t("onboarding.add_funds_alpaca")}</a>
+              >Add funds to Alpaca</a>
             </>
           ) : alpacaToast.alpacaSuccess ? (
             <>

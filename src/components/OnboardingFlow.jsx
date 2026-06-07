@@ -18,22 +18,22 @@ export const TUTORIAL_STEPS = [
 
 export const MINI_TOURS = {
   "connect-bank": [
-    { selector: '[data-tutorial="net-balance"]',  screen: "dashboard", title: "onboarding.mini_balance_title",          description: "onboarding.mini_balance_desc" },
-    { selector: '[data-tutorial="settings-btn"]', screen: "dashboard", title: "onboarding.mini_settings_title",         description: "onboarding.mini_settings_desc" },
-    { selector: '[data-tutorial="nav-transactions"]', screen: "dashboard", title: "onboarding.mini_tx_title", description: "onboarding.mini_tx_desc" },
+    { selector: '[data-tutorial="net-balance"]',  screen: "dashboard", title: "Your balance lives here",          description: "Once your bank is connected, your real balance, income and expenses update automatically" },
+    { selector: '[data-tutorial="settings-btn"]', screen: "dashboard", title: "Open Settings to connect",         description: "Tap the gear icon → 'Connect Bank' to securely link your account via Plaid (read-only)" },
+    { selector: '[data-tutorial="nav-transactions"]', screen: "dashboard", title: "Transactions sync automatically", description: "After linking, all past and future transactions appear here instantly" },
   ],
   "ai-insights": [
-    { selector: '[data-tutorial="ai-insight"]',   screen: "dashboard", title: "onboarding.mini_ai_card_title",             description: "onboarding.mini_ai_card_desc" },
-    { selector: '[data-tutorial="nav-insights"]', screen: "dashboard", title: "onboarding.mini_insights_tab_title",                description: "onboarding.mini_insights_tab_desc" },
+    { selector: '[data-tutorial="ai-insight"]',   screen: "dashboard", title: "Your AI insight card",             description: "After connecting your bank, the AI analyzes your actual spending and generates personalized tips" },
+    { selector: '[data-tutorial="nav-insights"]', screen: "dashboard", title: "Full Insights tab",                description: "Deep health score, weekly summaries and spending breakdowns — all powered by AI" },
   ],
   "invest": [
-    { selector: '[data-tutorial="nav-markets"]',  screen: "dashboard", title: "onboarding.mini_markets_title",           description: "onboarding.mini_markets_desc" },
-    { selector: '[data-tutorial="nav-savings"]',  screen: "dashboard", title: "onboarding.mini_alpaca_title",           description: "onboarding.mini_alpaca_desc" },
-    { selector: '[data-tutorial="ai-chat"]',      screen: "dashboard", title: "onboarding.mini_ai_chat_title",         description: "onboarding.mini_ai_chat_desc" },
+    { selector: '[data-tutorial="nav-markets"]',  screen: "dashboard", title: "Step 1: Browse Markets",           description: "Tap Markets to see live prices for stocks, ETFs and crypto — tap any ticker for charts and AI analysis" },
+    { selector: '[data-tutorial="nav-savings"]',  screen: "dashboard", title: "Step 2: Connect Alpaca",           description: "In Savings, connect your Alpaca account to enable automatic investing of your monthly round-ups" },
+    { selector: '[data-tutorial="ai-chat"]',      screen: "dashboard", title: "Step 3: Ask AI for picks",         description: "Ask your AI advisor which assets fit your goals and risk profile before investing" },
   ],
   "budget": [
-    { selector: '[data-tutorial="health-score"]', screen: "dashboard", title: "onboarding.mini_budget_score_title",         description: "onboarding.mini_budget_score_desc" },
-    { selector: '[data-tutorial="settings-btn"]', screen: "dashboard", title: "onboarding.mini_budget_edit_title",       description: "onboarding.mini_budget_edit_desc" },
+    { selector: '[data-tutorial="health-score"]', screen: "dashboard", title: "Budget drives your score",         description: "Your health score is calculated against your monthly budget — the tighter you stick to it, the higher it goes" },
+    { selector: '[data-tutorial="settings-btn"]', screen: "dashboard", title: "Change your budget anytime",       description: "Tap the gear icon, scroll to 'Monthly Budget', and update the amount — changes take effect immediately" },
   ],
 };
 
