@@ -368,7 +368,7 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
             type="number"
             value={budget}
             onChange={e => setBudget(e.target.value)}
-            style={{ width: "100%", padding: "16px 16px 16px 34px", background: C.bgSecondary, border: `2px solid ${C.cyan}44`, borderRadius: 14, color: C.text, fontSize: 22, fontWeight: 700, outline: "none", fontFamily: FONT, boxSizing: "border-box" }}
+            style={{ width: "100%", padding: "16px 16px 16px 34px", background: C.bgSecondary, border: `2px solid ${C.cyan}44`, borderRadius: 14, color: C.text, fontSize: 22, fontWeight: 700, fontFamily: FONT, boxSizing: "border-box" }}
             placeholder="3000"
           />
         </div>
@@ -498,7 +498,7 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
 
       <button
         onClick={completeFree}
-        style={{ width: "100%", padding: 0, background: "none", border: "none", color: C.muted, fontWeight: 500, fontSize: 13, cursor: "pointer", fontFamily: FONT, textDecoration: "underline", textUnderlineOffset: 3 }}
+        style={{ minHeight: 44, padding: "10px 0", width: "100%",  background: "none", border: "none", color: C.muted, fontWeight: 500, fontSize: 13, cursor: "pointer", fontFamily: FONT, textDecoration: "underline", textUnderlineOffset: 3 }}
       >
         Continue with Free plan
       </button>

@@ -483,7 +483,7 @@ function MarketOverview({ onOpenMarket }) {
               <a key={i} href={n.url} target="_blank" rel="noopener noreferrer"
                 style={{ display: "flex", gap: 10, textDecoration: "none", padding: "10px 0", borderBottom: i < 3 ? `1px solid ${C.sep}` : "none" }}>
                 {n.image && (
-                  <img src={n.image} alt="" style={{ width: 52, height: 40, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} onError={e => { e.target.style.display = "none"; }} />
+                  <img src={n.image} alt="News thumbnail" style={{ width: 52, height: 40, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} onError={e => { e.target.style.display = "none"; }} />
                 )}
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: C.text, lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{n.headline}</div>
@@ -856,7 +856,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         <HealthScoreBar score={healthScore} color={scoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} />
         <button
           onClick={() => onNavigate("insights")}
-          style={{ display: "flex", alignItems: "center", gap: 4, margin: "6px 0 0 2px", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: FONT }}
+          style={{ minHeight: 44, padding: "10px 0", display: "flex", alignItems: "center", gap: 4, margin: "6px 0 0 2px", background: "none", border: "none", cursor: "pointer",  fontFamily: FONT }}
         >
           <span style={{ fontSize: 13, fontWeight: 600, color: C.cyan }}>{t("dashboard.view_insights")}</span>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}>
@@ -918,7 +918,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       <GlassCard style={{ padding: "14px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <span style={{ fontWeight: 600, fontSize: 14 }}>{t("dashboard.recent_transactions")}</span>
-          <button onClick={() => onNavigate("transactions")} style={{ background: "none", border: "none", cursor: "pointer", color: C.cyan, fontSize: 12, fontWeight: 600, fontFamily: FONT, display: "flex", alignItems: "center", gap: 4, padding: 0 }}>
+          <button onClick={() => onNavigate("transactions")} style={{ minHeight: 44, padding: "10px 0", background: "none", border: "none", cursor: "pointer", color: C.cyan, fontSize: 12, fontWeight: 600, fontFamily: FONT, display: "flex", alignItems: "center", gap: 4,  }}>
             {t("dashboard.view_all")} <Icon name="chevron" size={12} color={C.cyan} />
           </button>
         </div>

@@ -5,7 +5,7 @@ export const C = {
   card: "#111E33", border: "#1E2D4A", sep: "#192840",
   blue: "#2F80FF", cyan: "#00C2FF", green: "#12D18E",
   red: "#FF5C7A", yellow: "#FFB800", purple: "#A78BFA",
-  text: "#FFFFFF", muted: "#9AA4B2", faint: "#4A5E7A",
+  text: "#FFFFFF", muted: "#9AA4B2", faint: "#8BA1B7",
 };
 
 export const CAT_COLORS = {

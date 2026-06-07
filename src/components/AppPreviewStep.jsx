@@ -159,7 +159,7 @@ export default function AppPreviewStep({ onNext }) {
           }}>
             {SLIDES.map((s, i) => (
               <div key={i} style={{ width: `${100 / SLIDES.length}%`, height: "100%", flexShrink: 0 }}>
-                <img
+                <img alt=""
                   src={s.src}
                   alt={s.title}
                   style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top", display: "block" }}

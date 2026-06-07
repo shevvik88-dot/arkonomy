@@ -94,7 +94,7 @@ function StockLogo({ symbol, color, icon, size = 36, borderRadius = 10 }) {
   if (domain && !failed) {
     return (
       <div style={{ width: size, height: size, borderRadius, background: bg, border, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <img
+        <img alt=""
           src={`https://logo.clearbit.com/${domain}`}
           alt={symbol}
           onError={() => setFailed(true)}
@@ -679,7 +679,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
               <input
                 type="number" value={buyAmt}
                 onChange={e => setBuyAmt(e.target.value)}
-                style={{ flex: 1, padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 16, outline: "none", fontFamily: FONT }}
+                style={{ flex: 1, padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 16, fontFamily: FONT }}
                 placeholder="100"
               />
             </div>
@@ -960,7 +960,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
                     value={addQuery}
                     onChange={e => onAddQueryChange(e.target.value)}
                     placeholder={t("markets.search_ticker")}
-                    style={{ width: "100%", padding: "10px 12px 10px 34px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: FONT }}
+                    style={{ width: "100%", padding: "10px 12px 10px 34px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, boxSizing: "border-box", fontFamily: FONT }}
                   />
                 </div>
                 {searchingAdd && <div style={{ color: C.faint, fontSize: 12, marginTop: 8 }}>{t("markets.searching")}</div>}
@@ -1025,7 +1025,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
             value={exploreQuery}
             onChange={e => onExploreChange(e.target.value)}
             placeholder={t("markets.search_stock")}
-            style={{ width: "100%", padding: "11px 12px 11px 34px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: FONT }}
+            style={{ width: "100%", padding: "11px 12px 11px 34px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, boxSizing: "border-box", fontFamily: FONT }}
           />
         </div>
         {searchingExplore && <div style={{ color: C.faint, fontSize: 12, textAlign: "center", padding: "8px 0" }}>{t("markets.searching")}</div>}

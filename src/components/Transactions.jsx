@@ -178,7 +178,7 @@ export function ToastStack({ toasts, dismiss }) {
             </div>
             <span style={{ fontSize: 13, fontWeight: 500, color: "#fff", flex: 1, lineHeight: 1.4, paddingTop: 3 }}>{t.msg}</span>
             {dismiss && (
-              <button onClick={() => dismiss(t.id)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "2px 0 0 4px", flexShrink: 0 }}>×</button>
+              <button aria-label="Dismiss" onClick={() => dismiss(t.id)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "2px 0 0 4px", flexShrink: 0 }}>×</button>
             )}
           </div>
         );
@@ -849,7 +849,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: (CAT_COLORS[catFilter] || C.cyan) + "18", borderRadius: 12, border: `1px solid ${(CAT_COLORS[catFilter] || C.cyan)}33` }}>
           <div style={{ width: 8, height: 8, borderRadius: 99, background: CAT_COLORS[catFilter] || C.cyan }} />
           <span style={{ fontSize: 13, color: CAT_COLORS[catFilter] || C.cyan, fontWeight: 600, flex: 1 }}>{tCat(catFilter, t)}</span>
-          <button onClick={onClearCatFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4, minHeight: 28 }}>
+          <button aria-label="Clear category filter" onClick={onClearCatFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4, minHeight: 28 }}>
             <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
           </button>
         </div>
@@ -875,14 +875,13 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
             borderRadius: 12,
             color: C.text,
             fontSize: 14,
-            outline: "none",
             boxSizing: "border-box",
             fontFamily: FONT,
             transition: "border-color 0.2s ease, background 0.2s ease",
           }}
         />
         {search && (
-          <button onClick={() => setSearch("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", color: C.faint }}>
+          <button aria-label="Clear search" onClick={() => setSearch("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", color: C.faint }}>
             <Icon name="x" size={14} color={C.faint} strokeWidth={2.5} />
           </button>
         )}
@@ -1035,7 +1034,7 @@ export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
   const isEdit = !!existing;
 
   const noSpinStyle = `input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}`;
-  const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT };
+  const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT };
 
   function switchType(typeName) { setType(typeName); setCatId(""); setCatName(""); setShowCats(false); }
 
@@ -1049,7 +1048,7 @@ export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
       <div style={{ background: C.card, width: "100%", borderRadius: "24px 24px 0 0", padding: 24, border: `1px solid ${C.border}`, maxHeight: "90vh", overflowY: "auto", fontFamily: FONT }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{isEdit ? t("transactions.edit_transaction") : t("transactions.add_transaction_modal")}</h3>
-          <button onClick={onClose} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 99, cursor: "pointer", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button aria-label="Close" onClick={onClose} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 99, cursor: "pointer", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name="x" size={14} color={C.muted} strokeWidth={2.5} />
           </button>
         </div>

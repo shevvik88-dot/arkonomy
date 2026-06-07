@@ -304,7 +304,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
           <input
             value={editName}
             onChange={e => setEditName(e.target.value)}
-            style={{ width: "100%", padding: "10px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: FONT, marginBottom: 10 }}
+            style={{ width: "100%", padding: "10px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, boxSizing: "border-box", fontFamily: FONT, marginBottom: 10 }}
           />
 
           <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>{t("savings.target_amount")}</div>
@@ -312,7 +312,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
             type="number"
             value={editTarget}
             onChange={e => setEditTarget(e.target.value)}
-            style={{ width: "100%", padding: "10px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, outline: "none", boxSizing: "border-box", fontFamily: FONT, marginBottom: 12 }}
+            style={{ width: "100%", padding: "10px 12px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, boxSizing: "border-box", fontFamily: FONT, marginBottom: 12 }}
           />
 
           {plaidAccounts.length > 0 && (
@@ -487,7 +487,7 @@ function SavingsGoalCard({ sv, pct, goalColor, remaining, months, onUpdate, onEd
                       <div style={{ position: "relative", marginBottom: 14 }}>
                         <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 15, fontWeight: 700, color: C.muted, pointerEvents: "none" }}>$</span>
                         <input type="number" placeholder="0.00" value={reminderAmt} onChange={e => setReminderAmt(e.target.value)}
-                          style={{ width: "100%", padding: "11px 12px 11px 26px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 15, fontWeight: 600, outline: "none", boxSizing: "border-box", fontFamily: FONT }} />
+                          style={{ width: "100%", padding: "11px 12px 11px 26px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 15, fontWeight: 600, boxSizing: "border-box", fontFamily: FONT }} />
                       </div>
 
                       <button onClick={saveReminder} disabled={savingReminder || !reminderAmt}
@@ -661,7 +661,7 @@ export default function Savings({ savings, onAdd, onUpdate, onEdit, onDelete, to
   const roundupTotal = parseFloat((roundupMonth * 3.2).toFixed(2));
   const roundupYearly = Math.round(roundupMonth * 12 / 10) * 10;
 
-  const inp = { width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box", marginBottom: 10, fontFamily: FONT };
+  const inp = { width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, boxSizing: "border-box", marginBottom: 10, fontFamily: FONT };
 
   const totalSaved     = savings.reduce((s, sv) => s + Number(sv.current), 0);
   const monthlySurplus = totalIncome - totalSpent;

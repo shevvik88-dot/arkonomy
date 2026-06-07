@@ -54,7 +54,7 @@ export default function BottomNav({ screen, setScreen, onOpenChat, insightCount 
       }}>
         {/* Gradient-border ring: 1px padding + gradient bg → gives gradient border */}
         <div
-          data-tutorial="ai-chat"
+          aria-label="Ask AI Assistant" data-tutorial="ai-chat"
           onClick={handleAITap}
           style={{
             position: 'absolute',
@@ -145,7 +145,7 @@ export default function BottomNav({ screen, setScreen, onOpenChat, insightCount 
         {tabs.map(tab => {
           const active = screen === tab.id;
           return (
-            <button key={tab.id} data-tutorial={`nav-${tab.id}`} onClick={() => { navigator.vibrate?.(10); setScreen(tab.id); }}
+            <button key={tab.id} aria-label={tab.label} data-tutorial={`nav-${tab.id}`} onClick={() => { navigator.vibrate?.(10); setScreen(tab.id); }}
               style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "4px 0", position: "relative" }}>
               <Icon name={tab.icon} size={22} color={active ? C.blue : C.faint} strokeWidth={active ? 2.2 : 1.8} />
               <span style={{ fontSize: 10, color: active ? C.blue : C.faint, fontWeight: active ? 700 : 400, fontFamily: FONT }}>{tab.label}</span>

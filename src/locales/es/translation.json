@@ -3,7 +3,6 @@
     "home": "Inicio",
     "transactions": "Movimientos",
     "markets": "Mercados",
-    "markets_news_tab": "NOTICIAS",
     "savings": "Ahorros",
     "insights": "Análisis"
   },
@@ -59,7 +58,6 @@
     "budget": "Presupuesto",
     "over_budget": "Excedido",
     "markets": "Mercados",
-    "markets_news_tab": "NOTICIAS",
     "powered_by_finnhub": "Datos de Finnhub · se actualiza cada 60s",
     "loading_market_data": "Cargando datos del mercado...",
     "could_not_load_market_data": "No se pudieron cargar datos del mercado",
@@ -471,9 +469,7 @@
     "terms_of_service": "Términos de servicio",
     "cybersecurity_policy": "Política de ciberseguridad",
     "updating": "Actualizando…",
-    "bank_connected_name": "Banco conectado",
-    "delete_confirm_title": "¿Eliminar tu cuenta?",
-    "delete_confirm_placeholder": "ELIMINAR"
+    "bank_connected_name": "Banco conectado"
   },
   "onboarding": {
     "welcome_title": "¡Bienvenido a Arkonomy, {{name}}!",
@@ -530,27 +526,6 @@
     "tut_7_desc": "Descubre adónde va realmente tu dinero",
     "tut_8_title": "Pregunta sobre tus finanzas",
     "tut_8_desc": "Tu asesor IA personal, siempre disponible",
-    "add_funds_alpaca": "Agregar fondos a Alpaca",
-    "mini_balance_title": "Tu saldo vive aquí",
-    "mini_balance_desc": "Una vez que su banco esté conectado, su saldo real, ingresos y gastos se actualizarán automáticamente",
-    "mini_settings_title": "Abra Ajustes para conectar",
-    "mini_settings_desc": "Toque el ícone de engranaje → 'Conectar Banco' para vincular su cuenta de forma segura a través de Plaid (solo lectura)",
-    "mini_tx_title": "Transacciones sincronizadas automáticamente",
-    "mini_tx_desc": "Después de la vinculación, todas las transacciones pasadas y futuras aparecerán aquí al instante",
-    "mini_ai_card_title": "Tu tarjeta de insight de IA",
-    "mini_ai_card_desc": "Después de conectar su banco, la IA analiza sus gastos reales y genera consejos personalizados",
-    "mini_insights_tab_title": "Pestaña de Análisis completa",
-    "mini_insights_tab_desc": "Pontuación de salud profunda, resúmenes semanales y desgloses de gastos — todo impulsado por IA",
-    "mini_markets_title": "Paso 1: Explorar Mercados",
-    "mini_markets_desc": "Toque Mercados para ver precios en vivo de acciones, ETFs y cripto — toque cualquier ticker para ver gráficos y análisis de IA",
-    "mini_alpaca_title": "Paso 2: Conectar Alpaca",
-    "mini_alpaca_desc": "En Ahorros, conecte su cuenta de Alpaca para permitir el inversión automática de sus redondeos mensuales",
-    "mini_ai_chat_title": "Paso 3: Pedir selecciones a la IA",
-    "mini_ai_chat_desc": "Pregunte a su asesor de IA qué ativos se ajustan a sus objetivos y perfil de riesgo antes de invertir",
-    "mini_budget_score_title": "El presupuesto impulsa tu puntuación",
-    "mini_budget_score_desc": "Su puntuación de salud se calcula en relación con su presupuesto mensual — cuanto más se ciña a él, más subirá",
-    "mini_budget_edit_title": "Cambie su presupuesto en cualquier momento",
-    "mini_budget_edit_desc": "Toque el ícone de engranaje, desplácese hasta 'Presupuesto Mensual' y atualice el monto — los cambios surten efecto de inmediato",
     "saving": "Guardando…",
     "redirecting": "Redirigiendo a Stripe…",
     "ready_title": "Tu piloto automático financiero está listo",
@@ -652,9 +627,6 @@
     "done": "Listo",
     "pro_badge": "Pro",
     "free_badge": "Gratis",
-    "user_default": "Usuario",
-    "deleting": "Eliminando...",
-    "swipe_explore": "Desliza para explorar",
-    "ask_ai_about": "Preguntar a la IA sobre esto"
+    "user_default": "Usuario"
   }
 }

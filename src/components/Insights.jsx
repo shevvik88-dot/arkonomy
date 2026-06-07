@@ -907,10 +907,10 @@ function MerchantFavicon({ name, color, letter }) {
   return (
     <>
       {showImg && (
-        <img
+        <img alt="Decorative illustration"
           key={knownDomain}
           src={`https://icons.duckduckgo.com/ip3/${knownDomain}.ico`}
-          alt="" width={20} height={20}
+          alt="Decorative illustration" width={20} height={20}
           style={{ display: loaded ? 'block' : 'none', objectFit: 'contain', position: 'absolute', borderRadius: 3 }}
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
@@ -1176,7 +1176,7 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
             </div>
             <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>{ins.title}</div>
             <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 14 }}>{ins.desc}</div>
-            <button onClick={() => onOpenChat?.(ins.context)} style={{ background: "none", border: "none", cursor: "pointer", color, fontSize: 13, fontWeight: 600, padding: 0, display: "flex", alignItems: "center", gap: 6, fontFamily: FONT }}>
+            <button onClick={() => onOpenChat?.(ins.context)} style={{ background: "none", border: "none", cursor: "pointer", color, fontSize: 13, fontWeight: 600,  display: "flex", alignItems: "center", gap: 6, fontFamily: FONT }}>
               <Icon name="message" size={13} color={color} /> Ask AI about this <Icon name="chevron" size={13} color={color} />
             </button>
           </GlassCard>
@@ -1251,4 +1251,4 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
       </div>
     </div>
   );
-}
+}

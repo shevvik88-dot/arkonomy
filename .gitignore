@@ -10,3 +10,6 @@ supabase/supabase/
 screenshots/
 playwright-report/
 test-results/
+
+dist/
+dist/

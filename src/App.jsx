@@ -1299,7 +1299,7 @@ export default function App() {
           {/* Globe / language picker */}
           <div ref={langRef} style={{ position: "relative" }}>
             <button onClick={() => setLangOpen(v => !v)} style={{ background: langOpen ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${langOpen ? C.cyan + "44" : C.border}`, borderRadius: 10, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-              <Icon name="globe" size={19} color={langOpen ? C.cyan : C.muted} />
+              <Icon aria-label="Change language" name="globe" size={19} color={langOpen ? C.cyan : C.muted} />
             </button>
             {langOpen && (
               <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.5)", zIndex: 200, minWidth: 150, overflow: "hidden" }}>
@@ -1559,7 +1559,7 @@ export default function App() {
               </div>
               <button
                 onClick={startNewChat}
-                title="New chat"
+                aria-label="New chat" title="New chat"
                 style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
               >
                 <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
