@@ -221,7 +221,9 @@
     "pct_total": "total",
     "goal_saved": "poupado",
     "goal_label": "meta",
-    "start_saving_mo": "Comece a poupar ${{amount}}/mês para chegar até {{date}}"
+    "start_saving_mo": "Comece a poupar ${{amount}}/mês para chegar até {{date}}",
+    "recommended_safe": "Recomendado · valor seguro",
+    "automate_roundups": "ou automatize isso com arredondamentos →"
   },
   "day": {
     "mon": "Seg",

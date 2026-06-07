@@ -603,8 +603,8 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
             <button onClick={onUpgrade} style={{ background: "#7C6BFF", border: "none", borderRadius: 10, padding: "10px 20px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{t("savings.upgrade_pro")}</button>
           </div>
         ) : !alpacaConnected ? (
-          <button onClick={onConnectAlpaca} style={{ width: "100%", padding: 16, background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 14, color: C.cyan, fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-             <img src="https://files.alpaca.markets/web/logos/alpaca-logo-only.png" style={{ width: 18, height: 18, filter: "brightness(0) invert(1)" }} />
+          <button onClick={onConnectAlpaca} style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.bg}, ${C.bgSecondary})`, border: `1px solid ${C.blue}66`, borderRadius: 14, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+             <Icon name="trending-up" size={18} color={C.cyan} />
              {t("savings.connect_alpaca")}
           </button>
         ) : (

@@ -225,7 +225,9 @@
     "pct_total": "всего",
     "goal_saved": "накоплено",
     "goal_label": "цель",
-    "start_saving_mo": "Откладывайте ${{amount}}/мес чтобы достичь к {{date}}"
+    "start_saving_mo": "Откладывайте ${{amount}}/мес чтобы достичь к {{date}}",
+    "recommended_safe": "Рекомендовано · безопасная сумма",
+    "automate_roundups": "или автоматизируйте это с помощью округлений →"
   },
   "day": {
     "mon": "Пн",

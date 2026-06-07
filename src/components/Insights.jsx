@@ -165,6 +165,7 @@ function getSmartCta(insight) {
 }
 
 function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
+  const { t } = useTranslation();
   if (!insight) return null;
 
   const cfg = INSIGHT_CONFIG[insight.type] ?? INSIGHT_CONFIG.overspending;
@@ -245,7 +246,7 @@ function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
                 ? <>
                     Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} safely
                     <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
-                      Recommended · safe amount
+                      {t("insights.recommended_safe")}
                     </span>
                   </>
                 : getSmartCta(insight)}
@@ -468,7 +469,7 @@ export function InsightCard({ insight, onAction }) {
                 ? <>
                     Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} safely
                     <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
-                      Recommended · safe amount
+                      {t("insights.recommended_safe")}
                     </span>
                   </>
                 : getSmartCta(insight)
@@ -524,7 +525,7 @@ export function InsightCard({ insight, onAction }) {
               marginTop: 6, textAlign: "center", fontSize: 12,
               color: "rgba(154,164,178,0.80)", letterSpacing: 0.1, cursor: "pointer",
             }}>
-              or automate this with round-ups →
+              {t("insights.automate_roundups")}
             </div>
           )}
         </div>
