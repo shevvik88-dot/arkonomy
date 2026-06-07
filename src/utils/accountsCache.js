@@ -1,4 +1,4 @@
-const ACCOUNTS_CACHE_KEY = "arkonomy_accounts_v1";
+const ACCOUNTS_CACHE_KEY = "arkonomy_accounts_v2";
 const ACCOUNTS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export function getCachedAccounts() {
@@ -10,13 +10,14 @@ export function getCachedAccounts() {
     return accounts;
   } catch { return null; }
 }
-
 export function setCachedAccounts(accounts) {
   try {
     localStorage.setItem(ACCOUNTS_CACHE_KEY, JSON.stringify({ ts: Date.now(), accounts }));
   } catch {}
 }
-
 export function clearAccountsCache() {
-  try { localStorage.removeItem(ACCOUNTS_CACHE_KEY); } catch {}
+  try {
+    console.log("[cache] clearAccountsCache called — removing", ACCOUNTS_CACHE_KEY);
+    localStorage.removeItem(ACCOUNTS_CACHE_KEY);
+  } catch {}
 }

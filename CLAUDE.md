@@ -72,7 +72,7 @@
 - Never run destructive migrations without showing the SQL first.
 - RLS policies must be verified after any schema change.
 - Edge functions deploy via: supabase functions deploy <name>
-- Accounts cache key: `arkonomy_accounts_v1` (localStorage, 1hr TTL) — only cache non-empty arrays.
+- Accounts cache key: `arkonomy_accounts_v2` (localStorage, 5min TTL) — only cache non-empty arrays. Bump version suffix to force cache bust when stale data needs clearing.
 
 ## Business context
 - Free/Pro plan gating is core — never bypass or break usePlan.js logic.
