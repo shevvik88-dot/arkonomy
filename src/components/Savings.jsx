@@ -520,17 +520,6 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: 12, marginBottom: 24, overflowX: "auto", paddingBottom: 4, margin: "0 -4px 20px" }}>
-        <GlassCard style={{ flex: "0 0 160px", padding: "16px 14px", border: `1px solid ${C.sep}` }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: 0.8, marginBottom: 8 }}>{t("savings.total_saved")}</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: C.text }}>{fmtMoney(totalSaved)}</div>
-        </GlassCard>
-        <GlassCard style={{ flex: "0 0 160px", padding: "16px 14px", border: `1px solid ${C.sep}` }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: isDeficit ? C.red : C.green, letterSpacing: 0.8, marginBottom: 8 }}>{isDeficit ? t("savings.monthly_deficit") : t("savings.monthly_surplus")}</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: isDeficit ? C.red : C.green }}>{fmtMoney(Math.abs(monthlySurplus))}</div>
-        </GlassCard>
-      </div>
-
       {/* Asset Allocation Widget */}
       {totalAssets > 0 && (
         <GlassCard style={{ padding: 20, marginBottom: 24 }}>
