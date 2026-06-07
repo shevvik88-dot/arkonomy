@@ -52,8 +52,7 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
   ];
   const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
-  async function openMoveMoney() {
-    setShowMoveMoney(true);
+  async function loadReminder() {
     if (reminder !== null || !userId) return;
     setLoadingReminder(true);
     try {
@@ -66,10 +65,20 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
         setReminderAmt(String(data.amount));
       }
     } catch (err) {
-      logger.error("[openMoveMoney] failed:", err);
+      logger.error("[loadReminder] failed:", err);
     } finally {
       setLoadingReminder(false);
     }
+  }
+
+  function openMoveMoney() {
+    setShowMoveMoney(true);
+    loadReminder();
+  }
+
+  function openReminderDirectly() {
+    setShowReminderModal(true);
+    loadReminder();
   }
 
   async function saveReminder() {
@@ -143,12 +152,15 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
 
   const projectedDate = useMemo(() => {
     if (remaining <= 0) return null;
-    if (monthlyRate <= 0) return null;
-    const monthsLeft = remaining / monthlyRate;
+    // Fall back to monthly surplus when no transfer-based rate is available
+    const rate = monthlyRate > 0 ? monthlyRate : Math.max(monthlySurplus, 0);
+    if (rate <= 0) return null;
+    const monthsLeft = Math.ceil(remaining / rate);
+    if (monthsLeft > 120) return null;
     const d = new Date();
-    d.setMonth(d.getMonth() + Math.ceil(monthsLeft));
+    d.setMonth(d.getMonth() + monthsLeft);
     return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-  }, [remaining, monthlyRate]);
+  }, [remaining, monthlyRate, monthlySurplus]);
 
   return (
     <GlassCard style={{ marginBottom: 16 }}>
@@ -165,6 +177,9 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
         <div style={{ display: "flex", gap: 4 }}>
           <button onClick={openMoveMoney} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <Icon name="arrow-up-right" size={16} color={C.cyan} />
+          </button>
+          <button onClick={openReminderDirectly} style={{ background: reminder ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${reminder ? C.cyan + "44" : C.border}`, borderRadius: 10, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <Icon name="bell" size={15} color={reminder ? C.cyan : C.muted} />
           </button>
           <button onClick={() => setShowEdit(true)} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <Icon name="edit-3" size={15} color={C.muted} />
@@ -450,6 +465,15 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
   const safetyBuffer = Math.min(500, availableBalance * 0.5);
   const safeToMove = Math.max(0, availableBalance - safetyBuffer);
 
+  const cashTotal   = plaidAccounts.filter(a => a.type === "depository").reduce((s, a) => s + Number(a.balance_available ?? a.balance_current ?? 0), 0);
+  const investTotal = plaidAccounts.filter(a => a.type === "investment").reduce((s, a) => s + Number(a.balance_available ?? a.balance_current ?? 0), 0);
+  const totalAssets = cashTotal + investTotal + totalSaved;
+  const assetRows = [
+    { label: t("savings.cash"),          amount: cashTotal,   color: C.cyan  },
+    { label: t("savings.stocks"),        amount: investTotal, color: C.green },
+    { label: t("savings.savings_goals"), amount: totalSaved,  color: C.blue  },
+  ].filter(r => r.amount > 0);
+
   const PRESETS = [
     { name: t("savings.emergency_fund"), target: 10000, icon: "shield" },
     { name: t("savings.vacation"), target: 3000, icon: "plane" },
@@ -505,6 +529,38 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
           <div style={{ fontSize: 22, fontWeight: 800, color: isDeficit ? C.red : C.green }}>{fmtMoney(Math.abs(monthlySurplus))}</div>
         </GlassCard>
       </div>
+
+      {/* Asset Distribution Widget */}
+      {totalAssets > 0 && assetRows.length > 0 && (
+        <GlassCard style={{ padding: 20, marginBottom: 24 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: 1, marginBottom: 16 }}>
+            {t("savings.asset_allocation").toUpperCase()}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {assetRows.map(row => {
+              const pct = Math.round((row.amount / totalAssets) * 100);
+              return (
+                <div key={row.label}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{row.label}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmtMoney(row.amount)}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: row.color, minWidth: 34, textAlign: "right" }}>{pct}%</span>
+                    </div>
+                  </div>
+                  <div style={{ height: 6, background: C.bgSecondary, borderRadius: 99, overflow: "hidden" }}>
+                    <div style={{ height: "100%", background: row.color, width: `${pct}%`, borderRadius: 99, transition: "width 0.6s cubic-bezier(0.22, 1, 0.36, 1)" }} />
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{ paddingTop: 12, borderTop: `1px solid ${C.sep}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{t("savings.net_worth").toUpperCase()}</span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{fmtMoney(totalAssets)}</span>
+            </div>
+          </div>
+        </GlassCard>
+      )}
 
       {insight?.type === 'savings_opportunity' && (
         <InsightCard
