@@ -514,10 +514,6 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
           <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>{t("nav.savings")}</h2>
           <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{t("savings.track_progress")}</div>
         </div>
-        <button onClick={() => setShowAdd(true)} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 14px", color: C.cyan, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-          <Icon name="plus" size={16} />
-          {t("savings.add_goal")}
-        </button>
       </div>
 
       {/* Asset Allocation Widget */}
@@ -580,7 +576,8 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
               <Icon name="target" size={28} color={C.faint} />
             </div>
             <h3 style={{ margin: "0 0 8px", fontSize: 18 }}>{t("savings.start_first_goal")}</h3>
-            <p style={{ margin: 0, fontSize: 14, color: C.muted, lineHeight: 1.5 }}>{t("savings.build_first")}</p>
+            <p style={{ margin: "0 0 24px", fontSize: 14, color: C.muted, lineHeight: 1.5 }}>{t("savings.build_first")}</p>
+            <button onClick={() => setShowAdd(true)} style={{ padding: "12px 24px", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t("savings.add_goal")}</button>
           </GlassCard>
         ) : (
           savings.map(sv => (
