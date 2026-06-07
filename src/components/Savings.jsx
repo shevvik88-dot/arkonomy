@@ -444,6 +444,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
 
   const totalSaved     = savings.reduce((s, sv) => s + Number(sv.current), 0);
   const monthlySurplus = totalIncome - totalSpent;
+  const isDeficit      = monthlySurplus < 0;
 
   const availableBalance = Math.max(monthlySurplus, 0);
   const safetyBuffer = Math.min(500, availableBalance * 0.5);

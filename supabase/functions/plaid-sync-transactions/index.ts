@@ -255,6 +255,7 @@ async function syncItemTransactions(
   clientId:    string,
   secret:      string,
   item:        { id: string; access_token: string; plaid_cursor: string | null; user_id: string },
+  seenKeys?:   Set<string>,  // cross-item dedup for users with multiple items at same bank
 ): Promise<{ added: number; modified: number; removed: number }> {
   let cursor  = item.plaid_cursor as string | null;
   let hasMore = true;
@@ -272,17 +273,32 @@ async function syncItemTransactions(
     hasMore = page.has_more;
   }
 
-  if (addedRows.length > 0) {
+  // Deduplicate across items from the same bank: skip rows whose
+  // (date, description, amount) was already synced by a previous item.
+  function dedup(rows: ReturnType<typeof plaidTxToRow>[]) {
+    if (!seenKeys) return rows;
+    return rows.filter(row => {
+      const key = `${row.date}|${row.description}|${row.amount}`;
+      if (seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    });
+  }
+
+  const dedupedAdded    = dedup(addedRows);
+  const dedupedModified = dedup(modifiedRows);
+
+  if (dedupedAdded.length > 0) {
     const { error } = await supabase
       .from('transactions')
-      .upsert(addedRows, { onConflict: 'plaid_transaction_id', ignoreDuplicates: false });
+      .upsert(dedupedAdded, { onConflict: 'plaid_transaction_id', ignoreDuplicates: false });
     if (error) console.error('upsert added error:', error);
   }
 
-  if (modifiedRows.length > 0) {
+  if (dedupedModified.length > 0) {
     const { error } = await supabase
       .from('transactions')
-      .upsert(modifiedRows, { onConflict: 'plaid_transaction_id', ignoreDuplicates: false });
+      .upsert(dedupedModified, { onConflict: 'plaid_transaction_id', ignoreDuplicates: false });
     if (error) console.error('upsert modified error:', error);
   }
 
@@ -303,8 +319,8 @@ async function syncItemTransactions(
   }
 
   return {
-    added:    addedRows.length,
-    modified: modifiedRows.length,
+    added:    dedupedAdded.length,
+    modified: dedupedModified.length,
     removed:  removedIds.length,
   };
 }
@@ -407,11 +423,13 @@ Deno.serve(async (req) => {
     }
 
     let totalAdded = 0, totalModified = 0, totalRemoved = 0;
+    const seenKeys = new Set<string>();
 
     for (const item of items) {
       const counts = await syncItemTransactions(
         supabase, plaidBase, clientId, secret,
         { ...item, user_id: user.id },
+        seenKeys,
       );
       totalAdded    += counts.added;
       totalModified += counts.modified;
