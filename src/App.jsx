@@ -683,13 +683,10 @@ export default function App() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function syncBankTransactions() {
-    console.log('[sync] manual sync started', { at: Date.now() });
     setSyncingBank(true);
     clearAccountsCache();
-    console.log('[sync] cache cleared', { at: Date.now() });
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      console.log('[sync] calling plaid-sync-transactions', { at: Date.now() });
       const res = await fetch(
         `${SUPABASE_URL}/functions/v1/plaid-sync-transactions`,
         {
@@ -702,24 +699,18 @@ export default function App() {
         }
       );
       const data = await res.json();
-      console.log('[sync] plaid-sync-transactions response', { synced: data.synced, error: data.error, at: Date.now() });
       if (data.error) {
         logger.error("[Plaid] sync-transactions error:", data);
       }
       const now = new Date().toISOString();
-      console.log('[sync] setLastSyncedAt', { now, at: Date.now() });
       setLastSyncedAt(now);
       try { localStorage.setItem("arkonomy_last_synced", now); } catch {}
       await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
-      console.log('[sync] calling loadAll(true)', { at: Date.now() });
       await loadAll(true); // silent — keep Dashboard mounted, accountBalance must not reset
-      console.log('[sync] loadAll(true) complete', { at: Date.now() });
     } catch (err) {
       logger.error("[Plaid] sync-transactions exception:", err);
-      console.log('[sync] error — calling loadAll(true)', { err: String(err), at: Date.now() });
       await loadAll(true);
     } finally {
-      console.log('[sync] manual sync done', { at: Date.now() });
       setSyncingBank(false);
     }
   }
@@ -739,7 +730,6 @@ export default function App() {
       return;
     }
 
-    console.log('[sync] bgSync started (stale)', { lastTs, at: Date.now() });
     setBackgroundSyncing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -753,16 +743,13 @@ export default function App() {
         },
       });
       const data = await res.json();
-      console.log('[sync] bgSync plaid-sync-transactions response', { synced: data.synced, error: data.error, at: Date.now() });
       if (!data.error) {
         const now = new Date().toISOString();
         setLastSyncedAt(now);
         try { localStorage.setItem("arkonomy_last_synced", now); } catch {}
         clearAccountsCache();
-        console.log('[sync] bgSync cache cleared, calling loadAll(true)', { at: Date.now() });
         await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
         await loadAll(true);
-        console.log('[sync] bgSync loadAll(true) complete', { at: Date.now() });
       }
     } catch {
     } finally {
