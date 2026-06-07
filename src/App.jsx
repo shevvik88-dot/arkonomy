@@ -66,7 +66,7 @@ const FONT = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
 
 // ── Plaid accounts cache ──────────────────────────────────────────────────────
 const ACCOUNTS_CACHE_KEY = "arkonomy_accounts_v1";
-const ACCOUNTS_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+const ACCOUNTS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes — balance must stay fresh
 const SYNC_CACHE_TTL     = 60 * 60 * 1000; // 1 hour
 
 function getCachedAccounts() {

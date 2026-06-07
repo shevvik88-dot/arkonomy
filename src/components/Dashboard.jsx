@@ -792,11 +792,12 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       )}
 
       {/* 1 ── Account Balance */}
+      <style>{`@keyframes bal-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
       <div data-tutorial="net-balance" style={{ background: "linear-gradient(145deg,#0D1F3C,#0B1426)", borderRadius: 20, padding: "16px 18px", border: `1px solid #1E2D4A`, position: "relative", overflow: "hidden", boxShadow: "0 4px 32px rgba(0,194,255,0.08)" }}>
         <div style={{ position: "absolute", top: -30, right: -30, width: 110, height: 110, borderRadius: "50%", background: C.cyan + "0B", pointerEvents: "none" }} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <span style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
-            {accountBalance != null ? t("dashboard.account_balance") : t("dashboard.net_balance")}
+            {t("dashboard.account_balance")}
           </span>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {isShowingLastMonth && <span style={{ fontSize: 9, color: C.yellow, fontWeight: 600, background: C.yellow + "18", padding: "2px 7px", borderRadius: 99, letterSpacing: 0.3 }}>
@@ -809,14 +810,21 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8 }}>
           <div>
-            <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? (accountBalance != null ? C.cyan : balColor) : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${accountBalance != null ? C.cyan : balColor}44` : "none" }}>
-              {accountBalance != null
-                ? (balanceVisible ? `$${fmt(accountBalance)}` : "••••")
-                : (balanceVisible ? (balance < 0 ? `-$${fmt(Math.abs(balance))}` : `$${fmt(balance)}`) : "••••")}
-            </div>
-            <div style={{ fontSize: 9, color: accountBalance == null && balance < 0 ? C.red : C.faint, marginTop: 2, letterSpacing: 0.5 }}>
-              {accountBalance != null ? t("dashboard.available_in_bank") : balance < 0 ? t("dashboard.spent_more_than_earned") : t("dashboard.net_this_month")}
-            </div>
+            {accountBalance != null ? (
+              <>
+                <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? C.cyan : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${C.cyan}44` : "none" }}>
+                  {balanceVisible ? `$${fmt(accountBalance)}` : "••••"}
+                </div>
+                <div style={{ fontSize: 9, color: C.faint, marginTop: 2, letterSpacing: 0.5 }}>
+                  {t("dashboard.available_in_bank")}
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ width: 160, height: 42, borderRadius: 8, background: `linear-gradient(90deg,${C.bgSecondary} 0%,${C.bgTertiary} 40%,${C.bgSecondary} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite", marginBottom: 6 }} />
+                <div style={{ width: 90, height: 10, borderRadius: 4, background: `linear-gradient(90deg,${C.bgSecondary} 0%,${C.bgTertiary} 40%,${C.bgSecondary} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
+              </>
+            )}
           </div>
           <Sparkline transactions={transactions} />
         </div>
