@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
 import { C, FONT } from "../utils/colors";
@@ -671,11 +671,12 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
 }
 
 // ─── Dashboard ────────────────────────────────────────────────
-export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, hideWelcomeBanner = false }) {
+export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false }) {
   const { t } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
   const [otherBreakdown, setOtherBreakdown] = useState(false);
+  const balanceFetchIdRef = useRef(0);
   const m = (n, dec = 0) => balanceVisible ? `$${fmt(n, dec)}` : "••••";
 
   // Intercept "Other" clicks — show breakdown instead of navigating
@@ -686,6 +687,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
 
   useEffect(() => {
     if (!bankConnected || !userId) return;
+    const fetchId = ++balanceFetchIdRef.current;
     (async () => {
       try {
         // Use cached accounts if fresh (<1 hr)
@@ -707,10 +709,11 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         if (!accounts.length) return;
         const checking = accounts.find(a => a.subtype === "checking") ?? accounts.find(a => a.type === "depository") ?? accounts[0];
         const bal = checking?.balance_available ?? checking?.balance_current ?? null;
-        if (bal != null) setAccountBalance(bal);
+        // Only apply if this is still the latest fetch — discard stale concurrent responses
+        if (bal != null && fetchId === balanceFetchIdRef.current) setAccountBalance(bal);
       } catch {}
     })();
-  }, [bankConnected, userId]);
+  }, [bankConnected, userId, lastSyncedAt]);
   const budget = Number(profile?.monthly_budget) || 3000;
   const balance = totalIncome - totalSpent;
   const pct = budget > 0 ? (totalSpent / budget) * 100 : 0;

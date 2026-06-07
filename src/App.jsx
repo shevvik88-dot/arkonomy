@@ -561,8 +561,8 @@ export default function App() {
     }, 900);
   }, [profile, loading, onboardingDone, transactions.length, bankConnected]);
 
-  async function loadAll() {
-    setLoading(true);
+  async function loadAll(silent = false) {
+    if (!silent) setLoading(true);
     try {
       const [p, t, c, sv] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user.id).single(),
@@ -595,7 +595,7 @@ export default function App() {
     } catch (err) {
       logger.error("[loadAll] failed:", err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -758,7 +758,7 @@ export default function App() {
         try { localStorage.setItem("arkonomy_last_synced", now); } catch {} // keep local cache in sync
         clearAccountsCache();
         await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
-        await loadAll();
+        await loadAll(true); // silent — keep Dashboard mounted, don't flash skeleton
       }
     } catch {
     } finally {
@@ -1468,7 +1468,7 @@ export default function App() {
           );
         })() : (
           <>
-            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} hideWelcomeBanner={proToast} />}
+            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} lastSyncedAt={lastSyncedAt} hideWelcomeBanner={proToast} />}
             {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} InsightCard={InsightCard} />}
