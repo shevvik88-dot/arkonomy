@@ -295,10 +295,6 @@ export function InsightCard({ insight, onAction }) {
   const { t, i18n } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
-  useEffect(() => {
-    if (insight?.autoExpand) setExpanded(true);
-  }, [insight?.type]);
-
   if (!insight) return null;
 
   const cfg = INSIGHT_CONFIG[insight.type] ?? INSIGHT_CONFIG.overspending;
