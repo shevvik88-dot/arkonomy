@@ -55,7 +55,7 @@ function resolveScreen(
       return {
         type: match.type,
         priority: match.priority,
-        autoExpand: match.type === "cash_risk" || match.priority >= 75,
+        autoExpand: false,
         data: match.data,
         rendered,
       };

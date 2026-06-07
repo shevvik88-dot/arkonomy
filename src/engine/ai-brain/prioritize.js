@@ -106,14 +106,7 @@ export function prioritizeTop(
 }
 
 // ── Auto-Expand Logic ────────────────────────────────────────────────────────
-function shouldAutoExpand(signal: Signal): boolean {
-  if (signal.type === "cash_risk") return true;
-  if (signal.priority >= 75) return true;
-
-  // Expand if rendered CTA will contain a specific dollar amount
-  // (proxy: savings_opportunity and cash_risk always have dollar amounts)
-  if (signal.type === "savings_opportunity") return true;
-
+function shouldAutoExpand(_signal: Signal): boolean {
   return false;
 }
 
