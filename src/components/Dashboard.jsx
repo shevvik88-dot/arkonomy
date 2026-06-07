@@ -624,6 +624,7 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
 
   const mask  = n => balanceVisible ? (n < 0 ? `-$${fmt(Math.abs(n), 0)}` : `$${fmt(n, 0)}`) : '••••';
 
+  console.log('[cashflow] render — startBalance:', startBalance, 'projectedBalance:', projectedBalance, 'accountBalance:', accountBalance, 'balance:', balance, 'at:', Date.now());
   return (
     <div style={{ background: 'linear-gradient(145deg,#0E1E35,#0B1426)', borderRadius: 20, padding: '16px 18px', border: `1px solid ${S.border}`, position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', top: -24, right: -24, width: 90, height: 90, borderRadius: '50%', background: S.color + '09', pointerEvents: 'none' }} />
@@ -726,7 +727,8 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       }
     })();
   }, [bankConnected, userId, lastSyncedAt]);
-  console.log('[balance] render — accountBalance:', accountBalance, 'lastSyncedAt:', lastSyncedAt, 'at:', Date.now());
+  const _netBalance = totalIncome - totalSpent;
+  console.log('[balance] render — accountBalance:', accountBalance, 'netBalance(fallback):', _netBalance, 'lastSyncedAt:', lastSyncedAt, 'at:', Date.now());
   const budget = Number(profile?.monthly_budget) || 3000;
   const balance = totalIncome - totalSpent;
   const pct = budget > 0 ? (totalSpent / budget) * 100 : 0;
