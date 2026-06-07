@@ -580,8 +580,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
               <Icon name="target" size={28} color={C.faint} />
             </div>
             <h3 style={{ margin: "0 0 8px", fontSize: 18 }}>{t("savings.start_first_goal")}</h3>
-            <p style={{ margin: "0 0 24px", fontSize: 14, color: C.muted, lineHeight: 1.5 }}>{t("savings.build_first")}</p>
-            <button onClick={() => setShowAdd(true)} style={{ padding: "12px 24px", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t("savings.add_goal")}</button>
+            <p style={{ margin: 0, fontSize: 14, color: C.muted, lineHeight: 1.5 }}>{t("savings.build_first")}</p>
           </GlassCard>
         ) : (
           savings.map(sv => (
