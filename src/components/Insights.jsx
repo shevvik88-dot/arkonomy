@@ -337,24 +337,24 @@ export function InsightCard({ insight, onAction }) {
         background: bg,
         border: `1px solid ${border}22`,
         borderRadius: 16,
-        padding: "14px 16px",
+        padding: "12px 16px",
         marginBottom: 10,
         cursor: "pointer",
         fontFamily: "'Inter', -apple-system, sans-serif",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+        <div style={{ flexShrink: 0, marginTop: 2 }}>
           <cfg.Icon color={accent} />
-          <span style={{
-            fontSize: 10, fontWeight: 600,
-            color: accent + "99",
-            letterSpacing: 0.5,
-          }}>
-            {label}
-          </span>
         </div>
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#4A5E7A" strokeWidth="2.5" strokeLinecap="round">
+        <div style={{
+          flex: 1, minWidth: 0,
+          fontSize: 14, fontWeight: 700, color: "#FFFFFF",
+          letterSpacing: -0.2, lineHeight: 1.35,
+        }}>
+          {highlightNumbers(cleanHeadline, accent)}
+        </div>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#4A5E7A" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 3 }}>
           {expanded
             ? <polyline points="18 15 12 9 6 15"/>
             : <polyline points="6 9 12 15 18 9"/>
@@ -362,16 +362,8 @@ export function InsightCard({ insight, onAction }) {
         </svg>
       </div>
 
-      <div style={{
-        fontSize: 16, fontWeight: 700, color: "#FFFFFF",
-        letterSpacing: -0.35, lineHeight: 1.3,
-        marginBottom: expanded ? 12 : 0,
-      }}>
-        {highlightNumbers(cleanHeadline, accent)}
-      </div>
-
       {expanded && (
-        <div style={{ borderTop: `1px solid ${border}14`, paddingTop: 12 }}>
+        <div style={{ marginTop: 12, borderTop: `1px solid ${border}14`, paddingTop: 12 }}>
 
           {/* goal_off_track: mini goal card instead of plain text */}
           {isGoalOffTrack ? (() => {
