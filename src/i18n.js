@@ -4,6 +4,7 @@ import { initReactI18next } from 'react-i18next';
 import en from './locales/en/translation.json';
 import ru from './locales/ru/translation.json';
 import es from './locales/es/translation.json';
+import pt from './locales/pt/translation.json';
 
 const savedLang = (() => {
   try {
@@ -17,11 +18,12 @@ i18n
   .init({
     lng: savedLang,
     fallbackLng: 'en',
-    supportedLngs: ['en', 'ru', 'es'],
+    supportedLngs: ['en', 'ru', 'es', 'pt'],
     resources: {
       en: { translation: en },
       ru: { translation: ru },
       es: { translation: es },
+      pt: { translation: pt },
     },
     interpolation: {
       escapeValue: false,

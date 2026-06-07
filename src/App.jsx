@@ -1364,6 +1364,7 @@ export default function App() {
                   { code: "en", label: "English" },
                   { code: "ru", label: "Русский" },
                   { code: "es", label: "Español" },
+                  { code: "pt", label: "Português (BR)" },
                 ].map((lang, idx, arr) => {
                   const active = i18n.language?.startsWith(lang.code);
                   return (
