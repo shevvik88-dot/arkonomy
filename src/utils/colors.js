@@ -4,7 +4,7 @@ export const C = {
   bg: "#0B1426", bgSecondary: "#0F1A2E", bgTertiary: "#162035",
   card: "#111E33", border: "#1E2D4A", sep: "#192840",
   blue: "#2F80FF", cyan: "#00C2FF", green: "#12D18E",
-  red: "#FF5C7A", yellow: "#FFB800", purple: "#A78BFA",
+  red: "#FF5C7A", yellow: "#FFB800", orange: "#F97316", purple: "#A78BFA",
   text: "#FFFFFF", muted: "#9AA4B2", faint: "#4A5E7A",
 };
 

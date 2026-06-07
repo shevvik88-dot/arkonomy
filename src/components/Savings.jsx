@@ -468,11 +468,12 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
   const cashTotal   = plaidAccounts.filter(a => a.type === "depository").reduce((s, a) => s + Number(a.balance_available ?? a.balance_current ?? 0), 0);
   const investTotal = plaidAccounts.filter(a => a.type === "investment").reduce((s, a) => s + Number(a.balance_available ?? a.balance_current ?? 0), 0);
   const totalAssets = cashTotal + investTotal + totalSaved;
-  const assetRows = [
-    { label: t("savings.cash"),          amount: cashTotal,   color: C.cyan  },
-    { label: t("savings.stocks"),        amount: investTotal, color: C.green },
-    { label: t("savings.savings_goals"), amount: totalSaved,  color: C.blue  },
-  ].filter(r => r.amount > 0);
+  const ASSET_TILES = [
+    { key: "cash",    label: t("savings.cash"),          amount: cashTotal,   color: C.blue   },
+    { key: "stocks",  label: t("savings.stocks"),        amount: investTotal, color: C.green  },
+    { key: "crypto",  label: t("savings.crypto"),        amount: 0,           color: C.orange },
+    { key: "savings", label: t("savings.savings_goals"), amount: totalSaved,  color: C.purple },
+  ];
 
   const PRESETS = [
     { name: t("savings.emergency_fund"), target: 10000, icon: "shield" },
@@ -530,34 +531,44 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
         </GlassCard>
       </div>
 
-      {/* Asset Distribution Widget */}
-      {totalAssets > 0 && assetRows.length > 0 && (
+      {/* Asset Allocation Widget */}
+      {totalAssets > 0 && (
         <GlassCard style={{ padding: 20, marginBottom: 24 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: 1, marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: 1, marginBottom: 8 }}>
             {t("savings.asset_allocation").toUpperCase()}
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {assetRows.map(row => {
-              const pct = Math.round((row.amount / totalAssets) * 100);
+          <div style={{ fontSize: 34, fontWeight: 800, color: C.text, letterSpacing: -0.5, marginBottom: 2 }}>
+            {fmtMoney(totalAssets)}
+          </div>
+          <div style={{ fontSize: 12, color: C.muted, marginBottom: 18 }}>{t("savings.net_worth")}</div>
+
+          {/* Segmented bar */}
+          <div style={{ height: 8, borderRadius: 99, overflow: "hidden", display: "flex", gap: 2, marginBottom: 20 }}>
+            {ASSET_TILES.filter(r => r.amount > 0).map(r => {
+              const pct = Math.round((r.amount / totalAssets) * 100);
+              return <div key={r.key} style={{ flex: pct, background: r.color, height: "100%" }} />;
+            })}
+          </div>
+
+          {/* 2×2 grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {ASSET_TILES.map(r => {
+              const pct = totalAssets > 0 ? Math.round((r.amount / totalAssets) * 100) : 0;
               return (
-                <div key={row.label}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{row.label}</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmtMoney(row.amount)}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: row.color, minWidth: 34, textAlign: "right" }}>{pct}%</span>
-                    </div>
+                <div key={r.key} style={{ background: C.bg, border: `1px solid ${C.sep}`, borderRadius: 14, padding: "12px 14px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: 99, background: r.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{r.label}</span>
                   </div>
-                  <div style={{ height: 6, background: C.bgSecondary, borderRadius: 99, overflow: "hidden" }}>
-                    <div style={{ height: "100%", background: row.color, width: `${pct}%`, borderRadius: 99, transition: "width 0.6s cubic-bezier(0.22, 1, 0.36, 1)" }} />
+                  <div style={{ fontSize: 18, fontWeight: 800, color: r.amount > 0 ? C.text : C.faint, marginBottom: 6 }}>
+                    {fmtMoney(r.amount)}
+                  </div>
+                  <div style={{ display: "inline-flex", background: r.color + "22", borderRadius: 20, padding: "2px 8px" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: r.color }}>{pct}%</span>
                   </div>
                 </div>
               );
             })}
-            <div style={{ paddingTop: 12, borderTop: `1px solid ${C.sep}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{t("savings.net_worth").toUpperCase()}</span>
-              <span style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{fmtMoney(totalAssets)}</span>
-            </div>
           </div>
         </GlassCard>
       )}
