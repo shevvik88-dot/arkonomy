@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+﻿import { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../utils/supabase";
 import { C, FONT } from "../utils/colors";
@@ -174,8 +174,8 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 8 }}>
         <div>
-          <span style={{ fontSize: 24, fontWeight: 800, color: C.text }}>${fmtMoney(current)}</span>
-          <span style={{ fontSize: 13, color: C.muted, marginLeft: 6 }}>/ ${fmtMoney(sv.target)}</span>
+          <span style={{ fontSize: 24, fontWeight: 800, color: C.text }}>{fmtMoney(current)}</span>
+          <span style={{ fontSize: 13, color: C.muted, marginLeft: 6 }}>/ {fmtMoney(sv.target)}</span>
         </div>
         <div style={{ fontSize: 14, fontWeight: 700, color: progress >= 1 ? C.green : C.cyan }}>{pct}%</div>
       </div>
@@ -318,7 +318,7 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
                   <div style={{ background: C.bgSecondary, border: `1px solid ${C.cyan}33`, borderRadius: 14, padding: 18 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: C.cyan, letterSpacing: 0.8, marginBottom: 12 }}>{t("savings.active_reminder")}</div>
                     <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
-                      ${fmtMoney(reminder.amount)} {reminder.day_of_week.length === 7 ? "every day" : reminder.day_of_week.map(d => DAY_NAMES[d]).join(", ")}
+                      {fmtMoney(reminder.amount)} {reminder.day_of_week.length === 7 ? "every day" : reminder.day_of_week.map(d => DAY_NAMES[d]).join(", ")}
                     </div>
                     <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Reminding you to transfer to {sv.name}</div>
                     <div style={{ display: "flex", gap: 10 }}>
@@ -498,11 +498,11 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
       <div style={{ display: "flex", gap: 12, marginBottom: 24, overflowX: "auto", paddingBottom: 4, margin: "0 -4px 20px" }}>
         <GlassCard style={{ flex: "0 0 160px", padding: "16px 14px", border: `1px solid ${C.sep}` }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: 0.8, marginBottom: 8 }}>{t("savings.total_saved")}</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: C.text }}>${fmtMoney(totalSaved)}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: C.text }}>{fmtMoney(totalSaved)}</div>
         </GlassCard>
         <GlassCard style={{ flex: "0 0 160px", padding: "16px 14px", border: `1px solid ${C.sep}` }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: isDeficit ? C.red : C.green, letterSpacing: 0.8, marginBottom: 8 }}>{isDeficit ? t("savings.monthly_deficit") : t("savings.monthly_surplus")}</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: isDeficit ? C.red : C.green }}>${fmtMoney(Math.abs(monthlySurplus))}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: isDeficit ? C.red : C.green }}>{fmtMoney(Math.abs(monthlySurplus))}</div>
         </GlassCard>
       </div>
 
@@ -569,12 +569,12 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
         <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
           <div style={{ flex: 1, background: C.bg, border: `1px solid ${C.sep}`, borderRadius: 14, padding: "14px 16px" }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: 0.8, marginBottom: 6 }}>{t("savings.this_month")}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: C.text }}>${fmtMoney(roundupMonth)}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: C.text }}>{fmtMoney(roundupMonth)}</div>
             <div style={{ fontSize: 10, color: C.faint, marginTop: 4 }}>{t("savings.based_on_purchases")}</div>
           </div>
           <div style={{ flex: 1, background: C.bg, border: `1px solid ${C.sep}`, borderRadius: 14, padding: "14px 16px" }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: 0.8, marginBottom: 6 }}>{t("savings.all_time")}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: C.green }}>${fmtMoney(roundupTotal)}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: C.green }}>{fmtMoney(roundupTotal)}</div>
             <div style={{ fontSize: 10, color: C.faint, marginTop: 4 }}>+12.4% avg yield</div>
           </div>
         </div>
@@ -632,7 +632,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
                     </div>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 15 }}>{p.name}</div>
-                      <div style={{ fontSize: 12, color: C.muted }}>Target: ${fmtMoney(p.target)}</div>
+                      <div style={{ fontSize: 12, color: C.muted }}>Target: {fmtMoney(p.target)}</div>
                     </div>
                   </button>
                 ))}
@@ -728,7 +728,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
                 <div style={{ fontSize: 14, color: C.muted }}>{t("savings.to_invest")}</div>
              </div>
              <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20, marginBottom: 24, textAlign: "center" }}>
-                <div style={{ fontSize: 42, fontWeight: 800, color: C.text, marginBottom: 4 }}>${fmtMoney(roundupMonth)}</div>
+                <div style={{ fontSize: 42, fontWeight: 800, color: C.text, marginBottom: 4 }}>{fmtMoney(roundupMonth)}</div>
                 <div style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>SPDR S&P 500 ETF (SPY)</div>
              </div>
              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
