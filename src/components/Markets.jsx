@@ -95,8 +95,8 @@ async function callMarketData(body) {
 function StockLogo({ symbol, color, icon, size = 36, borderRadius = 10 }) {
   const [failed, setFailed] = useState(false);
   const domain = STOCK_LOGOS[symbol];
-  const bg = (color ?? C.cyan) + "1A";
-  const border = `1px solid ${(color ?? C.cyan)}30`;
+  const bg = (color ?? C.cyan) + "22";
+  const border = `1px solid ${(color ?? C.cyan)}33`;
   if (domain && !failed) {
     return (
       <div style={{ width: size, height: size, borderRadius, background: bg, border, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -109,11 +109,12 @@ function StockLogo({ symbol, color, icon, size = 36, borderRadius = 10 }) {
       </div>
     );
   }
+  const circleRadius = icon ? borderRadius : "50%";
   return (
-    <div style={{ width: size, height: size, borderRadius, background: bg, border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+    <div style={{ width: size, height: size, borderRadius: circleRadius, background: bg, border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
       {icon
         ? <Icon name={icon} size={Math.round(size * 0.42)} color={color ?? C.cyan} strokeWidth={2.5} />
-        : <span style={{ fontSize: Math.round(size * 0.28), fontWeight: 800, color: color ?? C.cyan, letterSpacing: -0.3 }}>{(symbol || "?").slice(0, 2)}</span>
+        : <span style={{ fontSize: Math.round(size * 0.38), fontWeight: 800, color: color ?? C.cyan, letterSpacing: -0.5 }}>{(symbol || "?").slice(0, 2)}</span>
       }
     </div>
   );
