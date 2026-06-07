@@ -2,7 +2,7 @@
 import { logger } from "./utils/logger";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { createClient } from "@supabase/supabase-js";
+import { supabase, SUPABASE_URL, SUPABASE_KEY } from "./utils/supabase";
 import { App as CapApp } from "@capacitor/app";
 import { usePlaidOAuth, PLAID_REDIRECT_URI } from "./hooks/usePlaidOAuth";
 import CheckInCard from "./components/CheckInCard";
@@ -63,10 +63,6 @@ document.head.appendChild(fontLink);
 
 const APP_VERSION = "1.0.1";
 const FONT = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── Plaid accounts cache ──────────────────────────────────────────────────────
 const ACCOUNTS_CACHE_KEY = "arkonomy_accounts_v1";
@@ -687,10 +683,13 @@ export default function App() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function syncBankTransactions() {
+    console.log('[sync] manual sync started', { at: Date.now() });
     setSyncingBank(true);
-    clearAccountsCache(); // force fresh account balance on next fetch
+    clearAccountsCache();
+    console.log('[sync] cache cleared', { at: Date.now() });
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      console.log('[sync] calling plaid-sync-transactions', { at: Date.now() });
       const res = await fetch(
         `${SUPABASE_URL}/functions/v1/plaid-sync-transactions`,
         {
@@ -703,21 +702,24 @@ export default function App() {
         }
       );
       const data = await res.json();
+      console.log('[sync] plaid-sync-transactions response', { synced: data.synced, error: data.error, at: Date.now() });
       if (data.error) {
         logger.error("[Plaid] sync-transactions error:", data);
       }
-      // Always reload — even if synced=0 the user may have just connected
-      // and needs to see existing transactions. Also covers the case where
-      // the response is an error object (data.synced would be undefined).
       const now = new Date().toISOString();
+      console.log('[sync] setLastSyncedAt', { now, at: Date.now() });
       setLastSyncedAt(now);
       try { localStorage.setItem("arkonomy_last_synced", now); } catch {}
       await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
+      console.log('[sync] calling loadAll(true)', { at: Date.now() });
       await loadAll(true); // silent — keep Dashboard mounted, accountBalance must not reset
+      console.log('[sync] loadAll(true) complete', { at: Date.now() });
     } catch (err) {
       logger.error("[Plaid] sync-transactions exception:", err);
+      console.log('[sync] error — calling loadAll(true)', { err: String(err), at: Date.now() });
       await loadAll(true);
     } finally {
+      console.log('[sync] manual sync done', { at: Date.now() });
       setSyncingBank(false);
     }
   }
@@ -726,8 +728,6 @@ export default function App() {
     if (bgSyncLockRef.current || syncingBank) return;
     bgSyncLockRef.current = true;
 
-    // Staleness guard — query profiles.last_synced_at from Supabase so all
-    // tabs and devices share the same timestamp (not per-device localStorage).
     const { data: profileSnap } = await supabase
       .from("profiles")
       .select("last_synced_at")
@@ -739,6 +739,7 @@ export default function App() {
       return;
     }
 
+    console.log('[sync] bgSync started (stale)', { lastTs, at: Date.now() });
     setBackgroundSyncing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -752,13 +753,16 @@ export default function App() {
         },
       });
       const data = await res.json();
+      console.log('[sync] bgSync plaid-sync-transactions response', { synced: data.synced, error: data.error, at: Date.now() });
       if (!data.error) {
         const now = new Date().toISOString();
         setLastSyncedAt(now);
-        try { localStorage.setItem("arkonomy_last_synced", now); } catch {} // keep local cache in sync
+        try { localStorage.setItem("arkonomy_last_synced", now); } catch {}
         clearAccountsCache();
+        console.log('[sync] bgSync cache cleared, calling loadAll(true)', { at: Date.now() });
         await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
-        await loadAll(true); // silent — keep Dashboard mounted, don't flash skeleton
+        await loadAll(true);
+        console.log('[sync] bgSync loadAll(true) complete', { at: Date.now() });
       }
     } catch {
     } finally {
