@@ -40,24 +40,6 @@ const SECTORS = [
 const ALPACA_SYMBOL_MAP = { BTC: "BTCUSD", ETH: "ETHUSD", SOL: "SOLUSD", DOGE: "DOGEUSD" };
 function alpacaSym(s) { return ALPACA_SYMBOL_MAP[s] ?? s; }
 
-const STOCK_LOGOS = {
-  AAPL: "apple.com",      MSFT: "microsoft.com",   AMZN: "amazon.com",
-  GOOGL: "google.com",   GOOG: "google.com",        META: "meta.com",
-  TSLA: "tesla.com",      NVDA: "nvidia.com",        NFLX: "netflix.com",
-  DIS: "disney.com",      V: "visa.com",             MA: "mastercard.com",
-  JPM: "jpmorganchase.com", BAC: "bankofamerica.com", GS: "goldmansachs.com",
-  WMT: "walmart.com",    COST: "costco.com",         HD: "homedepot.com",
-  MCD: "mcdonalds.com",  KO: "coca-cola.com",        PEP: "pepsico.com",
-  XOM: "exxonmobil.com", CVX: "chevron.com",         COP: "conocophillips.com",
-  UNH: "unitedhealthgroup.com", JNJ: "jnj.com",      ABBV: "abbvie.com",
-  AMD: "amd.com",         INTC: "intel.com",         ORCL: "oracle.com",
-  CRM: "salesforce.com", ADBE: "adobe.com",           PYPL: "paypal.com",
-  UBER: "uber.com",       ABNB: "airbnb.com",         DASH: "doordash.com",
-  SHOP: "shopify.com",    COIN: "coinbase.com",       HOOD: "robinhood.com",
-  PLTR: "palantir.com",   RBLX: "roblox.com",         SPOT: "spotify.com",
-  ZM: "zoom.us",          SNAP: "snap.com",           ROKU: "roku.com",
-  SQ: "squareup.com",     LYFT: "lyft.com",
-};
 
 function cleanCompanyName(name) {
   if (!name) return name;
@@ -93,28 +75,14 @@ async function callMarketData(body) {
 // ─── Stock Logo ───────────────────────────────────────────────
 
 function StockLogo({ symbol, color, icon, size = 36, borderRadius = 10 }) {
-  const [failed, setFailed] = useState(false);
-  const domain = STOCK_LOGOS[symbol];
   const bg = (color ?? C.cyan) + "22";
   const border = `1px solid ${(color ?? C.cyan)}33`;
-  if (domain && !failed) {
-    return (
-      <div style={{ width: size, height: size, borderRadius, background: bg, border, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <img
-          src={`https://logo.clearbit.com/${domain}`}
-          alt={symbol}
-          onError={() => setFailed(true)}
-          style={{ width: "72%", height: "72%", objectFit: "contain" }}
-        />
-      </div>
-    );
-  }
   const circleRadius = icon ? borderRadius : "50%";
   return (
     <div style={{ width: size, height: size, borderRadius: circleRadius, background: bg, border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
       {icon
         ? <Icon name={icon} size={Math.round(size * 0.42)} color={color ?? C.cyan} strokeWidth={2.5} />
-        : <span style={{ fontSize: Math.round(size * 0.38), fontWeight: 800, color: color ?? C.cyan, letterSpacing: -0.5 }}>{(symbol || "?").slice(0, 2)}</span>
+        : <span style={{ fontSize: Math.round(size * 0.44), fontWeight: 800, color: color ?? C.cyan, letterSpacing: -0.5 }}>{(symbol || "?")[0]}</span>
       }
     </div>
   );
