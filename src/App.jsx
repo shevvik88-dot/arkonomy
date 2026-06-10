@@ -580,10 +580,12 @@ export default function App() {
   async function checkBankConnection() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
       const { data, error } = await supabase.functions.invoke("check-bank-connection", {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
-      if (!error && data?.connected) {
+      if (error) throw error;
+      if (data?.connected) {
         setBankConnected(true);
         setBankName(data.institution_name);
         setBankCount(data.count ?? 1);
