@@ -1,8 +1,9 @@
 import Stripe from 'npm:stripe@14';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+const APP_URL = Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com';
 const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://app.arkonomy.com',
+  'Access-Control-Allow-Origin': APP_URL,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
@@ -54,8 +55,8 @@ Deno.serve(async (req) => {
         { price: STRIPE_PRICE_ID, quantity: 1 },
       ],
       subscription_data: { trial_period_days: 7 },
-      success_url: 'https://app.arkonomy.com?trial_started=true',
-      cancel_url:  'https://app.arkonomy.com?trial_cancelled=true',
+      success_url: `${APP_URL}?trial_started=true`,
+      cancel_url:  `${APP_URL}?trial_cancelled=true`,
     });
 
     return new Response(JSON.stringify({ url: session.url }), {
