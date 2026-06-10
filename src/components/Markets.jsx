@@ -161,6 +161,9 @@ function PriceChart({ candles = [], color, height = 130 }) {
   const ptsStr = pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`);
   const linePath = `M ${ptsStr.join(" L ")}`;
   const fillPath = `${linePath} L ${(W - PAD).toFixed(1)},${height} L ${PAD},${height} Z`;
+  const lastPt    = pts[pts.length - 1];
+  const lastPrice = prices[prices.length - 1];
+  const lastTs    = timestamps[timestamps.length - 1];
 
   function handleMove(clientX) {
     const svg = svgRef.current;
@@ -198,6 +201,12 @@ function PriceChart({ candles = [], color, height = 130 }) {
         </defs>
         <path d={fillPath} fill={`url(#${gradId})`} />
         <path d={linePath} fill="none" stroke={lineColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        {!crosshair && (
+          <>
+            <circle cx={lastPt.x} cy={lastPt.y} r="3.5" fill={lineColor} />
+            <circle cx={lastPt.x} cy={lastPt.y} r="6.5" fill={lineColor} fillOpacity="0.2" />
+          </>
+        )}
         {crosshair && (
           <>
             <line
@@ -210,7 +219,7 @@ function PriceChart({ candles = [], color, height = 130 }) {
           </>
         )}
       </svg>
-      {crosshair && (
+      {crosshair ? (
         <div style={{
           position: "absolute", top: 0,
           left: tooltipLeft,
@@ -231,6 +240,30 @@ function PriceChart({ candles = [], color, height = 130 }) {
           <span style={{ color: C.faint, fontWeight: 400, fontSize: 10, marginLeft: 5 }}>
             {new Date(crosshair.ts * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
           </span>
+        </div>
+      ) : (
+        <div style={{
+          position: "absolute", top: 4, right: 6,
+          background: C.card,
+          border: `1px solid ${lineColor}33`,
+          borderRadius: 8,
+          padding: "3px 8px",
+          fontSize: 12,
+          fontWeight: 700,
+          color: C.text,
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.35)",
+        }}>
+          {fmtCrosshairPrice(lastPrice)}
+          <span style={{ color: C.faint, fontWeight: 400, fontSize: 10, marginLeft: 5 }}>
+            {new Date(lastTs * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          </span>
+        </div>
+      )}
+      {!crosshair && (
+        <div style={{ fontSize: 10, color: C.faint, textAlign: "center", marginTop: 5, letterSpacing: 0.2 }}>
+          {t("markets.touch_hint")}
         </div>
       )}
     </div>
