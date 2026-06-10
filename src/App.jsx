@@ -35,12 +35,15 @@ function useInsights(screen, userId, lang) {
 
   useEffect(() => {
     if (!userId) return;
+    let mounted = true;
     supabase.functions
       .invoke("get-insights", { body: { userId, lang: lang ?? "en" } })
       .then(({ data: result, error }) => {
+        if (!mounted) return;
         if (error) { logger.error("useInsights error:", error); return; }
         setData(result);
       });
+    return () => { mounted = false; };
   }, [userId, lang]);
 
   if (!data) return { insight: null, allInsights: [], aiContext: null };
