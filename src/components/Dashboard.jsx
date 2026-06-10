@@ -229,10 +229,10 @@ const mid = (outerR + innerR) / 2;
 const sw = 22;
   const [hovered, setHovered] = useState(null);
 
-  const entries = Object.entries(data || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  const entries = Object.entries(data).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   const total = entries.reduce((s, [, v]) => s + v, 0);
 
-  if (total <= 0) return (
+  if (total === 0) return (
     <div style={{ height: size, display: "flex", alignItems: "center", justifyContent: "center", color: C.faint, fontSize: 13, fontFamily: FONT }}>
       {t("dashboard.no_spending_data_short")}
     </div>
@@ -363,7 +363,7 @@ function MarketOverview({ onOpenMarket }) {
       }
 
       const mData = await mRes.json();
-      const nData = nRes.ok ? await nRes.json().catch(() => ({})) : {};
+      const nData = await nRes.json().catch(() => ({}));
 
       if (mData?.markets) setMarkets(mData.markets);
       if (nData?.news) setNews(nData.news);
@@ -583,10 +583,10 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
   const projectedIncome = Math.max(currentMonthIncome, avgMonthlyIncome);
   const remainingIncome = Math.max(0, projectedIncome - currentMonthIncome);
   const upcomingTotal   = upcomingCharges.reduce((s, c) => s + Number(c.amount), 0);
-  const projectedBalance = Math.max(0, Math.min(
+  const projectedBalance = Math.min(
     startBalance + remainingIncome - projectedVariable,
     startBalance + avgMonthlyIncome
-  ));
+  );
 
   if (dailyVariableRate < 0.01 && upcomingTotal === 0) return null;
 

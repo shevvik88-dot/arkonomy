@@ -14,11 +14,21 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 
-const corsHeadersHeaders = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+const ALLOWED_ORIGINS = [
+  'https://app.arkonomy.com',
+  'http://localhost:5173',
+  'http://localhost:4173',
+  'http://localhost:3000',
+];
+
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get('Origin') ?? '';
+  return {
+    'Access-Control-Allow-Origin':  ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+}
 
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -320,8 +330,8 @@ async function syncItemTransactions(
 // ═════════════════════════════════════════════════════════════════════════════
 
 Deno.serve(async (req) => {
-  const corsHeaders = corsHeadersHeaders(req);
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  const cors = corsHeaders(req);
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
   try {
     const supabase = createClient(
@@ -347,7 +357,7 @@ Deno.serve(async (req) => {
 
       if (body?.action === 'resync_all') {
         if (token !== Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) {
-          return json({ error: 'Forbidden — service role key required' }, 403, corsHeaders);
+          return json({ error: 'Forbidden — service role key required' }, 403, cors);
         }
 
         // 1. Delete all Plaid-synced transactions (leave manually entered ones)
@@ -394,13 +404,13 @@ Deno.serve(async (req) => {
           added:          totalAdded,
           modified:       totalModified,
           removed:        totalRemoved,
-        }, 200, corsHeaders);
+        }, 200, cors);
       }
     }
 
     // ── Normal per-user sync ──────────────────────────────────────────────────
     const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
-    if (authErr || !user) return json({ error: 'Unauthorized' }, 401, corsHeaders);
+    if (authErr || !user) return json({ error: 'Unauthorized' }, 401, cors);
 
     const { data: items, error: itemsErr } = await supabase
       .from('plaid_items')
@@ -409,7 +419,7 @@ Deno.serve(async (req) => {
 
     if (itemsErr) throw itemsErr;
     if (!items || items.length === 0) {
-      return json({ added: 0, modified: 0, removed: 0, synced: 0 }, 200, corsHeaders);
+      return json({ added: 0, modified: 0, removed: 0, synced: 0 }, 200, cors);
     }
 
     let totalAdded = 0, totalModified = 0, totalRemoved = 0;
@@ -429,11 +439,11 @@ Deno.serve(async (req) => {
     return json(
       { added: totalAdded, modified: totalModified, removed: totalRemoved, synced: totalAdded + totalModified },
       200,
-      corsHeaders,
+      cors,
     );
 
   } catch (err) {
     console.error('plaid-sync-transactions error:', err);
-    return json({ error: "Internal Server Error" }, 500, corsHeaders);
+    return json({ error: "Internal Server Error" }, 500, cors);
   }
 });
