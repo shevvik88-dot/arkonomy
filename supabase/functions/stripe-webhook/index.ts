@@ -2,7 +2,7 @@ import Stripe from 'npm:stripe@14';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
+  'Access-Control-Allow-Origin': 'https://app.arkonomy.com',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, stripe-signature',
 };
 
@@ -88,31 +88,6 @@ Deno.serve(async (req) => {
         .eq('stripe_customer_id', customerId);
 
       if (error) console.error('Failed to downgrade profile:', error);
-    }
-
-    if (event.type === 'invoice.payment_failed') {
-      const invoice = event.data.object as Stripe.Invoice;
-      const customerId = invoice.customer as string;
-      // Downgrade if the final payment attempt fails
-      if (invoice.next_payment_attempt === null) {
-        const { error } = await supabase
-          .from('profiles')
-          .update({ plan: 'free' })
-          .eq('stripe_customer_id', customerId);
-        if (error) console.error('Failed to downgrade profile on payment failure:', error);
-      }
-    }
-
-    if (event.type === 'customer.subscription.updated') {
-      const sub = event.data.object as Stripe.Subscription;
-      const customerId = sub.customer as string;
-      const plan = sub.status === 'active' || sub.status === 'trialing' ? 'pro' : 'free';
-
-      const { error } = await supabase
-        .from('profiles')
-        .update({ plan })
-        .eq('stripe_customer_id', customerId);
-      if (error) console.error('Failed to sync subscription update:', error);
     }
 
     return new Response(JSON.stringify({ received: true }), {

@@ -35,15 +35,12 @@ function useInsights(screen, userId, lang) {
 
   useEffect(() => {
     if (!userId) return;
-    let mounted = true;
     supabase.functions
       .invoke("get-insights", { body: { userId, lang: lang ?? "en" } })
       .then(({ data: result, error }) => {
-        if (!mounted) return;
         if (error) { logger.error("useInsights error:", error); return; }
         setData(result);
       });
-    return () => { mounted = false; };
   }, [userId, lang]);
 
   if (!data) return { insight: null, allInsights: [], aiContext: null };
@@ -454,20 +451,19 @@ export default function App() {
   // Detect return from Stripe checkout or Alpaca OAuth
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    let timers = [];
 
     if (params.get("upgraded") === "true") {
       setProToast(true);
       window.history.replaceState({}, "", window.location.pathname);
-      timers.push(setTimeout(() => { if (loadAllRef.current) loadAllRef.current(); }, 2000));
-      timers.push(setTimeout(() => setProToast(false), 6000));
+      setTimeout(() => { if (user) loadAll(); }, 2000);
+      setTimeout(() => setProToast(false), 6000);
     }
 
     if (params.get("trial_started") === "true") {
       window.history.replaceState({}, "", window.location.pathname);
       setProToast(true);
-      timers.push(setTimeout(() => { if (loadAllRef.current) loadAllRef.current(); }, 2000));
-      timers.push(setTimeout(() => setProToast(false), 6000));
+      setTimeout(() => { if (user) loadAll(); }, 2000);
+      setTimeout(() => setProToast(false), 6000);
     }
 
     if (params.get("trial_cancelled") === "true") {
@@ -481,9 +477,9 @@ export default function App() {
     if (params.get("alpaca_connected") === "true") {
       window.history.replaceState({}, "", window.location.pathname);
       // Refresh profile to pick up the new alpaca_access_token
-      timers.push(setTimeout(() => { if (loadAllRef.current) loadAllRef.current(); }, 500));
+      setTimeout(() => { if (user) loadAll(); }, 500);
       setAlpacaToast({ alpacaSuccess: true });
-      timers.push(setTimeout(() => setAlpacaToast(null), 5000));
+      setTimeout(() => setAlpacaToast(null), 5000);
     }
 
     if (params.get("alpaca_error")) {
@@ -497,9 +493,8 @@ export default function App() {
         network_error:       "Network error connecting to Alpaca.",
       };
       setAlpacaToast({ error: msgs[errCode] ?? `Alpaca error: ${errCode}` });
-      timers.push(setTimeout(() => setAlpacaToast(null), 6000));
+      setTimeout(() => setAlpacaToast(null), 6000);
     }
-    return () => timers.forEach(clearTimeout);
   }, []);
 
   // Register push notifications (no-op until VAPID key is configured)
@@ -541,7 +536,6 @@ export default function App() {
     }, 900);
   }, [profile, loading, onboardingDone, transactions.length, bankConnected]);
 
-  const loadAllRef = useRef(null);
   async function loadAll(silent = false) {
     if (!silent) setLoading(true);
     try {
@@ -579,17 +573,14 @@ export default function App() {
       if (!silent) setLoading(false);
     }
   }
-  loadAllRef.current = loadAll;
 
   async function checkBankConnection() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
       const { data, error } = await supabase.functions.invoke("check-bank-connection", {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
-      if (error) throw error;
-      if (data?.connected) {
+      if (!error && data?.connected) {
         setBankConnected(true);
         setBankName(data.institution_name);
         setBankCount(data.count ?? 1);
@@ -602,7 +593,6 @@ export default function App() {
   async function getLinkToken() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("No active session");
       // Only send redirect_uri in native Capacitor context where deep link
       // OAuth handling is active. In a browser, the URI must be registered
       // in the Plaid Dashboard before it can be used — omitting it lets the
@@ -621,19 +611,17 @@ export default function App() {
           body: JSON.stringify(body),
         }
       );
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || errData.message || `HTTP ${res.status}`);
-      }
       const data = await res.json();
       if (data.link_token) {
         setLinkToken(data.link_token);
       } else {
-        throw new Error("Missing link_token in response");
+        const msg = data.error ?? data.message ?? "Failed to start bank connection";
+        logger.error("[Plaid] getLinkToken error:", data);
+        showAlert(msg, "danger", "alert-circle");
       }
     } catch (err) {
       logger.error("[Plaid] getLinkToken exception:", err);
-      showAlert(err.message || "Could not connect to bank service. Try again.", "danger", "alert-circle");
+      showAlert("Could not connect to bank service. Try again.", "danger", "alert-circle");
     }
   }
 
@@ -1111,8 +1099,8 @@ export default function App() {
       return "New insight available — tap to chat with your AI assistant.";
     }
     function scheduleIdle() {
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      if (idleDismissRef.current) clearTimeout(idleDismissRef.current);
+      clearTimeout(idleTimerRef.current);
+      clearTimeout(idleDismissRef.current);
       const delay = IDLE_MIN + Math.random() * (IDLE_MAX - IDLE_MIN);
       idleTimerRef.current = setTimeout(() => {
         if (showChatRef.current) return;
@@ -1125,8 +1113,8 @@ export default function App() {
     scheduleIdle();
     return () => {
       events.forEach(ev => window.removeEventListener(ev, scheduleIdle));
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      if (idleDismissRef.current) clearTimeout(idleDismissRef.current);
+      clearTimeout(idleTimerRef.current);
+      clearTimeout(idleDismissRef.current);
     };
   }, [user, allInsights]);
 
@@ -1185,15 +1173,13 @@ export default function App() {
     window.open(url, "_blank", "noopener");
   }
 
-  const alpacaToastTimerRef = useRef(null);
   async function investAlpaca(data) {
     if (profile?.plan !== 'pro') { setShowUpgradeModal(true); return; }
     if (!alpacaConnected) { connectAlpaca(); return; }
     const amount = data?.roundUpMonthly;
     if (!amount || Number(amount) < 1) {
       setAlpacaToast({ error: "No round-up amount available" });
-      clearTimeout(alpacaToastTimerRef.current);
-      alpacaToastTimerRef.current = setTimeout(() => setAlpacaToast(null), 4000);
+      setTimeout(() => setAlpacaToast(null), 4000);
       return;
     }
     setAlpacaToast({ loading: true, message: `Investing $${amount} in SPY…` });
@@ -1224,11 +1210,9 @@ export default function App() {
         setAlpacaToast({ success: true, message: result.message || `$${amount} invested in SPY` });
       }
     } catch (err) {
-      logger.error("[investAlpaca] exception:", err);
-      setAlpacaToast({ error: err.message || String(err) });
+      setAlpacaToast({ error: String(err) });
     }
-    clearTimeout(alpacaToastTimerRef.current);
-    alpacaToastTimerRef.current = setTimeout(() => setAlpacaToast(null), 5000);
+    setTimeout(() => setAlpacaToast(null), 5000);
   }
 
   function markInsightsSeen() {
@@ -1306,12 +1290,10 @@ export default function App() {
       const res = await supabase.functions.invoke("ai-chat", {
         body: { messages: updated.filter(m => !m.loading), financialContext: ctx, plan: profile?.plan ?? 'free' }
       });
-      if (res.error) throw res.error;
       const raw = res.data?.reply || "Sorry, something went wrong.";
       const reply = raw.replace(/^[\s.,!?;:]+/, '');
       setChatMessages(prev => prev.map(m => m.id === lid ? { role: "assistant", text: reply } : m));
-    } catch (err) {
-      logger.error("[ai-chat] error:", err);
+    } catch {
       setChatMessages(prev => prev.map(m => m.id === lid ? { role: "assistant", text: "Could not reach AI. Check your connection." } : m));
     }
   }
