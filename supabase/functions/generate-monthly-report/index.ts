@@ -87,7 +87,7 @@ function fmt(n: number) {
 // ═════════════════════════════════════════════════════════════════════════════
 
 const CORS = {
-  'Access-Control-Allow-Origin': 'https://app.arkonomy.com',
+  'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
