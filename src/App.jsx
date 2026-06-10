@@ -1181,15 +1181,13 @@ export default function App() {
     window.open(url, "_blank", "noopener");
   }
 
-  const alpacaToastTimerRef = useRef(null);
   async function investAlpaca(data) {
     if (profile?.plan !== 'pro') { setShowUpgradeModal(true); return; }
     if (!alpacaConnected) { connectAlpaca(); return; }
     const amount = data?.roundUpMonthly;
     if (!amount || Number(amount) < 1) {
       setAlpacaToast({ error: "No round-up amount available" });
-      clearTimeout(alpacaToastTimerRef.current);
-      alpacaToastTimerRef.current = setTimeout(() => setAlpacaToast(null), 4000);
+      setTimeout(() => setAlpacaToast(null), 4000);
       return;
     }
     setAlpacaToast({ loading: true, message: `Investing $${amount} in SPY…` });
@@ -1222,8 +1220,7 @@ export default function App() {
     } catch (err) {
       setAlpacaToast({ error: String(err) });
     }
-    clearTimeout(alpacaToastTimerRef.current);
-    alpacaToastTimerRef.current = setTimeout(() => setAlpacaToast(null), 5000);
+    setTimeout(() => setAlpacaToast(null), 5000);
   }
 
   function markInsightsSeen() {
