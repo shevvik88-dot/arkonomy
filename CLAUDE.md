@@ -1,26 +1,18 @@
 ﻿# Arkonomy
 
-## Current status (2026-06-09)
-- Production live at app.arkonomy.com — last stable commit: `1b2077d`
+## Current status (2026-06-10)
+- Production live at app.arkonomy.com — last stable commit: `6b45d4f`
+- QA hardening fully applied (commits cc7c9d2 → 6b45d4f): mounted guard in useInsights, null session guards in checkBankConnection/getLinkToken, alpacaToastTimerRef, idle timer null-checks, DonutChart null guard, projectedBalance clamp
+- All 18 edge functions updated to use `APP_URL` env var for CORS (deployed 3722697)
+- Security migration `20260601000000_final_qa_security.sql` applied to DB — RLS enabled + owner-only policies on transactions, savings, categories, notification_preferences
+- Alpaca brand removed from public-facing UI text (OnboardingFlow, App.jsx trial modal, Insights invest CTA)
 - Portuguese Brazil (pt) added — src/locales/pt/translation.json, i18n.js, language switcher in App.jsx
-- SW cache bumped to v4 (public/sw.js) to force client refresh after fixes
-- Savings screen crash fixed, double $$ fixed, duplicate transactions permanently fixed
-- bgSync calls clearAccountsCache() and loadAll() unconditionally
 - Accounts cache key: arkonomy_accounts_v2 (bumped from v1 to bust stale balance)
-- Stock search fixed (filterUSStocks passes through when Finnhub omits exchange field)
-- Clearbit logos removed entirely — replaced with colored circle + first letter
-- Stock chart idle state: shows latest price/date label + "touch to explore" hint
-- Accessibility fixes (iOS App Store): C.faint → #8BA1B7, minHeight:44 on all small buttons, outline:none removed project-wide, aria-labels on icon-only buttons
-
-## Known issues / in-progress
-- **React error #310 (infinite loop)** — PR `9ca8ed2` (feat/final-qa) introduced it by adding `[user]` to the URL-params useEffect in App.jsx (lines 452–498). The fix is `loadAllRef` pattern: assign `loadAllRef.current = loadAll` inline after the function, use `loadAllRef.current()` inside setTimeout callbacks, keep dep array as `[]`. PR was reverted (HEAD: `1b2077d`) pending a clean re-apply.
-- **QA hardening from feat/final-qa not yet in main** — legitimate changes (mounted guard in useInsights, timer cleanup, null session guards, getLinkToken HTTP error handling, DonutChart null guard, projectedBalance clamp, edge function hardening, security migration) need to be re-applied without the broken useEffect dep.
 
 ## Next tasks (priority order)
-1. **Re-apply QA hardening** — cherry-pick `9ca8ed2` changes into main with `loadAllRef` fix; apply security migration `20260601000000_final_qa_security.sql`
-2. **Merchant navigation** — tap a transaction in Dashboard "Recent Transactions" → navigate to Transactions screen filtered by that merchant (cleanMerchantName now in helpers.js)
-3. **Notification preferences UI** — Settings screen section: frequency selector + email digest content toggles; table `notification_preferences` already exists in Supabase
-4. **E2E testing** — Playwright tests for critical flows (auth, bank connection, transaction add)
+1. **Merchant navigation** — tap a transaction in Dashboard "Recent Transactions" → navigate to Transactions screen filtered by that merchant (cleanMerchantName now in helpers.js)
+2. **Notification preferences UI** — Settings screen section: frequency selector + email digest content toggles; table `notification_preferences` already exists in Supabase
+3. **E2E testing** — Playwright tests for critical flows (auth, bank connection, transaction add)
 
 ## Self-improvement protocol
 - После любой моей коррекции предложи лаконичное правило и допиши его в подходящую секцию этого файла.
