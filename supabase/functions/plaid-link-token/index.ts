@@ -8,21 +8,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 
-const ALLOWED_ORIGINS = [
-  'https://app.arkonomy.com',
-  'http://localhost:5173',   // Vite dev
-  'http://localhost:4173',   // Vite preview
-  'http://localhost:3000',
-];
-
-function corsHeaders(req: Request): Record<string, string> {
-  const origin = req.headers.get('Origin') ?? '';
-  return {
-    'Access-Control-Allow-Origin':  ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
-}
+const corsHeadersHeaders = {
+  'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -34,8 +24,8 @@ function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
-  const cors = corsHeaders(req);
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  const corsHeaders = corsHeadersHeaders(req);
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
     // ── Auth ──────────────────────────────────────────────────────────────────
@@ -49,7 +39,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
 
     if (authErr || !user) {
-      return json({ error: 'Unauthorized' }, 401, cors);
+      return json({ error: 'Unauthorized' }, 401, corsHeaders);
     }
 
     // ── Body ──────────────────────────────────────────────────────────────────
@@ -85,14 +75,14 @@ Deno.serve(async (req) => {
       return json(
         { error: plaidData.error_message ?? plaidData.error_code ?? 'Plaid error' },
         502,
-        cors,
+        corsHeaders,
       );
     }
 
-    return json({ link_token: plaidData.link_token }, 200, cors);
+    return json({ link_token: plaidData.link_token }, 200, corsHeaders);
 
   } catch (err) {
     console.error('plaid-link-token error:', err);
-    return json({ error: "Internal Server Error" }, 500, cors);
+    return json({ error: "Internal Server Error" }, 500, corsHeaders);
   }
 });
