@@ -87,6 +87,41 @@ const EXCLUDED_CATEGORIES = new Set([
   'home improvement', 'sporting goods', 'pet supplies',
 ]);
 
+// ─── Transfer deduplication ───────────────────────────────────────────────────
+// Patterns that signal a person-to-person or bank transfer entry.
+// These are never the "real" merchant when a same-amount business charge exists.
+const TRANSFER_RE = /\b(zelle|venmo|transfer|wire|ach|paypal|cash\s*app|send\s+money|pay\s+to)\b/i;
+
+function isTransferLike(key, txDescs, userTokens) {
+  if (TRANSFER_RE.test(key)) return true;
+  if (txDescs.some(d => TRANSFER_RE.test(d))) return true;
+  // Match against user's own name tokens (e.g. "sheviakov" in full_name "Viktor Sheviakov")
+  return userTokens.length > 0 && userTokens.some(tok => key.includes(tok));
+}
+
+// For each transfer-like entry that has a same-amount (≤5%) non-transfer partner,
+// remove the transfer entry and keep the merchant one.
+function deduplicateTransferPairs(entries, userTokens) {
+  const toRemove = new Set();
+  for (let i = 0; i < entries.length; i++) {
+    if (toRemove.has(i)) continue;
+    if (!isTransferLike(entries[i]._key, entries[i]._txDescs, userTokens)) continue;
+    for (let j = 0; j < entries.length; j++) {
+      if (i === j || toRemove.has(j)) continue;
+      if (isTransferLike(entries[j]._key, entries[j]._txDescs, userTokens)) continue;
+      const lo = Math.min(entries[i].amount, entries[j].amount);
+      const hi = Math.max(entries[i].amount, entries[j].amount);
+      if (hi > 0 && (hi - lo) / hi <= 0.05) {
+        toRemove.add(i);
+        break;
+      }
+    }
+  }
+  return entries
+    .filter((_, i) => !toRemove.has(i))
+    .map(({ _key, _txDescs, ...e }) => e);
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function normalizeMerchant(raw) {
@@ -138,7 +173,12 @@ function sameDayOfMonth(txs) {
 
 // ─── Main detection ───────────────────────────────────────────────────────────
 
-export function detectRecurringCharges(transactions) {
+export function detectRecurringCharges(transactions, options = {}) {
+  const userTokens = (options.userName || '')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(t => t.length >= 4);
+
   const now    = new Date();
   const cutoff = new Date(now.getTime() - LOOKBACK_DAYS * 86_400_000);
 
@@ -231,12 +271,17 @@ export function detectRecurringCharges(transactions) {
         daysUntil,
         expectedDate: expectedDateStr,
         category:     lastTx.category_name || 'Bills',
+        _key:         key,
+        _txDescs:     cluster.txs.map(t => (t.description || '').toLowerCase()),
       });
     }
   }
 
+  // Deduplicate: drop transfer entries when a same-amount merchant entry exists
+  const deduped = deduplicateTransferPairs(upcoming, userTokens);
+
   // Sort by urgency, cap at MAX_RESULTS
-  const sorted = upcoming.sort((a, b) => a.daysUntil - b.daysUntil).slice(0, MAX_RESULTS);
+  const sorted = deduped.sort((a, b) => a.daysUntil - b.daysUntil).slice(0, MAX_RESULTS);
 
   // Return empty if fewer than MIN_CONFIRMED confirmed — hide the section entirely
   return sorted.length >= MIN_CONFIRMED ? sorted : [];

@@ -562,7 +562,7 @@ export default function App() {
       }
       if (t.data) {
         setTransactions(t.data);
-        const detected = detectRecurringCharges(t.data);
+        const detected = detectRecurringCharges(t.data, { userName: p.data?.full_name });
         setUpcomingCharges(detected);
       }
       if (sv.data) setSavings(sv.data);
@@ -882,7 +882,7 @@ export default function App() {
           }
         }
         // Update upcoming charges based on new transaction set
-        setUpcomingCharges(detectRecurringCharges([data, ...transactions]));
+        setUpcomingCharges(detectRecurringCharges([data, ...transactions], { userName: profile?.full_name }));
       }
     } catch (err) {
       logger.error("[addTransaction] failed:", err);
