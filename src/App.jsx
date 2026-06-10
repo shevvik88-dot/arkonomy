@@ -421,6 +421,7 @@ export default function App() {
   const idleTimerRef = useRef(null);
   const idleDismissRef = useRef(null);
   const showChatRef = useRef(false);
+  const alpacaToastTimerRef = useRef(null);
 
   const { isPro, isTrial, trialDaysLeft, trialExpired } = usePlan(profile);
   useEffect(() => { if (trialExpired) setShowTrialExpiredModal(true); }, [trialExpired]);
@@ -1187,7 +1188,8 @@ export default function App() {
     const amount = data?.roundUpMonthly;
     if (!amount || Number(amount) < 1) {
       setAlpacaToast({ error: "No round-up amount available" });
-      setTimeout(() => setAlpacaToast(null), 4000);
+      clearTimeout(alpacaToastTimerRef.current);
+      alpacaToastTimerRef.current = setTimeout(() => setAlpacaToast(null), 4000);
       return;
     }
     setAlpacaToast({ loading: true, message: `Investing $${amount} in SPY…` });
@@ -1220,7 +1222,8 @@ export default function App() {
     } catch (err) {
       setAlpacaToast({ error: String(err) });
     }
-    setTimeout(() => setAlpacaToast(null), 5000);
+    clearTimeout(alpacaToastTimerRef.current);
+    alpacaToastTimerRef.current = setTimeout(() => setAlpacaToast(null), 5000);
   }
 
   function markInsightsSeen() {
