@@ -11,31 +11,31 @@
     "e2e:headed": "playwright test --headed"
   },
   "dependencies": {
-    "@capacitor/android": "^8.3.1",
+    "@capacitor/android": "^8.4.0",
     "@capacitor/app": "^8.1.0",
-    "@capacitor/cli": "^8.3.0",
-    "@capacitor/core": "^8.3.0",
-    "@capacitor/ios": "^8.3.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
+    "@capacitor/ios": "^8.4.0",
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.2",
-    "@supabase/supabase-js": "^2.39.0",
+    "@supabase/supabase-js": "^2.108.1",
     "exceljs": "^4.4.0",
-    "i18next": "^26.1.0",
+    "i18next": "^26.3.1",
     "i18next-browser-languagedetector": "^8.2.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-i18next": "^17.0.7",
-    "react-plaid-link": "^3.5.1"
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-i18next": "^17.0.8",
+    "react-plaid-link": "^4.1.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
-    "@vitejs/plugin-react": "^4.0.0",
+    "@vitejs/plugin-react": "^6.0.2",
     "dotenv": "^17.4.2",
-    "pdfkit": "^0.18.0",
-    "playwright": "^1.59.1",
+    "pdfkit": "^0.19.0",
+    "playwright": "^1.60.0",
     "sharp": "^0.34.5",
-    "supabase": "^2.87.2",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.9"
+    "supabase": "^2.105.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16"
   }
 }
