@@ -451,7 +451,7 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
     "Unlimited bank accounts",
     "Monthly Excel reports",
     "Health Score tracking",
-    "Investment tracking via Alpaca",
+    "Investment tracking",
   ];
 
   return wrap(

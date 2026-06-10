@@ -1489,7 +1489,7 @@ export default function App() {
                 </svg>
               </div>
               <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Your free trial ended</div>
-              <div style={{ fontSize: 14, color: "#7A8BA8" }}>Upgrade to keep full access to AI insights, Alpaca investing, and all Pro features.</div>
+              <div style={{ fontSize: 14, color: "#7A8BA8" }}>Upgrade to keep full access to AI insights, investment tracking, and all Pro features.</div>
             </div>
             <button onClick={() => { setShowTrialExpiredModal(false); setShowUpgradeModal(true); }} style={{ width: "100%", padding: 16, background: "linear-gradient(135deg,#7C6BFF,#38B6FF)", border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: "0 4px 24px rgba(124,107,255,0.44)", marginBottom: 12 }}>
               Upgrade to Pro — $9.99/mo
