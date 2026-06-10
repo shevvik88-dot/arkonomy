@@ -855,11 +855,12 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
     setDragging(null);
   }
 
-  const US_EXCHANGES = ["NYSE", "NASDAQ", "ARCA", "BATS", "NYSE ARCA"];
+  const US_EXCHANGES = ["NYSE", "NASDAQ", "ARCA", "BATS", "NYSE ARCA", "US"];
   function filterUSStocks(results) {
     return (results ?? []).filter(r => {
-      if (r.symbol?.includes(".")) return false;
+      if (!r.symbol || r.symbol.includes(".")) return false;
       const ex = (r.exchange || r.primary_exchange || "").toUpperCase();
+      if (!ex) return true; // Finnhub search omits exchange — dot-check above is sufficient
       return US_EXCHANGES.some(e => ex.includes(e));
     });
   }
