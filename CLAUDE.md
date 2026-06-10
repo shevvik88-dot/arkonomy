@@ -1,21 +1,26 @@
 ﻿# Arkonomy
 
-## Current status (2026-06-06)
-- Production live at app.arkonomy.com — last stable commit: `18fa685`
+## Current status (2026-06-09)
+- Production live at app.arkonomy.com — last stable commit: `1b2077d`
 - Portuguese Brazil (pt) added — src/locales/pt/translation.json, i18n.js, language switcher in App.jsx
 - SW cache bumped to v4 (public/sw.js) to force client refresh after fixes
-- Savings screen crash fixed: `isDeficit` was missing from Savings component scope (only existed in GoalCard)
-- Double $$ fixed in Savings: fmtMoney() returns $-prefixed strings — removed 9 literal `$` prefixes in JSX
-- Duplicate transactions permanently fixed: deleted older BofA plaid_item (April 14) — only May 30 item remains; also cleaned 25 duplicate rows from DB; seenKeys dedup in edge function kept as safety net but cross-item race condition (concurrent bgSync + manual sync each with own Set) means item deletion is the real fix
-- bgSync now calls clearAccountsCache() and loadAll() unconditionally (was only reloading when synced > 0)
-- i18n keys dashboard.of_total and dashboard.surplus added to en/ru/es
-- DonutChart size restored to 196 in Dashboard spending section
-- Security audit bot (Jules) had gutted Dashboard.jsx to 312 lines — restored full 1018-line version
+- Savings screen crash fixed, double $$ fixed, duplicate transactions permanently fixed
+- bgSync calls clearAccountsCache() and loadAll() unconditionally
+- Accounts cache key: arkonomy_accounts_v2 (bumped from v1 to bust stale balance)
+- Stock search fixed (filterUSStocks passes through when Finnhub omits exchange field)
+- Clearbit logos removed entirely — replaced with colored circle + first letter
+- Stock chart idle state: shows latest price/date label + "touch to explore" hint
+- Accessibility fixes (iOS App Store): C.faint → #8BA1B7, minHeight:44 on all small buttons, outline:none removed project-wide, aria-labels on icon-only buttons
+
+## Known issues / in-progress
+- **React error #310 (infinite loop)** — PR `9ca8ed2` (feat/final-qa) introduced it by adding `[user]` to the URL-params useEffect in App.jsx (lines 452–498). The fix is `loadAllRef` pattern: assign `loadAllRef.current = loadAll` inline after the function, use `loadAllRef.current()` inside setTimeout callbacks, keep dep array as `[]`. PR was reverted (HEAD: `1b2077d`) pending a clean re-apply.
+- **QA hardening from feat/final-qa not yet in main** — legitimate changes (mounted guard in useInsights, timer cleanup, null session guards, getLinkToken HTTP error handling, DonutChart null guard, projectedBalance clamp, edge function hardening, security migration) need to be re-applied without the broken useEffect dep.
 
 ## Next tasks (priority order)
-1. **Merchant navigation** — tap a transaction in Dashboard "Recent Transactions" → navigate to Transactions screen filtered by that merchant (cleanMerchantName now in helpers.js)
-2. **Notification preferences UI** — Settings screen section: frequency selector + email digest content toggles; table `notification_preferences` already exists in Supabase
-3. **E2E testing** — Playwright tests for critical flows (auth, bank connection, transaction add)
+1. **Re-apply QA hardening** — cherry-pick `9ca8ed2` changes into main with `loadAllRef` fix; apply security migration `20260601000000_final_qa_security.sql`
+2. **Merchant navigation** — tap a transaction in Dashboard "Recent Transactions" → navigate to Transactions screen filtered by that merchant (cleanMerchantName now in helpers.js)
+3. **Notification preferences UI** — Settings screen section: frequency selector + email digest content toggles; table `notification_preferences` already exists in Supabase
+4. **E2E testing** — Playwright tests for critical flows (auth, bank connection, transaction add)
 
 ## Self-improvement protocol
 - После любой моей коррекции предложи лаконичное правило и допиши его в подходящую секцию этого файла.
@@ -60,6 +65,7 @@
 - Never add TypeScript, CSS modules, or new dependencies without asking first.
 - Keep components in the file where they are used unless explicitly asked to extract.
 - When editing a file, re-read it first; never rely on stale context.
+- Never add a state variable (e.g. `user`) to a useEffect dependency array to fix a stale closure if that effect calls setState — use a ref instead (assign `ref.current = fn` inline after the function definition, call `ref.current()` inside the effect).
 
 ## Security decisions — DO NOT CHANGE without explicit instruction
 - **plaid_items has NO SELECT RLS policy** — intentional. Removed during security audit to prevent `access_token` from being exposed to the client. Never add a SELECT policy back.
