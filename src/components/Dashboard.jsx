@@ -404,11 +404,11 @@ function MarketOverview({ onOpenMarket }) {
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           {["markets", "news"].map(tabId => (
             <button key={tabId} onClick={() => setTab(tabId)}
-              style={{ padding: "4px 10px", borderRadius: 20, border: `1px solid ${tab === tabId ? C.blue : C.border}`, background: tab === tabId ? C.blue + "18" : "transparent", color: tab === tabId ? C.blue : C.faint, cursor: "pointer", fontSize: 11, fontWeight: tab === tabId ? 600 : 400, fontFamily: FONT, textTransform: "capitalize" }}>
+              style={{ padding: "4px 10px", minHeight: 44, borderRadius: 20, border: `1px solid ${tab === tabId ? C.blue : C.border}`, background: tab === tabId ? C.blue + "18" : "transparent", color: tab === tabId ? C.blue : C.faint, cursor: "pointer", fontSize: 11, fontWeight: tab === tabId ? 600 : 400, fontFamily: FONT, textTransform: "capitalize" }}>
               {tabId}
             </button>
           ))}
-          <button onClick={load} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex", opacity: loading ? 0.4 : 0.7 }}>
+          <button onClick={load} aria-label="Refresh" style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, opacity: loading ? 0.4 : 0.7 }}>
             <Icon name="repeat" size={13} color={C.muted} strokeWidth={2} />
           </button>
         </div>
@@ -431,7 +431,7 @@ function MarketOverview({ onOpenMarket }) {
             <span style={{ fontSize: 12, color: C.red, fontWeight: 600 }}>{t("dashboard.could_not_load_market_data")}</span>
           </div>
           <div style={{ fontSize: 11, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>{error}</div>
-          <button onClick={load} style={{ marginTop: 10, padding: "7px 14px", background: C.blue + "22", border: `1px solid ${C.blue}44`, borderRadius: 8, color: C.blue, cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: FONT }}>
+          <button onClick={load} style={{ marginTop: 10, padding: "7px 14px", minHeight: 44, background: C.blue + "22", border: `1px solid ${C.blue}44`, borderRadius: 8, color: C.blue, cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: FONT }}>
             {t("dashboard.retry")}
           </button>
         </div>
@@ -790,7 +790,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
             {isShowingLastMonth && <span style={{ fontSize: 9, color: C.yellow, fontWeight: 600, background: C.yellow + "18", padding: "2px 7px", borderRadius: 99, letterSpacing: 0.3 }}>
               {new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleString('en-US', { month: 'short' })} data
             </span>}
-            <button onClick={() => setBalanceVisible(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex" }}>
+            <button onClick={() => setBalanceVisible(v => !v)} aria-label={balanceVisible ? "Hide balance" : "Show balance"} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44 }}>
               <Icon name={balanceVisible ? "eye" : "eye-off"} size={15} color={C.faint} />
             </button>
           </div>
@@ -916,7 +916,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       <GlassCard style={{ padding: "14px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <span style={{ fontWeight: 600, fontSize: 14 }}>{t("dashboard.recent_transactions")}</span>
-          <button onClick={() => onNavigate("transactions")} style={{ background: "none", border: "none", cursor: "pointer", color: C.cyan, fontSize: 12, fontWeight: 600, fontFamily: FONT, display: "flex", alignItems: "center", gap: 4, padding: 0 }}>
+          <button onClick={() => onNavigate("transactions")} style={{ background: "none", border: "none", cursor: "pointer", color: C.cyan, fontSize: 12, fontWeight: 600, fontFamily: FONT, display: "flex", alignItems: "center", gap: 4, padding: "0 4px", minHeight: 44 }}>
             {t("dashboard.view_all")} <Icon name="chevron" size={12} color={C.cyan} />
           </button>
         </div>
@@ -966,7 +966,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
                   <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{t("dashboard.whats_in_other")}</div>
                   <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>${fmt(otherTotal, 0)} {t("dashboard.this_month")} · {t("dashboard.transaction", { count: otherTxs.length })}</div>
                 </div>
-                <button onClick={() => setOtherBreakdown(false)} style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 8, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <button onClick={() => setOtherBreakdown(false)} aria-label="Close" style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 8, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                   <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>

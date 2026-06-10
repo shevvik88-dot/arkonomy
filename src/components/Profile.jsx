@@ -58,7 +58,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
     setNewPw(""); setConfirmPw("");
     setTimeout(() => { setShowChangePw(false); setPwMsg(null); }, 2000);
   }
-  const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT };
+  const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT };
 
   const avgMonthlyIncome = useMemo(() => {
     const incomes = transactions.filter(t => t.type === "income");
@@ -147,7 +147,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
               placeholder={t("profile.new_password")}
               value={newPw}
               onChange={e => setNewPw(e.target.value)}
-              style={{ width: "100%", padding: "11px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: FONT }}
+              style={{ width: "100%", padding: "11px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 14, boxSizing: "border-box", fontFamily: FONT }}
             />
             <input
               type="password"
@@ -155,7 +155,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
               value={confirmPw}
               onChange={e => setConfirmPw(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleChangePassword()}
-              style={{ width: "100%", padding: "11px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: FONT }}
+              style={{ width: "100%", padding: "11px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 14, boxSizing: "border-box", fontFamily: FONT }}
             />
             {pwMsg && (
               <div style={{ fontSize: 12, fontWeight: 500, padding: "8px 12px", borderRadius: 8, background: pwMsg.type === "success" ? C.green + "14" : C.red + "14", color: pwMsg.type === "success" ? C.green : C.red, border: `1px solid ${pwMsg.type === "success" ? C.green + "33" : C.red + "33"}` }}>
@@ -431,7 +431,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
               value={deleteInput}
               onChange={e => setDeleteInput(e.target.value)}
               placeholder="DELETE"
-              style={{ width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${deleteInput === "DELETE" ? C.red : C.border}`, borderRadius: 12, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT, marginBottom: 14 }}
+              style={{ width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${deleteInput === "DELETE" ? C.red : C.border}`, borderRadius: 12, color: C.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT, marginBottom: 14 }}
             />
             <button
               onClick={handleDeleteAccount}

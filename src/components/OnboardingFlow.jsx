@@ -135,10 +135,10 @@ export function TutorialOverlay({ stepIdx, totalSteps, steps, onNext, onSkip }) 
           ))}
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button onClick={onSkip} style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid #1E2D4A", background: "none", color: "#4A5E7A", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'Inter',-apple-system,sans-serif" }}>
+          <button onClick={onSkip} style={{ padding: "7px 14px", minHeight: 44, borderRadius: 8, border: "1px solid #1E2D4A", background: "none", color: "#4A5E7A", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'Inter',-apple-system,sans-serif" }}>
             {t("onboarding.skip")}
           </button>
-          <button onClick={onNext} style={{ padding: "7px 18px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#00C2FF,#2F80FF)", color: "#000", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "'Inter',-apple-system,sans-serif" }}>
+          <button onClick={onNext} style={{ padding: "7px 18px", minHeight: 44, borderRadius: 8, border: "none", background: "linear-gradient(135deg,#00C2FF,#2F80FF)", color: "#000", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "'Inter',-apple-system,sans-serif" }}>
             {stepIdx === totalSteps - 1 ? t("onboarding.done_btn") : t("onboarding.next_btn")}
           </button>
         </div>
@@ -375,14 +375,14 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
             type="number"
             value={budget}
             onChange={e => setBudget(e.target.value)}
-            style={{ width: "100%", padding: "16px 16px 16px 34px", background: C.bgSecondary, border: `2px solid ${C.cyan}44`, borderRadius: 14, color: C.text, fontSize: 22, fontWeight: 700, outline: "none", fontFamily: FONT, boxSizing: "border-box" }}
+            style={{ width: "100%", padding: "16px 16px 16px 34px", background: C.bgSecondary, border: `2px solid ${C.cyan}44`, borderRadius: 14, color: C.text, fontSize: 22, fontWeight: 700, fontFamily: FONT, boxSizing: "border-box" }}
             placeholder="3000"
           />
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
           {["1500", "2500", "3000", "5000"].map(v => (
             <button key={v} onClick={() => setBudget(v)}
-              style={{ flex: 1, padding: "7px 0", borderRadius: 10, border: `1px solid ${budget === v ? C.cyan + "66" : C.border}`, background: budget === v ? C.cyan + "18" : C.bgSecondary, color: budget === v ? C.cyan : C.muted, fontSize: 12, fontWeight: budget === v ? 700 : 400, cursor: "pointer", fontFamily: FONT }}>
+              style={{ flex: 1, padding: "7px 0", minHeight: 44, borderRadius: 10, border: `1px solid ${budget === v ? C.cyan + "66" : C.border}`, background: budget === v ? C.cyan + "18" : C.bgSecondary, color: budget === v ? C.cyan : C.muted, fontSize: 12, fontWeight: budget === v ? 700 : 400, cursor: "pointer", fontFamily: FONT }}>
               ${v}
             </button>
           ))}

@@ -786,9 +786,9 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
         <div>
           <h2 style={{ margin: "0 0 6px", fontSize: 26, fontWeight: 700, letterSpacing: -0.6, color: C.text, lineHeight: 1.1 }}>{t("transactions.title")}</h2>
           <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
-            <button onClick={() => setMonthOffset(o => o - 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px 2px 0", color: C.muted, fontSize: 15, lineHeight: 1, fontFamily: FONT, display: "flex", alignItems: "center" }}>‹</button>
+            <button onClick={() => setMonthOffset(o => o - 1)} aria-label="Previous month" style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px 2px 0", minHeight: 44, minWidth: 32, color: C.muted, fontSize: 15, lineHeight: 1, fontFamily: FONT, display: "flex", alignItems: "center" }}>‹</button>
             <span style={{ fontSize: 13, fontWeight: 600, color: C.text, minWidth: 100, textAlign: "center" }}>{monthLabel}</span>
-            <button onClick={() => setMonthOffset(o => Math.min(o + 1, 0))} disabled={monthOffset === 0} style={{ background: "none", border: "none", cursor: monthOffset === 0 ? "default" : "pointer", padding: "2px 0 2px 6px", color: monthOffset === 0 ? C.faint : C.muted, fontSize: 15, lineHeight: 1, fontFamily: FONT, display: "flex", alignItems: "center", opacity: monthOffset === 0 ? 0.3 : 1 }}>›</button>
+            <button onClick={() => setMonthOffset(o => Math.min(o + 1, 0))} disabled={monthOffset === 0} aria-label="Next month" style={{ background: "none", border: "none", cursor: monthOffset === 0 ? "default" : "pointer", padding: "2px 0 2px 6px", minHeight: 44, minWidth: 32, color: monthOffset === 0 ? C.faint : C.muted, fontSize: 15, lineHeight: 1, fontFamily: FONT, display: "flex", alignItems: "center", opacity: monthOffset === 0 ? 0.3 : 1 }}>›</button>
           </div>
         </div>
         <button onClick={onAdd}
@@ -870,7 +870,6 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
             borderRadius: 12,
             color: C.text,
             fontSize: 14,
-            outline: "none",
             boxSizing: "border-box",
             fontFamily: FONT,
             transition: "border-color 0.2s ease, background 0.2s ease",
@@ -1030,7 +1029,7 @@ export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
   const isEdit = !!existing;
 
   const noSpinStyle = `input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}`;
-  const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT };
+  const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT };
 
   function switchType(typeName) { setType(typeName); setCatId(""); setCatName(""); setShowCats(false); }
 

@@ -207,18 +207,18 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
                 <label style={{ display: "block", fontSize: 12, color: C.muted, marginBottom: 6, fontWeight: 600 }}>{t("savings.goal_name").toUpperCase()}</label>
-                <input style={{ width: "100%", padding: 14, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, outline: "none" }} value={editName} onChange={e => setEditName(e.target.value)} />
+                <input style={{ width: "100%", padding: 14, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15 }} value={editName} onChange={e => setEditName(e.target.value)} />
               </div>
               <div>
                 <label style={{ display: "block", fontSize: 12, color: C.muted, marginBottom: 6, fontWeight: 600 }}>{t("savings.target_amount").toUpperCase()}</label>
-                <input style={{ width: "100%", padding: 14, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, outline: "none" }} type="number" value={editTarget} onChange={e => setEditTarget(e.target.value)} />
+                <input style={{ width: "100%", padding: 14, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15 }} type="number" value={editTarget} onChange={e => setEditTarget(e.target.value)} />
               </div>
 
               {plaidAccounts.length > 0 && (
                 <div>
                   <label style={{ display: "block", fontSize: 12, color: C.muted, marginBottom: 6, fontWeight: 600 }}>{t("savings.savings_account_optional").toUpperCase()}</label>
                   <select
-                    style={{ width: "100%", padding: 14, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, outline: "none" }}
+                    style={{ width: "100%", padding: 14, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15 }}
                     value={editAccountId}
                     onChange={e => {
                       const id = e.target.value;
@@ -353,7 +353,7 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
                       <div style={{ position: "relative" }}>
                         <span style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", fontSize: 16, color: C.muted }}>$</span>
                         <input
-                          style={{ width: "100%", padding: "14px 16px 14px 30px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 18, fontWeight: 700, outline: "none", boxSizing: "border-box" }}
+                          style={{ width: "100%", padding: "14px 16px 14px 30px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 18, fontWeight: 700, boxSizing: "border-box" }}
                           type="number"
                           placeholder="0.00"
                           value={reminderAmt}
@@ -442,7 +442,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
   const roundupTotal = parseFloat((roundupMonth * 3.2).toFixed(2));
   const roundupYearly = Math.round(roundupMonth * 12 / 10) * 10;
 
-  const inp = { width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box", marginBottom: 10, fontFamily: FONT };
+  const inp = { width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, boxSizing: "border-box", marginBottom: 10, fontFamily: FONT };
 
   const totalSaved     = savings.reduce((s, sv) => s + Number(sv.current), 0);
   const monthlySurplus = totalIncome - totalSpent;
@@ -623,7 +623,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
            </div>
            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 12, color: C.muted }}>{t("savings.multiplier")}</span>
-              <select value={roundupMultiplier} onChange={e => setRoundupMultiplier(Number(e.target.value))} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.cyan, fontSize: 13, fontWeight: 700, padding: "4px 8px", outline: "none" }}>
+              <select value={roundupMultiplier} onChange={e => setRoundupMultiplier(Number(e.target.value))} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.cyan, fontSize: 13, fontWeight: 700, padding: "4px 8px" }}>
                 <option value="1">1x</option>
                 <option value="2">2x</option>
                 <option value="5">5x</option>

@@ -1326,7 +1326,7 @@ export default function App() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {/* Globe / language picker */}
           <div ref={langRef} style={{ position: "relative" }}>
-            <button onClick={() => setLangOpen(v => !v)} style={{ background: langOpen ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${langOpen ? C.cyan + "44" : C.border}`, borderRadius: 10, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <button onClick={() => setLangOpen(v => !v)} aria-label="Change language" style={{ background: langOpen ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${langOpen ? C.cyan + "44" : C.border}`, borderRadius: 10, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
               <Icon name="globe" size={19} color={langOpen ? C.cyan : C.muted} />
             </button>
             {langOpen && (

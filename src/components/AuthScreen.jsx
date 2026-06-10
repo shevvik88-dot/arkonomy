@@ -195,7 +195,7 @@ export default function AuthScreen({ onAuth }) {
     finally { setLoading(false); }
   }
 
-  const inp = { width: "100%", padding: "14px 16px", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 15, outline: "none", boxSizing: "border-box", fontFamily: FONT };
+  const inp = { width: "100%", padding: "14px 16px", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT };
   const str = mode === "signup" && password ? pwStrength(password) : null;
   const pwErr = mode === "signup" && pwTouched ? pwError(password) : null;
 
@@ -253,7 +253,7 @@ export default function AuthScreen({ onAuth }) {
 
             {mode === "login" && (
               <div style={{ textAlign: "right", marginTop: -4 }}>
-                <button type="button" onClick={handleForgotPassword} disabled={loading} style={{ background: "none", border: "none", color: C.cyan, fontSize: 13, cursor: "pointer", padding: 0, fontFamily: FONT, opacity: loading ? 0.5 : 1 }}>
+                <button type="button" onClick={handleForgotPassword} disabled={loading} style={{ background: "none", border: "none", color: C.cyan, fontSize: 13, cursor: "pointer", padding: "0 4px", minHeight: 44, display: "flex", alignItems: "center", fontFamily: FONT, opacity: loading ? 0.5 : 1 }}>
                   {t("auth.forgot_password")}
                 </button>
               </div>
@@ -266,7 +266,7 @@ export default function AuthScreen({ onAuth }) {
                   <div style={{ marginTop: 8 }}>
                     {cooldown > 0
                       ? <span style={{ color: C.faint, fontSize: 12 }}>Resend in {cooldown}s</span>
-                      : <button type="button" onClick={handleResend} disabled={loading} style={{ background: "none", border: "none", color: C.cyan, fontSize: 13, cursor: "pointer", padding: 0, fontFamily: FONT, fontWeight: 600, opacity: loading ? 0.5 : 1 }}>{t("auth.resend_confirmation")}</button>
+                      : <button type="button" onClick={handleResend} disabled={loading} style={{ background: "none", border: "none", color: C.cyan, fontSize: 13, cursor: "pointer", padding: "0 4px", minHeight: 44, display: "inline-flex", alignItems: "center", fontFamily: FONT, fontWeight: 600, opacity: loading ? 0.5 : 1 }}>{t("auth.resend_confirmation")}</button>
                     }
                   </div>
                 )}
