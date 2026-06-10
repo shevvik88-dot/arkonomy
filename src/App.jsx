@@ -598,6 +598,7 @@ export default function App() {
   async function getLinkToken() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("No active session");
       // Only send redirect_uri in native Capacitor context where deep link
       // OAuth handling is active. In a browser, the URI must be registered
       // in the Plaid Dashboard before it can be used — omitting it lets the
@@ -616,17 +617,19 @@ export default function App() {
           body: JSON.stringify(body),
         }
       );
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || errData.message || `HTTP ${res.status}`);
+      }
       const data = await res.json();
       if (data.link_token) {
         setLinkToken(data.link_token);
       } else {
-        const msg = data.error ?? data.message ?? "Failed to start bank connection";
-        logger.error("[Plaid] getLinkToken error:", data);
-        showAlert(msg, "danger", "alert-circle");
+        throw new Error("Missing link_token in response");
       }
     } catch (err) {
       logger.error("[Plaid] getLinkToken exception:", err);
-      showAlert("Could not connect to bank service. Try again.", "danger", "alert-circle");
+      showAlert(err.message || "Could not connect to bank service. Try again.", "danger", "alert-circle");
     }
   }
 
