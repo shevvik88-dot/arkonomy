@@ -9,21 +9,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 
-const ALLOWED_ORIGINS = [
-  'https://app.arkonomy.com',
-  'http://localhost:5173',
-  'http://localhost:4173',
-  'http://localhost:3000',
-];
-
-function corsHeaders(req: Request): Record<string, string> {
-  const origin = req.headers.get('Origin') ?? '';
-  return {
-    'Access-Control-Allow-Origin':  ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  };
-}
+const corsHeaders = {
+  'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -35,8 +25,7 @@ function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
-  const cors = corsHeaders(req);
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
     // ── Auth ──────────────────────────────────────────────────────────────────
@@ -85,7 +74,7 @@ Deno.serve(async (req) => {
       return json(
         { error: exchangeData.error_message ?? exchangeData.error_code ?? 'Plaid exchange error' },
         502,
-        cors,
+        corsHeaders,
       );
     }
 
