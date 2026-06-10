@@ -1108,8 +1108,8 @@ export default function App() {
       return "New insight available — tap to chat with your AI assistant.";
     }
     function scheduleIdle() {
-      clearTimeout(idleTimerRef.current);
-      clearTimeout(idleDismissRef.current);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      if (idleDismissRef.current) clearTimeout(idleDismissRef.current);
       const delay = IDLE_MIN + Math.random() * (IDLE_MAX - IDLE_MIN);
       idleTimerRef.current = setTimeout(() => {
         if (showChatRef.current) return;
@@ -1122,8 +1122,8 @@ export default function App() {
     scheduleIdle();
     return () => {
       events.forEach(ev => window.removeEventListener(ev, scheduleIdle));
-      clearTimeout(idleTimerRef.current);
-      clearTimeout(idleDismissRef.current);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      if (idleDismissRef.current) clearTimeout(idleDismissRef.current);
     };
   }, [user, allInsights]);
 
