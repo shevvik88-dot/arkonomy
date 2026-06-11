@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { C, FONT } from "../utils/colors";
-import { fmt, fmtDate, parseDate, guessCategory, tCat, cleanMerchantName } from "../utils/helpers";
+import { fmt, fmtDate, parseDate, guessCategory, tCat, cleanMerchantName, localDateString } from "../utils/helpers";
 import Icon from "./shared/Icon";
 
 const CAT_COLORS = {
