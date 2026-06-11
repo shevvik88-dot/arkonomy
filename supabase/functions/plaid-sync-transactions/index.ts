@@ -353,7 +353,8 @@ Deno.serve(async (req) => {
         const { error: delErr } = await supabase
           .from('transactions')
           .delete()
-          .not('plaid_transaction_id', 'is', null);
+          .not('plaid_transaction_id', 'is', null)
+          .neq('source', 'manual');
         if (delErr) throw new Error(`Failed to delete plaid transactions: ${delErr.message}`);
 
         // 2. Reset all cursors so sync restarts from the beginning
