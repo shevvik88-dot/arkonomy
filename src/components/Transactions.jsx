@@ -1090,7 +1090,7 @@ export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
         </div>
         <button
           disabled={submitting}
-          onClick={async () => { if (!amount || submitting) return; setSubmitting(true); try { await onAdd({ amount: parseFloat(amount), description: desc || catName, category_id: type === "expense" ? (catId || null) : null, category_name: catName, date, type }); onClose(); } finally { setSubmitting(false); } }}
+          onClick={() => { if (!amount || submitting) return; setSubmitting(true); onAdd({ amount: parseFloat(amount), description: desc || catName, category_id: type === "expense" ? (catId || null) : null, category_name: catName, date, type }); }}
           style={{ width: "100%", marginTop: 18, padding: 15, background: submitting ? C.border : `linear-gradient(90deg,${type === "expense" ? C.red : C.green},${type === "expense" ? "#CC1A3A" : "#00A67E"})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: submitting ? "not-allowed" : "pointer", fontFamily: FONT, opacity: submitting ? 0.6 : 1 }}>
           {submitting ? "Saving..." : isEdit ? t("transactions.save_changes") : type === "expense" ? t("transactions.add_expense") : t("transactions.add_income")}
         </button>
