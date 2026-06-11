@@ -1298,7 +1298,9 @@ export default function App() {
     setChatMessages(prev => [...prev, { role: "assistant", text: "...", id: lid, loading: true }]);
 
     try {
+      const { data: { session: chatSession } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("ai-chat", {
+        headers: { Authorization: `Bearer ${chatSession?.access_token}` },
         body: { messages: updated.filter(m => !m.loading), financialContext: ctx, plan: profile?.plan ?? 'free' }
       });
       const raw = res.data?.reply || "Sorry, something went wrong.";
