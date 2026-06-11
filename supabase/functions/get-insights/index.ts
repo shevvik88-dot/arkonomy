@@ -1,6 +1,7 @@
 // supabase/functions/get-insights/index.ts
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { enforceRateLimit } from '../_shared/rateLimit.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
@@ -31,6 +32,9 @@ Deno.serve(async (req) => {
         status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    const rateLimitResponse = await enforceRateLimit(user.id, 'get-insights');
+    if (rateLimitResponse) return rateLimitResponse;
 
     // userId from body is ignored — always use the authenticated user
     const { lang } = await req.json().catch(() => ({} as { lang?: string }));
