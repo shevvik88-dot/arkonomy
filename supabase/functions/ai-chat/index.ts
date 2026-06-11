@@ -191,7 +191,7 @@ When recommending a credit card payment, the amount must never exceed SAFE TO MO
 Always say: "You have $X available after keeping a $1,000 buffer — put that toward [highest APR card]."
 Never say "pay off your balance" or recommend an amount larger than SAFE TO MOVE.
 If SAFE TO MOVE is $0 or negative, say so honestly: "There's no spare cash this month after your expenses — focus on not adding to the balance."
-If multiple cards exist, rank by APR (highest first) and direct the full SAFE TO MOVE to the top card.
+If multiple cards exist, focus on the card with the highest balance first (APR is not available from Plaid).
 
 WINS MATTER:
 - If a category is lower than last month, say it specifically: "You kept Food under $X this month — that's $Y less than last month."
@@ -210,7 +210,7 @@ TIME AWARENESS:
 
   if (!ctx) return BASE_PROMPT + "\n\nNo financial data available yet.";
 
-  const { metrics, engine, topCategories, savingsGoals, totalSaved, recentTransactions, creditCards } = ctx;
+  const { metrics, engine, topCategories, savingsGoals, totalSaved, recentTransactions, creditCards, interestThisMonth } = ctx;
 
   const now = new Date();
   const dayOfMonth = now.getDate();
@@ -273,19 +273,19 @@ TOP INSIGHT: ${topInsightLine}
 SAVINGS GOALS: ${goalLines}
 TOTAL SAVED: $${totalSaved ?? 0}
 
-CREDIT CARDS: ${
+CREDIT CARDS (from Plaid): ${
   Array.isArray(creditCards) && creditCards.length > 0
     ? creditCards
-        .sort((a: any, b: any) => (b.apr ?? 0) - (a.apr ?? 0))
+        .sort((a: any, b: any) => (b.balance ?? 0) - (a.balance ?? 0))
         .map((c: any) => {
           const parts = [c.name];
-          if (c.apr != null) parts.push(`APR ${c.apr}%`);
           if (c.balance != null) parts.push(`balance $${Number(c.balance).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`);
           return parts.join(', ');
         })
         .join(' | ')
-    : 'none entered'
+    : 'none connected via Plaid'
 }
+INTEREST CHARGES THIS MONTH: ${interestThisMonth > 0 ? `$${Number(interestThisMonth).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'none detected'}
 ---`;
 
   return BASE_PROMPT + DATA_BLOCK;

@@ -1274,7 +1274,14 @@ export default function App() {
       ? (plaidAccount.balance_available ?? plaidAccount.balance_current ?? null)
       : null;
 
-    const { data: creditCards } = await supabase.from("credit_cards").select("name, apr, balance").order("apr", { ascending: false });
+    const allAccounts = getCachedAccounts() || [];
+    const creditCards = allAccounts
+      .filter(a => a.type === "credit")
+      .map(a => ({ name: a.name, balance: a.balance_current ?? a.balance_available ?? null }));
+
+    const interestThisMonth = transactions
+      .filter(t => t.type === "expense" && resolveCategory(t) === "Cost of Debt" && (() => { const d = new Date(t.date + "T00:00:00"); return d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear(); })())
+      .reduce((s, t) => s + Number(t.amount), 0);
 
     const ctx = {
       metrics: {
@@ -1303,7 +1310,8 @@ export default function App() {
         amount: Number(t.amount), type: t.type,
         category: t.category_name, date: t.date,
       })),
-      creditCards: creditCards ?? [],
+      creditCards,
+      interestThisMonth,
     };
 
     const lid = Date.now();
