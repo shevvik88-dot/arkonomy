@@ -808,8 +808,12 @@ export default function App() {
     try {
       // Auto-assign category from description keywords if none provided
       if (!tx.category_name) {
-        const guessed = guessCategory(tx.description, tx.type);
-        if (guessed) { tx = { ...tx, category_name: guessed }; }
+        if (tx.type === "income") {
+          tx = { ...tx, category_name: "Income" };
+        } else {
+          const guessed = guessCategory(tx.description, tx.type);
+          if (guessed) { tx = { ...tx, category_name: guessed }; }
+        }
       }
       const { data } = await supabase.from("transactions").insert({ user_id: user.id, source: "manual", ...tx }).select().single();
       if (data) {
