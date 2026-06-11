@@ -10,6 +10,7 @@
 // Returns { trend, risks, analystView, disclaimer }
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { enforceRateLimit } from '../_shared/rateLimit.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
@@ -42,6 +43,9 @@ Deno.serve(async (req) => {
       status: 401, headers: { ...CORS, 'Content-Type': 'application/json' },
     });
   }
+
+  const rateLimitResponse = await enforceRateLimit(user.id, 'stock-ai-analysis');
+  if (rateLimitResponse) return rateLimitResponse;
 
   try {
     const body = await req.json();
