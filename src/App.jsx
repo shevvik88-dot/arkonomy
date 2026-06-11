@@ -1266,9 +1266,17 @@ export default function App() {
     setChatMessages(updated);
     setChatInput("");
 
+    const plaidAccounts = getCachedAccounts();
+    const plaidAccount = plaidAccounts
+      ? (plaidAccounts.find(a => a.subtype === "checking") ?? plaidAccounts.find(a => a.type === "depository") ?? plaidAccounts[0])
+      : null;
+    const plaidBalance = plaidAccount
+      ? (plaidAccount.balance_available ?? plaidAccount.balance_current ?? null)
+      : null;
+
     const ctx = {
       metrics: {
-        currentBalance: totalIncome - totalSpent,
+        currentBalance: plaidBalance ?? (totalIncome - totalSpent),
         currentMonthSpend: totalSpent,
         currentMonthIncome: effectiveIncome,
         monthlyBudget: Number(profile?.monthly_budget) || 3000,
