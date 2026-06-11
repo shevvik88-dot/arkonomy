@@ -538,36 +538,36 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
   if (dayOfMonth < 2 || transactions.length === 0) return null;
 
   const startBalance = accountBalance ?? balance;
-
-  // Fixed categories: already paid, do not extrapolate forward
-  const FIXED_CATS = new Set(['Housing', 'Bills', 'Subscriptions', 'Utilities']);
+  const curKey = `${today.getFullYear()}-${today.getMonth()}`;
 
   const isThisMonth = tx => {
     const d = new Date(tx.date + 'T00:00:00');
     return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
   };
 
-  const thisMonthExpenses = transactions.filter(tx => tx.type === 'expense' && isThisMonth(tx));
+  // ── 3-month avg daily spend (previous full months, not current) ──────────
+  const avg3mDailySpend = (() => {
+    const byMonth = {};
+    for (const t of transactions) {
+      if (t.type !== 'expense') continue;
+      const d = new Date(t.date + 'T00:00:00');
+      const k = `${d.getFullYear()}-${d.getMonth()}`;
+      if (k === curKey) continue;
+      byMonth[k] = (byMonth[k] || 0) + Math.abs(Number(t.amount));
+    }
+    const vals = Object.values(byMonth).slice(-3);
+    if (!vals.length) {
+      // No history — fall back to this month's daily rate
+      const spent = transactions
+        .filter(t => t.type === 'expense' && isThisMonth(t))
+        .reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+      return spent / Math.max(dayOfMonth, 1);
+    }
+    return vals.reduce((s, v) => s + v, 0) / vals.length / 30;
+  })();
 
-  // Variable spending only (Food, Shopping, Transport, Entertainment, Other)
-  const variableSpent = thisMonthExpenses
-    .filter(t => {
-      const cat = resolveCategory(t);
-      return !FIXED_CATS.has(cat) && cat !== 'Transfers' && cat !== 'Transfer';
-    })
-    .reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
-
-  const daysElapsed = Math.max(dayOfMonth, 1);
-  const dailyVariableRate = variableSpent / daysElapsed;
-  const projectedVariable = dailyVariableRate * remainingDays;
-
-  // Income: current month vs 3-month average
-  const currentMonthIncome = transactions
-    .filter(t => t.type === 'income' && isThisMonth(t))
-    .reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
-
-  const avgMonthlyIncome = (() => {
-    const curKey = `${today.getFullYear()}-${today.getMonth()}`;
+  // ── 3-month avg monthly income (previous full months, not current) ────────
+  const avg3mIncome = (() => {
     const byMonth = {};
     for (const t of transactions) {
       if (t.type !== 'income') continue;
@@ -576,23 +576,28 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
       if (k === curKey) continue;
       byMonth[k] = (byMonth[k] || 0) + Math.abs(Number(t.amount));
     }
-    const vals = Object.values(byMonth).sort((a, b) => a - b).slice(-3);
-    return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : currentMonthIncome;
+    const vals = Object.values(byMonth).slice(-3);
+    if (!vals.length) {
+      return transactions
+        .filter(t => t.type === 'income' && isThisMonth(t))
+        .reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+    }
+    return vals.reduce((s, v) => s + v, 0) / vals.length;
   })();
 
-  const projectedIncome = Math.max(currentMonthIncome, avgMonthlyIncome);
-  const remainingIncome = Math.max(0, projectedIncome - currentMonthIncome);
-  const upcomingTotal   = upcomingCharges.reduce((s, c) => s + Number(c.amount), 0);
-  const projectedBalance = Math.max(0, Math.min(
-    startBalance + remainingIncome - projectedVariable,
-    startBalance + avgMonthlyIncome
-  ));
+  // ── Formula ───────────────────────────────────────────────────────────────
+  // projected = currentBalance + expectedIncome - upcomingBills - estimatedRemainingSpend
+  const upcomingTotal           = upcomingCharges.reduce((s, c) => s + Number(c.amount), 0);
+  const expectedIncome          = avg3mIncome * (remainingDays / 30);
+  const estimatedRemainingSpend = avg3mDailySpend * remainingDays;
+  const projectedRaw            = startBalance + expectedIncome - upcomingTotal - estimatedRemainingSpend;
+  const projectedBalance        = Math.max(0, projectedRaw);
 
-  if (dailyVariableRate < 0.01 && upcomingTotal === 0) return null;
+  if (avg3mDailySpend < 0.01 && upcomingTotal === 0) return null;
 
-  const status = projectedBalance <= 0
+  const status = projectedRaw <= 0
     ? 'deficit'
-    : startBalance > 0 && projectedBalance / startBalance < 0.12
+    : startBalance > 0 && projectedRaw / startBalance < 0.12
     ? 'at_risk'
     : 'on_track';
 
@@ -647,7 +652,7 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
         {[
           { label: t('dashboard.balance_now'),    value: mask(startBalance),          color: C.text  },
-          { label: t('dashboard.daily_avg'),      value: balanceVisible ? `$${fmt(dailyVariableRate, 0)}${t('dashboard.per_day')}` : '••••', color: C.muted },
+          { label: t('dashboard.daily_avg'),      value: balanceVisible ? `$${fmt(avg3mDailySpend, 0)}${t('dashboard.per_day')}` : '••••', color: C.muted },
           { label: t('dashboard.upcoming_bills'), value: upcomingTotal > 0 ? mask(upcomingTotal) : '—', color: upcomingTotal > 0 ? C.yellow : C.faint },
         ].map((item, i) => (
           <div key={item.label} style={{ paddingLeft: i > 0 ? 12 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : 'none', marginLeft: i > 0 ? 0 : 0 }}>
