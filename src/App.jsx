@@ -1283,6 +1283,7 @@ export default function App() {
         currentMonthIncome: effectiveIncome,
         monthlyBudget: Number(profile?.monthly_budget) || 3000,
         budgetUsedPct: Math.round((totalSpent / (Number(profile?.monthly_budget) || 3000)) * 100),
+        availableSafeToMove: Math.max(0, effectiveIncome - totalSpent - 1000),
       },
       engine: {
         activeSignals: aiContext?.activeSignals ?? [],
