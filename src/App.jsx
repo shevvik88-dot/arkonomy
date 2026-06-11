@@ -1274,6 +1274,8 @@ export default function App() {
       ? (plaidAccount.balance_available ?? plaidAccount.balance_current ?? null)
       : null;
 
+    const { data: creditCards } = await supabase.from("credit_cards").select("name, apr, balance").order("apr", { ascending: false });
+
     const ctx = {
       metrics: {
         currentBalance: plaidBalance ?? (totalIncome - totalSpent),
@@ -1300,6 +1302,7 @@ export default function App() {
         amount: Number(t.amount), type: t.type,
         category: t.category_name, date: t.date,
       })),
+      creditCards: creditCards ?? [],
     };
 
     const lid = Date.now();

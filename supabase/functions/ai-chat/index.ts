@@ -203,7 +203,7 @@ TIME AWARENESS:
 
   if (!ctx) return BASE_PROMPT + "\n\nNo financial data available yet.";
 
-  const { metrics, engine, topCategories, savingsGoals, totalSaved, recentTransactions } = ctx;
+  const { metrics, engine, topCategories, savingsGoals, totalSaved, recentTransactions, creditCards } = ctx;
 
   const now = new Date();
   const dayOfMonth = now.getDate();
@@ -264,6 +264,20 @@ TOP INSIGHT: ${topInsightLine}
 
 SAVINGS GOALS: ${goalLines}
 TOTAL SAVED: $${totalSaved ?? 0}
+
+CREDIT CARDS: ${
+  Array.isArray(creditCards) && creditCards.length > 0
+    ? creditCards
+        .sort((a: any, b: any) => (b.apr ?? 0) - (a.apr ?? 0))
+        .map((c: any) => {
+          const parts = [c.name];
+          if (c.apr != null) parts.push(`APR ${c.apr}%`);
+          if (c.balance != null) parts.push(`balance $${Number(c.balance).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`);
+          return parts.join(', ');
+        })
+        .join(' | ')
+    : 'none entered'
+}
 ---`;
 
   return BASE_PROMPT + DATA_BLOCK;

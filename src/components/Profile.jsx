@@ -1,5 +1,5 @@
 import { logger } from "../utils/logger";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../utils/supabase";
 import { C, FONT } from "../utils/colors";
@@ -29,6 +29,38 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteInput, setDeleteInput] = useState("");
   const [deleting, setDeleting] = useState(false);
+
+  const [creditCards, setCreditCards] = useState([]);
+  const [showAddCard, setShowAddCard] = useState(false);
+  const [newCard, setNewCard] = useState({ name: "", apr: "", balance: "" });
+  const [ccSaving, setCcSaving] = useState(false);
+
+  useEffect(() => {
+    supabase.from("credit_cards").select("*").order("apr", { ascending: false })
+      .then(({ data }) => setCreditCards(data || []));
+  }, []);
+
+  async function handleAddCard() {
+    if (!newCard.name.trim()) return;
+    setCcSaving(true);
+    const { data, error } = await supabase.from("credit_cards").insert({
+      user_id: user.id,
+      name: newCard.name.trim(),
+      apr: newCard.apr ? parseFloat(newCard.apr) : null,
+      balance: newCard.balance ? parseFloat(newCard.balance) : null,
+    }).select().single();
+    if (!error && data) {
+      setCreditCards(prev => [...prev, data].sort((a, b) => (b.apr ?? 0) - (a.apr ?? 0)));
+      setNewCard({ name: "", apr: "", balance: "" });
+      setShowAddCard(false);
+    }
+    setCcSaving(false);
+  }
+
+  async function handleDeleteCard(id) {
+    await supabase.from("credit_cards").delete().eq("id", id);
+    setCreditCards(prev => prev.filter(c => c.id !== id));
+  }
 
   const handleExport = async () => {
     setExporting(true);
@@ -297,6 +329,86 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           style={{ width: "100%", padding: 14, background: saved ? C.green : `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: saved ? C.bg : "#fff", fontWeight: 700, cursor: "pointer", transition: "background 0.3s", fontFamily: FONT }}>
           {saved ? t("profile.saved") : t("profile.save_settings")}
         </button>
+      </GlassCard>
+
+      {/* ── CREDIT CARDS ── */}
+      <GlassCard style={{ border: `1px solid ${C.red}22` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: creditCards.length > 0 || showAddCard ? 14 : 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: C.red + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="credit-card" size={16} color={C.red} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 15 }}>Credit Cards</div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>Helps AI prioritize payoff advice</div>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowAddCard(v => !v)}
+            style={{ background: showAddCard ? C.bgTertiary : C.red + "18", border: `1px solid ${showAddCard ? C.border : C.red + "44"}`, borderRadius: 8, padding: "5px 11px", color: showAddCard ? C.muted : C.red, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}
+          >
+            {showAddCard ? "Cancel" : "+ Add"}
+          </button>
+        </div>
+
+        {creditCards.map((card, i) => (
+          <div key={card.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: `1px solid ${C.sep}` }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{card.name}</div>
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+                {card.apr != null && <span style={{ color: C.red, fontWeight: 500 }}>{card.apr}% APR</span>}
+                {card.apr != null && card.balance != null && <span style={{ color: C.faint }}> · </span>}
+                {card.balance != null && <span>${Number(card.balance).toLocaleString()} balance</span>}
+              </div>
+            </div>
+            <button
+              onClick={() => handleDeleteCard(card.id)}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 4, flexShrink: 0 }}
+            >
+              <Icon name="x" size={15} color={C.faint} strokeWidth={2} />
+            </button>
+          </div>
+        ))}
+
+        {showAddCard && (
+          <div style={{ borderTop: creditCards.length > 0 ? `1px solid ${C.sep}` : "none", paddingTop: creditCards.length > 0 ? 14 : 0, display: "flex", flexDirection: "column", gap: 8 }}>
+            <input
+              placeholder="Card name (e.g. Chase Sapphire)"
+              value={newCard.name}
+              onChange={e => setNewCard(p => ({ ...p, name: e.target.value }))}
+              style={{ ...inp }}
+            />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <input
+                placeholder="APR % (e.g. 24.99)"
+                type="number"
+                value={newCard.apr}
+                onChange={e => setNewCard(p => ({ ...p, apr: e.target.value }))}
+                style={{ ...inp }}
+              />
+              <input
+                placeholder="Balance $ (optional)"
+                type="number"
+                value={newCard.balance}
+                onChange={e => setNewCard(p => ({ ...p, balance: e.target.value }))}
+                style={{ ...inp }}
+              />
+            </div>
+            <button
+              onClick={handleAddCard}
+              disabled={ccSaving || !newCard.name.trim()}
+              style={{ width: "100%", padding: "11px 0", background: ccSaving || !newCard.name.trim() ? C.bgTertiary : `linear-gradient(90deg,${C.red},${C.red}CC)`, border: "none", borderRadius: 10, color: ccSaving || !newCard.name.trim() ? C.faint : "#fff", fontWeight: 700, fontSize: 14, cursor: ccSaving || !newCard.name.trim() ? "not-allowed" : "pointer", fontFamily: FONT }}
+            >
+              {ccSaving ? "Saving…" : "Save Card"}
+            </button>
+          </div>
+        )}
+
+        {creditCards.length === 0 && !showAddCard && (
+          <div style={{ fontSize: 12, color: C.faint, textAlign: "center", padding: "10px 0" }}>
+            No cards added yet. Add one and AI will tell you which to pay first.
+          </div>
+        )}
       </GlassCard>
 
       <GlassCard>
