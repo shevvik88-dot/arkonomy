@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
 
     if (authErr || !user) {
-      return json({ error: 'Unauthorized' }, 401, cors);
+      return json({ error: 'Unauthorized' }, 401, corsHeaders);
     }
 
     // ── Body ──────────────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     };
 
     if (!body.public_token) {
-      return json({ error: 'public_token required' }, 400, cors);
+      return json({ error: 'public_token required' }, 400, corsHeaders);
     }
 
     // ── Plaid token exchange ──────────────────────────────────────────────────
@@ -67,12 +67,12 @@ Deno.serve(async (req) => {
       }),
     });
 
-    const exchangeData = await exchangeRes.json();
+    const exchangeData = await exchangeRes.json().catch(() => ({}));
 
     if (!exchangeRes.ok) {
       console.error('plaid /item/public_token/exchange error:', exchangeData);
       return json(
-        { error: exchangeData.error_message ?? exchangeData.error_code ?? 'Plaid exchange error' },
+        { error: (exchangeData as Record<string, string>).error_message ?? (exchangeData as Record<string, string>).error_code ?? `Plaid error ${exchangeRes.status}` },
         502,
         corsHeaders,
       );
@@ -100,13 +100,13 @@ Deno.serve(async (req) => {
 
     if (upsertErr) {
       console.error('plaid_items upsert error:', upsertErr);
-      return json({ error: 'Failed to save bank connection' }, 500, cors);
+      return json({ error: 'Failed to save bank connection' }, 500, corsHeaders);
     }
 
-    return json({ success: true }, 200, cors);
+    return json({ success: true }, 200, corsHeaders);
 
   } catch (err) {
     console.error('plaid-exchange-token error:', err);
-    return json({ error: "Internal Server Error" }, 500, cors);
+    return json({ error: "Internal Server Error" }, 500, corsHeaders);
   }
 });
