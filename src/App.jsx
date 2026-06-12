@@ -596,6 +596,38 @@ export default function App() {
     }
   }
 
+  async function getReconnectToken() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("No active session");
+      const res = await fetch(
+        `${SUPABASE_URL}/functions/v1/plaid-link-token`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+            "apikey": SUPABASE_KEY,
+          },
+          body: JSON.stringify({ mode: "update" }),
+        }
+      );
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.link_token) {
+        setLinkToken(data.link_token);
+      } else {
+        throw new Error("Missing link_token in response");
+      }
+    } catch (err) {
+      logger.error("[Plaid] getReconnectToken exception:", err);
+      showAlert(err.message || "Could not initiate bank reconnect. Try again.", "danger", "alert-circle");
+    }
+  }
+
   async function getLinkToken() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -1476,7 +1508,7 @@ export default function App() {
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} InsightCard={InsightCard} />}
             {screen === "insights" && <Insights {...shared} onOpenChat={msg => { const budget = Number(profile?.monthly_budget)||3000; const sub = ['Subscriptions','Bills','Utilities','Phone','Internet','Insurance'].reduce((s,c)=>s+(spendingByCategory[c]||0),0); const {score:hs}=calculateHealthScore({totalIncome:effectiveIncome,totalSpent,lastIncome,lastSpent,budget,subscriptionSpend:sub}); const greeting=buildContextGreeting('insights',{totalIncome:effectiveIncome,totalSpent,spendingByCategory,savings,transactions,profile,allInsights,healthScore:hs}); const base=[{role:"assistant",text:greeting}]; setChatMessages(base); setShowChat(true); sendChat(msg,base); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
-            {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} onSignOut={signOut} onDeleteAccount={deleteAccount} onBack={() => setScreen("dashboard")} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} lastSyncedAt={lastSyncedAt} backgroundSyncing={backgroundSyncing} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
+            {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} onSignOut={signOut} onDeleteAccount={deleteAccount} onBack={() => setScreen("dashboard")} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} getReconnectToken={getReconnectToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} lastSyncedAt={lastSyncedAt} backgroundSyncing={backgroundSyncing} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
           </>
         )}
       </div>

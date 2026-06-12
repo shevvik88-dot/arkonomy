@@ -47,6 +47,7 @@ export default function Icon({ name, size = 20, color = C.muted, strokeWidth = 1
     smartphone:      <svg {...p}><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>,
     shield:          <svg {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
     check:           <svg {...p}><polyline points="20 6 9 17 4 12"/></svg>,
+    "refresh-cw":    <svg {...p}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>,
   };
   return icons[name] || icons["dollar"];
 }

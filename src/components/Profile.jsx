@@ -15,7 +15,7 @@ function maskEmail(email) {
   return `${local.slice(0, 2)}***@${domain}`;
 }
 
-export default function Profile({ profile, user, onSave, onSignOut, onDeleteAccount, onBack, autopilot, setAutopilot, bankConnected, bankName, bankCount, linkToken, getLinkToken, onPlaidSuccess, syncBankTransactions, syncingBank, lastSyncedAt, backgroundSyncing, isPro, onUpgrade, transactions = [] }) {
+export default function Profile({ profile, user, onSave, onSignOut, onDeleteAccount, onBack, autopilot, setAutopilot, bankConnected, bankName, bankCount, linkToken, getLinkToken, getReconnectToken, onPlaidSuccess, syncBankTransactions, syncingBank, lastSyncedAt, backgroundSyncing, isPro, onUpgrade, transactions = [] }) {
   const { t } = useTranslation();
   const [budget, setBudget] = useState(profile?.monthly_budget || 3000);
   const [goal, setGoal] = useState(profile?.savings_goal || 10000);
@@ -241,6 +241,12 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
               style={{ width: "100%", padding: 13, background: syncingBank ? C.bgTertiary : C.green + "22", border: `1px solid ${C.green}44`, borderRadius: 14, color: C.green, fontWeight: 600, fontSize: 14, cursor: syncingBank ? "not-allowed" : "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
               <Icon name="repeat" size={15} color={C.green} strokeWidth={2} />
               {syncingBank ? t("profile.syncing_btn") : t("profile.sync_transactions")}
+            </button>
+            <button
+              onClick={getReconnectToken}
+              style={{ width: "100%", padding: 12, background: C.yellow + "18", border: `1px solid ${C.yellow}44`, borderRadius: 14, color: C.yellow, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 8 }}>
+              <Icon name="refresh-cw" size={13} color={C.yellow} strokeWidth={2.5} />
+              Reconnect Bank
             </button>
             <button
               onClick={() => { if (!isPro) { onUpgrade(); return; } getLinkToken(); }}

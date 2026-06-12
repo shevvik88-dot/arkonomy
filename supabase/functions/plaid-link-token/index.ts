@@ -38,28 +38,55 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
 
     if (authErr || !user) {
-      return json({ error: 'Unauthorized' }, 401, cors);
+      return json({ error: 'Unauthorized' }, 401, corsHeaders);
     }
 
     // ── Body ──────────────────────────────────────────────────────────────────
     const body = await req.json().catch(() => ({})) as Record<string, unknown>;
     const redirect_uri = typeof body.redirect_uri === 'string' ? body.redirect_uri : undefined;
+    const isUpdateMode = body.mode === 'update';
 
     // ── Plaid request ─────────────────────────────────────────────────────────
     const plaidEnv  = Deno.env.get('PLAID_ENV') ?? 'production';
     const plaidBase = `https://${plaidEnv}.plaid.com`;
 
-    const plaidBody: Record<string, unknown> = {
-      client_id:    Deno.env.get('PLAID_CLIENT_ID'),
-      secret:       Deno.env.get('PLAID_SECRET'),
-      client_name:  'Arkonomy',
-      user:         { client_user_id: user.id },
-      products:     ['transactions'],
-      country_codes: ['US'],
-      language:     'en',
-    };
+    let plaidBody: Record<string, unknown>;
 
-    if (redirect_uri) plaidBody.redirect_uri = redirect_uri;
+    if (isUpdateMode) {
+      // Update mode: fetch existing access_token and create a reconnect link token.
+      // This triggers Plaid's HISTORICAL_UPDATE cycle on the existing item.
+      const { data: item, error: itemErr } = await supabase
+        .from('plaid_items')
+        .select('access_token')
+        .eq('user_id', user.id)
+        .limit(1)
+        .single();
+
+      if (itemErr || !item?.access_token) {
+        return json({ error: 'No connected bank found' }, 404, corsHeaders);
+      }
+
+      plaidBody = {
+        client_id:     Deno.env.get('PLAID_CLIENT_ID'),
+        secret:        Deno.env.get('PLAID_SECRET'),
+        client_name:   'Arkonomy',
+        user:          { client_user_id: user.id },
+        access_token:  item.access_token,
+        country_codes: ['US'],
+        language:      'en',
+      };
+    } else {
+      plaidBody = {
+        client_id:     Deno.env.get('PLAID_CLIENT_ID'),
+        secret:        Deno.env.get('PLAID_SECRET'),
+        client_name:   'Arkonomy',
+        user:          { client_user_id: user.id },
+        products:      ['transactions'],
+        country_codes: ['US'],
+        language:      'en',
+      };
+      if (redirect_uri) plaidBody.redirect_uri = redirect_uri;
+    }
 
     const plaidRes  = await fetch(`${plaidBase}/link/token/create`, {
       method:  'POST',
@@ -78,10 +105,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    return json({ link_token: plaidData.link_token }, 200, cors);
+    return json({ link_token: plaidData.link_token }, 200, corsHeaders);
 
   } catch (err) {
     console.error('plaid-link-token error:', err);
-    return json({ error: "Internal Server Error" }, 500, cors);
+    return json({ error: "Internal Server Error" }, 500, corsHeaders);
   }
 });
