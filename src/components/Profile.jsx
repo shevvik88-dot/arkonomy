@@ -395,7 +395,8 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
         </div>
 
         {/* Email digest frequency */}
-        <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 8 }}>Email digest frequency</div>
+        <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 2 }}>Email digest frequency</div>
+        <div style={{ fontSize: 11, color: C.faint, marginBottom: 8 }}>Short summary sent to your email</div>
         <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
           {["weekly", "biweekly", "monthly", "off"].map(opt => (
             <button
@@ -432,7 +433,9 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
         )}
 
         {/* Excel report frequency */}
-        <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 8 }}>Excel report frequency</div>
+        <div style={{ height: 1, background: C.sep, margin: "4px 0 16px" }} />
+        <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 2 }}>Excel report frequency</div>
+        <div style={{ fontSize: 11, color: C.faint, marginBottom: 8 }}>Detailed spreadsheet with all transactions</div>
         <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
           {["monthly", "quarterly", "off"].map(opt => (
             <button
