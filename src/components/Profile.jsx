@@ -433,8 +433,13 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
         )}
 
         {/* Excel report frequency */}
-        <div style={{ height: 1, background: C.sep, margin: "4px 0 16px" }} />
-        <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 2 }}>Excel report frequency</div>
+        <div style={{ height: 1, background: C.sep, margin: "4px 0 20px" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+          <Icon name="file-text" size={13} color={C.green} />
+          <span style={{ fontSize: 12, fontWeight: 500, color: C.muted }}>
+            <span style={{ color: C.green, fontWeight: 700 }}>Excel</span> report frequency
+          </span>
+        </div>
         <div style={{ fontSize: 11, color: C.faint, marginBottom: 8 }}>Detailed spreadsheet with all transactions</div>
         <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
           {["monthly", "quarterly", "off"].map(opt => (
