@@ -26,6 +26,7 @@
     "success_check_email": "Verifique seu e-mail para confirmar a conta!",
     "success_reset_sent": "Verifique seu e-mail para redefinir a senha.",
     "error_forgot_no_email": "Digite seu e-mail acima e toque em Esqueceu a senha.",
+    "error_lockout": "Muitas tentativas. Tente novamente em {{seconds}}s.",
     "resend_confirmation": "Reenviar e-mail de confirmação",
     "email_sent": "E-mail enviado!",
     "updating": "Atualizando…",

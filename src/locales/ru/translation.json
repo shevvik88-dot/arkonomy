@@ -26,6 +26,7 @@
     "success_check_email": "Проверьте email для подтверждения аккаунта!",
     "success_reset_sent": "Проверьте email для сброса пароля.",
     "error_forgot_no_email": "Введите email выше, затем нажмите «Забыли пароль».",
+    "error_lockout": "Слишком много попыток. Повторите через {{seconds}} сек.",
     "resend_confirmation": "Отправить письмо повторно",
     "email_sent": "Письмо отправлено!",
     "updating": "Обновление…",
