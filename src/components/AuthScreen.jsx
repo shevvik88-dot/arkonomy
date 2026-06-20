@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { supabase } from "../utils/supabase";
+import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
 import { C, FONT } from "../utils/colors";
 import GlassCard from "./shared/GlassCard";
 
@@ -77,8 +77,7 @@ function pwError(pw) {
 }
 
 const RESEND_COOLDOWN = 30;
-const LOCKOUT_DURATION = 30000;
-const MAX_ATTEMPTS = 5;
+// Lockout is enforced server-side via the auth-login edge function.
 
 export default function AuthScreen({ onAuth }) {
   const { t } = useTranslation();
@@ -93,8 +92,6 @@ export default function AuthScreen({ onAuth }) {
   const [pwTouched, setPwTouched] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [hoverSocial, setHoverSocial] = useState(null);
-  const [lockoutUntil, setLockoutUntil] = useState(0);
-  const failedAttemptsRef = useRef(0);
   const timerRef = useRef(null);
 
   useEffect(() => () => clearInterval(timerRef.current), []);
@@ -141,12 +138,6 @@ export default function AuthScreen({ onAuth }) {
     if (e) e.preventDefault();
     setError(""); setMsg("");
 
-    if (mode === "login" && Date.now() < lockoutUntil) {
-      const sec = Math.ceil((lockoutUntil - Date.now()) / 1000);
-      setError(t("auth.error_lockout", { seconds: sec }) || `Too many attempts. Try again in ${sec}s`);
-      return;
-    }
-
     if (mode === "signup" && pwError(password)) {
       setPwTouched(true);
       return;
@@ -157,16 +148,26 @@ export default function AuthScreen({ onAuth }) {
         await supabase.auth.signUp({ email, password, options: { data: { full_name: name }, emailRedirectTo: 'https://app.arkonomy.com' } });
         setMsg(t("auth.success_check_email"));
       } else {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-          failedAttemptsRef.current += 1;
-          if (failedAttemptsRef.current >= MAX_ATTEMPTS) {
-            setLockoutUntil(Date.now() + LOCKOUT_DURATION);
-            failedAttemptsRef.current = 0;
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/auth-login`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_KEY,
+          },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          if (res.status === 429 && data.lockout_seconds) {
+            const sec = Math.ceil(data.lockout_seconds);
+            throw new Error(t("auth.error_lockout", { seconds: sec }) || `Too many attempts. Try again in ${sec}s`);
           }
-          throw error;
+          throw new Error(data.error || "Login failed");
         }
-        failedAttemptsRef.current = 0;
+        await supabase.auth.setSession({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+        });
         onAuth(data.user);
       }
     } catch (e) { setError(friendlyError(e.message)); }
