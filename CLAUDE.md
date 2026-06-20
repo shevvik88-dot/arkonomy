@@ -1,13 +1,12 @@
 ﻿# Arkonomy
 
-## Current status (2026-06-10)
-- Production live at app.arkonomy.com — last stable commit: `6b45d4f`
-- QA hardening fully applied (commits cc7c9d2 → 6b45d4f): mounted guard in useInsights, null session guards in checkBankConnection/getLinkToken, alpacaToastTimerRef, idle timer null-checks, DonutChart null guard, projectedBalance clamp
-- All 18 edge functions updated to use `APP_URL` env var for CORS (deployed 3722697)
-- Security migration `20260601000000_final_qa_security.sql` applied to DB — RLS enabled + owner-only policies on transactions, savings, categories, notification_preferences
-- Alpaca brand removed from public-facing UI text (OnboardingFlow, App.jsx trial modal, Insights invest CTA)
-- Portuguese Brazil (pt) added — src/locales/pt/translation.json, i18n.js, language switcher in App.jsx
-- Accounts cache key: arkonomy_accounts_v2 (bumped from v1 to bust stale balance)
+## Current status (2026-06-19)
+- Production live at app.arkonomy.com
+- Security: profiles `select("*")` replaced with explicit 16-column list in App.jsx — Alpaca tokens excluded pre-emptively before Alpaca migration is applied
+- Security: ai-chat paywall bypass fixed — plan now read from DB, never from request body; trial web search capped at 5 uses via `increment_trial_web_search` PG function (migration 20260618000000_trial_web_search_count.sql applied)
+- Cash Flow Forecast: flicker fixed — shows skeleton until Plaid `accountBalance` loads (never falls back to computed balance)
+- Cash Flow Forecast: `upcomingBills` in formula now covers ALL recurring charges through end of month (not just 14-day carousel window); transaction fetch raised to `.limit(5000)` (was hitting Supabase PostgREST 1000-row default)
+- recurringDetector.js overhauled: accepts any billing cadence 7–95 days (was monthly-only 25–35); amount tolerance now percentage-based (3% of smaller amount, min $0.50); next-date projection uses `lastCharge + avgGap` loop; `todayStart` comparison prevents intraday timestamp from bumping same-day charges to next cycle
 
 ## Next tasks (priority order)
 1. **Merchant navigation** — tap a transaction in Dashboard "Recent Transactions" → navigate to Transactions screen filtered by that merchant (cleanMerchantName now in helpers.js)
@@ -58,6 +57,7 @@
 - Keep components in the file where they are used unless explicitly asked to extract.
 - When editing a file, re-read it first; never rely on stale context.
 - Never add a state variable (e.g. `user`) to a useEffect dependency array to fix a stale closure if that effect calls setState — use a ref instead (assign `ref.current = fn` inline after the function definition, call `ref.current()` inside the effect).
+- When comparing a projected date against "today", always compare against midnight of today (`new Date(y, m, d)`), not `new Date()` — intraday timestamps cause same-day events to be treated as past.
 
 ## Security decisions — DO NOT CHANGE without explicit instruction
 - **plaid_items has NO SELECT RLS policy** — intentional. Removed during security audit to prevent `access_token` from being exposed to the client. Never add a SELECT policy back.

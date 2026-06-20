@@ -13,7 +13,6 @@ import { usePlan } from "./hooks/usePlan";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import { detectRecurringCharges } from "./recurringDetector";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "./healthScore";
-import { generateExcelReport } from "./lib/exportReport";
 import GlassCard from "./components/shared/GlassCard";
 import AuthScreen from "./components/AuthScreen";
 import Icon from "./components/shared/Icon";
@@ -79,7 +78,7 @@ function isSyncStale(lastSyncedAt) {
 // Alpaca OAuth — redirect URI points to the Supabase edge function which
 // exchanges the code for tokens and then redirects back to https://app.arkonomy.com
 const ALPACA_CLIENT_ID    = import.meta.env.VITE_ALPACA_CLIENT_ID ?? "";
-const ALPACA_REDIRECT_URI = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/alpaca-oauth-callback`;
+const ALPACA_REDIRECT_URI = `${SUPABASE_URL}/functions/v1/alpaca-oauth-callback`;
 function alpacaOAuthUrl(userJwt) {
   const params = new URLSearchParams({
     response_type: "code",
@@ -544,8 +543,8 @@ export default function App() {
     if (!silent) setLoading(true);
     try {
       const [p, t, c, sv] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", user.id).single(),
-        supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }),
+        supabase.from("profiles").select("id, email, full_name, avatar_url, monthly_budget, savings_goal, roundup_enabled, created_at, plan, push_subscription, watchlist, stripe_customer_id, tutorial_completed, last_synced_at, trial_ends_at, trial_web_search_count").eq("id", user.id).single(),
+        supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }).limit(5000),
         supabase.from("categories").select("*").eq("user_id", user.id),
         supabase.from("savings").select("*").eq("user_id", user.id),
       ]);
@@ -1215,7 +1214,7 @@ export default function App() {
   }
 
   async function investAlpaca(data) {
-    if (profile?.plan !== 'pro') { setShowUpgradeModal(true); return; }
+    if (!isPro || isTrial) { setShowUpgradeModal(true); return; }
     if (!alpacaConnected) { connectAlpaca(); return; }
     const amount = data?.roundUpMonthly;
     if (!amount || Number(amount) < 1) {

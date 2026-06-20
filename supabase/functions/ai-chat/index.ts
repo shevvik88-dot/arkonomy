@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
     const rateLimitResponse = await enforceRateLimit(user.id, "ai-chat");
     if (rateLimitResponse) return rateLimitResponse;
 
-    const { messages, financialContext, plan } = await req.json();
+    const { messages, financialContext } = await req.json();
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return new Response(JSON.stringify({ error: "messages must be a non-empty array" }), {
@@ -50,15 +50,36 @@ Deno.serve(async (req) => {
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set");
 
+    // Verify plan from DB — never trust the client-supplied plan field
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('plan, trial_ends_at')
+      .eq('id', user.id)
+      .single();
+    const isPaidPro = profile?.plan === 'pro';
+    const hasActiveTrial = profile?.trial_ends_at
+      ? new Date(profile.trial_ends_at) > new Date()
+      : false;
+
+    // Paid Pro → unlimited web search.
+    // Trial    → web search up to 5 total uses (atomic check+increment in DB).
+    // Free     → no web search; chat responds normally without the tool.
+    let canUseSearch = isPaidPro && !hasActiveTrial;
+    if (!canUseSearch && hasActiveTrial) {
+      const { data: allowed } = await supabase.rpc('increment_trial_web_search', {
+        p_user_id: user.id,
+      });
+      canUseSearch = !!allowed;
+    }
+
     const systemPrompt = buildSystemPrompt(financialContext);
-    const isPro = plan === 'pro';
 
     const mappedMessages = messages.map((m: { role: string; text: string }) => ({
       role: m.role === "user" ? "user" : "assistant",
       content: m.text,
     }));
 
-    const reply = await callWithToolLoop(ANTHROPIC_API_KEY, systemPrompt, mappedMessages, isPro);
+    const reply = await callWithToolLoop(ANTHROPIC_API_KEY, systemPrompt, mappedMessages, canUseSearch);
 
     return new Response(JSON.stringify({ reply }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

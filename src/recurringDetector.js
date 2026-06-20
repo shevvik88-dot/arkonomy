@@ -8,16 +8,16 @@
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
 
-const AMOUNT_TOLERANCE    = 0.50;   // ±$0.50 flat — real subscriptions are always exact same price
-const INTERVAL_TARGET     = 30;     // monthly billing cycle
-const INTERVAL_TOLERANCE  = 5;      // accept 25–35 day gap between charges
-const DAY_OF_MONTH_TOL    = 5;      // charge must land within ±5 days of same DOM
-const MIN_OCCURRENCES     = 2;      // need ≥2 confirmed charges in consecutive months
+const AMOUNT_TOLERANCE       = 0.50;  // ±$0.50 flat — real subscriptions are always exact same price
+const INTERVAL_MIN           = 7;    // shortest accepted billing cycle (weekly)
+const INTERVAL_MAX           = 95;   // longest accepted billing cycle (quarterly)
+const GAP_VARIANCE_TOLERANCE = 7;    // each gap must be within ±7 days of the merchant's avg gap
+const MIN_OCCURRENCES        = 2;    // need ≥2 confirmed charges
 const MIN_AMOUNT          = 10;     // ignore anything under $10 (coffee, small tips)
 const LOOKBACK_DAYS       = 90;
-const UPCOMING_DAYS       = 10;
+const UPCOMING_DAYS       = 14;
 const MAX_RESULTS         = 4;      // cap at 4 most critical items
-const MIN_CONFIRMED       = 2;      // hide the section if fewer than this confirmed
+const MIN_CONFIRMED       = 1;      // hide the section if fewer than this confirmed
 
 // ─── Merchant allow-list: keywords that signal a subscription or bill ─────────
 // A transaction must match at least one of these to be considered recurring.
@@ -105,7 +105,7 @@ function titleCase(str) {
 }
 
 function amountsMatch(a, b) {
-  return Math.abs(a - b) <= AMOUNT_TOLERANCE;
+  return Math.abs(a - b) <= Math.max(AMOUNT_TOLERANCE, Math.min(a, b) * 0.03);
 }
 
 function daysBetween(dateA, dateB) {
@@ -127,18 +127,9 @@ function isLikelySubscription(description, categoryName) {
   return SUBSCRIPTION_KEYWORDS.some(kw => desc.includes(kw));
 }
 
-/** Day-of-month check: all charges must land within ±DAY_OF_MONTH_TOL of each other. */
-function sameDayOfMonth(txs) {
-  const days = txs.map(t => new Date(t.date).getDate());
-  const min  = Math.min(...days);
-  const max  = Math.max(...days);
-  // Handle month-end wrapping (e.g. charge on 28th sometimes hits 30th)
-  return (max - min) <= DAY_OF_MONTH_TOL;
-}
-
 // ─── Main detection ───────────────────────────────────────────────────────────
 
-export function detectRecurringCharges(transactions) {
+export function detectRecurringCharges(transactions, { maxDays = UPCOMING_DAYS, maxResults = MAX_RESULTS } = {}) {
   const now    = new Date();
   const cutoff = new Date(now.getTime() - LOOKBACK_DAYS * 86_400_000);
 
@@ -190,33 +181,28 @@ export function detectRecurringCharges(transactions) {
 
       const cs = [...cluster.txs].sort((a, b) => new Date(a.date) - new Date(b.date));
 
-      // Step 5: interval check — all gaps must be ~30 days
+      // Step 5: compute average gap; reject if outside any recognised billing cadence
       const gaps = [];
       for (let i = 1; i < cs.length; i++) {
         gaps.push(daysBetween(cs[i - 1].date, cs[i].date));
       }
-      const allGapsValid = gaps.every(
-        g => g >= INTERVAL_TARGET - INTERVAL_TOLERANCE
-          && g <= INTERVAL_TARGET + INTERVAL_TOLERANCE
-      );
-      if (!allGapsValid) continue;
+      const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length;
+      if (avgGap < INTERVAL_MIN || avgGap > INTERVAL_MAX) continue;
 
-      // Step 6: day-of-month consistency — charges must hit on roughly the same date
-      if (!sameDayOfMonth(cs)) continue;
+      // Step 6: gap consistency — every individual gap must be within ±7 days of avgGap
+      if (!gaps.every(g => Math.abs(g - avgGap) <= GAP_VARIANCE_TOLERANCE)) continue;
 
-      // Step 7: project next charge using DOM-based approach.
-      // Additive gap math breaks when a billing cycle goes un-synced (projection
-      // lands in the past). Instead, find the next calendar occurrence of the
-      // average billing day-of-month — this is always a future date.
-      const domAvg = Math.floor(
-        cs.map(t => parseInt(t.date.split('-')[2], 10)).reduce((s, d) => s + d, 0) / cs.length
-      );
-      let nextDate = new Date(now.getFullYear(), now.getMonth(), domAvg);
-      if (nextDate.getTime() <= now.getTime()) {
-        nextDate = new Date(now.getFullYear(), now.getMonth() + 1, domAvg);
+      // Step 7: project next charge = lastCharge + avgGap, advanced past today if needed.
+      // Works for any interval (weekly, monthly, bi-monthly, quarterly).
+      // Compare against midnight of today — charges predicted for today are still upcoming.
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const lastMs = new Date(cs[cs.length - 1].date + 'T00:00:00').getTime();
+      let nextDate = new Date(lastMs + avgGap * 86_400_000);
+      while (nextDate < todayStart) {
+        nextDate = new Date(nextDate.getTime() + avgGap * 86_400_000);
       }
       const daysUntil = Math.round((nextDate.getTime() - now.getTime()) / 86_400_000);
-      if (daysUntil < 0 || daysUntil > UPCOMING_DAYS) continue;
+      if (daysUntil < 0 || daysUntil > maxDays) continue;
 
       const pad = n => String(n).padStart(2, '0');
       const expectedDateStr = `${nextDate.getFullYear()}-${pad(nextDate.getMonth() + 1)}-${pad(nextDate.getDate())}`;
@@ -236,7 +222,7 @@ export function detectRecurringCharges(transactions) {
   }
 
   // Sort by urgency, cap at MAX_RESULTS
-  const sorted = upcoming.sort((a, b) => a.daysUntil - b.daysUntil).slice(0, MAX_RESULTS);
+  const sorted = upcoming.sort((a, b) => a.daysUntil - b.daysUntil).slice(0, maxResults);
 
   // Return empty if fewer than MIN_CONFIRMED confirmed — hide the section entirely
   return sorted.length >= MIN_CONFIRMED ? sorted : [];

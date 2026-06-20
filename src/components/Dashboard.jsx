@@ -9,6 +9,7 @@ import GlassCard from "./shared/GlassCard";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "../healthScore";
 import { InsightCard } from "./Insights";
 import UpcomingChargesCard from "./UpcomingChargesCard";
+import { detectRecurringCharges } from '../recurringDetector';
 import { TxRow } from "./Transactions";
 
 
@@ -537,7 +538,26 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
   // Need at least 2 days of data for a meaningful rate
   if (dayOfMonth < 2 || transactions.length === 0) return null;
 
-  const startBalance = accountBalance ?? balance;
+  // Wait for Plaid balance — fallback computed balance causes a visible flicker
+  if (accountBalance === null) {
+    return (
+      <div style={{ background: 'linear-gradient(145deg,#0E1E35,#0B1426)', borderRadius: 20, padding: '16px 18px', border: '1px solid #1E2D4A' }}>
+        <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>{t('dashboard.cash_flow_forecast')}</div>
+        <div style={{ height: 36, borderRadius: 8, background: C.bgTertiary, marginBottom: 10, width: '55%' }} />
+        <div style={{ height: 8, borderRadius: 99, background: C.bgTertiary, marginBottom: 14 }} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{ paddingLeft: i > 0 ? 12 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : 'none' }}>
+              <div style={{ height: 8, borderRadius: 4, background: C.bgTertiary, marginBottom: 6, width: '60%' }} />
+              <div style={{ height: 12, borderRadius: 4, background: C.bgTertiary, width: '80%' }} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const startBalance = accountBalance;
   const curKey = `${today.getFullYear()}-${today.getMonth()}`;
 
   const isThisMonth = tx => {
@@ -587,7 +607,8 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
 
   // ── Formula ───────────────────────────────────────────────────────────────
   // projected = currentBalance + expectedIncome - upcomingBills - estimatedRemainingSpend
-  const upcomingTotal           = upcomingCharges.reduce((s, c) => s + Number(c.amount), 0);
+  const monthBills              = detectRecurringCharges(transactions, { maxDays: remainingDays, maxResults: Infinity });
+  const upcomingTotal           = monthBills.reduce((s, c) => s + Number(c.amount), 0);
   const expectedIncome          = avg3mIncome * (remainingDays / 30);
   const estimatedRemainingSpend = avg3mDailySpend * remainingDays;
   const projectedRaw            = startBalance + expectedIncome - upcomingTotal - estimatedRemainingSpend;
