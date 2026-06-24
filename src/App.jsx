@@ -798,7 +798,8 @@ export default function App() {
   async function signOut() {
     try {
       clearAccountsCache();
-      await supabase.auth.signOut();
+      localStorage.removeItem('arkonomy_autopilot');
+      await supabase.auth.signOut({ scope: 'global' });
     } catch (err) {
       logger.error("[signOut] failed:", err);
     } finally {
