@@ -53,6 +53,13 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    const sym = String(symbol ?? 'SPY').toUpperCase();
+    if (!/^[A-Z]{1,5}$/.test(sym)) {
+      return new Response(JSON.stringify({ error: 'Invalid symbol' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // ── Load user's Alpaca access token from profiles ────────────
     const { data: profile, error: profileErr } = await supabase
@@ -122,7 +129,7 @@ Deno.serve(async (req) => {
         'Content-Type':  'application/json',
       },
       body: JSON.stringify({
-        symbol,
+        symbol:        sym,
         notional:      String(Number(amount).toFixed(2)),
         side:          'buy',
         type:          'market',
@@ -143,7 +150,7 @@ Deno.serve(async (req) => {
     // ── Record in Supabase ───────────────────────────────────────
     await supabase.from('investments').insert({
       user_id:    user.id,
-      symbol,
+      symbol:     sym,
       amount:     Number(amount),
       order_id:   order.id,
       status:     order.status,
@@ -154,9 +161,9 @@ Deno.serve(async (req) => {
       success:  true,
       order_id: order.id,
       status:   order.status,
-      symbol,
+      symbol:   sym,
       amount:   Number(amount),
-      message:  `Order placed: $${amount} in ${symbol}`,
+      message:  `Order placed: $${amount} in ${sym}`,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

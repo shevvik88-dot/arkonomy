@@ -46,6 +46,12 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    if (messages.length > 50) {
+      return new Response(JSON.stringify({ error: "Too many messages" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set");
@@ -76,7 +82,7 @@ Deno.serve(async (req) => {
 
     const mappedMessages = messages.map((m: { role: string; text: string }) => ({
       role: m.role === "user" ? "user" : "assistant",
-      content: m.text,
+      content: String(m.text ?? "").slice(0, 2000),
     }));
 
     const reply = await callWithToolLoop(ANTHROPIC_API_KEY, systemPrompt, mappedMessages, canUseSearch);
