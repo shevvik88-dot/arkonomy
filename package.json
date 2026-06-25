@@ -31,7 +31,7 @@
     "@playwright/test": "^1.60.0",
     "@vitejs/plugin-react": "^6.0.3",
     "dotenv": "^17.4.2",
-    "pdfkit": "^0.19.0",
+    "pdfkit": "^0.19.1",
     "playwright": "^1.61.1",
     "sharp": "^0.35.2",
     "supabase": "^2.105.0",
