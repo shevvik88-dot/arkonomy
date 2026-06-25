@@ -15,6 +15,15 @@ function maskEmail(email) {
   return `${local.slice(0, 2)}***@${domain}`;
 }
 
+function pwError(pw) {
+  if (!pw) return null;
+  const missing = [];
+  if (pw.length < 8)      missing.push("8+ characters");
+  if (!/[A-Z]/.test(pw)) missing.push("uppercase letter");
+  if (!/[0-9]/.test(pw)) missing.push("number");
+  return missing.length ? "Needs: " + missing.join(", ") : null;
+}
+
 export default function Profile({ profile, user, onSave, onSignOut, onDeleteAccount, onBack, autopilot, setAutopilot, bankConnected, bankName, bankCount, linkToken, getLinkToken, getReconnectToken, onPlaidSuccess, syncBankTransactions, syncingBank, lastSyncedAt, backgroundSyncing, isPro, onUpgrade, transactions = [] }) {
   const { t } = useTranslation();
   const [budget, setBudget] = useState(profile?.monthly_budget || 3000);
@@ -91,7 +100,8 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
     setPwMsg(null);
     if (!newPw || !confirmPw) { setPwMsg({ type: "error", text: t("profile.error_fill_both") }); return; }
     if (newPw !== confirmPw) { setPwMsg({ type: "error", text: t("profile.error_passwords_match") }); return; }
-    if (newPw.length < 6) { setPwMsg({ type: "error", text: t("profile.error_password_length") }); return; }
+    const pwErr = pwError(newPw);
+    if (pwErr) { setPwMsg({ type: "error", text: pwErr }); return; }
     setPwLoading(true);
     const { error } = await supabase.auth.updateUser({ password: newPw });
     setPwLoading(false);
@@ -432,26 +442,37 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           </>
         )}
 
-        {/* Excel report frequency */}
+        {/* Excel report frequency — Pro only */}
         <div style={{ height: 1, background: C.sep, margin: "4px 0 20px" }} />
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-          <Icon name="file-text" size={13} color={C.green} />
-          <span style={{ fontSize: 12, fontWeight: 500, color: C.muted }}>
-            <span style={{ color: C.green, fontWeight: 700 }}>Excel</span> report frequency
+          <Icon name="file-text" size={13} color={isPro ? C.green : C.faint} />
+          <span style={{ fontSize: 12, fontWeight: 500, color: isPro ? C.muted : C.faint }}>
+            <span style={{ color: isPro ? C.green : C.faint, fontWeight: 700 }}>Excel</span> report frequency
           </span>
+          {!isPro && <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 700, color: C.faint, background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 99, padding: "2px 7px" }}>Pro</span>}
         </div>
         <div style={{ fontSize: 11, color: C.faint, marginBottom: 8 }}>Detailed spreadsheet with all transactions</div>
-        <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
-          {["monthly", "quarterly", "off"].map(opt => (
-            <button
-              key={opt}
-              onClick={() => setNotifPrefs(p => ({ ...p, excel_frequency: opt }))}
-              style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${notifPrefs.excel_frequency === opt ? C.blue + "88" : C.border}`, background: notifPrefs.excel_frequency === opt ? C.blue + "22" : C.bgTertiary, color: notifPrefs.excel_frequency === opt ? C.blue : C.muted, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT, textTransform: "capitalize" }}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
+        {isPro ? (
+          <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
+            {["monthly", "quarterly", "off"].map(opt => (
+              <button
+                key={opt}
+                onClick={() => setNotifPrefs(p => ({ ...p, excel_frequency: opt }))}
+                style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${notifPrefs.excel_frequency === opt ? C.blue + "88" : C.border}`, background: notifPrefs.excel_frequency === opt ? C.blue + "22" : C.bgTertiary, color: notifPrefs.excel_frequency === opt ? C.blue : C.muted, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT, textTransform: "capitalize" }}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div onClick={onUpgrade} style={{ display: "flex", gap: 6, marginBottom: 18, cursor: "pointer", opacity: 0.45, pointerEvents: "auto" }}>
+            {["monthly", "quarterly", "off"].map(opt => (
+              <div key={opt} style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: C.bgTertiary, color: C.faint, fontWeight: 600, fontSize: 11, textAlign: "center", textTransform: "capitalize", userSelect: "none" }}>
+                {opt}
+              </div>
+            ))}
+          </div>
+        )}
 
         <button
           onClick={saveNotifPrefs}
@@ -515,11 +536,12 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
       </GlassCard>
 
       <button
-        onClick={handleExport}
-        disabled={exporting}
-        style={{ width: '100%', padding: '14px', background: '#1E293B', color: '#7C3AED', border: '1px solid #334155', borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: exporting ? 'not-allowed' : 'pointer', marginBottom: 12 }}
+        onClick={() => { if (!isPro) { onUpgrade(); return; } handleExport(); }}
+        disabled={isPro && exporting}
+        style={{ width: '100%', padding: '14px', background: '#1E293B', color: isPro ? '#7C3AED' : C.faint, border: `1px solid ${isPro ? '#334155' : C.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: (isPro && exporting) ? 'not-allowed' : 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: FONT }}
       >
-        {exporting ? t("profile.generating") : t("profile.export_report")}
+        {!isPro && <span>🔒</span>}
+        {isPro && exporting ? t("profile.generating") : t("profile.export_report")}
       </button>
 
       <button
