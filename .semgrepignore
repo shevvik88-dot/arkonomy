@@ -1,0 +1,8 @@
+# MainActivity — exported="true" is intentional (Capacitor + Plaid OAuth deep links require singleTask)
+android/app/src/main/AndroidManifest.xml
+
+# False positives — path-join in test files is not production code
+e2e/
+
+# Dependencies
+node_modules/
