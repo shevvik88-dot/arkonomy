@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
 
     const { data: items, error } = await supabase
       .from('plaid_items')
-      .select('institution_name')
+      .select('institution_name, error_code')
       .eq('user_id', user.id)
       .limit(10);
 
@@ -42,6 +42,7 @@ Deno.serve(async (req) => {
       connected,
       institution_name: connected ? items[0].institution_name ?? null : null,
       count: items?.length ?? 0,
+      error_code: connected ? items[0].error_code ?? null : null,
     });
 
   } catch (err) {

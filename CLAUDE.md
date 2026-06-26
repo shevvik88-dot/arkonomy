@@ -1,12 +1,13 @@
 ﻿# Arkonomy
 
-## Current status (2026-06-19)
+## Current status (2026-06-25)
 - Production live at app.arkonomy.com
-- Security: profiles `select("*")` replaced with explicit 16-column list in App.jsx — Alpaca tokens excluded pre-emptively before Alpaca migration is applied
-- Security: ai-chat paywall bypass fixed — plan now read from DB, never from request body; trial web search capped at 5 uses via `increment_trial_web_search` PG function (migration 20260618000000_trial_web_search_count.sql applied)
-- Cash Flow Forecast: flicker fixed — shows skeleton until Plaid `accountBalance` loads (never falls back to computed balance)
-- Cash Flow Forecast: `upcomingBills` in formula now covers ALL recurring charges through end of month (not just 14-day carousel window); transaction fetch raised to `.limit(5000)` (was hitting Supabase PostgREST 1000-row default)
-- recurringDetector.js overhauled: accepts any billing cadence 7–95 days (was monthly-only 25–35); amount tolerance now percentage-based (3% of smaller amount, min $0.50); next-date projection uses `lastCharge + avgGap` loop; `todayStart` comparison prevents intraday timestamp from bumping same-day charges to next cycle
+- Security audit complete (Items 1–8): CSP headers, session storage hardening, Plaid webhook verification, SW cache audit, logout global scope, Stripe idempotency, input validation, password policy
+- **Plaid webhook receiver live** — `supabase/functions/plaid-webhook/` deployed; JWT-verified (ES256, not HMAC); handles TRANSACTIONS/SYNC_UPDATES_AVAILABLE (triggers sync_item) and ITEM/ERROR (sets error_code on plaid_items); register URL in Plaid Dashboard: `https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/plaid-webhook`
+- `plaid_items.error_code` column added (migration 20260625000000) — populated by webhook on ITEM/ERROR, cleared on successful sync; `check-bank-connection` now returns `error_code` for reconnect prompt UI
+- CI: Semgrep + dependency-review GitHub Actions added; Dependabot weekly npm updates enabled
+- Security: CSP live on app.arkonomy.com — script/connect/frame/manifest-src all locked down
+- Security: signOut uses `scope: 'global'` — invalidates all sessions across devices
 
 ## Next tasks (priority order)
 1. **Merchant navigation** — tap a transaction in Dashboard "Recent Transactions" → navigate to Transactions screen filtered by that merchant (cleanMerchantName now in helpers.js)
@@ -61,7 +62,7 @@
 
 ## Security decisions — DO NOT CHANGE without explicit instruction
 - **plaid_items has NO SELECT RLS policy** — intentional. Removed during security audit to prevent `access_token` from being exposed to the client. Never add a SELECT policy back.
-- **checkBankConnection() calls `check-bank-connection` edge function** (supabase/functions/check-bank-connection/) — uses service role key server-side, returns only `{ connected, institution_name, count }`. Never revert to direct `.from("plaid_items").select()` in the frontend.
+- **checkBankConnection() calls `check-bank-connection` edge function** (supabase/functions/check-bank-connection/) — uses service role key server-side, returns `{ connected, institution_name, count, error_code }`. Never revert to direct `.from("plaid_items").select()` in the frontend.
 - **Plaid env vars** — Production approval in progress; do not touch.
 - **usePlan.js** — Free/Pro gating is core business logic; never bypass.
 

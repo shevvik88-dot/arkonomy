@@ -395,6 +395,22 @@ Deno.serve(async (req) => {
           removed:        totalRemoved,
         }, 200, corsHeaders);
       }
+
+      // ── Webhook-triggered per-item sync ────────────────────────────────────
+      if (body?.action === 'sync_item' && body?.item_id) {
+        if (token !== Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) {
+          return json({ error: 'Forbidden — service role key required' }, 403, corsHeaders);
+        }
+        const { data: item, error: itemErr } = await supabase
+          .from('plaid_items')
+          .select('id, access_token, plaid_cursor, user_id')
+          .eq('item_id', body.item_id as string)
+          .single();
+        if (itemErr || !item) return json({ error: 'Item not found' }, 404, corsHeaders);
+        const counts = await syncItemTransactions(supabase, plaidBase, clientId, secret, item);
+        await supabase.from('plaid_items').update({ error_code: null }).eq('id', item.id);
+        return json({ action: 'sync_item', ...counts }, 200, corsHeaders);
+      }
     }
 
     // ── Normal per-user sync ──────────────────────────────────────────────────

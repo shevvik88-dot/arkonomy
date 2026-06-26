@@ -1,0 +1,1 @@
+ALTER TABLE plaid_items ADD COLUMN IF NOT EXISTS error_code TEXT;
