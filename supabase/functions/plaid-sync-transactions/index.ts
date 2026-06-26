@@ -11,12 +11,13 @@
 // everything from Plaid with updated category mapping.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { verifyAppCheck } from '../_shared/appCheck.ts';
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-firebase-appcheck',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -414,6 +415,11 @@ Deno.serve(async (req) => {
     }
 
     // ── Normal per-user sync ──────────────────────────────────────────────────
+    if (Deno.env.get('ENVIRONMENT') !== 'development') {
+      const validAppCheck = await verifyAppCheck(req);
+      if (!validAppCheck) return json({ error: 'Invalid App Check token' }, 401, corsHeaders);
+    }
+
     const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
     if (authErr || !user) return json({ error: 'Unauthorized' }, 401, corsHeaders);
 

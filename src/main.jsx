@@ -1,3 +1,4 @@
+import './lib/appCheck.js';
 import { logger } from "./utils/logger";
 import React from 'react'
 import ReactDOM from 'react-dom/client'

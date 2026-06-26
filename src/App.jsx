@@ -3,6 +3,7 @@ import { logger } from "./utils/logger";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "./utils/supabase";
+import { callEdgeFunction } from "./lib/callEdgeFunction";
 import { getCachedAccounts, setCachedAccounts, clearAccountsCache } from "./utils/accountsCache";
 import { App as CapApp } from "@capacitor/app";
 import { usePlaidOAuth, PLAID_REDIRECT_URI } from "./hooks/usePlaidOAuth";
@@ -35,11 +36,10 @@ function useInsights(screen, userId, lang) {
   useEffect(() => {
     if (!userId) return;
     let mounted = true;
-    supabase.functions
-      .invoke("get-insights", { body: { userId, lang: lang ?? "en" } })
-      .then(({ data: result, error }) => {
+    callEdgeFunction("get-insights", { userId, lang: lang ?? "en" })
+      .then(result => {
         if (!mounted) return;
-        if (error) { logger.error("useInsights error:", error); return; }
+        if (result?.error) { logger.error("useInsights error:", result.error); return; }
         setData(result);
       });
     return () => { mounted = false; };
@@ -705,19 +705,7 @@ export default function App() {
     setSyncingBank(true);
     clearAccountsCache();
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(
-        `${SUPABASE_URL}/functions/v1/plaid-sync-transactions`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${session.access_token}`,
-            "apikey": SUPABASE_KEY,
-          },
-        }
-      );
-      const data = await res.json();
+      const data = await callEdgeFunction("plaid-sync-transactions", {});
       if (data.error) {
         logger.error("[Plaid] sync-transactions error:", data);
       }
@@ -751,17 +739,7 @@ export default function App() {
 
     setBackgroundSyncing(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/plaid-sync-transactions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
-          "apikey": SUPABASE_KEY,
-        },
-      });
-      const data = await res.json();
+      const data = await callEdgeFunction("plaid-sync-transactions", {});
       if (!data.error) {
         const now = new Date().toISOString();
         setLastSyncedAt(now);
@@ -1350,12 +1328,10 @@ export default function App() {
     setChatMessages(prev => [...prev, { role: "assistant", text: "...", id: lid, loading: true }]);
 
     try {
-      const { data: { session: chatSession } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("ai-chat", {
-        headers: { Authorization: `Bearer ${chatSession?.access_token}` },
-        body: { messages: updated.filter(m => !m.loading), financialContext: ctx, plan: profile?.plan ?? 'free' }
+      const res = await callEdgeFunction("ai-chat", {
+        messages: updated.filter(m => !m.loading), financialContext: ctx, plan: profile?.plan ?? 'free'
       });
-      const raw = res.data?.reply || "Sorry, something went wrong.";
+      const raw = res?.reply || "Sorry, something went wrong.";
       const reply = raw.replace(/^[\s.,!?;:]+/, '');
       setChatMessages(prev => prev.map(m => m.id === lid ? { role: "assistant", text: reply } : m));
     } catch {

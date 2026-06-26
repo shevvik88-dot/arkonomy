@@ -8,10 +8,11 @@
 //   REPORT_FROM      — verified sender address, e.g. "Arkonomy <hello@yourdomain.com>"
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { verifyAppCheck } from '../_shared/appCheck.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-firebase-appcheck',
 };
 
 Deno.serve(async (req) => {
@@ -65,6 +66,14 @@ Deno.serve(async (req) => {
       profiles = (data as any[]).map(p => ({ ...p, _prefs: (p.notification_preferences as any[])?.[0] ?? null }));
     } else {
       // User mode — validate JWT; email always comes from DB, never from request body
+      if (Deno.env.get('ENVIRONMENT') !== 'development') {
+        const validAppCheck = await verifyAppCheck(req);
+        if (!validAppCheck) {
+          return new Response(JSON.stringify({ error: 'Invalid App Check token' }), {
+            status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
       const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
       if (authErr || !user) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
