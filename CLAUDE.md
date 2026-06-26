@@ -3,6 +3,7 @@
 ## Current status (2026-06-25)
 - Production live at app.arkonomy.com
 - Security audit complete (Items 1–8): CSP headers, session storage hardening, Plaid webhook verification, SW cache audit, logout global scope, Stripe idempotency, input validation, password policy
+- **Firebase App Check live** — reCAPTCHA v3 on web; JWKS-based RS256 verification in `_shared/appCheck.ts`; protects ai-chat, get-insights, weekly-report, plaid-sync-transactions; cron/service-role paths bypass check; `callEdgeFunction()` in `src/lib/` injects token automatically
 - **Plaid webhook receiver live** — `supabase/functions/plaid-webhook/` deployed; JWT-verified (ES256, not HMAC); handles TRANSACTIONS/SYNC_UPDATES_AVAILABLE (triggers sync_item) and ITEM/ERROR (sets error_code on plaid_items); register URL in Plaid Dashboard: `https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/plaid-webhook`
 - `plaid_items.error_code` column added (migration 20260625000000) — populated by webhook on ITEM/ERROR, cleared on successful sync; `check-bank-connection` now returns `error_code` for reconnect prompt UI
 - CI: Semgrep + dependency-review GitHub Actions added; Dependabot weekly npm updates enabled
@@ -35,9 +36,12 @@
 - src/App.jsx — main shell, routing, screen switching
 - src/main.jsx — entry point with Error Boundary
 - src/utils/helpers.js — shared utilities (fmt, parseDate, cleanMerchantName, etc.)
+- src/lib/appCheck.js — Firebase App Check init (reCAPTCHA v3); imported in main.jsx before React
+- src/lib/callEdgeFunction.js — unified edge function caller; injects App Check token + auth + apikey; use instead of supabase.functions.invoke() for App-Check-protected functions
 - src/hooks/usePlan.js — free/pro plan gating via Supabase profiles table
 - src/recurringDetector.js — recurring charges detection
 - supabase/functions/ — edge functions (Finnhub market data, ai-chat, etc.)
+  - supabase/functions/_shared/appCheck.ts — JWKS-based App Check JWT verification (RS256); skip check for cron/service-role paths
   - supabase/functions/ai-chat/ — AI chat endpoint; version-controlled, deploy via `npx supabase functions deploy ai-chat`
 - public/ — PWA manifest, service worker, icons
 
@@ -63,6 +67,8 @@
 ## Security decisions — DO NOT CHANGE without explicit instruction
 - **plaid_items has NO SELECT RLS policy** — intentional. Removed during security audit to prevent `access_token` from being exposed to the client. Never add a SELECT policy back.
 - **checkBankConnection() calls `check-bank-connection` edge function** (supabase/functions/check-bank-connection/) — uses service role key server-side, returns `{ connected, institution_name, count, error_code }`. Never revert to direct `.from("plaid_items").select()` in the frontend.
+- **App Check verification uses JWKS (not the verifyToken REST API)** — the REST API requires a Google service account OAuth token; without credentials it returns 403 and would block all requests. JWKS fetches Google's public keys and verifies the RS256 JWT directly. Never switch to the REST API approach.
+- **App Check bypasses for service-role paths** — `resync_all`, `sync_item` (plaid-sync-transactions), and cron calls (weekly-report) skip App Check because they originate server-side with no browser context. The outer `if (ENVIRONMENT !== 'development')` guard is intentional; verifyAppCheck itself has no dev bypass so the guard must live at each call site.
 - **Plaid env vars** — Production approval in progress; do not touch.
 - **usePlan.js** — Free/Pro gating is core business logic; never bypass.
 
