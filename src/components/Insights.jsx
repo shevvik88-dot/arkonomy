@@ -522,7 +522,7 @@ export function InsightCard({ insight, onAction }) {
   );
 }
 
-function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpent = 0, budget = 3000, hasData = true, actualSavingsRate = null }) {
+function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpent = 0, budget = 3000, hasData = true, actualSavingsRate = null, prevScore }) {
   const { t } = useTranslation();
   const [showBreakdown, setShowBreakdown] = useState(false);
 
@@ -608,9 +608,17 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 10, color: C.faint, fontWeight: 600, letterSpacing: 1, marginBottom: 4 }}>{t("insights.financial_health")}</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 4 }}>{t(label)} <span style={{ color, fontSize: 13 }}>{score}/100</span></div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 4 }}>
+            {t(label)}{" "}
+            <span style={{ color, fontSize: 13 }}>{score}/100</span>
+            {prevScore != null && prevScore !== score && (
+              <span style={{ fontSize: 12, fontWeight: 700, color: score > prevScore ? C.green : C.red, marginLeft: 6 }}>
+                {score > prevScore ? `↑${score - prevScore}` : `↓${prevScore - score}`}
+              </span>
+            )}
+          </div>
           <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
-            {score >= 75 ? t("insights.score_great") : score >= 50 ? t("insights.score_decent") : t("insights.score_focus")}
+            {comment ? (comment.rawCat ? t(comment.key, { cat: tCat(comment.rawCat, t), ...comment.params }) : t(comment.key)) : (score >= 75 ? t("insights.score_great") : score >= 50 ? t("insights.score_decent") : t("insights.score_focus"))}
           </div>
           <div style={{ fontSize: 11, color: C.faint, marginTop: 4 }}>{t("insights.tap_breakdown")}</div>
         </div>
@@ -1037,6 +1045,10 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
     spendingByCategory,
     prevSpendingByCategory,
   });
+  const prevSubscriptionSpend = SUB_CATS.reduce((s, cat) => s + (prevSpendingByCategory[cat] || 0), 0);
+  const { score: prevInsightScore } = (lastIncome > 0 || lastSpent > 0)
+    ? calculateHealthScore({ totalIncome: lastIncome, totalSpent: lastSpent, lastIncome: 0, lastSpent: 0, budget: Number(profile?.monthly_budget) || 3000, subscriptionSpend: prevSubscriptionSpend })
+    : { score: null };
 
   const insights = [];
 
@@ -1132,7 +1144,7 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
         </div>
       )}
 
-      <HealthScore score={insightScore} color={insightScoreColor} breakdown={insightScoreBreakdown} comment={insightScoreComment} totalSpent={totalSpent} budget={Number(profile?.monthly_budget) || 3000} hasData={totalIncome > 0 || totalSpent > 0} actualSavingsRate={savingsRate} />
+      <HealthScore score={insightScore} color={insightScoreColor} breakdown={insightScoreBreakdown} comment={insightScoreComment} totalSpent={totalSpent} budget={Number(profile?.monthly_budget) || 3000} hasData={totalIncome > 0 || totalSpent > 0} actualSavingsRate={savingsRate} prevScore={prevInsightScore} />
       <WeeklySummary transactions={transactions || []} />
       <RecurringSummary transactions={transactions || []} />
 

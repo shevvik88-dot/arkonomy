@@ -125,6 +125,31 @@ function fmt(n: number): string {
   });
 }
 
+function momLine(current: number, last: number, lang: 'en' | 'ru' | 'es'): string {
+  if (!last || last === 0) return '';
+  const diff = current - last;
+  const pct  = Math.abs(diff) / last;
+  if (pct <= 0.05) {
+    return lang === 'ru'
+      ? `↔ Примерно столько же, сколько в прошлом месяце ($${fmt(last)}).`
+      : lang === 'es'
+      ? `↔ Aproximadamente lo mismo que el mes pasado ($${fmt(last)}).`
+      : `↔ About the same as last month ($${fmt(last)} last month).`;
+  }
+  if (diff > 0) {
+    return lang === 'ru'
+      ? `↑ На $${fmt(diff)} больше, чем в прошлом месяце ($${fmt(last)}).`
+      : lang === 'es'
+      ? `↑ $${fmt(diff)} más que el mes pasado ($${fmt(last)}).`
+      : `↑ $${fmt(diff)} more than last month ($${fmt(last)} last month).`;
+  }
+  return lang === 'ru'
+    ? `↓ На $${fmt(Math.abs(diff))} меньше, чем в прошлом месяце — отлично! ($${fmt(last)}).`
+    : lang === 'es'
+    ? `↓ $${fmt(Math.abs(diff))} menos que el mes pasado — ¡buen trabajo! ($${fmt(last)}).`
+    : `↓ $${fmt(Math.abs(diff))} less than last month — great job! ($${fmt(last)} last month).`;
+}
+
 function getDistinctMonths(txns: any[]): Set<string> {
   const months = new Set<string>();
   for (const t of txns) {
@@ -243,12 +268,25 @@ async function buildFinancialInput(supabase: any, userId: string) {
     historyCategoryMap[cat] = (historyCategoryMap[cat] || 0) + Number(t.amount);
   });
 
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    .toISOString().split('T')[0];
+  const lastMonthCategoryMap: Record<string, number> = {};
+  historical
+    .filter((t: any) => t.type === 'expense' && t.date >= startOfLastMonth)
+    .forEach((t: any) => {
+      const cat = t.category_name || 'Other';
+      lastMonthCategoryMap[cat] = (lastMonthCategoryMap[cat] || 0) + Number(t.amount);
+    });
+  const lastMonthTotalSpend = Object.values(lastMonthCategoryMap)
+    .reduce((s: number, v: number) => s + v, 0);
+
   const categories = Array.from(
     new Set([...Object.keys(categoryMap), ...Object.keys(historyCategoryMap)])
   ).map((name) => ({
     name,
     currentMonthSpend: categoryMap[name] || 0,
     avg3mSpend: monthsOfHistory > 0 ? (historyCategoryMap[name] || 0) / monthsOfHistory : 0,
+    lastMonthSpend: lastMonthCategoryMap[name] || 0,
   }));
 
   const goals = (savingsGoals || []).map((g: any) => ({
@@ -267,6 +305,7 @@ async function buildFinancialInput(supabase: any, userId: string) {
     effectiveMonthlyIncome,
     availableSafe,
     avg3mSpend,
+    lastMonthTotalSpend,
     upcomingBills7d: 0,
     monthsOfHistory,
     dataFreshnessHours: 0,
@@ -350,6 +389,7 @@ function computeMetrics(input: any, ctx: RenderContext) {
     offTrackGoal:           findOffTrackGoal(input.goals),
     hasEnoughHistory:       input.monthsOfHistory >= 2,
     dataIsStale:            input.dataFreshnessHours > 72,
+    lastMonthTotalSpend:    input.lastMonthTotalSpend || 0,
   };
 }
 
@@ -365,6 +405,7 @@ function findTopCategorySpike(categories: any[]) {
           name: cat.name,
           currentSpend: cat.currentMonthSpend,
           avgSpend: cat.avg3mSpend,
+          lastMonthSpend: cat.lastMonthSpend || 0,
           delta,
           pctIncrease,
         };
@@ -539,6 +580,7 @@ function detectCategorySpike(m: any) {
     categoryName:  s.name,
     currentSpend:  s.currentSpend,
     avgSpend:      s.avgSpend,
+    lastMonthSpend: s.lastMonthSpend || 0,
     delta:         s.delta,
     pctIncrease:   s.pctIncrease,
     subtype:       isOneTime ? 'one_time_driver' : 'recurring',
@@ -551,9 +593,10 @@ function detectCategorySpike(m: any) {
 function detectOverspending(m: any) {
   if (m.currentMonthSpend > m.avg3mSpend * 1.1 && m.spendDelta >= 100) {
     return [{ type: 'overspending', priority: PRIORITY.overspending, data: {
-      currentMonthSpend: m.currentMonthSpend,
-      avg3mSpend:        m.avg3mSpend,
-      delta:             m.spendDelta,
+      currentMonthSpend:   m.currentMonthSpend,
+      avg3mSpend:          m.avg3mSpend,
+      delta:               m.spendDelta,
+      lastMonthTotalSpend: m.lastMonthTotalSpend || 0,
     }}];
   }
   return [];
@@ -596,10 +639,11 @@ function detectGoalOffTrack(m: any) {
 function detectPositiveProgress(m: any) {
   if (m.avg3mSpend - m.currentMonthSpend >= 100) {
     return [{ type: 'positive_progress', priority: PRIORITY.positive_progress, data: {
-      reason:            'underspending',
-      currentMonthSpend: m.currentMonthSpend,
-      avg3mSpend:        m.avg3mSpend,
-      delta:             m.avg3mSpend - m.currentMonthSpend,
+      reason:              'underspending',
+      currentMonthSpend:   m.currentMonthSpend,
+      avg3mSpend:          m.avg3mSpend,
+      delta:               m.avg3mSpend - m.currentMonthSpend,
+      lastMonthTotalSpend: m.lastMonthTotalSpend || 0,
     }}];
   }
   return [];
@@ -737,19 +781,20 @@ function renderInsight(signal: any, ctx: RenderContext, lang: 'en' | 'ru' | 'es'
           range:    null, action: 'reduce_category',
         };
       }
+      const momNote = d.lastMonthSpend ? '\n' + momLine(d.currentSpend, d.lastMonthSpend, lang) : '';
       return ru ? {
         headline: `Сократите ${d.categoryName} на ~$${fmt(d.delta)} для возврата в норму`,
-        body:     `Вы потратили $${fmt(d.currentSpend)} на ${d.categoryName} — на $${fmt(d.delta)} выше обычных $${fmt(d.avgSpend)}/мес.${midMonthNote}\n\n→ Это повторяющийся паттерн. Сокращение сейчас поможет в следующем месяце.`,
+        body:     `Вы потратили $${fmt(d.currentSpend)} на ${d.categoryName} — на $${fmt(d.delta)} выше обычных $${fmt(d.avgSpend)}/мес.${midMonthNote}${momNote}\n\n→ Это повторяющийся паттерн. Сокращение сейчас поможет в следующем месяце.`,
         cta:      'Просмотреть категорию',
         range:    null, action: 'reduce_category',
       } : es ? {
         headline: `Reduce ${d.categoryName} ~$${fmt(d.delta)} para retomar el rumbo`,
-        body:     `Has gastado $${fmt(d.currentSpend)} en ${d.categoryName} — $${fmt(d.delta)} más de tu promedio de $${fmt(d.avgSpend)}/mes.${midMonthNote}\n\n→ Es un patrón recurrente. Reducir ahora te ayuda a estar en camino el próximo mes.`,
+        body:     `Has gastado $${fmt(d.currentSpend)} en ${d.categoryName} — $${fmt(d.delta)} más de tu promedio de $${fmt(d.avgSpend)}/mes.${midMonthNote}${momNote}\n\n→ Es un patrón recurrente. Reducir ahora te ayuda a estar en camino el próximo mes.`,
         cta:      'Revisar categoría',
         range:    null, action: 'reduce_category',
       } : {
         headline: `Cut ${d.categoryName} by ~$${fmt(d.delta)} to get back on track`,
-        body:     `You've spent $${fmt(d.currentSpend)} on ${d.categoryName} — $${fmt(d.delta)} above your usual $${fmt(d.avgSpend)}/month.${midMonthNote}\n\n→ This is a recurring pattern. Reducing now keeps you on track for next month.`,
+        body:     `You've spent $${fmt(d.currentSpend)} on ${d.categoryName} — $${fmt(d.delta)} above your usual $${fmt(d.avgSpend)}/month.${midMonthNote}${momNote}\n\n→ This is a recurring pattern. Reducing now keeps you on track for next month.`,
         cta:      'Review Category',
         range:    null, action: 'reduce_category',
       };
@@ -761,19 +806,20 @@ function renderInsight(signal: any, ctx: RenderContext, lang: 'en' | 'ru' | 'es'
         : es
         ? (ctx.monthPhase === 'early' ? 'Es temprano — aún hay tiempo para corregir el rumbo.' : ctx.monthPhase === 'mid' ? `Quedan ${ctx.daysLeft} días para reducirlo.` : 'Vale la pena revisar qué generó el gasto extra.')
         : (ctx.monthPhase === 'early' ? "It's early — there's still time to course-correct." : ctx.monthPhase === 'mid' ? `${ctx.daysLeft} days left to bring it down.` : 'Worth reviewing what drove the extra spend.');
+      const momNoteOver = d.lastMonthTotalSpend ? '\n' + momLine(d.currentMonthSpend, d.lastMonthTotalSpend, lang) : '';
       return ru ? {
         headline: `Расходы на $${fmt(d.delta)} выше обычного темпа`,
-        body:     `$${fmt(d.currentMonthSpend)} в этом месяце против среднего $${fmt(d.avg3mSpend)}.\n\n→ ${timeNote}`,
+        body:     `$${fmt(d.currentMonthSpend)} в этом месяце против среднего $${fmt(d.avg3mSpend)}.${momNoteOver}\n\n→ ${timeNote}`,
         cta:      'Просмотреть расходы',
         range:    null, action: 'review_spending',
       } : es ? {
         headline: `El gasto está $${fmt(d.delta)} sobre tu ritmo habitual`,
-        body:     `$${fmt(d.currentMonthSpend)} este mes vs tu promedio de $${fmt(d.avg3mSpend)}.\n\n→ ${timeNote}`,
+        body:     `$${fmt(d.currentMonthSpend)} este mes vs tu promedio de $${fmt(d.avg3mSpend)}.${momNoteOver}\n\n→ ${timeNote}`,
         cta:      'Revisar gastos',
         range:    null, action: 'review_spending',
       } : {
         headline: `Spending is $${fmt(d.delta)} above your usual pace`,
-        body:     `$${fmt(d.currentMonthSpend)} this month vs your $${fmt(d.avg3mSpend)} average.\n\n→ ${timeNote}`,
+        body:     `$${fmt(d.currentMonthSpend)} this month vs your $${fmt(d.avg3mSpend)} average.${momNoteOver}\n\n→ ${timeNote}`,
         cta:      'Review Spending',
         range:    null, action: 'review_spending',
       };
@@ -864,19 +910,21 @@ function renderInsight(signal: any, ctx: RenderContext, lang: 'en' | 'ru' | 'es'
       const endNote = ctx.monthPhase === 'late'
         ? (ru ? 'Отличный финиш — рассмотрите перевод излишков в накопления.' : es ? 'Excelente cierre — considera mover el excedente a ahorros.' : 'Strong finish — consider moving the surplus to savings.')
         : (ru ? `Продолжайте в том же духе ещё ${ctx.daysLeft} дней.` : es ? `¡Sigue así los ${ctx.daysLeft} días restantes!` : `Keep it up for the remaining ${ctx.daysLeft} days.`);
+      const momNotePos = (d.lastMonthTotalSpend && d.currentMonthSpend < d.lastMonthTotalSpend)
+        ? '\n' + momLine(d.currentMonthSpend, d.lastMonthTotalSpend, lang) : '';
       return ru ? {
         headline: `Вы укладываетесь в бюджет на $${fmt(approx)}`,
-        body:     `Расходы ниже среднего за 3 месяца.\n\n→ ${endNote}`,
+        body:     `Расходы ниже среднего за 3 месяца.${momNotePos}\n\n→ ${endNote}`,
         cta:      'Посмотреть прогресс',
         range:    null, action: 'view_progress',
       } : es ? {
         headline: `Estás $${fmt(approx)} por debajo del presupuesto`,
-        body:     `El gasto está por debajo de tu promedio de 3 meses.\n\n→ ${endNote}`,
+        body:     `El gasto está por debajo de tu promedio de 3 meses.${momNotePos}\n\n→ ${endNote}`,
         cta:      'Ver progreso',
         range:    null, action: 'view_progress',
       } : {
         headline: `You're $${fmt(approx)} under budget this month`,
-        body:     `Spending is tracking below your 3-month average.\n\n→ ${endNote}`,
+        body:     `Spending is tracking below your 3-month average.${momNotePos}\n\n→ ${endNote}`,
         cta:      'View Progress',
         range:    null, action: 'view_progress',
       };

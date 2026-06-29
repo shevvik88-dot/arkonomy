@@ -41,7 +41,7 @@ const CAT_COLORS = {
 
 // ─── Health Score Gauge ──────────────────────────────────────────────────────
 // ─── Health Score Bar (compact, inline, expandable) ─────────────────────────
-function HealthScoreBar({ score, color, comment, breakdown, hasData = true }) {
+function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prevScore }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const label = getScoreLabel(score);
@@ -136,6 +136,13 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true }) {
         <span style={{ fontSize: 14, fontWeight: 800, color, letterSpacing: -0.3, flexShrink: 0 }}>
           {score}
         </span>
+
+        {/* MoM delta */}
+        {prevScore != null && prevScore !== score && (
+          <span style={{ fontSize: 11, fontWeight: 700, color: score > prevScore ? C.green : C.red, flexShrink: 0 }}>
+            {score > prevScore ? `↑${score - prevScore}` : `↓${prevScore - score}`}
+          </span>
+        )}
 
         {/* Divider */}
         <span style={{ fontSize: 12, color: C.faint, flexShrink: 0 }}>·</span>
@@ -751,6 +758,10 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
     spendingByCategory,
     prevSpendingByCategory,
   });
+  const prevSubscriptionSpend = SUB_CATS.reduce((s, cat) => s + (prevSpendingByCategory[cat] || 0), 0);
+  const { score: prevHealthScore } = (lastIncome > 0 || lastSpent > 0)
+    ? calculateHealthScore({ totalIncome: lastIncome, totalSpent: lastSpent, lastIncome: 0, lastSpent: 0, budget, subscriptionSpend: prevSubscriptionSpend })
+    : { score: null };
 
   const checkInData = {
     spent:       totalSpent,
@@ -877,7 +888,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
 
       {/* 2 ── Financial Health Score */}
       <div data-tutorial="health-score">
-        <HealthScoreBar score={healthScore} color={scoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} />
+        <HealthScoreBar score={healthScore} color={scoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} prevScore={prevHealthScore} />
         <button
           onClick={() => onNavigate("insights")}
           style={{ display: "flex", alignItems: "center", gap: 4, margin: "6px 0 0 2px", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: FONT }}
