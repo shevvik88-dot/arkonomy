@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
-import { getAppCheckToken } from "../lib/appCheck";
 import { C, FONT } from "../utils/colors";
 import GlassCard from "./shared/GlassCard";
 
@@ -149,16 +148,11 @@ export default function AuthScreen({ onAuth }) {
         await supabase.auth.signUp({ email, password, options: { data: { full_name: name }, emailRedirectTo: 'https://app.arkonomy.com' } });
         setMsg(t("auth.success_check_email"));
       } else {
-        const appCheckToken = await getAppCheckToken();
-        if (!appCheckToken) {
-          throw new Error("Security check failed. Please refresh the page and try again.");
-        }
         const res = await fetch(`${SUPABASE_URL}/functions/v1/auth-login`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "apikey": SUPABASE_KEY,
-            "X-Firebase-AppCheck": appCheckToken,
           },
           body: JSON.stringify({ email, password }),
         });
