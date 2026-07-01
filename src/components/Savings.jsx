@@ -631,17 +631,16 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
            </div>
         </div>
 
-        {!isPro ? (
+        {!alpacaConnected ? (
+          <button onClick={onConnectAlpaca} style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.bg}, ${C.bgSecondary})`, border: `1px solid ${C.blue}66`, borderRadius: 14, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+            <Icon name="trending-up" size={18} color={C.cyan} />
+            {t("savings.connect_alpaca")}
+          </button>
+        ) : (!isPro || isTrial) ? (
           <div style={{ background: "#7C6BFF12", border: "1px solid #7C6BFF33", borderRadius: 14, padding: 16, textAlign: "center" }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#A78BFA", marginBottom: 4 }}>{t("savings.pro_only")}</div>
-            <div style={{ fontSize: 12, color: "#94A3B8", marginBottom: 12 }}>{t("savings.spare_change_connect")}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#A78BFA", marginBottom: 12 }}>{t("savings.invest_alpaca_pro")}</div>
             <button onClick={onUpgrade} style={{ background: "#7C6BFF", border: "none", borderRadius: 10, padding: "10px 20px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{t("savings.upgrade_pro")}</button>
           </div>
-        ) : !alpacaConnected ? (
-          <button onClick={onConnectAlpaca} style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.bg}, ${C.bgSecondary})`, border: `1px solid ${C.blue}66`, borderRadius: 14, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-             <Icon name="trending-up" size={18} color={C.cyan} />
-             {t("savings.connect_alpaca")}
-          </button>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <button onClick={() => setShowAlpacaSheet(true)} style={{ width: "100%", padding: 16, background: `linear-gradient(90deg, ${C.green}, ${C.cyan})`, border: "none", borderRadius: 14, color: "#000", fontSize: 15, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 20px ${C.green}33` }}>
