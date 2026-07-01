@@ -1552,8 +1552,8 @@ export default function App() {
             </p>
             <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
               <button onClick={() => setAlpacaDisclosureUrl(null)} style={{
-                flex: 1, padding: "11px 0", borderRadius: 10, border: `1px solid ${C.border}`,
-                background: "transparent", color: C.subtext, fontSize: 14, fontWeight: 600,
+                flex: 1, padding: "11px 0", borderRadius: 10, border: `1px solid ${C.muted}44`,
+                background: "transparent", color: C.muted, fontSize: 14, fontWeight: 600,
                 fontFamily: FONT, cursor: "pointer",
               }}>{t("savings.cancel")}</button>
               <button onClick={() => { window.open(alpacaDisclosureUrl, "_blank", "noopener"); setAlpacaDisclosureUrl(null); }} style={{
