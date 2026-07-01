@@ -42,3 +42,6 @@ verify_jwt = false
 
 [functions.auth-login]
 verify_jwt = false
+
+[functions.alpaca-oauth-callback]
+verify_jwt = false
