@@ -300,6 +300,7 @@
     "after_alpaca": "Después de crear tu cuenta, regresa aquí para invertir",
     "investment_disclaimer": "Cuentas de inversión a través de Alpaca Securities LLC, corredor-agente registrado, miembro de FINRA/SIPC. Arkonomy no es corredor-agente ni proporciona asesoramiento de inversión. Los resultados pasados no garantizan resultados futuros. Las órdenes de mercado se ejecutan a precios vigentes. Tú tomas la decisión final de inversión.",
     "connect_to_invest": "Conectar para invertir",
+    "confirm_connect_alpaca": "Conectar con Alpaca →",
     "authorize_alpaca": "Autorizar Arkonomy",
     "loading": "Cargando…",
     "no_chart_crypto": "Sin datos para este período — prueba 1W o 1M",

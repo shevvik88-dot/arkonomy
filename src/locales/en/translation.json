@@ -300,6 +300,7 @@
     "after_alpaca": "After creating your account, return here to invest",
     "investment_disclaimer": "Investment accounts through Alpaca Securities LLC, a registered broker-dealer, member FINRA/SIPC. Arkonomy is not a broker-dealer and does not provide investment advice. Past performance does not guarantee future results. Market orders execute at prevailing prices. You are making the final investment decision.",
     "connect_to_invest": "Connect to invest",
+    "confirm_connect_alpaca": "Connect to Alpaca →",
     "authorize_alpaca": "Authorize Arkonomy",
     "loading": "Loading...",
     "no_chart_crypto": "No data for this period — try 1W or 1M",

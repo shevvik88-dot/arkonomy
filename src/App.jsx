@@ -371,6 +371,7 @@ export default function App() {
   const [syncingBank, setSyncingBank] = useState(false);
   const [alpacaToast, setAlpacaToast] = useState(null);
   const [alpacaConnected, setAlpacaConnected] = useState(false);
+  const [alpacaDisclosureUrl, setAlpacaDisclosureUrl] = useState(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showTrialExpiredModal, setShowTrialExpiredModal] = useState(false);
   const [proToast, setProToast] = useState(false);
@@ -1189,7 +1190,7 @@ export default function App() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
     const url = alpacaOAuthUrl(session.access_token);
-    window.open(url, "_blank", "noopener");
+    setAlpacaDisclosureUrl(url);
   }
 
   async function investAlpaca(data) {
@@ -1527,6 +1528,40 @@ export default function App() {
             <button onClick={() => setShowTrialExpiredModal(false)} style={{ width: "100%", padding: 12, background: "none", border: "1px solid #1E2D45", borderRadius: 14, color: "#7A8BA8", fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
               Maybe later
             </button>
+          </div>
+        </div>
+      )}
+
+      {alpacaDisclosureUrl && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 10000,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+        }} onClick={() => setAlpacaDisclosureUrl(null)}>
+          <div style={{
+            background: C.card, borderRadius: 18, padding: "28px 24px", maxWidth: 380, width: "100%",
+            display: "flex", flexDirection: "column", gap: 16, fontFamily: FONT,
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: C.text }}>
+              {t("savings.authorize_alpaca")}
+            </div>
+            <p style={{ fontSize: 13, color: C.subtext, lineHeight: 1.6, margin: 0 }}>
+              {t("savings.alpaca_disclaimer1")}
+            </p>
+            <p style={{ fontSize: 13, color: C.subtext, lineHeight: 1.6, margin: 0 }}>
+              {t("savings.alpaca_disclaimer2")}
+            </p>
+            <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+              <button onClick={() => setAlpacaDisclosureUrl(null)} style={{
+                flex: 1, padding: "11px 0", borderRadius: 10, border: `1px solid ${C.border}`,
+                background: "transparent", color: C.subtext, fontSize: 14, fontWeight: 600,
+                fontFamily: FONT, cursor: "pointer",
+              }}>{t("savings.cancel")}</button>
+              <button onClick={() => { window.open(alpacaDisclosureUrl, "_blank", "noopener"); setAlpacaDisclosureUrl(null); }} style={{
+                flex: 2, padding: "11px 0", borderRadius: 10, border: "none",
+                background: C.cyan, color: "#000", fontSize: 14, fontWeight: 700,
+                fontFamily: FONT, cursor: "pointer",
+              }}>{t("savings.confirm_connect_alpaca")}</button>
+            </div>
           </div>
         </div>
       )}
