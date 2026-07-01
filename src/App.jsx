@@ -495,6 +495,7 @@ export default function App() {
         auth_failed:         "Could not verify your session. Please log in again.",
         server_misconfigured: "Investment account is not configured yet. Contact support.",
         network_error:       "Network error — please try again.",
+        db_error:            "Connection succeeded but could not save — please try again.",
       };
       setAlpacaToast({ error: msgs[errCode] ?? "Investment account error. Please try again." });
       setTimeout(() => setAlpacaToast(null), 6000);
