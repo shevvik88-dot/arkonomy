@@ -1,9 +1,8 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { verifyAppCheck } from "../_shared/appCheck.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("APP_URL") ?? "https://app.arkonomy.com",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-firebase-appcheck",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 function json(body: unknown, status = 200) {
@@ -16,11 +15,6 @@ function json(body: unknown, status = 200) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-
-  if (Deno.env.get("ENVIRONMENT") !== "development") {
-    const validAppCheck = await verifyAppCheck(req);
-    if (!validAppCheck) return json({ error: "Invalid App Check token" }, 401);
-  }
 
   try {
     const { email, password } = await req.json();

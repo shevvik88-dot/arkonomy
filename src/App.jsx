@@ -489,13 +489,13 @@ export default function App() {
       const errCode = params.get("alpaca_error");
       window.history.replaceState({}, "", window.location.pathname);
       const msgs = {
-        missing_code:        "Alpaca connection cancelled.",
-        token_exchange_failed: "Alpaca login failed — please try again.",
+        missing_code:        "Investment account connection cancelled.",
+        token_exchange_failed: "Investment account connection failed — please try again.",
         auth_failed:         "Could not verify your session. Please log in again.",
-        server_misconfigured: "Alpaca is not configured yet. Contact support.",
-        network_error:       "Network error connecting to Alpaca.",
+        server_misconfigured: "Investment account is not configured yet. Contact support.",
+        network_error:       "Network error — please try again.",
       };
-      setAlpacaToast({ error: msgs[errCode] ?? `Alpaca error: ${errCode}` });
+      setAlpacaToast({ error: msgs[errCode] ?? "Investment account error. Please try again." });
       setTimeout(() => setAlpacaToast(null), 6000);
     }
   }, []);
@@ -1544,7 +1544,7 @@ export default function App() {
         }}>
           {alpacaToast.addFunds ? (
             <>
-              <span>💰 Your Alpaca account needs funds. Add money first, then come back to invest.</span>
+              <span>💰 Your investment account needs funds. Add money first, then come back to invest.</span>
               <a
                 href="https://app.alpaca.markets/brokerage/funding/deposit"
                 target="_blank"
@@ -1554,11 +1554,11 @@ export default function App() {
                   padding: "6px 16px", fontSize: 13, fontWeight: 700,
                   textDecoration: "none", display: "inline-block",
                 }}
-              >Add funds to Alpaca</a>
+              >Add funds to account</a>
             </>
           ) : alpacaToast.alpacaSuccess ? (
             <>
-              <span>✅ Alpaca connected! You can now invest directly from Arkonomy.</span>
+              <span>✅ Investment account connected! You can now invest directly from Arkonomy.</span>
             </>
           ) : alpacaToast.error ? `❌ ${alpacaToast.error}` : alpacaToast.loading ? `⏳ ${alpacaToast.message}` : `✅ ${alpacaToast.message}`}
         </div>
