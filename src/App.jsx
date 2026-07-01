@@ -322,7 +322,7 @@ function buildContextGreeting(screen, { totalIncome, totalSpent, spendingByCateg
 
 // ─── Main App ─────────────────────────────────────────────────
 export default function App() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [langOpen, setLangOpen] = useState(false);
   const langRef = useRef(null);
   const [user, setUser] = useState(null);
