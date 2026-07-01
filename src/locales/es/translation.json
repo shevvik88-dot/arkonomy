@@ -365,7 +365,7 @@
     "turn_on_roundups": "Activa para seguir el cambio",
     "spare_change_from": "Cambio de tus gastos",
     "invest_alpaca_pro": "Invertir cambio — Solo Pro",
-    "invest_amount": "Invertir ${{amount}}",
+    "invest_amount": "Invertir {{amount}}",
     "connect_to_invest": "Conectar para invertir",
     "small_amounts": "Los montos pequeños son más fáciles de invertir regularmente.",
     "new_goal": "Nueva meta de ahorro",

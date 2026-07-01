@@ -365,7 +365,7 @@
     "turn_on_roundups": "Turn on to track spare change",
     "spare_change_from": "Spare change from your spending",
     "invest_alpaca_pro": "Invest spare change — Pro only",
-    "invest_amount": "Invest ${{amount}}",
+    "invest_amount": "Invest {{amount}}",
     "connect_to_invest": "Connect to invest",
     "small_amounts": "Small amounts like this are easiest to invest regularly.",
     "new_goal": "New Savings Goal",

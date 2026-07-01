@@ -365,7 +365,7 @@
     "turn_on_roundups": "Ative para acompanhar o troco",
     "spare_change_from": "Troco dos seus gastos",
     "invest_alpaca_pro": "Investir troco — Apenas Pro",
-    "invest_amount": "Investir ${{amount}}",
+    "invest_amount": "Investir {{amount}}",
     "connect_to_invest": "Conectar para investir",
     "small_amounts": "Valores pequenos assim são mais fáceis de investir regularmente.",
     "new_goal": "Nova Meta de Poupança",
