@@ -383,7 +383,7 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
 }
 
 // ─── Main Savings Screen ──────────────────────────────────────
-export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelete, totalIncome = 0, totalSpent = 0, transactions, insight, onInsightAction, onInvestAlpaca, isPro, isTrial, onUpgrade, alpacaConnected, onConnectAlpaca, bankConnected, userId, InsightCard }) {
+export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelete, totalIncome = 0, totalSpent = 0, transactions, insight, onInsightAction, onInvestAlpaca, isPro, isTrial, onUpgrade, alpacaConnected, onConnectAlpaca, bankConnected, userId, InsightCard, roundupEnabled = false, onToggleRoundup }) {
   const { t } = useTranslation();
   const [loadError, setLoadError]           = useState(null);
   const [showAdd, setShowAdd]               = useState(false);
@@ -396,7 +396,6 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
   const [plaidAccounts, setPlaidAccounts]   = useState([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [accountsError, setAccountsError]   = useState(null);
-  const [roundupEnabled, setRoundupEnabled] = useState(false);
   const [roundupMultiplier, setRoundupMultiplier] = useState(1);
   const [showAlpacaSheet, setShowAlpacaSheet] = useState(false);
   const [accountLinkMode, setAccountLinkMode] = useState("auto");
@@ -457,9 +456,9 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
       }, 0);
   }, [transactions]);
 
-  const roundupMonth  = roundupEnabled ? parseFloat((roundupBase * roundupMultiplier).toFixed(2)) : 0;
-  const roundupTotal  = roundupEnabled ? parseFloat((roundupBase * roundupMultiplier * 3.2).toFixed(2)) : 0;
-  const roundupYearly = roundupEnabled ? Math.round(roundupBase * roundupMultiplier * 12 / 10) * 10 : 0;
+  const roundupMonth  = parseFloat((roundupBase * roundupMultiplier).toFixed(2));
+  const roundupTotal  = parseFloat((roundupBase * roundupMultiplier * 3.2).toFixed(2));
+  const roundupYearly = Math.round(roundupBase * roundupMultiplier * 12 / 10) * 10;
 
   const inp = { width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, boxSizing: "border-box", marginBottom: 10, fontFamily: FONT };
 
@@ -635,7 +634,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, padding: "0 4px" }}>
            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div onClick={() => setRoundupEnabled(!roundupEnabled)} style={{ width: 42, height: 24, borderRadius: 20, background: roundupEnabled ? C.cyan : C.bgTertiary, position: "relative", cursor: "pointer", transition: "background 0.2s" }}>
+              <div onClick={() => onToggleRoundup?.(!roundupEnabled)} style={{ width: 42, height: 24, borderRadius: 20, background: roundupEnabled ? C.cyan : C.bgTertiary, position: "relative", cursor: "pointer", transition: "background 0.2s" }}>
                 <div style={{ position: "absolute", top: 3, left: roundupEnabled ? 21 : 3, width: 18, height: 18, borderRadius: 99, background: roundupEnabled ? "#fff" : C.faint, transition: "left 0.2s" }} />
               </div>
               <span style={{ fontSize: 14, fontWeight: 600, color: roundupEnabled ? C.text : C.muted }}>{roundupEnabled ? t("savings.roundups_on") : t("savings.roundups_off")}</span>
@@ -662,8 +661,8 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <button onClick={() => roundupMonth > 0 && setShowAlpacaSheet(true)} disabled={roundupMonth === 0}
-              style={{ width: "100%", padding: 16, background: roundupMonth > 0 ? `linear-gradient(90deg, ${C.green}, ${C.cyan})` : C.bgTertiary, border: "none", borderRadius: 14, color: roundupMonth > 0 ? "#000" : C.faint, fontSize: 15, fontWeight: 800, cursor: roundupMonth > 0 ? "pointer" : "not-allowed", boxShadow: roundupMonth > 0 ? `0 4px 20px ${C.green}33` : "none" }}>
+            <button onClick={() => setShowAlpacaSheet(true)}
+              style={{ width: "100%", padding: 16, background: `linear-gradient(90deg, ${C.green}, ${C.cyan})`, border: "none", borderRadius: 14, color: "#000", fontSize: 15, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 20px ${C.green}33` }}>
               {t("savings.invest_amount", { amount: fmtMoney(roundupMonth) })}
             </button>
             <p style={{ fontSize: 11, color: C.faint, textAlign: "center", margin: 0 }}>{t("savings.small_amounts")}</p>

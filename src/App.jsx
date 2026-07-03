@@ -371,6 +371,7 @@ export default function App() {
   const [syncingBank, setSyncingBank] = useState(false);
   const [alpacaToast, setAlpacaToast] = useState(null);
   const [alpacaConnected, setAlpacaConnected] = useState(false);
+  const [roundupEnabled, setRoundupEnabled]   = useState(false);
   const [alpacaDisclosureUrl, setAlpacaDisclosureUrl] = useState(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showTrialExpiredModal, setShowTrialExpiredModal] = useState(false);
@@ -553,6 +554,7 @@ export default function App() {
       if (p.data) {
         setProfile(p.data);
         setAlpacaConnected(!!p.data.alpaca_access_token);
+        setRoundupEnabled(!!p.data.roundup_enabled);
         if (p.data.last_synced_at && !silent) {
           setLastSyncedAt(p.data.last_synced_at);
           try { localStorage.setItem("arkonomy_last_synced", p.data.last_synced_at); } catch {}
@@ -1484,7 +1486,7 @@ export default function App() {
             {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} lastSyncedAt={lastSyncedAt} hideWelcomeBanner={proToast} />}
             {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
-            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} InsightCard={InsightCard} />}
+            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} InsightCard={InsightCard} roundupEnabled={roundupEnabled} onToggleRoundup={v => { setRoundupEnabled(v); saveProfile({ roundup_enabled: v }); }} />}
             {screen === "insights" && <Insights {...shared} onOpenChat={msg => { const budget = Number(profile?.monthly_budget)||3000; const sub = ['Subscriptions','Bills','Utilities','Phone','Internet','Insurance'].reduce((s,c)=>s+(spendingByCategory[c]||0),0); const {score:hs}=calculateHealthScore({totalIncome:effectiveIncome,totalSpent,lastIncome,lastSpent,budget,subscriptionSpend:sub}); const greeting=buildContextGreeting('insights',{totalIncome:effectiveIncome,totalSpent,spendingByCategory,savings,transactions,profile,allInsights,healthScore:hs}); const base=[{role:"assistant",text:greeting}]; setChatMessages(base); setShowChat(true); sendChat(msg,base); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
             {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} onSignOut={signOut} onDeleteAccount={deleteAccount} onBack={() => setScreen("dashboard")} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} getReconnectToken={getReconnectToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} lastSyncedAt={lastSyncedAt} backgroundSyncing={backgroundSyncing} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
           </>
