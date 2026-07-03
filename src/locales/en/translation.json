@@ -306,7 +306,13 @@
     "no_chart_crypto": "No data for this period — try 1W or 1M",
     "no_chart_stock": "No data for this period — intraday (1D) requires Finnhub premium; try 1W, 1M or 1Y",
     "cancel_anytime": "Cancel anytime",
-    "open_high_low_close": "Open / High / Low / Close"
+    "open_high_low_close": "Open / High / Low / Close",
+    "portfolio_title": "My Portfolio",
+    "portfolio_value": "Portfolio Value",
+    "buying_power": "Buying Power",
+    "holdings": "Holdings",
+    "no_holdings": "No positions yet — buy your first shares",
+    "loading_portfolio": "Loading portfolio..."
   },
   "savings": {
     "asset_allocation": "Asset Allocation",

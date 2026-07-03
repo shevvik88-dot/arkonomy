@@ -310,7 +310,13 @@
     "no_chart_crypto": "Нет данных за этот период — попробуйте 1W или 1M",
     "no_chart_stock": "Нет данных за этот период — внутридневные (1D) требуют Finnhub premium; попробуйте 1W, 1M или 1Y",
     "cancel_anytime": "Отмена в любое время",
-    "open_high_low_close": "Открытие / Максимум / Минимум / Закрытие"
+    "open_high_low_close": "Открытие / Максимум / Минимум / Закрытие",
+    "portfolio_title": "Мой портфель",
+    "portfolio_value": "Стоимость портфеля",
+    "buying_power": "Доступные средства",
+    "holdings": "Активы",
+    "no_holdings": "Позиций пока нет — купите первые акции",
+    "loading_portfolio": "Загрузка портфеля..."
   },
   "savings": {
     "asset_allocation": "Распределение активов",

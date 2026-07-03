@@ -306,7 +306,13 @@
     "no_chart_crypto": "Sem dados para este período — tente 1S ou 1M",
     "no_chart_stock": "Sem dados para este período — intraday (1D) requer Finnhub premium; tente 1S, 1M ou 1A",
     "cancel_anytime": "Cancele quando quiser",
-    "open_high_low_close": "Abertura / Máxima / Mínima / Fechamento"
+    "open_high_low_close": "Abertura / Máxima / Mínima / Fechamento",
+    "portfolio_title": "Meu Portfólio",
+    "portfolio_value": "Valor do Portfólio",
+    "buying_power": "Poder de Compra",
+    "holdings": "Posições",
+    "no_holdings": "Sem posições ainda — compre suas primeiras ações",
+    "loading_portfolio": "Carregando portfólio..."
   },
   "savings": {
     "asset_allocation": "Alocação de Ativos",

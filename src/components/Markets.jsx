@@ -617,26 +617,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
       {/* ── BUY TAB ──────────────────────────────────────────── */}
       {tab === "buy" && (
         <>
-          {(!isPro || isTrial) ? (
-            <GlassCard style={{ marginBottom: 12, textAlign: "center", padding: "36px 20px" }}>
-              <div style={{ width: 52, height: 52, borderRadius: 16, background: C.purple + "18", border: `1px solid ${C.purple}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-                <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={C.purple} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                </svg>
-              </div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 6 }}>{t("markets.pro_only_title")}</div>
-              <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 20 }}>
-                {t("markets.pro_only_body")}
-              </div>
-              <button
-                onClick={onUpgrade}
-                style={{ width: "100%", padding: "14px 0", background: `linear-gradient(135deg,#7C6BFF,#38B6FF)`, border: "none", borderRadius: 12, color: "#000", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, marginBottom: 10 }}
-              >
-                {t("markets.upgrade_pro")}
-              </button>
-              <div style={{ fontSize: 11, color: C.faint }}>{t("markets.cancel_anytime")}</div>
-            </GlassCard>
-          ) : !alpacaConnected ? (
+          {!alpacaConnected ? (
             <GlassCard style={{ marginBottom: 12, textAlign: "center", padding: "28px 20px" }}>
               <div style={{ width: 52, height: 52, borderRadius: 16, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
                 <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -698,9 +679,13 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
               </button>
             ))}
 
-            <button onClick={handleBuy} disabled={buying || !buyAmt || Number(buyAmt) < 1}
-              style={{ width: "100%", padding: 15, background: buying ? C.bgTertiary : `linear-gradient(90deg,${meta.color},${meta.color}BB)`, border: "none", borderRadius: 13, color: buying ? C.faint : "#fff", fontWeight: 700, fontSize: 15, cursor: buying ? "not-allowed" : "pointer", fontFamily: FONT }}>
-              {buying ? t("markets.placing_order") : t("markets.buy_btn", { amount: buyAmt || "—", symbol })}
+            <button
+              onClick={(!isPro || isTrial) ? onUpgrade : handleBuy}
+              disabled={buying}
+              style={{ width: "100%", padding: 15, border: "none", borderRadius: 13, fontWeight: 700, fontSize: 15, fontFamily: FONT, cursor: buying ? "not-allowed" : "pointer",
+                background: buying ? C.bgTertiary : (!isPro || isTrial) ? "linear-gradient(135deg,#7C6BFF,#38B6FF)" : `linear-gradient(90deg,${meta.color},${meta.color}BB)`,
+                color: buying ? C.faint : "#fff" }}>
+              {buying ? t("markets.placing_order") : (!isPro || isTrial) ? t("markets.upgrade_pro") : t("markets.buy_btn", { amount: buyAmt || "—", symbol })}
             </button>
 
             {buyResult && (
@@ -772,10 +757,22 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
   const [loadingExtra, setLoadingExtra] = useState(true);
   const [activeSector, setActiveSector] = useState(null);
   const [loadingSectorStocks, setLoadingSectorStocks] = useState(false);
+  const [portfolio, setPortfolio]               = useState(null);
+  const [loadingPortfolio, setLoadingPortfolio] = useState(false);
 
   useEffect(() => {
     if (initialSymbol) { setSelectedSymbol(initialSymbol); onClearInit?.(); }
   }, [initialSymbol]);
+
+  useEffect(() => {
+    if (!alpacaConnected) return;
+    setLoadingPortfolio(true);
+    supabase.functions.invoke("alpaca-portfolio")
+      .then(({ data, error }) => {
+        if (!error && data && !data.error) setPortfolio(data);
+        setLoadingPortfolio(false);
+      });
+  }, [alpacaConnected]);
 
   useEffect(() => {
     const syms = [...new Set([...TRENDING.map(t => t.symbol), ...SECTORS.map(s => s.etf)])];
@@ -1022,6 +1019,66 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
           </div>
         )}
       </GlassCard>
+
+      {/* ── PORTFOLIO / CONNECT ────────────────────────────── */}
+      {alpacaConnected ? (
+        <GlassCard>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12 }}>{t("markets.portfolio_title")}</div>
+          {loadingPortfolio ? (
+            <div style={{ color: C.faint, fontSize: 13, textAlign: "center", padding: "12px 0" }}>{t("markets.loading_portfolio")}</div>
+          ) : portfolio ? (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                <div style={{ background: C.bgSecondary, borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 10, color: C.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.portfolio_value")}</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: C.text }}>${portfolio.portfolio_value.toFixed(2)}</div>
+                </div>
+                <div style={{ background: C.bgSecondary, borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 10, color: C.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.buying_power")}</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: C.cyan }}>${portfolio.buying_power.toFixed(2)}</div>
+                </div>
+              </div>
+              {portfolio.positions.length > 0 ? (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.faint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>{t("markets.holdings")}</div>
+                  {portfolio.positions.map((p, i) => {
+                    const pl  = p.unrealized_pl;
+                    const pos = pl >= 0;
+                    const meta = MARKET_META[p.symbol] ?? {};
+                    return (
+                      <div key={p.symbol} onClick={() => setSelectedSymbol(p.symbol)}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${C.sep}` : "none", cursor: "pointer" }}>
+                        <StockLogo symbol={p.symbol} color={meta.color ?? C.cyan} icon={meta.icon ?? "activity"} size={32} borderRadius={9} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{p.symbol}</div>
+                          <div style={{ fontSize: 11, color: C.faint }}>{p.qty.toFixed(4)} shares</div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>${p.market_value.toFixed(2)}</div>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: pos ? C.green : C.red }}>{pos ? "+" : ""}{pl.toFixed(2)}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              ) : (
+                <div style={{ fontSize: 13, color: C.faint, textAlign: "center", padding: "8px 0" }}>{t("markets.no_holdings")}</div>
+              )}
+            </>
+          ) : null}
+        </GlassCard>
+      ) : (
+        <GlassCard style={{ textAlign: "center", padding: "24px 20px" }}>
+          <div style={{ width: 44, height: 44, borderRadius: 14, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+            <Icon name="trending-up" size={18} color={C.cyan} />
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>{t("markets.connect_alpaca_title")}</div>
+          <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>{t("markets.connect_alpaca_body")}</div>
+          <button onClick={onConnectAlpaca} style={{ width: "100%", padding: "12px 0", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#000", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
+            {t("markets.connect_alpaca_btn")}
+          </button>
+        </GlassCard>
+      )}
 
       {/* ── EXPLORE ────────────────────────────────────────── */}
       <GlassCard>
