@@ -418,7 +418,7 @@
     "roundup_explainer_how": "Every purchase gets rounded up to the next whole dollar, and the difference is added to your Spare Change balance — automatically, based on your real transactions.",
     "roundup_explainer_example": "Example: Coffee for $4.35 → rounded up to $5.00 → $0.65 added to Spare Change.",
     "roundup_explainer_invest": "When you're ready, tap Invest to put it to work. Trades go through your own connected Alpaca account — Arkonomy never uses its own funds or credentials to invest for you. Our AI may suggest where your spare change could go, but the decision, and the money, are always yours.",
-    "roundup_explainer_toggle": "Turning tracking off just hides the running total — your spare change keeps adding up in the background either way.",
+    "roundup_explainer_toggle": "Round-up tracking stays on in the background either way — the toggle is just a display preference and doesn't affect your spare change total.",
     "tracking_manually": "Tracking manually",
     "create_goal": "Create {{name}}",
     "target_label": "Target: ${{amount}}",

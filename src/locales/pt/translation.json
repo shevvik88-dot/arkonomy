@@ -418,7 +418,7 @@
     "roundup_explainer_how": "Cada compra é arredondada para o próximo dólar inteiro, e a diferença é adicionada automaticamente ao seu saldo de Spare Change — com base nas suas transações reais.",
     "roundup_explainer_example": "Exemplo: Café por $4,35 → arredondado para $5,00 → $0,65 adicionado ao Spare Change.",
     "roundup_explainer_invest": "Quando estiver pronto, toque em Investir. As negociações passam pela sua própria conta Alpaca conectada — o Arkonomy nunca usa seus próprios fundos ou credenciais para investir por você. Nossa IA pode sugerir onde seu troco pode ir, mas a decisão, e o dinheiro, são sempre seus.",
-    "roundup_explainer_toggle": "Desativar o rastreamento apenas oculta o contador — seu troco continua acumulando em segundo plano de qualquer jeito.",
+    "roundup_explainer_toggle": "O rastreamento de arredondamentos continua em segundo plano de qualquer forma — o botão é apenas uma preferência de exibição e não afeta o total do seu troco.",
     "tracking_manually": "Acompanhando manualmente",
     "create_goal": "Criar {{name}}",
     "target_label": "Meta: ${{amount}}",
