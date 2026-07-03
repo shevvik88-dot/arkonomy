@@ -419,6 +419,7 @@
     "roundup_explainer_example": "Ejemplo: Café por $4.35 → redondeado a $5.00 → $0.65 añadido a Spare Change.",
     "roundup_explainer_invest": "Cuando estés listo, pulsa Invertir. Las operaciones pasan por tu propia cuenta de Alpaca conectada — Arkonomy nunca usa sus propios fondos o credenciales para invertir por ti. Nuestra IA puede sugerir destinos para tu cambio, pero la decisión, y el dinero, siempre son tuyos.",
     "roundup_explainer_toggle": "El seguimiento de redondeos continúa en segundo plano de todas formas — el interruptor es solo una preferencia de visualización y no afecta el total de tu cambio.",
+    "tracking_off_invest": "Activa el seguimiento para invertir tu cambio.",
     "tracking_manually": "Seguimiento manual",
     "create_goal": "Crear {{name}}",
     "target_label": "Meta: ${{amount}}",

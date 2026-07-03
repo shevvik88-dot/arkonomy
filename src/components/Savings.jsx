@@ -642,12 +642,12 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
         <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
           <div style={{ flex: 1, background: C.bg, border: `1px solid ${C.sep}`, borderRadius: 14, padding: "14px 16px" }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: 0.8, marginBottom: 6 }}>{t("savings.this_month")}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: C.text }}>{fmtMoney(roundupMonth)}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: roundupEnabled ? C.text : C.faint }}>{roundupEnabled ? fmtMoney(roundupMonth) : "—"}</div>
             <div style={{ fontSize: 10, color: C.faint, marginTop: 4 }}>{t("savings.based_on_purchases")}</div>
           </div>
           <div style={{ flex: 1, background: C.bg, border: `1px solid ${C.sep}`, borderRadius: 14, padding: "14px 16px" }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: 0.8, marginBottom: 6 }}>{t("savings.all_time")}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: C.green }}>{fmtMoney(roundupTotal)}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: roundupEnabled ? C.green : C.faint }}>{roundupEnabled ? fmtMoney(roundupTotal) : "—"}</div>
             <div style={{ fontSize: 10, color: C.faint, marginTop: 4 }}>+12.4% avg yield</div>
           </div>
         </div>
@@ -675,7 +675,11 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
           >{t("savings.roundup_learn_more")} →</button>
         </div>
 
-        {!alpacaConnected ? (
+        {!roundupEnabled ? (
+          <div style={{ padding: "12px 0", textAlign: "center", fontSize: 13, color: C.faint }}>
+            {t("savings.tracking_off_invest")}
+          </div>
+        ) : !alpacaConnected ? (
           <button onClick={onConnectAlpaca} style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.bg}, ${C.bgSecondary})`, border: `1px solid ${C.blue}66`, borderRadius: 14, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
             <Icon name="trending-up" size={18} color={C.cyan} />
             {t("savings.connect_alpaca")}
