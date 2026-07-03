@@ -397,7 +397,9 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [accountsError, setAccountsError]   = useState(null);
   const [roundupMultiplier, setRoundupMultiplier] = useState(1);
-  const [showAlpacaSheet, setShowAlpacaSheet] = useState(false);
+  const [showAlpacaSheet, setShowAlpacaSheet]     = useState(false);
+  const [showRoundupTooltip, setShowRoundupTooltip] = useState(false);
+  const [showRoundupModal, setShowRoundupModal]     = useState(false);
   const [accountLinkMode, setAccountLinkMode] = useState("auto");
 
   async function fetchPlaidAccounts() {
@@ -610,9 +612,27 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
       {/* Spare Change Card */}
       <GlassCard style={{ padding: 20, background: `linear-gradient(135deg, ${C.bgSecondary}, ${C.bg})` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-          <div>
-            <h3 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 800 }}>{t("savings.spare_change_title")}</h3>
+          <div style={{ position: "relative" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{t("savings.spare_change_title")}</h3>
+              <button
+                onClick={() => setShowRoundupTooltip(v => !v)}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: C.cyan, fontSize: 16, lineHeight: 1, display: "flex", alignItems: "center", fontFamily: FONT }}
+              >ⓘ</button>
+            </div>
             <div style={{ fontSize: 13, color: C.muted }}>{t("savings.spare_change_from")}</div>
+            {showRoundupTooltip && (
+              <>
+                <div onClick={() => setShowRoundupTooltip(false)} style={{ position: "fixed", inset: 0, zIndex: 999 }} />
+                <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, zIndex: 1000, background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", width: 240, boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
+                  <div style={{ fontSize: 12, color: C.text, lineHeight: 1.65, marginBottom: 10 }}>{t("savings.roundup_tooltip")}</div>
+                  <button
+                    onClick={() => { setShowRoundupTooltip(false); setShowRoundupModal(true); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: C.cyan, fontSize: 12, fontWeight: 700, padding: 0, fontFamily: FONT }}
+                  >{t("savings.roundup_learn_more")} →</button>
+                </div>
+              </>
+            )}
           </div>
           <div style={{ width: 44, height: 44, borderRadius: 14, background: C.green + "18", border: `1px solid ${C.green}33`, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name="trending-up" size={20} color={C.green} />
@@ -632,21 +652,27 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
           </div>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, padding: "0 4px" }}>
-           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ marginBottom: 18, padding: "0 4px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div onClick={() => onToggleRoundup?.(!roundupEnabled)} style={{ width: 42, height: 24, borderRadius: 20, background: roundupEnabled ? C.cyan : C.bgTertiary, position: "relative", cursor: "pointer", transition: "background 0.2s" }}>
                 <div style={{ position: "absolute", top: 3, left: roundupEnabled ? 21 : 3, width: 18, height: 18, borderRadius: 99, background: roundupEnabled ? "#fff" : C.faint, transition: "left 0.2s" }} />
               </div>
               <span style={{ fontSize: 14, fontWeight: 600, color: roundupEnabled ? C.text : C.muted }}>{roundupEnabled ? t("savings.roundups_on") : t("savings.roundups_off")}</span>
-           </div>
-           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 12, color: C.muted }}>{t("savings.multiplier")}</span>
               <select value={roundupMultiplier} onChange={e => setRoundupMultiplier(Number(e.target.value))} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.cyan, fontSize: 13, fontWeight: 700, padding: "4px 8px" }}>
                 <option value="1">1x</option>
                 <option value="2">2x</option>
                 <option value="5">5x</option>
               </select>
-           </div>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowRoundupModal(true)}
+            style={{ background: "none", border: "none", cursor: "pointer", color: C.cyan, fontSize: 12, fontWeight: 600, padding: 0, fontFamily: FONT }}
+          >{t("savings.roundup_learn_more")} →</button>
         </div>
 
         {!alpacaConnected ? (
@@ -769,6 +795,25 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
       )}
 
       {/* Alpaca Confirmation Sheet */}
+      {/* Round-up Explainer Modal */}
+      {showRoundupModal && (
+        <div onClick={() => setShowRoundupModal(false)} style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(7,12,24,0.88)", display: "flex", alignItems: "flex-end", justifyContent: "center", backdropFilter: "blur(6px)" }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.bgSecondary, borderRadius: "24px 24px 0 0", border: `1px solid ${C.border}`, borderBottom: "none", padding: "28px 20px 36px", fontFamily: FONT, color: C.text, boxShadow: "0 -8px 48px rgba(0,0,0,0.6)", maxHeight: "80vh", overflowY: "auto" }}>
+            <div style={{ width: 36, height: 4, borderRadius: 99, background: C.border, margin: "0 auto 24px" }} />
+            <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>{t("savings.roundup_explainer_intro")}</div>
+            <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.7, margin: "0 0 14px" }}>{t("savings.roundup_explainer_how")}</p>
+            <div style={{ background: C.bg, border: `1px solid ${C.cyan}33`, borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
+              <div style={{ fontSize: 13, color: C.cyan, fontWeight: 600 }}>{t("savings.roundup_explainer_example")}</div>
+            </div>
+            <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.7, margin: "0 0 14px" }}>{t("savings.roundup_explainer_invest")}</p>
+            <p style={{ fontSize: 13, color: C.faint, lineHeight: 1.7, margin: "0 0 24px" }}>{t("savings.roundup_explainer_toggle")}</p>
+            <button onClick={() => setShowRoundupModal(false)} style={{ width: "100%", padding: 14, background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+              {t("savings.got_it")}
+            </button>
+          </div>
+        </div>
+      )}
+
       {showAlpacaSheet && (
         <div onClick={() => setShowAlpacaSheet(false)} style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(7,12,24,0.88)", display: "flex", alignItems: "flex-end", justifyContent: "center", backdropFilter: "blur(6px)" }}>
           <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.bgSecondary, borderRadius: "24px 24px 0 0", border: `1px solid ${C.border}`, borderBottom: "none", padding: "28px 20px 36px", fontFamily: FONT, color: C.text, boxShadow: "0 -8px 48px rgba(0,0,0,0.6)" }}>
