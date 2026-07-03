@@ -5,6 +5,7 @@ import { C, FONT } from "../utils/colors";
 import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
 import { fmtMoney } from "./Transactions";
+import { parseDate } from "../utils/helpers";
 import { logger } from "../utils/logger";
 import { getCachedAccounts, setCachedAccounts } from "../utils/accountsCache";
 
@@ -437,10 +438,28 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
 
   const savingsAccounts = plaidAccounts.filter(a => a.subtype === "savings" || a.type === "savings");
 
-  const BASE_MONTHLY = totalSpent > 0 ? Math.floor(totalSpent * 0.03 * 100) / 100 : 26;
-  const roundupMonth = parseFloat((BASE_MONTHLY * roundupMultiplier).toFixed(2));
-  const roundupTotal = parseFloat((roundupMonth * 3.2).toFixed(2));
-  const roundupYearly = Math.round(roundupMonth * 12 / 10) * 10;
+  // Sum actual spare change (cents to next dollar) across this month's expense transactions
+  const roundupBase = useMemo(() => {
+    if (!transactions?.length) return 0;
+    const now = new Date();
+    return transactions
+      .filter(t => {
+        if (t.type !== "expense") return false;
+        const cat = t.category_name ?? "";
+        if (cat === "Transfer" || cat === "Transfers") return false;
+        const d = parseDate(t.date);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      })
+      .reduce((sum, t) => {
+        const amt = Math.abs(Number(t.amount));
+        const spare = parseFloat((Math.ceil(amt) - amt).toFixed(2));
+        return sum + spare;
+      }, 0);
+  }, [transactions]);
+
+  const roundupMonth  = roundupEnabled ? parseFloat((roundupBase * roundupMultiplier).toFixed(2)) : 0;
+  const roundupTotal  = roundupEnabled ? parseFloat((roundupBase * roundupMultiplier * 3.2).toFixed(2)) : 0;
+  const roundupYearly = roundupEnabled ? Math.round(roundupBase * roundupMultiplier * 12 / 10) * 10 : 0;
 
   const inp = { width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, boxSizing: "border-box", marginBottom: 10, fontFamily: FONT };
 
@@ -643,7 +662,8 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <button onClick={() => setShowAlpacaSheet(true)} style={{ width: "100%", padding: 16, background: `linear-gradient(90deg, ${C.green}, ${C.cyan})`, border: "none", borderRadius: 14, color: "#000", fontSize: 15, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 20px ${C.green}33` }}>
+            <button onClick={() => roundupMonth > 0 && setShowAlpacaSheet(true)} disabled={roundupMonth === 0}
+              style={{ width: "100%", padding: 16, background: roundupMonth > 0 ? `linear-gradient(90deg, ${C.green}, ${C.cyan})` : C.bgTertiary, border: "none", borderRadius: 14, color: roundupMonth > 0 ? "#000" : C.faint, fontSize: 15, fontWeight: 800, cursor: roundupMonth > 0 ? "pointer" : "not-allowed", boxShadow: roundupMonth > 0 ? `0 4px 20px ${C.green}33` : "none" }}>
               {t("savings.invest_amount", { amount: fmtMoney(roundupMonth) })}
             </button>
             <p style={{ fontSize: 11, color: C.faint, textAlign: "center", margin: 0 }}>{t("savings.small_amounts")}</p>
