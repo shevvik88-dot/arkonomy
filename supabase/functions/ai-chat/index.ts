@@ -1,7 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
-import { verifyAppCheck } from "../_shared/appCheck.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
@@ -38,16 +37,6 @@ Deno.serve(async (req) => {
 
     const rateLimitResponse = await enforceRateLimit(user.id, "ai-chat");
     if (rateLimitResponse) return rateLimitResponse;
-
-    if (Deno.env.get('ENVIRONMENT') !== 'development') {
-      const validAppCheck = await verifyAppCheck(req);
-      if (!validAppCheck) {
-        return new Response(JSON.stringify({ error: "Invalid App Check token" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    }
 
     const { messages, financialContext } = await req.json();
 

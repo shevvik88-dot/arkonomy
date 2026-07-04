@@ -11,7 +11,6 @@
 // everything from Plaid with updated category mapping.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { verifyAppCheck } from '../_shared/appCheck.ts';
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 
@@ -415,11 +414,6 @@ Deno.serve(async (req) => {
     }
 
     // ── Normal per-user sync ──────────────────────────────────────────────────
-    if (Deno.env.get('ENVIRONMENT') !== 'development') {
-      const validAppCheck = await verifyAppCheck(req);
-      if (!validAppCheck) return json({ error: 'Invalid App Check token' }, 401, corsHeaders);
-    }
-
     const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
     if (authErr || !user) return json({ error: 'Unauthorized' }, 401, corsHeaders);
 
