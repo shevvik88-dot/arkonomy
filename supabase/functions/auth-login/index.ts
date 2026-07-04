@@ -1,5 +1,4 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { verifyAppCheck } from "../_shared/appCheck.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("APP_URL") ?? "https://app.arkonomy.com",
@@ -16,13 +15,6 @@ function json(body: unknown, status = 200) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-
-  const ENVIRONMENT = Deno.env.get("ENVIRONMENT") ?? "production";
-  if (ENVIRONMENT !== "development") {
-    if (!await verifyAppCheck(req)) {
-      return json({ error: "Unauthorized" }, 401);
-    }
-  }
 
   try {
     const { email, password } = await req.json();
