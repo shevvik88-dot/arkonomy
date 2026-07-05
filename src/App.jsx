@@ -1225,6 +1225,8 @@ export default function App() {
           setAlpacaToast(null);
           connectAlpaca();
           return;
+        } else if (errMsg === 'brokerage_account_error') {
+          setAlpacaToast({ error: t("savings.brokerage_account_error") });
         } else if (errMsg.includes('Insufficient buying power') || errMsg.includes('not configured') || errMsg.includes('ALPACA_API_KEY')) {
           setAlpacaToast({ addFunds: true });
         } else {
@@ -1699,11 +1701,12 @@ export default function App() {
 
       {/* ── AI Idle Bubble ─────────────────────────────────────── */}
       {idleBubble && !showChat && (
+        <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, zIndex: 56, pointerEvents: 'none' }}>
         <div
           onClick={() => { setIdleBubble(null); clearTimeout(idleDismissRef.current); openChatWithContext(); }}
           style={{
-            position: 'fixed', bottom: 158, right: 12, zIndex: 56,
-            maxWidth: 220, cursor: 'pointer',
+            position: 'absolute', bottom: 158, right: 12,
+            maxWidth: 220, cursor: 'pointer', pointerEvents: 'auto',
             animation: 'idle-bubble-in 0.3s cubic-bezier(.22,1,.36,1)',
           }}
         >
@@ -1728,6 +1731,7 @@ export default function App() {
           <div style={{ position: 'absolute', bottom: -7, right: 26, width: 14, height: 8, overflow: 'hidden' }}>
             <div style={{ width: 14, height: 14, background: 'rgba(18,30,60,0.97)', border: '1px solid rgba(99,102,241,0.4)', transform: 'rotate(45deg)', transformOrigin: 'center', marginTop: -7, marginLeft: 0 }} />
           </div>
+        </div>
         </div>
       )}
 
