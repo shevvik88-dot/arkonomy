@@ -83,6 +83,12 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 2. **Notification preferences UI** — Settings screen section: frequency selector + email digest content toggles; table `notification_preferences` already exists in Supabase
 3. **E2E testing** — Playwright tests for critical flows (auth, bank connection, transaction add)
 
+## Known issues / tech debt
+- **`detectRecurringCharges` misses genuinely one-time bills** — requires ≥2 confirmed occurrences of a merchant with a consistent interval, so a first-time or irregular bill won't appear in `upcomingBills7d` and won't trigger `cash_risk`. Same detector/limitation in both `get-insights` (server) and `Dashboard.jsx` Cash Flow Forecast (client), so at least they agree with each other.
+- **`weekly-report/index.ts` duplicates the savings-points formula** from `healthScore.js` by hand (Deno can't import from `src/`) — numbers currently match, but a future change to `healthScore.js`'s formula won't propagate to the email report automatically.
+- **Health Score has no balance floor** — `calculateHealthScore()` (healthScore.js) only looks at income/spend trend across 4 components, never at actual cash position. Low-balance warning is a bolted-on `cashPositionLow` caption (Insights.jsx, Dashboard.jsx) next to the score, not a factor in the score/color/label itself.
+- **`plaid_accounts` balance aggregation mixes `available`/`current` semantics** — `available` is often null for savings accounts at some banks and doesn't include pending the same way `current` does. Summing `available ?? current` per-row across multiple accounts of one user can blend the two semantics into one total. Fine for a single checking account; revisit before real multi-account/multi-bank aggregation.
+
 ## Self-improvement protocol
 - После любой моей коррекции предложи лаконичное правило и допиши его в подходящую секцию этого файла.
 - Формат правила: одно императивное предложение, без обоснования и без примеров, если случай не двусмысленный.

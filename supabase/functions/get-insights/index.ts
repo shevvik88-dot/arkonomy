@@ -2,6 +2,8 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { enforceRateLimit } from '../_shared/rateLimit.ts';
+import { BUFFER, SAVE_CAP_SMALL, SAVE_CAP_MEDIUM, SAVE_CAP_LARGE, REC_MIN, REC_MAX } from '../_shared/financialConstants.ts';
+import { detectRecurringCharges } from '../_shared/recurringDetector.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
@@ -58,16 +60,10 @@ Deno.serve(async (req) => {
 // ══════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
 // ══════════════════════════════════════════════════════════════════════════════
+// BUFFER, SAVE_CAP_*, REC_MIN/MAX imported from _shared/financialConstants.ts —
+// keep in sync with src/shared/financialConstants.js.
 
-const BUFFER = 1_000;
-
-const SAVE_CAP_SMALL  = 200;
-const SAVE_CAP_MEDIUM = 500;
-const SAVE_CAP_LARGE  = 1_000;
-const ROUND_TO        = 50;
-
-const REC_MIN = 200;
-const REC_MAX = 400;
+const ROUND_TO = 50;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // HELPERS
@@ -96,17 +92,6 @@ function computeRecommendedAmount(availableSafe: number, multiplier = 0.6): numb
   return clamp(raw, REC_MIN, REC_MAX);
 }
 
-function computeSuggestedSave(
-  availableSafe: number,
-  monthlyIncome: number,
-  phase: 'early' | 'mid' | 'late'
-): number {
-  if (availableSafe <= 0) return 0;
-  const cap = savingsCap(monthlyIncome);
-  const phaseMultiplier = phase === 'early' ? 0.15 : phase === 'mid' ? 0.60 : 1.0;
-  const raw = clamp(availableSafe, 0, cap * phaseMultiplier);
-  return roundTo50(raw);
-}
 
 function fmt(n: number): string {
   return Number(n || 0).toLocaleString('en-US', {
@@ -235,15 +220,42 @@ async function buildFinancialInput(supabase: any, userId: string) {
   const monthsOfHistory  = historicalMonths.size;
   const avg3mSpend       = monthsOfHistory > 0 ? historicalExpenses / monthsOfHistory : 0;
 
-  const availableSafe = Math.max(0, effectiveMonthlyIncome - currentMonthSpend - BUFFER);
-
   const allIncome = [...historical, ...current]
     .filter((t: any) => t.type === 'income')
     .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
   const allExpenses = [...historical, ...current]
     .filter((t: any) => t.type === 'expense')
     .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
-  const currentBalance = allIncome - allExpenses;
+
+  // ── Real balance ──────────────────────────────────────────────────────────
+  // Sum balance_available (fallback balance_current) across all depository
+  // (checking+savings) accounts of all Plaid Items for this user — excludes
+  // credit (that's debt, not cash).
+  //
+  // KNOWN LIMITATION (multi-account): available and current have different
+  // semantics (available is often null for savings accounts at some banks;
+  // current includes pending differently than available). Summing
+  // available??current across MULTIPLE accounts can mix the two semantics
+  // into one total. Not an issue for a single checking account; revisit when
+  // real multi-account aggregation matters (e.g. sum available and current
+  // separately and pick a method, rather than mixing per-row).
+  const { data: accounts } = await supabase
+    .from('plaid_accounts')
+    .select('balance_available, balance_current, type')
+    .eq('user_id', userId)
+    .eq('type', 'depository');
+
+  const hasRealBalance = accounts && accounts.length > 0;
+  const realBalance = hasRealBalance
+    ? accounts.reduce((sum: number, a: any) => sum + Number(a.balance_available ?? a.balance_current ?? 0), 0)
+    : null;
+
+  // Fallback: derived (only for users who haven't had a sync yet since the
+  // plaid_accounts migration — table empty for them).
+  const currentBalance = realBalance ?? (allIncome - allExpenses);
+
+  const incomeBasedSafe = effectiveMonthlyIncome - currentMonthSpend - BUFFER;
+  const availableSafe   = Math.max(0, Math.min(incomeBasedSafe, currentBalance - BUFFER));
 
   // ── Categories ────────────────────────────────────────────────────────────
   const categoryMap: Record<string, number> = {};
@@ -289,6 +301,11 @@ async function buildFinancialInput(supabase: any, userId: string) {
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const daysLeft    = daysInMonth - dayOfMonth;
 
+  // Real upcoming bills due in the next 7 days — same recurring-charge
+  // detector Dashboard.jsx Cash Flow Forecast already uses, so both agree.
+  const upcomingBills7d = detectRecurringCharges([...historical, ...current], { maxDays: 7 })
+    .reduce((sum: number, c: any) => sum + Number(c.amount), 0);
+
   return {
     currentBalance,
     currentMonthSpend,
@@ -296,7 +313,7 @@ async function buildFinancialInput(supabase: any, userId: string) {
     availableSafe,
     avg3mSpend,
     lastMonthTotalSpend,
-    upcomingBills7d: 0,
+    upcomingBills7d,
     monthsOfHistory,
     dataFreshnessHours: 0,
     categories,
@@ -346,19 +363,10 @@ function buildRenderContext(input: any): RenderContext {
 function computeMetrics(input: any, ctx: RenderContext) {
   const spendDelta = input.currentMonthSpend - input.avg3mSpend;
 
-  const suggestedSave = computeSuggestedSave(
-    input.availableSafe,
-    input.effectiveMonthlyIncome,
-    ctx.monthPhase
-  );
-
-  const keepAfterSave = Math.max(
-    0,
-    input.effectiveMonthlyIncome - input.currentMonthSpend - suggestedSave
-  );
-
-  const saveRangeLow  = roundTo50(Math.max(0, suggestedSave * 0.65));
-  const saveRangeHigh = roundTo50(Math.min(input.availableSafe, suggestedSave * 1.15));
+  const recommended   = computeRecommendedAmount(input.availableSafe);
+  const keepAfterSave = Math.max(0, input.effectiveMonthlyIncome - input.currentMonthSpend - recommended);
+  const saveRangeLow  = roundTo50(Math.max(0, recommended * 0.75));
+  const saveRangeHigh = recommended;
 
   return {
     currentBalance:         input.currentBalance,
@@ -368,7 +376,7 @@ function computeMetrics(input: any, ctx: RenderContext) {
     spendDelta,
     upcomingBills7d:        input.upcomingBills7d,
     availableSafe:          input.availableSafe,
-    suggestedSave,
+    suggestedSave:          recommended,
     keepAfterSave,
     saveRangeLow,
     saveRangeHigh,

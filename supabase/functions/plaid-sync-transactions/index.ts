@@ -198,7 +198,58 @@ function plaidTxToRow(tx: PlaidTransaction, userId: string) {
     type:                 isIncome ? 'income' : 'expense',
     description,
     category_name:        isIncome ? 'Income' : catName,
+    pending:              tx.pending,
   };
+}
+
+// ── Fetch and persist real account balances ──────────────────────────────────
+// Uses the same /accounts/get call plaid-get-accounts already relies on
+// (avoids 400 INVALID_PRODUCT errors that /accounts/balance/get can trigger).
+
+async function syncItemAccounts(
+  supabase:  ReturnType<typeof createClient>,
+  plaidBase: string,
+  clientId:  string,
+  secret:    string,
+  item:      { id: string; access_token: string; user_id: string },
+): Promise<void> {
+  let data: any;
+  try {
+    const res = await fetch(`${plaidBase}/accounts/get`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ client_id: clientId, secret, access_token: item.access_token }),
+    });
+    data = await res.json();
+    if (!res.ok || !data?.accounts) {
+      console.warn(`[plaid-sync-transactions] accounts fetch failed for item ${item.id}:`, data?.error_code);
+      return;
+    }
+  } catch (err) {
+    console.error(`[plaid-sync-transactions] accounts fetch error for item ${item.id}:`, err);
+    return;
+  }
+
+  const rows = data.accounts.map((acc: any) => ({
+    user_id:           item.user_id,
+    item_id:           item.id,
+    account_id:        acc.account_id,
+    name:              acc.name,
+    official_name:     acc.official_name ?? null,
+    mask:              acc.mask ?? null,
+    type:              acc.type,
+    subtype:           acc.subtype,
+    balance_current:   acc.balances?.current   ?? null,
+    balance_available: acc.balances?.available ?? null,
+    updated_at:        new Date().toISOString(),
+  }));
+
+  if (rows.length > 0) {
+    const { error } = await supabase
+      .from('plaid_accounts')
+      .upsert(rows, { onConflict: 'account_id' });
+    if (error) console.error(`[plaid-sync-transactions] plaid_accounts upsert error for item ${item.id}:`, error);
+  }
 }
 
 // ── Fetch one page of /transactions/sync ─────────────────────────────────────
@@ -382,6 +433,7 @@ Deno.serve(async (req) => {
             totalModified += counts.modified;
             totalRemoved  += counts.removed;
             usersSeen.add(item.user_id);
+            await syncItemAccounts(supabase, plaidBase, clientId, secret, item);
           } catch (err) {
             console.error(`Re-sync failed for item ${item.id}:`, err);
           }
@@ -408,6 +460,7 @@ Deno.serve(async (req) => {
           .single();
         if (itemErr || !item) return json({ error: 'Item not found' }, 404, corsHeaders);
         const counts = await syncItemTransactions(supabase, plaidBase, clientId, secret, item);
+        await syncItemAccounts(supabase, plaidBase, clientId, secret, item);
         await supabase.from('plaid_items').update({ error_code: null }).eq('id', item.id);
         return json({ action: 'sync_item', ...counts }, 200, corsHeaders);
       }
@@ -439,6 +492,7 @@ Deno.serve(async (req) => {
       totalAdded    += counts.added;
       totalModified += counts.modified;
       totalRemoved  += counts.removed;
+      await syncItemAccounts(supabase, plaidBase, clientId, secret, { ...item, user_id: user.id });
     }
 
     return json(
