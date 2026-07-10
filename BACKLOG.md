@@ -183,6 +183,53 @@ detection, push pipeline (VAPID, pg_cron, Supabase triggers).
 Таблица: пункт | статус | что делать | приоритет. Пункт 4 (IAP) — подробно.
 ```
 
+### 9. Demo account для App Store ревьюеров (ручная задача, не для Claude Code)
+
+```
+Перед submission подготовить вручную QA-аккаунт для ревьюеров Apple:
+1. Отдельный логин/пароль (не Test user UUID из CLAUDE.md — тот для внутренней
+   разработки, состояние не гарантировано).
+2. Подключённый банк через Plaid Sandbox с реалистичными транзакциями за
+   несколько месяцев (чтобы Health Score, Insights, recurring/subscriptions,
+   Cash Flow Forecast — везде было что показать, не пустые экраны).
+3. Указать credentials в App Store Connect → App Review Information → Notes.
+4. Если к моменту подачи IAP ещё не готов (см. пункт 4 чеклиста, Вариант 3) —
+   убедиться, что ревьюер не видит нерабочую кнопку Upgrade на iOS.
+```
+
+### 10. Нативный push для iOS (БЛОКЕР для предиктивных push-алертов на iOS)
+
+```
+Сейчас push реализован только как Web Push (Notification API + service worker +
+VAPID, profiles.push_subscription) — в iOS-сборке (Capacitor/WKWebView) это
+физически не работает: iOS 16.4+ Web Push доступен только для сайтов,
+добавленных на домашний экран через Safari, не для WKWebView, обёрнутого в
+нативное приложение. Подтверждено анализом 9 июля — не гипотеза.
+
+ЗАДАЧА (additive, НЕ переписывать существующий web-push путь):
+1. @capacitor/push-notifications — нативный плагин, Xcode capability +
+   entitlements для APNs.
+2. Apple Developer: APNs Auth Key (.p8).
+3. Добавить iOS-приложение (com.arkonomy.app) в существующий Firebase-проект
+   arkonomy-b3f41 (сейчас там только web SDK для App Check) + GoogleService-Info.plist
+   в нативный iOS-таргет + залить APNs-ключ в консоль Firebase (FCM как
+   кросс-платформенный слой доставки).
+4. Новая колонка profiles.fcm_token (или отдельная таблица) — приём токена
+   через PushNotifications.addListener('registration', ...) на клиенте.
+5. push-notify/index.ts: добавить ПАРАЛЛЕЛЬНУЮ ветку рассылки по fcm_token
+   через Firebase Admin SDK/FCM HTTP v1 — существующий web-push цикл по
+   push_subscription не трогать.
+
+Оценка (9 июля): дни, не недели — код небольшой и добавляется рядом с
+существующим; самое узкое место — не код, а ожидание доступов в Apple
+Developer Portal / настройка Firebase-консоли.
+
+Блокирует: пункт 4 бэклога (предиктивные push-алерты) на iOS — сама логика
+проверки баланса/upcoming bills не зависит от этого, только доставка. Можно
+и стоит реализовать логику алертов с доставкой сначала на веб/Android
+(там push уже работает), нативный iOS push — отдельная последующая задача.
+```
+
 ---
 
 ## 🧷 ТЕХДОЛГ — зафиксировано, не срочно
