@@ -74,6 +74,7 @@ Deno.serve(async (req) => {
         access_token:  item.access_token,
         country_codes: ['US'],
         language:      'en',
+        webhook:       'https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/plaid-webhook',
       };
     } else {
       plaidBody = {
@@ -84,6 +85,7 @@ Deno.serve(async (req) => {
         products:      ['transactions'],
         country_codes: ['US'],
         language:      'en',
+        webhook:       'https://hvnkxxazjfesbxdkzuba.supabase.co/functions/v1/plaid-webhook',
       };
       if (redirect_uri) plaidBody.redirect_uri = redirect_uri;
     }

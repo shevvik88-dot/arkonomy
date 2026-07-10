@@ -165,6 +165,7 @@
     "signal_spike": "↑ Spike",
     "signal_unusual": "⚠ Unusual",
     "signal_recurring": "↻ Recurring",
+    "pending": "Processing",
     "action_edit": "Edit transaction",
     "action_edit_desc": "Fix amount, category or date",
     "action_move_savings": "Move to savings",
@@ -603,7 +604,8 @@
     "comment_great": "Great financial discipline — savings and budget are on track.",
     "comment_solid": "Solid score — small savings increases could push you into green.",
     "comment_making_progress": "Making progress — focus on saving a bit more each month.",
-    "comment_getting_started": "Just getting started — small consistent steps add up fast."
+    "comment_getting_started": "Just getting started — small consistent steps add up fast.",
+    "cash_position_low": "⚠ Cash position low"
   },
   "cat": {
     "housing": "Housing",

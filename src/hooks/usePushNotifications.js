@@ -36,19 +36,16 @@ export function usePushNotifications(supabase, userId) {
   const registered = useRef(false);
 
   useEffect(() => {
-    if (!userId || registered.current) return;
+    if (!userId) return;
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
 
     async function register() {
+      if (registered.current) return;
       try {
-        // 1. Request permission
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') return;
 
-        // 2. Get SW registration
         const reg = await navigator.serviceWorker.ready;
-
-        // 3. Check existing subscription
         let sub = await reg.pushManager.getSubscription();
         if (!sub) {
           sub = await reg.pushManager.subscribe({
@@ -57,11 +54,15 @@ export function usePushNotifications(supabase, userId) {
           });
         }
 
-        // 4. Save to Supabase profiles
-        await supabase
+        const { error: dbErr } = await supabase
           .from('profiles')
           .update({ push_subscription: sub.toJSON() })
           .eq('id', userId);
+
+        if (dbErr) {
+          logger.warn('[Arkonomy] Push subscription DB write failed:', dbErr);
+          return;
+        }
 
         registered.current = true;
       } catch (err) {
@@ -70,5 +71,14 @@ export function usePushNotifications(supabase, userId) {
     }
 
     register();
+
+    // Pick up re-granted permissions without requiring re-login
+    let permStatus;
+    navigator.permissions.query({ name: 'notifications' }).then(status => {
+      permStatus = status;
+      status.onchange = () => { if (status.state === 'granted') register(); };
+    });
+
+    return () => { if (permStatus) permStatus.onchange = null; };
   }, [supabase, userId]);
 }

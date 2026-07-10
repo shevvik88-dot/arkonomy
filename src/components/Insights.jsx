@@ -522,7 +522,7 @@ export function InsightCard({ insight, onAction }) {
   );
 }
 
-function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpent = 0, budget = 3000, hasData = true, actualSavingsRate = null, prevScore }) {
+function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpent = 0, budget = 3000, hasData = true, actualSavingsRate = null, prevScore, cashPositionLow = false }) {
   const { t } = useTranslation();
   const [showBreakdown, setShowBreakdown] = useState(false);
 
@@ -617,6 +617,9 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
               </span>
             )}
           </div>
+          {cashPositionLow && (
+            <div style={{ fontSize: 11, color: C.yellow, fontWeight: 600, marginBottom: 2 }}>{t("health.cash_position_low")}</div>
+          )}
           <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
             {comment ? (comment.rawCat ? t(comment.key, { cat: tCat(comment.rawCat, t), ...comment.params }) : t(comment.key)) : (score >= 75 ? t("insights.score_great") : score >= 50 ? t("insights.score_decent") : t("insights.score_focus"))}
           </div>
@@ -1023,10 +1026,12 @@ function RecurringSummary({ transactions }) {
   );
 }
 
-export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, onOpenChat, transactions, savings, profile, allInsights, onInsightAction, isPro, onUpgrade }) {
+export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, onOpenChat, transactions, savings, profile, allInsights, onInsightAction, isPro, onUpgrade, plaidBalance }) {
   const { t } = useTranslation();
   const monthlySavings = totalIncome - totalSpent;
   const savingsRate = totalIncome > 0 ? Math.round((monthlySavings / totalIncome) * 100) : 0;
+  const BUFFER = 1000;
+  const availableSafe = Math.max(0, Math.min(monthlySavings - BUFFER, (plaidBalance != null ? plaidBalance - BUFFER : Infinity)));
 
   // ── Health Score (shared calculation — same as Dashboard) ─────
   const SUB_CATS = ['Subscriptions', 'Bills', 'Utilities', 'Phone', 'Internet', 'Insurance'];
@@ -1082,9 +1087,13 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
   });
   else if (savingsRate >= 20) insights.push({
     id: "savings-good", icon: "star", title: "Excellent Savings Rate",
-    desc: `You're saving ${savingsRate.toFixed(1)}% of income — above the 20% recommended target.\n\n→ This is a strong financial habit.\n→ Consider putting part of this surplus into an investment account to grow it further.`,
+    desc: availableSafe > 0
+      ? `You're saving ${savingsRate.toFixed(1)}% of income — above the 20% recommended target.\n\n→ This is a strong financial habit.\n→ Consider putting part of this surplus into an investment account to grow it further.`
+      : `You're saving ${savingsRate.toFixed(1)}% of income — above the 20% recommended target.\n\n→ This is a strong financial habit. Keep monitoring your cash position as upcoming bills clear.`,
     severity: "good", value: `${savingsRate.toFixed(1)}%`,
-    context: `My savings rate is ${savingsRate.toFixed(1)}%. How should I best invest this surplus?`
+    context: availableSafe > 0
+      ? `My savings rate is ${savingsRate.toFixed(1)}%. How should I best invest this surplus?`
+      : `My savings rate is ${savingsRate.toFixed(1)}%. My cash balance is low — how do I prepare for upcoming bills?`
   });
 
   const shopping = spendingByCategory["Shopping"] || 0;
@@ -1144,7 +1153,7 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
         </div>
       )}
 
-      <HealthScore score={insightScore} color={insightScoreColor} breakdown={insightScoreBreakdown} comment={insightScoreComment} totalSpent={totalSpent} budget={Number(profile?.monthly_budget) || 3000} hasData={totalIncome > 0 || totalSpent > 0} actualSavingsRate={savingsRate} prevScore={prevInsightScore} />
+      <HealthScore score={insightScore} color={insightScoreColor} breakdown={insightScoreBreakdown} comment={insightScoreComment} totalSpent={totalSpent} budget={Number(profile?.monthly_budget) || 3000} hasData={totalIncome > 0 || totalSpent > 0} actualSavingsRate={savingsRate} prevScore={prevInsightScore} cashPositionLow={availableSafe <= 0 && plaidBalance != null} />
       <WeeklySummary transactions={transactions || []} />
       <RecurringSummary transactions={transactions || []} />
 

@@ -29,7 +29,7 @@ export const MINI_TOURS = {
   ],
   "invest": [
     { selector: '[data-tutorial="nav-markets"]',  screen: "dashboard", title: "Step 1: Browse Markets",           description: "Tap Markets to see live prices for stocks, ETFs and crypto — tap any ticker for charts and AI analysis" },
-    { selector: '[data-tutorial="nav-savings"]',  screen: "dashboard", title: "Step 2: Connect Alpaca",           description: "In Savings, connect your Alpaca account to enable automatic investing of your monthly round-ups" },
+    { selector: '[data-tutorial="nav-savings"]',  screen: "dashboard", title: "Step 2: Connect Investment Account", description: "In Savings, connect your investment account to enable automatic investing of your monthly round-ups" },
     { selector: '[data-tutorial="ai-chat"]',      screen: "dashboard", title: "Step 3: Ask AI for picks",         description: "Ask your AI advisor which assets fit your goals and risk profile before investing" },
   ],
   "budget": [

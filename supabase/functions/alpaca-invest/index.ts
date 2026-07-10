@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
       }
 
       console.error('Alpaca account error:', JSON.stringify(account));
-      return new Response(JSON.stringify({ error: 'Alpaca account error', details: account }), {
+      return new Response(JSON.stringify({ error: 'brokerage_account_error' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

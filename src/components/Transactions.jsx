@@ -673,6 +673,11 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
           <div style={{ fontSize: 14, fontWeight: 500, color: C.text, letterSpacing: -0.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{displayName}</div>
           <div style={{ fontSize: 11, color: C.faint, marginTop: 2, display: "flex", alignItems: "center", gap: 4, overflow: "hidden", fontFamily: FONT }}>
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1 }}>{tCat(t.category_name || guessCategory(t.description, t.type) || "Other", i18t)} · {fmtDate(t.date)}</span>
+            {t.pending && (
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#F59E0B", background: "rgba(245,158,11,0.15)", padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>
+                {i18t("transactions.pending")}
+              </span>
+            )}
             {signal && (
               <span style={{ fontSize: 10, fontWeight: 700, color: SIGNAL_STYLE[signal].color, background: SIGNAL_STYLE[signal].bg, padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>
                 {i18t("transactions.signal_" + signal)}

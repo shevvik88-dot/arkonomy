@@ -165,6 +165,7 @@
     "signal_spike": "↑ Pico",
     "signal_unusual": "⚠ Inusual",
     "signal_recurring": "↻ Recurrente",
+    "pending": "Procesando",
     "action_edit": "Editar transacción",
     "action_edit_desc": "Corregir monto, categoría o fecha",
     "action_move_savings": "Mover a ahorros",
@@ -603,7 +604,8 @@
     "comment_great": "Excelente disciplina financiera — ahorros y presupuesto en orden.",
     "comment_solid": "Buen resultado — pequeños aumentos en el ahorro te llevarán a la zona verde.",
     "comment_making_progress": "Progresando — trata de ahorrar un poco más cada mes.",
-    "comment_getting_started": "Recién empezando — pequeños pasos constantes suman mucho."
+    "comment_getting_started": "Recién empezando — pequeños pasos constantes suman mucho.",
+    "cash_position_low": "⚠ Saldo bajo"
   },
   "cat": {
     "housing": "Vivienda",

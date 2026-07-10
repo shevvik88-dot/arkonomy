@@ -165,6 +165,7 @@
     "signal_spike": "↑ Pico",
     "signal_unusual": "⚠ Incomum",
     "signal_recurring": "↻ Recorrente",
+    "pending": "Processando",
     "action_edit": "Editar transação",
     "action_edit_desc": "Corrigir valor, categoria ou data",
     "action_move_savings": "Mover para poupança",
@@ -603,7 +604,8 @@
     "comment_great": "Ótima disciplina financeira — poupança e orçamento estão no caminho certo.",
     "comment_solid": "Boa pontuação — pequenos aumentos de poupança podem levar você ao verde.",
     "comment_making_progress": "Progredindo — foque em poupar um pouco mais a cada mês.",
-    "comment_getting_started": "Só começando — pequenos passos consistentes se acumulam rapidamente."
+    "comment_getting_started": "Só começando — pequenos passos consistentes se acumulam rapidamente.",
+    "cash_position_low": "⚠ Saldo baixo"
   },
   "cat": {
     "housing": "Moradia",
