@@ -14,6 +14,7 @@ import { usePlan } from "./hooks/usePlan";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import { detectRecurringCharges } from "./recurringDetector";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "./healthScore";
+import { BUFFER } from "./shared/financialConstants";
 import GlassCard from "./components/shared/GlassCard";
 import AuthScreen from "./components/AuthScreen";
 import Icon from "./components/shared/Icon";
@@ -1034,12 +1035,19 @@ export default function App() {
   const lastSpent = lastMonth.filter(isRealExpense).reduce((s, t) => s + Number(t.amount), 0);
   const lastIncome = lastMonth.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
 
-  const effectiveIncome = totalIncome > 0 ? totalIncome :
-    [...transactions]
-      .filter(t => t.type === "income")
-      .sort((a, b) => new Date(b.date) - new Date(a.date))[0]
-      ? Number([...transactions].filter(t => t.type === "income").sort((a, b) => new Date(b.date) - new Date(a.date))[0].amount)
-      : 0;
+  // FIX: sum ALL income from the most recent month, not just the single most
+  // recent transaction — same bug already fixed in get-insights/buildFinancialInput
+  // (a one-off transaction like a small CD deposit understated real income).
+  const effectiveIncome = (() => {
+    if (totalIncome > 0) return totalIncome;
+    const incomeTxs = transactions.filter(t => t.type === "income");
+    if (incomeTxs.length === 0) return 0;
+    const mostRecent = [...incomeTxs].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+    const mostRecentDate = parseDate(mostRecent.date);
+    return incomeTxs
+      .filter(t => { const d = parseDate(t.date); return d.getMonth() === mostRecentDate.getMonth() && d.getFullYear() === mostRecentDate.getFullYear(); })
+      .reduce((s, t) => s + Number(t.amount), 0);
+  })();
 
   const spendingByCategory = {};
   thisMonth.filter(isRealExpense).forEach(t => { const k = resolveCategory(t); spendingByCategory[k] = (spendingByCategory[k] || 0) + Number(t.amount); });
@@ -1165,7 +1173,12 @@ export default function App() {
 
   const isShowingLastMonth = rawThisMonth.length === 0 && lastMonthTxs.length > 0;
   const onUpgrade = () => setShowUpgradeModal(true);
-  const shared = { transactions, categories, savings, profile, totalSpent, totalIncome: effectiveIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, totalTransfers, isShowingLastMonth, isPro, onUpgrade };
+  const _plaidAccounts = getCachedAccounts();
+  const _plaidAcct = _plaidAccounts
+    ? (_plaidAccounts.find(a => a.subtype === "checking") ?? _plaidAccounts.find(a => a.type === "depository") ?? _plaidAccounts[0])
+    : null;
+  const plaidBalance = _plaidAcct ? (_plaidAcct.balance_available ?? _plaidAcct.balance_current ?? null) : null;
+  const shared = { transactions, categories, savings, profile, totalSpent, totalIncome: effectiveIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, totalTransfers, isShowingLastMonth, isPro, onUpgrade, plaidBalance };
 
   function openMarket(symbol) {
     setMarketInitSymbol(symbol ?? null);
@@ -1282,14 +1295,6 @@ export default function App() {
     setChatMessages(updated);
     setChatInput("");
 
-    const plaidAccounts = getCachedAccounts();
-    const plaidAccount = plaidAccounts
-      ? (plaidAccounts.find(a => a.subtype === "checking") ?? plaidAccounts.find(a => a.type === "depository") ?? plaidAccounts[0])
-      : null;
-    const plaidBalance = plaidAccount
-      ? (plaidAccount.balance_available ?? plaidAccount.balance_current ?? null)
-      : null;
-
     const allAccounts = getCachedAccounts() || [];
     const creditCards = allAccounts
       .filter(a => a.type === "credit")
@@ -1306,7 +1311,7 @@ export default function App() {
         currentMonthIncome: effectiveIncome,
         monthlyBudget: Number(profile?.monthly_budget) || 3000,
         budgetUsedPct: Math.round((totalSpent / (Number(profile?.monthly_budget) || 3000)) * 100),
-        availableSafeToMove: Math.max(0, effectiveIncome - totalSpent - 1000),
+        availableSafeToMove: Math.max(0, Math.min(effectiveIncome - totalSpent - BUFFER, plaidBalance != null ? plaidBalance - BUFFER : Infinity)),
       },
       engine: {
         activeSignals: aiContext?.activeSignals ?? [],

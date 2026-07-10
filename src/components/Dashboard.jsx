@@ -11,6 +11,7 @@ import { InsightCard } from "./Insights";
 import UpcomingChargesCard from "./UpcomingChargesCard";
 import { detectRecurringCharges } from '../recurringDetector';
 import { TxRow } from "./Transactions";
+import { BUFFER } from "../shared/financialConstants";
 
 
 const CAT_COLORS = {
@@ -41,7 +42,7 @@ const CAT_COLORS = {
 
 // ─── Health Score Gauge ──────────────────────────────────────────────────────
 // ─── Health Score Bar (compact, inline, expandable) ─────────────────────────
-function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prevScore }) {
+function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prevScore, cashPositionLow = false }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const label = getScoreLabel(score);
@@ -164,6 +165,12 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </div>
+
+      {cashPositionLow && (
+        <div style={{ fontSize: 11, color: C.yellow, fontWeight: 600, marginTop: 4, marginLeft: 16 }}>
+          {t("health.cash_position_low")}
+        </div>
+      )}
 
       {/* ── Expanded breakdown ── */}
       {open && (
@@ -737,6 +744,9 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   const budget = Number(profile?.monthly_budget) || 3000;
   const balance = totalIncome - totalSpent;
   const pct = budget > 0 ? (totalSpent / budget) * 100 : 0;
+  // Same formula as Insights.jsx.availableSafe — for cashPositionLow parity between screens.
+  const availableSafe = Math.max(0, Math.min(totalIncome - totalSpent - BUFFER, accountBalance != null ? accountBalance - BUFFER : Infinity));
+  const cashPositionLow = availableSafe <= 0 && accountBalance != null;
   const incomeChange = lastIncome > 0 ? ((totalIncome - lastIncome) / lastIncome) * 100 : 0;
   const expenseChange = lastSpent > 0 ? ((totalSpent - lastSpent) / lastSpent) * 100 : 0;
   const balColor = balance >= 0 ? C.green : C.red;
@@ -888,7 +898,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
 
       {/* 2 ── Financial Health Score */}
       <div data-tutorial="health-score">
-        <HealthScoreBar score={healthScore} color={scoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} prevScore={prevHealthScore} />
+        <HealthScoreBar score={healthScore} color={scoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} prevScore={prevHealthScore} cashPositionLow={cashPositionLow} />
         <button
           onClick={() => onNavigate("insights")}
           style={{ display: "flex", alignItems: "center", gap: 4, margin: "6px 0 0 2px", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: FONT }}
