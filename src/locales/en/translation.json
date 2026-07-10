@@ -192,6 +192,7 @@
     "insights_locked_one": "{{count}} more insight locked",
     "insights_locked_other": "{{count}} more insights locked",
     "upgrade_to_pro": "Upgrade to Pro to see all AI insights",
+    "included_with_pro": "AI insights included with Pro",
     "financial_health": "FINANCIAL HEALTH",
     "no_data": "No data yet",
     "no_data_body": "Connect your bank or add transactions to see your score.",
@@ -285,6 +286,7 @@
     "pro_only_title": "🔒 Spare Change Investing — Pro only",
     "pro_only_body": "Upgrade to Pro to buy stocks and crypto directly from Arkonomy using your connected investment account.",
     "upgrade_pro": "Upgrade to Pro — $9.99/mo",
+    "pro_feature": "Pro feature",
     "connect_alpaca_title": "Connect Investment Account",
     "connect_alpaca_body": "Link your investment account to buy stocks and ETFs directly from Arkonomy.",
     "alpaca_disclaimer1": "By allowing Arkonomy to access your Alpaca account, you are granting Arkonomy access to your account information and authorization to place transactions at your direction.",
@@ -446,6 +448,7 @@
     "success_password": "Password updated successfully.",
     "upgrade_title": "Upgrade to Pro",
     "upgrade_subtitle": "Unlock AI insights, investing & more — $9.99/mo",
+    "pro_features_ios": "AI insights, investing & more",
     "connect_bank": "Connect Your Bank",
     "syncing": "Syncing now…",
     "last_synced": "Last synced: {{time}}",
@@ -576,7 +579,9 @@
     "benefit_charts_desc": "Full interactive breakdown of spending by category",
     "upgrade_now": "Upgrade Now — $9.99/mo",
     "maybe_later": "Maybe later",
-    "processing": "Processing..."
+    "processing": "Processing...",
+    "pro_included": "AI insights, investing, and more are included with Pro.",
+    "close": "Close"
   },
   "chat": {
     "ask_placeholder": "Ask about your finances...",

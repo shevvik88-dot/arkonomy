@@ -5,6 +5,7 @@ import { fmt, parseDate, tCat, cleanMerchantName } from "../utils/helpers";
 import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "../healthScore";
+import { IS_IOS_NATIVE } from "../lib/platform";
 
 const FORECAST_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function formatForecastDate(date) { return FORECAST_MONTHS[date.getMonth()] + ' ' + date.getFullYear(); }
@@ -1147,7 +1148,7 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
             >
               <span style={{ fontSize: 20 }}>🔒</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: "#E8EDF5" }}>{t("insights.insights_locked", { count: allInsights.length - 2 })}</span>
-              <span style={{ fontSize: 12, color: "#7A8BA8" }}>{t("insights.upgrade_to_pro")}</span>
+              <span style={{ fontSize: 12, color: "#7A8BA8" }}>{IS_IOS_NATIVE ? t("insights.included_with_pro") : t("insights.upgrade_to_pro")}</span>
             </div>
           )}
         </div>

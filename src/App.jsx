@@ -15,6 +15,7 @@ import { usePushNotifications } from "./hooks/usePushNotifications";
 import { detectRecurringCharges } from "./recurringDetector";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "./healthScore";
 import { BUFFER } from "./shared/financialConstants";
+import { IS_IOS_NATIVE } from "./lib/platform";
 import GlassCard from "./components/shared/GlassCard";
 import AuthScreen from "./components/AuthScreen";
 import Icon from "./components/shared/Icon";
@@ -1412,17 +1413,20 @@ export default function App() {
       <div style={{ paddingTop: `${headerHeight + 8}px`, paddingRight: "14px", paddingBottom: "160px", paddingLeft: "14px" }}>
         {isTrial && trialDaysLeft <= 2 && (
           <div
-            onClick={onUpgrade}
-            style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", background: "#F59E0B18", border: "1px solid #F59E0B44", borderRadius: 14, marginBottom: 14, cursor: "pointer" }}
+            onClick={IS_IOS_NATIVE ? undefined : onUpgrade}
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", background: "#F59E0B18", border: "1px solid #F59E0B44", borderRadius: 14, marginBottom: 14, cursor: IS_IOS_NATIVE ? "default" : "pointer" }}
           >
             <span style={{ fontSize: 16 }}>⚡</span>
             <div style={{ flex: 1 }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: "#F59E0B" }}>
-                Your trial ends in {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""} —{" "}
+                Your trial ends in {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""}
+                {!IS_IOS_NATIVE && " —"}
               </span>
-              <span style={{ fontSize: 13, color: "#F59E0B", textDecoration: "underline", textUnderlineOffset: 2 }}>
-                Upgrade to keep Pro
-              </span>
+              {!IS_IOS_NATIVE && (
+                <span style={{ fontSize: 13, color: "#F59E0B", textDecoration: "underline", textUnderlineOffset: 2 }}>
+                  {" "}Upgrade to keep Pro
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -1523,13 +1527,16 @@ export default function App() {
                 </svg>
               </div>
               <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Your free trial ended</div>
-              <div style={{ fontSize: 14, color: "#7A8BA8" }}>Upgrade to keep full access to AI insights, investment tracking, and all Pro features.</div>
+              <div style={{ fontSize: 14, color: "#7A8BA8" }}>{IS_IOS_NATIVE ? t("upgrade.pro_included") : "Upgrade to keep full access to AI insights, investment tracking, and all Pro features."}</div>
             </div>
-            <button onClick={() => { setShowTrialExpiredModal(false); setShowUpgradeModal(true); }} style={{ width: "100%", padding: 16, background: "linear-gradient(135deg,#7C6BFF,#38B6FF)", border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: "0 4px 24px rgba(124,107,255,0.44)", marginBottom: 12 }}>
-              Upgrade to Pro — $9.99/mo
-            </button>
+            {/* No purchase button on iOS (Guideline 3.1.3 anti-steering) */}
+            {!IS_IOS_NATIVE && (
+              <button onClick={() => { setShowTrialExpiredModal(false); setShowUpgradeModal(true); }} style={{ width: "100%", padding: 16, background: "linear-gradient(135deg,#7C6BFF,#38B6FF)", border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: "0 4px 24px rgba(124,107,255,0.44)", marginBottom: 12 }}>
+                Upgrade to Pro — $9.99/mo
+              </button>
+            )}
             <button onClick={() => setShowTrialExpiredModal(false)} style={{ width: "100%", padding: 12, background: "none", border: "1px solid #1E2D45", borderRadius: 14, color: "#7A8BA8", fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
-              Maybe later
+              {IS_IOS_NATIVE ? t("upgrade.close") : "Maybe later"}
             </button>
           </div>
         </div>

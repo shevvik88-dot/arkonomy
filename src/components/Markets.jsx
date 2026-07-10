@@ -8,6 +8,7 @@ import { C, FONT } from "../utils/colors";
 import { fmtPct } from "../utils/helpers";
 import GlassCard from "./shared/GlassCard";
 import Icon from "./shared/Icon";
+import { IS_IOS_NATIVE } from "../lib/platform";
 
 // ─── Constants ────────────────────────────────────────────────
 
@@ -685,7 +686,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
               style={{ width: "100%", padding: 15, border: "none", borderRadius: 13, fontWeight: 700, fontSize: 15, fontFamily: FONT, cursor: buying ? "not-allowed" : "pointer",
                 background: buying ? C.bgTertiary : (!isPro || isTrial) ? "linear-gradient(135deg,#7C6BFF,#38B6FF)" : `linear-gradient(90deg,${meta.color},${meta.color}BB)`,
                 color: buying ? C.faint : "#fff" }}>
-              {buying ? t("markets.placing_order") : (!isPro || isTrial) ? t("markets.upgrade_pro") : t("markets.buy_btn", { amount: buyAmt || "—", symbol })}
+              {buying ? t("markets.placing_order") : (!isPro || isTrial) ? (IS_IOS_NATIVE ? t("markets.pro_feature") : t("markets.upgrade_pro")) : t("markets.buy_btn", { amount: buyAmt || "—", symbol })}
             </button>
 
             {buyResult && (

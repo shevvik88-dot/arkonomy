@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { IS_IOS_NATIVE } from "../lib/platform";
 
 const C = {
   bg: "#0B1426",
@@ -137,21 +138,23 @@ export default function UpgradeModal({ onClose, supabase }) {
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
             </svg>
           </div>
-          <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{t("upgrade.title")}</div>
-          <div style={{ fontSize: 14, color: C.muted }}>{t("upgrade.subtitle")}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{IS_IOS_NATIVE ? "Pro" : t("upgrade.title")}</div>
+          <div style={{ fontSize: 14, color: C.muted }}>{IS_IOS_NATIVE ? t("upgrade.pro_included") : t("upgrade.subtitle")}</div>
         </div>
 
-        {/* Price */}
-        <div style={{
-          background: `linear-gradient(135deg, ${C.purple}18, ${C.cyan}0A)`,
-          border: `1px solid ${C.purple}33`,
-          borderRadius: 16, padding: "14px 20px",
-          textAlign: "center", marginBottom: 20,
-        }}>
-          <span style={{ fontSize: 36, fontWeight: 800, color: C.text }}>$9.99</span>
-          <span style={{ fontSize: 14, color: C.muted }}> {t("upgrade.per_month")}</span>
-          <div style={{ fontSize: 12, color: C.faint, marginTop: 4 }}>{t("upgrade.cancel_anytime")}</div>
-        </div>
+        {/* Price — not shown on iOS (Guideline 3.1.3 anti-steering) */}
+        {!IS_IOS_NATIVE && (
+          <div style={{
+            background: `linear-gradient(135deg, ${C.purple}18, ${C.cyan}0A)`,
+            border: `1px solid ${C.purple}33`,
+            borderRadius: 16, padding: "14px 20px",
+            textAlign: "center", marginBottom: 20,
+          }}>
+            <span style={{ fontSize: 36, fontWeight: 800, color: C.text }}>$9.99</span>
+            <span style={{ fontSize: 14, color: C.muted }}> {t("upgrade.per_month")}</span>
+            <div style={{ fontSize: 12, color: C.faint, marginTop: 4 }}>{t("upgrade.cancel_anytime")}</div>
+          </div>
+        )}
 
         {/* Benefits */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
@@ -174,7 +177,7 @@ export default function UpgradeModal({ onClose, supabase }) {
         </div>
 
         {/* Error */}
-        {error && (
+        {!IS_IOS_NATIVE && error && (
           <div style={{
             background: "#2D151511", border: "1px solid #E05C5C44",
             borderRadius: 10, padding: "10px 14px",
@@ -182,25 +185,27 @@ export default function UpgradeModal({ onClose, supabase }) {
           }}>{error}</div>
         )}
 
-        {/* CTA */}
-        <button
-          onClick={handleUpgrade}
-          disabled={loading}
-          style={{
-            width: "100%", padding: "16px",
-            background: loading ? C.border : `linear-gradient(135deg, ${C.purple}, ${C.cyan})`,
-            border: "none", borderRadius: 16,
-            color: loading ? C.muted : "#000",
-            fontWeight: 800, fontSize: 16,
-            cursor: loading ? "not-allowed" : "pointer",
-            fontFamily: FONT,
-            boxShadow: loading ? "none" : `0 4px 24px ${C.purple}44`,
-            transition: "all 0.2s",
-            marginBottom: 12,
-          }}
-        >
-          {loading ? t("upgrade.processing") : t("upgrade.upgrade_now")}
-        </button>
+        {/* CTA — no purchase button on iOS (Guideline 3.1.3 anti-steering) */}
+        {!IS_IOS_NATIVE && (
+          <button
+            onClick={handleUpgrade}
+            disabled={loading}
+            style={{
+              width: "100%", padding: "16px",
+              background: loading ? C.border : `linear-gradient(135deg, ${C.purple}, ${C.cyan})`,
+              border: "none", borderRadius: 16,
+              color: loading ? C.muted : "#000",
+              fontWeight: 800, fontSize: 16,
+              cursor: loading ? "not-allowed" : "pointer",
+              fontFamily: FONT,
+              boxShadow: loading ? "none" : `0 4px 24px ${C.purple}44`,
+              transition: "all 0.2s",
+              marginBottom: 12,
+            }}
+          >
+            {loading ? t("upgrade.processing") : t("upgrade.upgrade_now")}
+          </button>
+        )}
 
         <button
           onClick={onClose}
@@ -212,7 +217,7 @@ export default function UpgradeModal({ onClose, supabase }) {
             cursor: "pointer", fontFamily: FONT,
           }}
         >
-          {t("upgrade.maybe_later")}
+          {IS_IOS_NATIVE ? t("upgrade.close") : t("upgrade.maybe_later")}
         </button>
       </div>
     </div>

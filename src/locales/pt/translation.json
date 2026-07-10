@@ -192,6 +192,7 @@
     "insights_locked_one": "{{count}} insight bloqueado",
     "insights_locked_other": "{{count}} insights bloqueados",
     "upgrade_to_pro": "Faça upgrade para Pro para ver todos os insights com IA",
+    "included_with_pro": "Insights de IA incluídos no Pro",
     "financial_health": "SAÚDE FINANCEIRA",
     "no_data": "Sem dados ainda",
     "no_data_body": "Conecte seu banco ou adicione transações para ver sua pontuação.",
@@ -285,6 +286,7 @@
     "pro_only_title": "🔒 Investimento de troco — Apenas Pro",
     "pro_only_body": "Faça upgrade para Pro para comprar ações e criptomoedas diretamente no Arkonomy usando sua conta de investimento conectada.",
     "upgrade_pro": "Fazer upgrade para Pro — $9,99/mês",
+    "pro_feature": "Recurso Pro",
     "connect_alpaca_title": "Conectar Conta de Investimento",
     "connect_alpaca_body": "Vincule sua conta de investimento para comprar ações e ETFs diretamente no Arkonomy.",
     "alpaca_disclaimer1": "Ao autorizar o Arkonomy a acessar sua conta Alpaca, você concede ao Arkonomy acesso às informações da sua conta e autorização para realizar transações a seu pedido.",
@@ -446,6 +448,7 @@
     "success_password": "Senha atualizada com sucesso.",
     "upgrade_title": "Fazer Upgrade para Pro",
     "upgrade_subtitle": "Desbloqueie insights de IA, investimentos e mais — $9,99/mês",
+    "pro_features_ios": "Insights de IA, investimentos e mais",
     "connect_bank": "Conectar seu Banco",
     "syncing": "Sincronizando…",
     "last_synced": "Última sincronização: {{time}}",
@@ -576,7 +579,9 @@
     "benefit_charts_desc": "Detalhamento interativo completo de gastos por categoria",
     "upgrade_now": "Fazer Upgrade Agora — $9,99/mês",
     "maybe_later": "Talvez mais tarde",
-    "processing": "Processando..."
+    "processing": "Processando...",
+    "pro_included": "Insights de IA, investimentos e muito mais estão incluídos no Pro.",
+    "close": "Fechar"
   },
   "chat": {
     "ask_placeholder": "Pergunte sobre suas finanças...",
