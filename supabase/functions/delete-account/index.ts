@@ -39,6 +39,10 @@ Deno.serve(async (req) => {
     });
   }
 
+  let body: Record<string, unknown> = {};
+  try { body = await req.json(); } catch { /* no body */ }
+  const dryRun = body?.dry_run === true;
+
   // ── Gather what we need to revoke BEFORE deleting any rows ────────────────
   const { data: profile } = await supabase
     .from('profiles')
@@ -51,12 +55,41 @@ Deno.serve(async (req) => {
     .select('id, access_token')
     .eq('user_id', user.id);
 
+  const stripeCustomerId = profile?.stripe_customer_id ?? null;
+
+  // ── Dry run: report what WOULD happen, no mutating calls at all ────────────
+  if (dryRun) {
+    let stripeSubscriptions: Array<{ id: string; status: string; would_cancel: boolean }> = [];
+    let stripeLookupError: string | null = null;
+    if (stripeCustomerId) {
+      try {
+        const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, { apiVersion: '2024-06-20' });
+        const subs = await stripe.subscriptions.list({ customer: stripeCustomerId, status: 'all' });
+        stripeSubscriptions = subs.data.map(sub => ({
+          id:           sub.id,
+          status:       sub.status,
+          would_cancel: sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due',
+        }));
+      } catch (err) {
+        stripeLookupError = err instanceof Error ? err.message : String(err);
+      }
+    }
+
+    return new Response(JSON.stringify({
+      dry_run:               true,
+      user_id:                user.id,
+      stripe_customer_id:     stripeCustomerId,
+      stripe_subscriptions:   stripeSubscriptions,
+      stripe_lookup_error:    stripeLookupError,
+      plaid_items_would_revoke: (plaidItems ?? []).map(item => item.id),
+    }), { headers: { ...CORS, 'Content-Type': 'application/json' } });
+  }
+
   let stripeError: string | null = null;
   let plaidError: string | null = null;
   const failedPlaidItemIds: string[] = [];
 
   // ── Cancel any active Stripe subscription ──────────────────────────────────
-  const stripeCustomerId = profile?.stripe_customer_id ?? null;
   if (stripeCustomerId) {
     try {
       const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, { apiVersion: '2024-06-20' });
