@@ -23,10 +23,13 @@ export function calculateHealthScore({
   subscriptionSpend,
 }) {
   // ── 1. Savings rate (30 pts, minimum 5) ────────────────────────────────────
-  const saved       = Math.max(totalIncome - totalSpent, 0);
-  const savingsRate = totalIncome > 0 ? saved / totalIncome : 0;
+  // rate: signed, for display (can be negative — spending more than income).
+  // rateForPoints: floored at 0, only used for the points formula so score
+  // never drops below the 5pt floor.
+  const savingsRate       = totalIncome > 0 ? (totalIncome - totalSpent) / totalIncome : 0;
+  const savingsRateForPts = Math.max(savingsRate, 0);
   // Full 30 pts at ≥ 20% savings rate, linear below that, floor at 5 pts
-  const savingsPoints = Math.max(5, Math.min(30, Math.round((savingsRate / 0.20) * 30)));
+  const savingsPoints = Math.max(5, Math.min(30, Math.round((savingsRateForPts / 0.20) * 30)));
 
   // ── 2. Budget adherence (25 pts, minimum 5) ─────────────────────────────────
   let budgetPoints = 12; // neutral when no budget set

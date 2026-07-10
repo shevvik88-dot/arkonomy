@@ -522,7 +522,7 @@ export function InsightCard({ insight, onAction }) {
   );
 }
 
-function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpent = 0, budget = 3000, hasData = true, actualSavingsRate = null, prevScore, cashPositionLow = false }) {
+function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpent = 0, budget = 3000, hasData = true, prevScore, cashPositionLow = false }) {
   const { t } = useTranslation();
   const [showBreakdown, setShowBreakdown] = useState(false);
 
@@ -645,7 +645,7 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
 
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
         {(() => {
-          const rawRate = actualSavingsRate !== null ? actualSavingsRate : Math.round(rawBreakdown.savings.rate * 100);
+          const rawRate = Math.round(rawBreakdown.savings.rate * 100);
           const isDeepDeficit = rawRate < -100;
           const savingsDisplay = isDeepDeficit ? null : rawRate; // null → custom label
           const savingsColor = rawRate < 0 ? C.red : rawRate < 10 ? C.yellow : C.cyan;
@@ -1153,7 +1153,7 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
         </div>
       )}
 
-      <HealthScore score={insightScore} color={insightScoreColor} breakdown={insightScoreBreakdown} comment={insightScoreComment} totalSpent={totalSpent} budget={Number(profile?.monthly_budget) || 3000} hasData={totalIncome > 0 || totalSpent > 0} actualSavingsRate={savingsRate} prevScore={prevInsightScore} cashPositionLow={availableSafe <= 0 && plaidBalance != null} />
+      <HealthScore score={insightScore} color={insightScoreColor} breakdown={insightScoreBreakdown} comment={insightScoreComment} totalSpent={totalSpent} budget={Number(profile?.monthly_budget) || 3000} hasData={totalIncome > 0 || totalSpent > 0} prevScore={prevInsightScore} cashPositionLow={availableSafe <= 0 && plaidBalance != null} />
       <WeeklySummary transactions={transactions || []} />
       <RecurringSummary transactions={transactions || []} />
 
