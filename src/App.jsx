@@ -793,17 +793,10 @@ export default function App() {
   async function deleteAccount() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      await Promise.all([
-        supabase.from("transactions").delete().eq("user_id", user.id),
-        supabase.from("savings").delete().eq("user_id", user.id),
-        supabase.from("categories").delete().eq("user_id", user.id),
-        supabase.from("plaid_items").delete().eq("user_id", user.id),
-        supabase.from("investments").delete().eq("user_id", user.id),
-        supabase.from("notification_preferences").delete().eq("user_id", user.id),
-        supabase.from("savings_reminders").delete().eq("user_id", user.id),
-      ]);
-      await supabase.from("profiles").delete().eq("id", user.id);
-      // Call edge function to delete auth user via admin API
+      // delete-account now does everything server-side (Stripe subscription
+      // cancel, Plaid item/remove, then all rows, then the auth user) — it
+      // needs plaid_items/profiles intact to read access_token/stripe_customer_id
+      // before anything is deleted, so the client no longer deletes rows itself.
       await fetch(`${SUPABASE_URL}/functions/v1/delete-account`, {
         method: "POST",
         headers: {

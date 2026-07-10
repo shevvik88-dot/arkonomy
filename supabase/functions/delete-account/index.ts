@@ -1,9 +1,15 @@
 // supabase/functions/delete-account/index.ts
-// Permanently removes the caller's auth.users record using the admin API.
-// Must be called AFTER client-side data deletion (transactions, savings, etc.)
-// so the auth identity is the last thing removed.
+// Permanently removes the caller's account: cancels any active Stripe
+// subscription, revokes Plaid access (item/remove) for every connected
+// bank, deletes all app data, then removes the auth.users record last.
+//
+// Stripe/Plaid calls are best-effort: a failure there is logged to
+// account_deletion_issues for manual follow-up (e.g. refund, manual Stripe
+// cancel) but never blocks the deletion itself — a user who asks to be
+// deleted must end up deleted.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import Stripe from 'npm:stripe@14';
 
 const CORS = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
@@ -32,6 +38,92 @@ Deno.serve(async (req) => {
       status: 401, headers: { ...CORS, 'Content-Type': 'application/json' },
     });
   }
+
+  // ── Gather what we need to revoke BEFORE deleting any rows ────────────────
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('stripe_customer_id')
+    .eq('id', user.id)
+    .single();
+
+  const { data: plaidItems } = await supabase
+    .from('plaid_items')
+    .select('id, access_token')
+    .eq('user_id', user.id);
+
+  let stripeError: string | null = null;
+  let plaidError: string | null = null;
+  const failedPlaidItemIds: string[] = [];
+
+  // ── Cancel any active Stripe subscription ──────────────────────────────────
+  const stripeCustomerId = profile?.stripe_customer_id ?? null;
+  if (stripeCustomerId) {
+    try {
+      const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, { apiVersion: '2024-06-20' });
+      const subs = await stripe.subscriptions.list({ customer: stripeCustomerId, status: 'all' });
+      for (const sub of subs.data) {
+        if (sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due') {
+          await stripe.subscriptions.cancel(sub.id);
+        }
+      }
+    } catch (err) {
+      stripeError = err instanceof Error ? err.message : String(err);
+      console.error(`[delete-account] Stripe cancel failed for user ${user.id}:`, err);
+    }
+  }
+
+  // ── Revoke Plaid access for every connected bank ───────────────────────────
+  if (plaidItems && plaidItems.length > 0) {
+    const plaidEnv  = Deno.env.get('PLAID_ENV') ?? 'production';
+    const plaidBase = `https://${plaidEnv}.plaid.com`;
+    const clientId  = Deno.env.get('PLAID_CLIENT_ID')!;
+    const secret    = Deno.env.get('PLAID_SECRET')!;
+
+    for (const item of plaidItems) {
+      try {
+        const res = await fetch(`${plaidBase}/item/remove`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ client_id: clientId, secret, access_token: item.access_token }),
+        });
+        const data = await res.json();
+        if (!res.ok || data?.error_code) {
+          failedPlaidItemIds.push(item.id);
+          console.error(`[delete-account] Plaid item/remove failed for item ${item.id}:`, data?.error_code);
+        }
+      } catch (err) {
+        failedPlaidItemIds.push(item.id);
+        console.error(`[delete-account] Plaid item/remove error for item ${item.id}:`, err);
+      }
+    }
+    if (failedPlaidItemIds.length > 0) {
+      plaidError = `${failedPlaidItemIds.length}/${plaidItems.length} item(s) failed to revoke`;
+    }
+  }
+
+  // ── Record any failure for manual follow-up before the trail disappears ────
+  if (stripeError || plaidError) {
+    await supabase.from('account_deletion_issues').insert({
+      user_id:            user.id,
+      user_email:         user.email,
+      stripe_customer_id: stripeCustomerId,
+      stripe_error:       stripeError,
+      plaid_item_ids:     failedPlaidItemIds.length > 0 ? failedPlaidItemIds : null,
+      plaid_error:        plaidError,
+    });
+  }
+
+  // ── Delete app data, then the auth identity last ────────────────────────────
+  await Promise.all([
+    supabase.from('transactions').delete().eq('user_id', user.id),
+    supabase.from('savings').delete().eq('user_id', user.id),
+    supabase.from('categories').delete().eq('user_id', user.id),
+    supabase.from('plaid_items').delete().eq('user_id', user.id),
+    supabase.from('investments').delete().eq('user_id', user.id),
+    supabase.from('notification_preferences').delete().eq('user_id', user.id),
+    supabase.from('savings_reminders').delete().eq('user_id', user.id),
+  ]);
+  await supabase.from('profiles').delete().eq('id', user.id);
 
   const { error: deleteErr } = await supabase.auth.admin.deleteUser(user.id);
   if (deleteErr) {
