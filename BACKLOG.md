@@ -251,6 +251,7 @@ Developer Portal / настройка Firebase-консоли.
 - [x] **Шаг 5** — мёртвый код удалён: `src/engine/ai-brain/*` (7 файлов: index.js, metrics.js, signals.js, prioritize.js, screenResolver.js, textRenderer.js, types.js) + `src/hooks/useInsights.js` — нигде не импортировались, бандл байт-в-байт идентичен до/после удаления.
 
 - Savings rate 0% vs −12% рассинхрон устранён: `healthScore.js` теперь возвращает раздельные signed (для отображения) и clamped (только для очков, floor 5pts не изменился) значения `savings.rate`; убран дублирующий `actualSavingsRate` override в Insights.jsx — Home, свёрнутый и развёрнутый вид Insights теперь читают одну формулу.
+- delete-account: Stripe subscription cancel + Plaid /item/remove при удалении аккаунта, таблица account_deletion_issues для разбора ошибок. Протестировано на Stripe test mode + Plaid Sandbox, оба API-контракта подтверждены.
 
 ## ✅ СДЕЛАНО 8 июля (для истории)
 
