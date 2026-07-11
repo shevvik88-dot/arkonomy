@@ -1158,6 +1158,12 @@ export default function App() {
     };
   }, [user, allInsights]);
 
+  const merchantAliasMap = useMemo(() => {
+    const m = new Map();
+    merchantAliases.filter(a => a.status === "confirmed").forEach(a => m.set(a.alias_key, a.canonical_key));
+    return m;
+  }, [merchantAliases]);
+
   if (loading && !user) return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT }}>
       <div style={{ color: C.cyan, fontSize: 16, fontWeight: 500 }}>Loading Arkonomy {APP_VERSION}...</div>
@@ -1269,12 +1275,6 @@ export default function App() {
     setSeenInsightCount(count);
     try { localStorage.setItem('arkonomy_insights_seen', JSON.stringify({ count, at: Date.now() })); } catch {}
   }
-
-  const merchantAliasMap = useMemo(() => {
-    const m = new Map();
-    merchantAliases.filter(a => a.status === "confirmed").forEach(a => m.set(a.alias_key, a.canonical_key));
-    return m;
-  }, [merchantAliases]);
 
   function buildChatGreeting() {
     const budget = Number(profile?.monthly_budget) || 3000;
