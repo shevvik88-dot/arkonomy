@@ -6,7 +6,17 @@ import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "../healthScore";
 import { IS_IOS_NATIVE } from "../lib/platform";
-import { computeRecurringSummary } from "../utils/recurringSummary";
+import { computeRecurringSummary, findDuplicateSubscriptions } from "../utils/recurringSummary";
+
+// Maps findDuplicateSubscriptions' category labels to i18n keys for the "Similar service" badge.
+const DUPLICATE_CATEGORY_I18N_KEY = {
+  'AI assistant':    'insights.category_ai_assistant',
+  'Cloud storage':   'insights.category_cloud_storage',
+  'Video streaming': 'insights.category_video_streaming',
+  'Music streaming': 'insights.category_music_streaming',
+  'Fitness':         'insights.category_fitness',
+  'News & media':    'insights.category_news_media',
+};
 
 const FORECAST_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function formatForecastDate(date) { return FORECAST_MONTHS[date.getMonth()] + ' ' + date.getFullYear(); }
@@ -917,13 +927,16 @@ function MerchantFavicon({ name, color, letter }) {
   );
 }
 
-function RecurringSummary({ transactions }) {
+function RecurringSummary({ transactions, onOpenChat }) {
   const tRec = useTranslation().t;
   const { subscriptions, regularPayments, subTotal, regularTotal, possiblyCancelled } = computeRecurringSummary(transactions);
 
   if (subscriptions.length === 0 && regularPayments.length === 0 && possiblyCancelled.length === 0) return null;
 
-  function SectionRec({ title, items, color, total, icon }) {
+  const duplicateCategoryByName = new Map();
+  findDuplicateSubscriptions(subscriptions).forEach(d => d.items.forEach(item => duplicateCategoryByName.set(item.name, d.category)));
+
+  function SectionRec({ title, items, color, total, icon, showAskAction, duplicateCategoryByName }) {
     if (items.length === 0) return null;
     return (
       <GlassCard style={{ background: `linear-gradient(135deg,${color}0D,${C.card})`, border: `1px solid ${color}30` }}>
@@ -937,13 +950,31 @@ function RecurringSummary({ transactions }) {
         {items.slice(0, 6).map((m, i) => {
           const brand = getBrandStyle(m.name);
           const displayName = cleanMerchantName(m.name) || m.name;
+          const dupCategory = duplicateCategoryByName?.get(m.name);
           return (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: `1px solid ${C.sep}` }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: brand.color + "22", border: `1px solid ${brand.color}44`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden", position: "relative" }}>
-                <MerchantFavicon name={m.name} color={brand.color} letter={brand.letter} />
+            <div key={i} style={{ padding: "7px 0", borderTop: `1px solid ${C.sep}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: brand.color + "22", border: `1px solid ${brand.color}44`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden", position: "relative" }}>
+                  <MerchantFavicon name={m.name} color={brand.color} letter={brand.letter} />
+                </div>
+                <span style={{ fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{displayName}</span>
+                <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{m.months} mo · <span style={{ color, fontWeight: 600 }}>${fmt(m.avgMonthly)}/mo</span></span>
+                {showAskAction && (
+                  <button
+                    onClick={() => onOpenChat?.(tRec("insights.ask_about_subscription", { merchant: displayName }))}
+                    aria-label={tRec("insights.ask_about_subscription", { merchant: displayName })}
+                    style={{ background: "none", border: "none", cursor: "pointer", padding: 4, margin: "-4px -4px -4px 0", display: "flex", alignItems: "center", flexShrink: 0 }}
+                  >
+                    <Icon name="message" size={14} color={C.muted} />
+                  </button>
+                )}
               </div>
-              <span style={{ fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{displayName}</span>
-              <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{m.months} mo · <span style={{ color, fontWeight: 600 }}>${fmt(m.avgMonthly)}/mo</span></span>
+              {dupCategory && (
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: 38, marginTop: 3, fontSize: 11, color: C.muted }}>
+                  <Icon name="info" size={11} color={C.muted} />
+                  {tRec("insights.similar_service", { category: tRec(DUPLICATE_CATEGORY_I18N_KEY[dupCategory] || dupCategory) })}
+                </div>
+              )}
             </div>
           );
         })}
@@ -953,7 +984,7 @@ function RecurringSummary({ transactions }) {
 
   return (
     <>
-      <SectionRec title={tRec("insights.subscriptions")}    items={subscriptions}   color={C.purple} total={subTotal}     icon="repeat" />
+      <SectionRec title={tRec("insights.subscriptions")}    items={subscriptions}   color={C.purple} total={subTotal}     icon="repeat" showAskAction duplicateCategoryByName={duplicateCategoryByName} />
       <SectionRec title={tRec("insights.regular_payments")} items={regularPayments} color={C.blue}   total={regularTotal} icon="file"   />
       {possiblyCancelled.length > 0 && (
         <GlassCard style={{ background: `linear-gradient(135deg,${C.yellow}0D,${C.card})`, border: `1px solid ${C.yellow}30` }}>
@@ -1111,7 +1142,7 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
 
       <HealthScore score={insightScore} color={insightScoreColor} breakdown={insightScoreBreakdown} comment={insightScoreComment} totalSpent={totalSpent} budget={Number(profile?.monthly_budget) || 3000} hasData={totalIncome > 0 || totalSpent > 0} prevScore={prevInsightScore} cashPositionLow={availableSafe <= 0 && plaidBalance != null} />
       <WeeklySummary transactions={transactions || []} />
-      <RecurringSummary transactions={transactions || []} />
+      <RecurringSummary transactions={transactions || []} onOpenChat={onOpenChat} />
 
       {/* Локальные инсайты — только если Edge Function не вернул данные */}
       {(!allInsights || allInsights.length === 0) && insights.map(ins => {
