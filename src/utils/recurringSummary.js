@@ -13,12 +13,24 @@
 // possiblyCancelled instead of subscriptions/regularPayments, so a cancelled
 // subscription doesn't keep inflating totals just because it was seen twice
 // months ago.
+//
+// aliasMap (from the merchant_aliases table, user-confirmed) lets two
+// differently-worded bank descriptions of the same real-world payment
+// (e.g. a bank changing its ACH descriptor) be grouped as one merchant
+// instead of two — see findMerchantAliasCandidates below for how matches
+// are suggested (never auto-merged).
 
 import { parseDate } from "./helpers";
 
 const STALE_MULTIPLIER = 2;
 const MIN_STALE_DAYS = 45;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+const ALIAS_AMOUNT_TOLERANCE_PCT = 0.02;
+const MIN_ALIAS_AMOUNT_TOLERANCE = 0.50;
+const ALIAS_GAP_MULTIPLIER = 2;
+const MIN_ALIAS_GAP_DAYS = 45;
+const DEFAULT_ALIAS_INTERVAL_DAYS = 35; // fallback when neither group has 2+ occurrences of its own
 
 function median(nums) {
   const s = nums.slice().sort((a, b) => a - b);
@@ -64,22 +76,49 @@ function isRecurringExcluded(name) {
   return RECURRING_EXCLUDE.some(k => n.includes(k));
 }
 
-export function computeRecurringSummary(transactions, referenceDate = new Date()) {
+// Follows an alias chain to its final canonical key (aliasMap entries can
+// point to another alias_key rather than the true final canonical — e.g. a
+// 3rd bank descriptor variant confirmed against the 2nd, which was itself
+// confirmed against the 1st). Cycle-guarded, though real data never cycles.
+function resolveAlias(key, aliasMap) {
+  let resolved = key;
+  for (let hops = 0; aliasMap.has(resolved) && hops < 10; hops++) {
+    resolved = aliasMap.get(resolved);
+  }
+  return resolved;
+}
+
+// Groups transactions by normalized merchant description. aliasMap (raw key
+// -> canonical raw key, from user-confirmed merchant_aliases) is applied
+// before bucketing, so confirmed aliases merge into one group. The bucket's
+// displayed .name always tracks the MOST RECENT transaction's description —
+// important once merging is involved, since a merged group can contain 2-3
+// different bank descriptions over time.
+function groupTransactionsByMerchant(transactions, aliasMap = new Map()) {
   const map = {};
   transactions
     .filter(t => t.type === "expense" && t.category_name !== "Transfer")
     .forEach(t => {
       const raw = (t.description || t.category_name || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40);
       if (!raw || raw.length < 3) return;
+      const groupKey = resolveAlias(raw, aliasMap);
       const d = parseDate(t.date);
       const monthKey = `${d.getFullYear()}-${d.getMonth()}`;
-      if (!map[raw]) map[raw] = { name: t.description || t.category_name || raw, months: new Set(), monthDates: {}, amounts: [], total: 0, lastDate: d };
-      map[raw].months.add(monthKey);
-      map[raw].amounts.push(Number(t.amount));
-      map[raw].total += Number(t.amount);
-      if (!map[raw].monthDates[monthKey] || d > map[raw].monthDates[monthKey]) map[raw].monthDates[monthKey] = d;
-      if (d > map[raw].lastDate) map[raw].lastDate = d;
+      const displayName = t.description || t.category_name || raw;
+      if (!map[groupKey]) map[groupKey] = { key: groupKey, name: displayName, months: new Set(), monthDates: {}, amounts: [], total: 0, firstDate: d, lastDate: d };
+      const g = map[groupKey];
+      g.months.add(monthKey);
+      g.amounts.push(Number(t.amount));
+      g.total += Number(t.amount);
+      if (!g.monthDates[monthKey] || d > g.monthDates[monthKey]) g.monthDates[monthKey] = d;
+      if (d > g.lastDate) { g.lastDate = d; g.name = displayName; }
+      if (d < g.firstDate) g.firstDate = d;
     });
+  return map;
+}
+
+export function computeRecurringSummary(transactions, referenceDate = new Date(), aliasMap = new Map()) {
+  const map = groupTransactionsByMerchant(transactions, aliasMap);
 
   const candidates = Object.values(map)
     .filter(m => m.months.size >= 2 && !isRecurringExcluded(m.name))
@@ -162,4 +201,85 @@ export function findDuplicateSubscriptions(subscriptions) {
     });
   }
   return duplicates;
+}
+
+// ── Merchant-alias candidate detection ──────────────────────────────────────
+// Suggests pairs of raw merchant groups that are LIKELY the same real-world
+// payment under two different bank descriptions (e.g. a landlord's rent
+// showing as "Turbotenant" for months, then "Sheviakov" after the bank
+// changes its ACH descriptor). Never auto-merges — only surfaces candidates
+// for the user to confirm or reject via the merchant_aliases table. A pair
+// must be: similar amount, non-overlapping in time (one group's activity
+// fully precedes the other's — a clean handoff, not two concurrent
+// subscriptions), and the gap between them plausible for a missed-or-renamed
+// billing cycle, not a coincidental one-off match.
+export function findMerchantAliasCandidates(transactions, existingAliases = []) {
+  const map = groupTransactionsByMerchant(transactions);
+  const groups = Object.values(map)
+    .filter(m => !isRecurringExcluded(m.name))
+    .map(m => {
+      const sorted = m.amounts.slice().sort((x, y) => x - y);
+      const avgAmount = m.total / m.months.size;
+      const spread = sorted[sorted.length - 1] - sorted[0];
+      return { ...m, avgAmount, spread };
+    });
+
+  const decided = new Set();
+  existingAliases.forEach(a => {
+    decided.add(`${a.alias_key}::${a.canonical_key}`);
+    decided.add(`${a.canonical_key}::${a.alias_key}`);
+  });
+
+  function intervalFor(m) {
+    const monthDatesSorted = Object.values(m.monthDates).sort((x, y) => x - y);
+    if (monthDatesSorted.length < 2) return null;
+    const gaps = monthDatesSorted.slice(1).map((d, i) => (d - monthDatesSorted[i]) / MS_PER_DAY);
+    return median(gaps);
+  }
+
+  // A group only counts as "already looks like a real bill" if it's been
+  // seen 2+ months AND its amount is consistent (same bar as subscriptions/
+  // regularPayments) — a one-off or wildly-varying merchant that happens to
+  // land near another's amount by chance is not evidence of a handoff.
+  function isBillLike(m) {
+    if (m.months.size < 2) return false;
+    return m.spread <= (m.avgAmount < 100 ? 0.50 : Math.max(10, m.avgAmount * 0.10));
+  }
+
+  const candidates = [];
+  for (let i = 0; i < groups.length; i++) {
+    for (let j = i + 1; j < groups.length; j++) {
+      const a = groups[i], b = groups[j];
+      if (decided.has(`${a.key}::${b.key}`)) continue;
+      // at least one side must already look like a consistent, established
+      // bill on its own — otherwise this is just two unrelated charges
+      // that happen to be close in amount, not a real descriptor handoff
+      if (!isBillLike(a) && !isBillLike(b)) continue;
+
+      const amountTolerance = Math.max(MIN_ALIAS_AMOUNT_TOLERANCE, Math.max(a.avgAmount, b.avgAmount) * ALIAS_AMOUNT_TOLERANCE_PCT);
+      if (Math.abs(a.avgAmount - b.avgAmount) > amountTolerance) continue;
+
+      let earlier, later;
+      if (a.lastDate <= b.firstDate) { earlier = a; later = b; }
+      else if (b.lastDate <= a.firstDate) { earlier = b; later = a; }
+      else continue; // overlapping activity — likely two genuinely concurrent merchants, not a descriptor handoff
+
+      const gapDays = (later.firstDate - earlier.lastDate) / MS_PER_DAY;
+      const referenceInterval = intervalFor(later) ?? intervalFor(earlier) ?? DEFAULT_ALIAS_INTERVAL_DAYS;
+      const gapThreshold = Math.max(MIN_ALIAS_GAP_DAYS, referenceInterval * ALIAS_GAP_MULTIPLIER);
+      if (gapDays > gapThreshold) continue;
+
+      const relativeAmountDiff = Math.abs(a.avgAmount - b.avgAmount) / Math.max(a.avgAmount, b.avgAmount, 1);
+      candidates.push({
+        older: { key: earlier.key, name: earlier.name, amount: Math.round(earlier.avgAmount * 100) / 100, lastSeen: earlier.lastDate, months: earlier.months.size },
+        newer: { key: later.key, name: later.name, amount: Math.round(later.avgAmount * 100) / 100, firstSeen: later.firstDate, months: later.months.size },
+        relativeAmountDiff,
+        gapDays,
+      });
+    }
+  }
+  // Tightest amount match first, then shortest gap — surfaces the most
+  // plausible handoffs first since amount+timing alone can't fully rule out
+  // coincidental matches on common round-dollar amounts ($20, $5, $3...).
+  return candidates.sort((x, y) => x.relativeAmountDiff - y.relativeAmountDiff || x.gapDays - y.gapDays);
 }

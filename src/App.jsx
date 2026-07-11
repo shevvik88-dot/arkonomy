@@ -334,6 +334,7 @@ export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
   const [savings, setSavings] = useState([]);
+  const [merchantAliases, setMerchantAliases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddTx, setShowAddTx] = useState(false);
   const [editTx, setEditTx] = useState(null);
@@ -548,11 +549,12 @@ export default function App() {
   async function loadAll(silent = false) {
     if (!silent) setLoading(true);
     try {
-      const [p, t, c, sv] = await Promise.all([
+      const [p, t, c, sv, ma] = await Promise.all([
         supabase.from("profiles").select("id, email, full_name, avatar_url, monthly_budget, savings_goal, roundup_enabled, created_at, plan, push_subscription, watchlist, stripe_customer_id, tutorial_completed, last_synced_at, trial_ends_at, trial_web_search_count, alpaca_access_token").eq("id", user.id).single(),
         supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }).limit(5000),
         supabase.from("categories").select("*").eq("user_id", user.id),
         supabase.from("savings").select("*").eq("user_id", user.id),
+        supabase.from("merchant_aliases").select("*").eq("user_id", user.id),
       ]);
       if (p.data) {
         setProfile(p.data);
@@ -577,6 +579,7 @@ export default function App() {
       }
       if (sv.data) setSavings(sv.data);
       if (c.data) { setCategories(c.data); if (c.data.length === 0) await seedCategories(); }
+      if (ma.data) setMerchantAliases(ma.data);
     } catch (err) {
       logger.error("[loadAll] failed:", err);
     } finally {
@@ -788,7 +791,7 @@ export default function App() {
     } catch (err) {
       logger.error("[signOut] failed:", err);
     } finally {
-      setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]);
+      setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]); setMerchantAliases([]);
     }
   }
 
@@ -811,7 +814,7 @@ export default function App() {
     }
     clearAccountsCache();
     await supabase.auth.signOut();
-    setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]);
+    setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]); setMerchantAliases([]);
   }
 
   async function addTransaction(tx) {
@@ -927,6 +930,17 @@ export default function App() {
       logger.error("[updateTransaction] failed:", err);
     } finally {
       setEditTx(null);
+    }
+  }
+
+  async function decideMerchantAlias(aliasKey, canonicalKey, status) {
+    try {
+      const { data } = await supabase.from("merchant_aliases")
+        .insert({ user_id: user.id, alias_key: aliasKey, canonical_key: canonicalKey, status })
+        .select().single();
+      if (data) setMerchantAliases(prev => [...prev, data]);
+    } catch (err) {
+      logger.error("[decideMerchantAlias] failed:", err);
     }
   }
 
@@ -1256,6 +1270,12 @@ export default function App() {
     try { localStorage.setItem('arkonomy_insights_seen', JSON.stringify({ count, at: Date.now() })); } catch {}
   }
 
+  const merchantAliasMap = useMemo(() => {
+    const m = new Map();
+    merchantAliases.filter(a => a.status === "confirmed").forEach(a => m.set(a.alias_key, a.canonical_key));
+    return m;
+  }, [merchantAliases]);
+
   function buildChatGreeting() {
     const budget = Number(profile?.monthly_budget) || 3000;
     const SUB_CATS_HS = ['Subscriptions', 'Bills', 'Utilities', 'Phone', 'Internet', 'Insurance'];
@@ -1299,7 +1319,7 @@ export default function App() {
       .filter(t => t.type === "expense" && resolveCategory(t) === "Cost of Debt" && (() => { const d = new Date(t.date + "T00:00:00"); return d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear(); })())
       .reduce((s, t) => s + Number(t.amount), 0);
 
-    const { subscriptions, regularPayments, subTotal, regularTotal } = computeRecurringSummary(transactions);
+    const { subscriptions, regularPayments, subTotal, regularTotal } = computeRecurringSummary(transactions, new Date(), merchantAliasMap);
     const duplicates = findDuplicateSubscriptions(subscriptions);
 
     const ctx = {
@@ -1503,7 +1523,7 @@ export default function App() {
             {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} InsightCard={InsightCard} roundupEnabled={roundupEnabled} onToggleRoundup={v => { setRoundupEnabled(v); saveProfile({ roundup_enabled: v }); }} />}
-            {screen === "insights" && <Insights {...shared} onOpenChat={msg => { const budget = Number(profile?.monthly_budget)||3000; const sub = ['Subscriptions','Bills','Utilities','Phone','Internet','Insurance'].reduce((s,c)=>s+(spendingByCategory[c]||0),0); const {score:hs}=calculateHealthScore({totalIncome:effectiveIncome,totalSpent,lastIncome,lastSpent,budget,subscriptionSpend:sub}); const greeting=buildContextGreeting('insights',{totalIncome:effectiveIncome,totalSpent,spendingByCategory,savings,transactions,profile,allInsights,healthScore:hs}); const base=[{role:"assistant",text:greeting}]; setChatMessages(base); setShowChat(true); sendChat(msg,base); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} />}
+            {screen === "insights" && <Insights {...shared} onOpenChat={msg => { const budget = Number(profile?.monthly_budget)||3000; const sub = ['Subscriptions','Bills','Utilities','Phone','Internet','Insurance'].reduce((s,c)=>s+(spendingByCategory[c]||0),0); const {score:hs}=calculateHealthScore({totalIncome:effectiveIncome,totalSpent,lastIncome,lastSpent,budget,subscriptionSpend:sub}); const greeting=buildContextGreeting('insights',{totalIncome:effectiveIncome,totalSpent,spendingByCategory,savings,transactions,profile,allInsights,healthScore:hs}); const base=[{role:"assistant",text:greeting}]; setChatMessages(base); setShowChat(true); sendChat(msg,base); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} merchantAliasMap={merchantAliasMap} merchantAliases={merchantAliases} onDecideMerchantAlias={decideMerchantAlias} />}
             {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} onSignOut={signOut} onDeleteAccount={deleteAccount} onBack={() => setScreen("dashboard")} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} getReconnectToken={getReconnectToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} lastSyncedAt={lastSyncedAt} backgroundSyncing={backgroundSyncing} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
           </>
         )}

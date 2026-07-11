@@ -6,7 +6,7 @@ import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "../healthScore";
 import { IS_IOS_NATIVE } from "../lib/platform";
-import { computeRecurringSummary, findDuplicateSubscriptions } from "../utils/recurringSummary";
+import { computeRecurringSummary, findDuplicateSubscriptions, findMerchantAliasCandidates } from "../utils/recurringSummary";
 
 // Maps findDuplicateSubscriptions' category labels to i18n keys for the "Similar service" badge.
 const DUPLICATE_CATEGORY_I18N_KEY = {
@@ -927,11 +927,12 @@ function MerchantFavicon({ name, color, letter }) {
   );
 }
 
-function RecurringSummary({ transactions, onOpenChat }) {
+function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchantAliases, onDecideMerchantAlias }) {
   const tRec = useTranslation().t;
-  const { subscriptions, regularPayments, subTotal, regularTotal, possiblyCancelled } = computeRecurringSummary(transactions);
+  const { subscriptions, regularPayments, subTotal, regularTotal, possiblyCancelled } = computeRecurringSummary(transactions, new Date(), merchantAliasMap);
+  const aliasCandidates = findMerchantAliasCandidates(transactions, merchantAliases || []);
 
-  if (subscriptions.length === 0 && regularPayments.length === 0 && possiblyCancelled.length === 0) return null;
+  if (subscriptions.length === 0 && regularPayments.length === 0 && possiblyCancelled.length === 0 && aliasCandidates.length === 0) return null;
 
   const duplicateCategoryByName = new Map();
   findDuplicateSubscriptions(subscriptions).forEach(d => d.items.forEach(item => duplicateCategoryByName.set(item.name, d.category)));
@@ -1009,11 +1010,49 @@ function RecurringSummary({ transactions, onOpenChat }) {
           })}
         </GlassCard>
       )}
+      {aliasCandidates.length > 0 && (
+        <GlassCard style={{ background: `linear-gradient(135deg,${C.cyan}0D,${C.card})`, border: `1px solid ${C.cyan}30` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: C.cyan + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="refresh-cw" size={14} color={C.cyan} />
+            </div>
+            <span style={{ fontWeight: 600, fontSize: 14, color: C.cyan }}>{tRec("insights.same_payment_title")}</span>
+          </div>
+          {aliasCandidates.slice(0, 6).map((c, i) => {
+            const olderName = cleanMerchantName(c.older.name) || c.older.name;
+            const newerName = cleanMerchantName(c.newer.name) || c.newer.name;
+            return (
+              <div key={i} style={{ padding: "9px 0", borderTop: i > 0 ? `1px solid ${C.sep}` : "none" }}>
+                <div style={{ fontSize: 13, color: C.text, marginBottom: 6 }}>
+                  {olderName} (${fmt(c.older.amount)}/mo) &harr; {newerName} (${fmt(c.newer.amount)}/mo)
+                </div>
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>{tRec("insights.same_payment_hint")}</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={() => onDecideMerchantAlias?.(c.older.key, c.newer.key, "confirmed")}
+                    style={{ display: "flex", alignItems: "center", gap: 6, background: C.green + "22", border: `1px solid ${C.green}44`, borderRadius: 8, padding: "6px 10px", color: C.green, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    <Icon name="check" size={13} color={C.green} />
+                    {tRec("insights.same_payment_confirm")}
+                  </button>
+                  <button
+                    onClick={() => onDecideMerchantAlias?.(c.older.key, c.newer.key, "rejected")}
+                    style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: `1px solid ${C.sep}`, borderRadius: 8, padding: "6px 10px", color: C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    <Icon name="x" size={13} color={C.muted} />
+                    {tRec("insights.same_payment_reject")}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </GlassCard>
+      )}
     </>
   );
 }
 
-export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, onOpenChat, transactions, savings, profile, allInsights, onInsightAction, isPro, onUpgrade, plaidBalance }) {
+export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, onOpenChat, transactions, savings, profile, allInsights, onInsightAction, isPro, onUpgrade, plaidBalance, merchantAliasMap, merchantAliases, onDecideMerchantAlias }) {
   const { t } = useTranslation();
   const monthlySavings = totalIncome - totalSpent;
   const savingsRate = totalIncome > 0 ? Math.round((monthlySavings / totalIncome) * 100) : 0;
@@ -1142,7 +1181,7 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
 
       <HealthScore score={insightScore} color={insightScoreColor} breakdown={insightScoreBreakdown} comment={insightScoreComment} totalSpent={totalSpent} budget={Number(profile?.monthly_budget) || 3000} hasData={totalIncome > 0 || totalSpent > 0} prevScore={prevInsightScore} cashPositionLow={availableSafe <= 0 && plaidBalance != null} />
       <WeeklySummary transactions={transactions || []} />
-      <RecurringSummary transactions={transactions || []} onOpenChat={onOpenChat} />
+      <RecurringSummary transactions={transactions || []} onOpenChat={onOpenChat} merchantAliasMap={merchantAliasMap} merchantAliases={merchantAliases} onDecideMerchantAlias={onDecideMerchantAlias} />
 
       {/* Локальные инсайты — только если Edge Function не вернул данные */}
       {(!allInsights || allInsights.length === 0) && insights.map(ins => {
