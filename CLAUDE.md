@@ -68,7 +68,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 # Arkonomy
 
-## Current status (2026-06-25)
+## Current status (2026-07-11)
 - Production live at app.arkonomy.com
 - Security audit complete (Items 1–8): CSP headers, session storage hardening, Plaid webhook verification, SW cache audit, logout global scope, Stripe idempotency, input validation, password policy
 - **Firebase App Check live** — reCAPTCHA v3 on web; JWKS-based RS256 verification in `_shared/appCheck.ts`; protects ai-chat, get-insights, weekly-report, plaid-sync-transactions; cron/service-role paths bypass check; `callEdgeFunction()` in `src/lib/` injects token automatically
@@ -77,13 +77,21 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - CI: Semgrep + dependency-review GitHub Actions added; Dependabot weekly npm updates enabled
 - Security: CSP live on app.arkonomy.com — script/connect/frame/manifest-src all locked down
 - Security: signOut uses `scope: 'global'` — invalidates all sessions across devices
+- **Recurring-payments staleness filter live** — `computeRecurringSummary` (src/utils/recurringSummary.js) excludes merchants whose last charge exceeds an adaptive threshold (2× typical billing interval, floor 45 days) into `possiblyCancelled`; shown read-only in Insights ("Possibly cancelled?" section), excluded from Subscriptions/Regular Payments totals and ai-chat context (single source, no separate fix needed). Verified against real account data: OpenAI (124d stale) and Dental Insurance (236d stale) correctly flagged; Lemonade Insurance (9d, monthly cadence) correctly stayed active.
+- **"Ask about subscription" action live in Insights** — search-icon button on each Subscriptions row opens ai-chat with a neutral prompt ("...is it worth keeping, and how would I cancel it if I wanted to?"), not a direct cancel prompt. Regular Payments has no such action by design (rent/insurance/loans aren't one-click cancellable). `findDuplicateSubscriptions()` (previously computed for ai-chat context only, never rendered) now also renders a "Similar service" badge for 2+ *distinct-brand* duplicates in one category (e.g. Netflix+Hulu) — by design does not fire for same-brand/different-bank-descriptor duplicates (e.g. Claude.ai vs Anthropic.comca), since that needs `brandMap.size>=2` distinct keywords, not 2+ rows sharing one keyword. That case is BACKLOG #12 (merchant-alias merge), not this detector's job.
 
 ## Next tasks (priority order)
-1. **Merchant navigation** — tap a transaction in Dashboard "Recent Transactions" → navigate to Transactions screen filtered by that merchant (cleanMerchantName now in helpers.js)
-2. **Notification preferences UI** — Settings screen section: frequency selector + email digest content toggles; table `notification_preferences` already exists in Supabase
-3. **E2E testing** — Playwright tests for critical flows (auth, bank connection, transaction add)
+1. **Apple Developer/Firebase for native push** — blocked, waiting on payment (salary)
+2. **Demo account + screenshots** for App Store submission
+3. **Merchant-alias merge** (BACKLOG #12) — rent has 3 confirmed bank descriptor variants (Turbotenant/Sheviakov/RENT:SHEVIAKOV DES:...); Claude/Anthropic subscription duplicated in totals ($40 vs real $20)
+
+Not touched this session, still open:
+4. **Merchant navigation** — tap a transaction in Dashboard "Recent Transactions" → navigate to Transactions screen filtered by that merchant (cleanMerchantName now in helpers.js)
+5. **Notification preferences UI** — Settings screen section: frequency selector + email digest content toggles; table `notification_preferences` already exists in Supabase
+6. **E2E testing** — Playwright tests for critical flows (auth, bank connection, transaction add)
 
 ## Known issues / tech debt
+- **Merchant-alias / duplicate-descriptor bug (BACKLOG #12)** — `computeRecurringSummary` groups strictly by normalized bank description, so one real-world payment written differently over time (bank changes descriptor) is counted as separate merchants. Two confirmed live cases: rent (Turbotenant/Sheviakov/RENT:SHEVIAKOV DES:..., 3 variants) and Claude/Anthropic subscription ($40 vs real $20). Deliberately not patched with a quick heuristic — false-positive risk (merging two genuinely different merchants) outweighs the current bug. Full design (proposed: amount similarity + semantic closeness + user confirmation UI, not full auto-merge) tracked in BACKLOG.md #12.
 - **`detectRecurringCharges` misses genuinely one-time bills** — requires ≥2 confirmed occurrences of a merchant with a consistent interval, so a first-time or irregular bill won't appear in `upcomingBills7d` and won't trigger `cash_risk`. Same detector/limitation in both `get-insights` (server) and `Dashboard.jsx` Cash Flow Forecast (client), so at least they agree with each other.
 - **`weekly-report/index.ts` duplicates the savings-points formula** from `healthScore.js` by hand (Deno can't import from `src/`) — numbers currently match, but a future change to `healthScore.js`'s formula won't propagate to the email report automatically.
 - **Health Score has no balance floor** — `calculateHealthScore()` (healthScore.js) only looks at income/spend trend across 4 components, never at actual cash position. Low-balance warning is a bolted-on `cashPositionLow` caption (Insights.jsx, Dashboard.jsx) next to the score, not a factor in the score/color/label itself.
