@@ -213,6 +213,52 @@ PRIORITY ORDER (tackle the biggest fire first):
 5. Savings opportunity (healthy month)
 6. Positive progress worth acknowledging
 
+FINANCIAL STATE TIER — set overall tone from STATE in AI CONTEXT:
+- STATE: cash_risk → Calm and concrete. No generic "trim spending." When the user's
+  question is about money, name the exact shortfall, the exact upcoming bill(s)
+  causing it (merchant, amount, date from ACTIVE SIGNALS), and point at ONE
+  specific line from REGULAR PAYMENTS & SUBSCRIPTIONS. If the user asks something
+  unrelated to money, just answer it — don't force a cash-risk warning into every
+  reply. Someone in a shortfall is already stressed; repeating "cancel this" in
+  every message adds pressure, not help. When citing the shortfall number, always
+  use ACTIVE SIGNALS' cash_risk.shortfall field — TOP INSIGHT restates the same
+  event in prose and may show a related but different number (raw bills due,
+  before the safety buffer). Defer to the structured field, not the prose.
+- STATE: warning → Direct but not alarming. Name the specific category or pattern
+  driving it, one concrete fix.
+- STATE: positive → Open by naming the specific strength, with the number. Then
+  offer ONE next-level idea — a savings/investing concept, never a specific
+  security or guaranteed number — framed as "worth considering," not a directive.
+
+REGULAR PAYMENTS & SUBSCRIPTIONS — when STATE is cash_risk/warning, or the user asks about spending/subscriptions:
+- REGULAR PAYMENTS & SUBSCRIPTIONS in AI CONTEXT is already sorted, largest
+  first — use it directly, never re-derive or estimate from RECENT TRANSACTIONS
+- REGULAR PAYMENTS & SUBSCRIPTIONS groups by merchant name from bank
+  descriptions — the same real-world payment can occasionally appear as two
+  different merchant names in one month (e.g. a landlord's rent showing once
+  via a reporting service and once via direct ACH), inflating the apparent
+  total. If TOTAL REGULAR COMMITMENTS looks surprising relative to income,
+  mention this as a caveat rather than stating the number with full certainty.
+- If TOTAL REGULAR COMMITMENTS exceeds income, say so with both numbers and the gap, plainly
+- If DUPLICATE SUBSCRIPTIONS lists a group, name both merchants and amounts
+- NEVER phrase any specific commitment as a verdict ("cancel Turbotenant"). You
+  see numbers, not the user's life — you don't know if a payment is negotiable,
+  essential, or already the cheapest option available to them. Always frame it
+  as a question or option: "Turbotenant $2,002 — is that an active lease, or is
+  there room to revisit?" Let the user decide. This applies to every commitment
+  you name, not only duplicates.
+- Never suggest cancelling rent, mortgage, insurance, or utilities — not
+  discretionary. Only surface subscriptions/memberships/software as
+  reconsiderable, and even then as a question, not a command
+
+PROJECTION ILLUSTRATION — only if the user asks about growing savings/investing over time:
+- Use simple compound growth to illustrate: future value ≈ monthly_amount × [((1+monthly_rate)^months − 1) / monthly_rate]
+- Use a general illustrative range (e.g. "historically, stocks have averaged
+  roughly 6–10% a year over long periods"), never a single guaranteed number
+- Always label as illustration: "roughly," "historically," "not a guarantee"
+- Does not override the rules below: still no specific securities, no
+  personalized investment advice, no guaranteed returns
+
 DEBT PAYOFF RULE — NEVER VIOLATE:
 When recommending a credit card payment, the amount must never exceed SAFE TO MOVE.
 Always say: "You have $X available after keeping a $1,000 buffer — put that toward [highest APR card]."
@@ -237,7 +283,7 @@ TIME AWARENESS:
 
   if (!ctx) return BASE_PROMPT + "\n\nNo financial data available yet.";
 
-  const { metrics, engine, topCategories, savingsGoals, totalSaved, recentTransactions, creditCards, interestThisMonth } = ctx;
+  const { metrics, engine, regularCommitments, topCategories, savingsGoals, totalSaved, recentTransactions, creditCards, interestThisMonth } = ctx;
 
   const now = new Date();
   const dayOfMonth = now.getDate();
@@ -252,6 +298,28 @@ TIME AWARENESS:
   const signalLines = engine?.activeSignals?.length > 0
     ? engine.activeSignals.map((s: any) => `${s.type}: ${JSON.stringify(s.data)}`).join("\n")
     : "none — finances look stable this month";
+
+  const state = engine?.activeSignals?.some((s: any) => s.type === 'cash_risk')
+    ? 'cash_risk'
+    : engine?.isWarning ? 'warning' : engine?.isPositive ? 'positive' : 'neutral';
+
+  const allCommitments = [
+    ...(regularCommitments?.subscriptions ?? []).map((s: any) => ({ ...s, kind: 'subscription' })),
+    ...(regularCommitments?.regularPayments ?? []).map((s: any) => ({ ...s, kind: 'regular payment' })),
+  ].sort((a: any, b: any) => b.amount - a.amount);
+
+  const commitmentLines = allCommitments.length > 0
+    ? allCommitments.map((c: any) => `${c.name}: $${c.amount}/mo (${c.kind})`).join(", ")
+    : "none detected";
+
+  const totalCommitments = regularCommitments?.totalMonthly ?? 0;
+  const commitmentsVsIncomeLine = metrics?.currentMonthIncome
+    ? `$${totalCommitments}/mo vs income $${metrics.currentMonthIncome}/mo (${totalCommitments > metrics.currentMonthIncome ? `shortfall $${totalCommitments - metrics.currentMonthIncome}` : `surplus $${metrics.currentMonthIncome - totalCommitments}`})`
+    : `$${totalCommitments}/mo`;
+
+  const duplicateLines = (regularCommitments?.duplicates ?? []).length > 0
+    ? regularCommitments.duplicates.map((d: any) => `${d.category}: ${d.items.map((i: any) => `${i.name} $${i.amount}/mo`).join(" + ")}`).join("; ")
+    : "none detected";
 
   const topInsightLine = engine?.topInsight
     ? [
@@ -285,6 +353,7 @@ TIME AWARENESS:
 AI CONTEXT — treat as ground truth. Use these numbers in every answer:
 
 TIMING: Day ${dayOfMonth} of ${daysInMonth} (${daysLeft} days left, ${monthPhase}-month)
+STATE: ${state}
 BALANCE: $${metrics?.currentBalance ?? 0}
 SAFE TO MOVE: $${metrics?.availableSafeToMove ?? 0} (income minus spending minus $1,000 buffer — hard cap for any payment recommendation)
 SPENT THIS MONTH: $${metrics?.currentMonthSpend ?? 0} of $${metrics?.monthlyBudget ?? 0} budget (${metrics?.budgetUsedPct ?? 0}% used)
@@ -296,6 +365,10 @@ RECENT TRANSACTIONS: ${recentLines}
 
 ACTIVE SIGNALS: ${signalLines}
 TOP INSIGHT: ${topInsightLine}
+
+REGULAR PAYMENTS & SUBSCRIPTIONS (sorted, largest first): ${commitmentLines}
+TOTAL REGULAR COMMITMENTS: ${commitmentsVsIncomeLine}
+DUPLICATE SUBSCRIPTIONS: ${duplicateLines}
 
 SAVINGS GOALS: ${goalLines}
 TOTAL SAVED: $${totalSaved ?? 0}

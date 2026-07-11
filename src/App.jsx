@@ -16,6 +16,7 @@ import { detectRecurringCharges } from "./recurringDetector";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "./healthScore";
 import { BUFFER } from "./shared/financialConstants";
 import { IS_IOS_NATIVE } from "./lib/platform";
+import { computeRecurringSummary, findDuplicateSubscriptions } from "./utils/recurringSummary";
 import GlassCard from "./components/shared/GlassCard";
 import AuthScreen from "./components/AuthScreen";
 import Icon from "./components/shared/Icon";
@@ -1298,6 +1299,9 @@ export default function App() {
       .filter(t => t.type === "expense" && resolveCategory(t) === "Cost of Debt" && (() => { const d = new Date(t.date + "T00:00:00"); return d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear(); })())
       .reduce((s, t) => s + Number(t.amount), 0);
 
+    const { subscriptions, regularPayments, subTotal, regularTotal } = computeRecurringSummary(transactions);
+    const duplicates = findDuplicateSubscriptions(subscriptions);
+
     const ctx = {
       metrics: {
         currentBalance: plaidBalance ?? (totalIncome - totalSpent),
@@ -1310,6 +1314,14 @@ export default function App() {
       engine: {
         activeSignals: aiContext?.activeSignals ?? [],
         topInsight: aiContext?.topInsight ?? null,
+        isWarning: aiContext?.isWarning ?? false,
+        isPositive: aiContext?.isPositive ?? false,
+      },
+      regularCommitments: {
+        subscriptions: subscriptions.map(s => ({ name: s.name, amount: Math.round(s.avgMonthly) })),
+        regularPayments: regularPayments.map(s => ({ name: s.name, amount: Math.round(s.avgMonthly) })),
+        totalMonthly: Math.round(subTotal + regularTotal),
+        duplicates,
       },
       topCategories: Object.entries(spendingByCategory)
         .sort((a, b) => b[1] - a[1]).slice(0, 5)

@@ -949,7 +949,12 @@ function resolveScreens(signals: any[], globalWinner: any, ctx: RenderContext, l
     transactions: resolveScreen('transactions', signals, globalWinner, ctx, lang),
     savings:      resolveScreen('savings', signals, globalWinner, ctx, lang),
     insights:     prioritizeTop(signals, 3, ctx, lang),
-    ai: { activeSignals: signals, topInsight: globalWinner },
+    ai: {
+      activeSignals: signals,
+      topInsight:    globalWinner,
+      isWarning:     signals.some((s: any) => WARNING_TYPES.includes(s.type)),
+      isPositive:    signals.length > 0 && signals.every((s: any) => !WARNING_TYPES.includes(s.type)),
+    },
   };
 }
 
