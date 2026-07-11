@@ -188,6 +188,8 @@
     "this_month": "this month",
     "subscriptions": "Subscriptions",
     "regular_payments": "Regular Payments",
+    "possibly_cancelled": "Possibly cancelled?",
+    "last_charged_days_ago": "last charged {{days}}d ago",
     "per_month": "/mo",
     "insights_locked_one": "{{count}} more insight locked",
     "insights_locked_other": "{{count}} more insights locked",

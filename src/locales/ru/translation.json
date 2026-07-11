@@ -190,6 +190,8 @@
     "this_month": "в этом месяце",
     "subscriptions": "Подписки",
     "regular_payments": "Регулярные платежи",
+    "possibly_cancelled": "Возможно отменено?",
+    "last_charged_days_ago": "последнее списание {{days}} дн. назад",
     "per_month": "/мес",
     "insights_locked_one": "Ещё {{count}} инсайт заблокирован",
     "insights_locked_few": "Ещё {{count}} инсайта заблокировано",

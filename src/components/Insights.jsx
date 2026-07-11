@@ -919,9 +919,9 @@ function MerchantFavicon({ name, color, letter }) {
 
 function RecurringSummary({ transactions }) {
   const tRec = useTranslation().t;
-  const { subscriptions, regularPayments, subTotal, regularTotal } = computeRecurringSummary(transactions);
+  const { subscriptions, regularPayments, subTotal, regularTotal, possiblyCancelled } = computeRecurringSummary(transactions);
 
-  if (subscriptions.length === 0 && regularPayments.length === 0) return null;
+  if (subscriptions.length === 0 && regularPayments.length === 0 && possiblyCancelled.length === 0) return null;
 
   function SectionRec({ title, items, color, total, icon }) {
     if (items.length === 0) return null;
@@ -955,6 +955,29 @@ function RecurringSummary({ transactions }) {
     <>
       <SectionRec title={tRec("insights.subscriptions")}    items={subscriptions}   color={C.purple} total={subTotal}     icon="repeat" />
       <SectionRec title={tRec("insights.regular_payments")} items={regularPayments} color={C.blue}   total={regularTotal} icon="file"   />
+      {possiblyCancelled.length > 0 && (
+        <GlassCard style={{ background: `linear-gradient(135deg,${C.yellow}0D,${C.card})`, border: `1px solid ${C.yellow}30` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: C.yellow + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="alert-circle" size={14} color={C.yellow} />
+            </div>
+            <span style={{ fontWeight: 600, fontSize: 14, color: C.yellow }}>{tRec("insights.possibly_cancelled")}</span>
+          </div>
+          {possiblyCancelled.slice(0, 6).map((m, i) => {
+            const brand = getBrandStyle(m.name);
+            const displayName = cleanMerchantName(m.name) || m.name;
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: `1px solid ${C.sep}` }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: brand.color + "22", border: `1px solid ${brand.color}44`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden", position: "relative" }}>
+                  <MerchantFavicon name={m.name} color={brand.color} letter={brand.letter} />
+                </div>
+                <span style={{ fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{displayName}</span>
+                <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>${fmt(m.avgMonthly)}/mo · {tRec("insights.last_charged_days_ago", { days: m.daysSinceLast })}</span>
+              </div>
+            );
+          })}
+        </GlassCard>
+      )}
     </>
   );
 }

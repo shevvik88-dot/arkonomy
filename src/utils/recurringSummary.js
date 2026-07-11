@@ -7,8 +7,24 @@
 // merchant if seen in 2+ distinct months. Subscriptions: <$100/mo, amount
 // consistent (spread <= $0.50). Regular Payments: >=$100/mo fixed bills,
 // spread tolerance scales with amount (utilities/insurance vary slightly).
+//
+// Merchants whose last charge is stale relative to their own billing cadence
+// (2x the typical gap between charges, floor 45 days) are moved to
+// possiblyCancelled instead of subscriptions/regularPayments, so a cancelled
+// subscription doesn't keep inflating totals just because it was seen twice
+// months ago.
 
 import { parseDate } from "./helpers";
+
+const STALE_MULTIPLIER = 2;
+const MIN_STALE_DAYS = 45;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function median(nums) {
+  const s = nums.slice().sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 !== 0 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
 
 // Keywords that disqualify a merchant from appearing in either section.
 // Uses word-boundary padding (" name ") to avoid false partial matches.
@@ -48,7 +64,7 @@ function isRecurringExcluded(name) {
   return RECURRING_EXCLUDE.some(k => n.includes(k));
 }
 
-export function computeRecurringSummary(transactions) {
+export function computeRecurringSummary(transactions, referenceDate = new Date()) {
   const map = {};
   transactions
     .filter(t => t.type === "expense" && t.category_name !== "Transfer")
@@ -57,10 +73,12 @@ export function computeRecurringSummary(transactions) {
       if (!raw || raw.length < 3) return;
       const d = parseDate(t.date);
       const monthKey = `${d.getFullYear()}-${d.getMonth()}`;
-      if (!map[raw]) map[raw] = { name: t.description || t.category_name || raw, months: new Set(), amounts: [], total: 0 };
+      if (!map[raw]) map[raw] = { name: t.description || t.category_name || raw, months: new Set(), monthDates: {}, amounts: [], total: 0, lastDate: d };
       map[raw].months.add(monthKey);
       map[raw].amounts.push(Number(t.amount));
       map[raw].total += Number(t.amount);
+      if (!map[raw].monthDates[monthKey] || d > map[raw].monthDates[monthKey]) map[raw].monthDates[monthKey] = d;
+      if (d > map[raw].lastDate) map[raw].lastDate = d;
     });
 
   const candidates = Object.values(map)
@@ -68,20 +86,37 @@ export function computeRecurringSummary(transactions) {
     .map(m => {
       const sorted = m.amounts.slice().sort((a, b) => a - b);
       const spread = sorted[sorted.length - 1] - sorted[0];
-      return { name: m.name, months: m.months.size, avgMonthly: m.total / m.months.size, spread };
+      const monthDatesSorted = Object.values(m.monthDates).sort((a, b) => a - b);
+      const gaps = monthDatesSorted.slice(1).map((d, i) => (d - monthDatesSorted[i]) / MS_PER_DAY);
+      const typicalIntervalDays = median(gaps);
+      const daysSinceLast = Math.round((referenceDate - m.lastDate) / MS_PER_DAY);
+      const staleThreshold = Math.max(MIN_STALE_DAYS, typicalIntervalDays * STALE_MULTIPLIER);
+      return {
+        name: m.name,
+        months: m.months.size,
+        avgMonthly: m.total / m.months.size,
+        spread,
+        lastSeenDate: m.lastDate,
+        typicalIntervalDays: Math.round(typicalIntervalDays),
+        daysSinceLast,
+        possiblyCancelled: daysSinceLast > staleThreshold,
+      };
     })
     .sort((a, b) => b.avgMonthly - a.avgMonthly);
 
+  const active = candidates.filter(m => !m.possiblyCancelled);
+  const possiblyCancelled = candidates.filter(m => m.possiblyCancelled).sort((a, b) => b.daysSinceLast - a.daysSinceLast);
+
   // Subscriptions: consistent amount (spread <= $0.50) and under $100/mo
-  const subscriptions   = candidates.filter(m => m.avgMonthly <  100 && m.spread <= 0.50);
+  const subscriptions   = active.filter(m => m.avgMonthly <  100 && m.spread <= 0.50);
   // Regular Payments: >= $100/mo fixed bills — allow up to $10 spread for utilities/insurance
   // that may vary slightly, but reject wildly variable retail/variable spend
-  const regularPayments = candidates.filter(m => m.avgMonthly >= 100 && m.spread <= Math.max(10, m.avgMonthly * 0.10));
+  const regularPayments = active.filter(m => m.avgMonthly >= 100 && m.spread <= Math.max(10, m.avgMonthly * 0.10));
 
   const subTotal     = subscriptions.reduce((s, m)   => s + m.avgMonthly, 0);
   const regularTotal = regularPayments.reduce((s, m) => s + m.avgMonthly, 0);
 
-  return { subscriptions, regularPayments, subTotal, regularTotal };
+  return { subscriptions, regularPayments, subTotal, regularTotal, possiblyCancelled };
 }
 
 // ── Duplicate / overlapping subscription detection ─────────────────────────

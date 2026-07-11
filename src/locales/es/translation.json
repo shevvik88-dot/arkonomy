@@ -188,6 +188,8 @@
     "this_month": "este mes",
     "subscriptions": "Suscripciones",
     "regular_payments": "Pagos regulares",
+    "possibly_cancelled": "¿Posiblemente cancelado?",
+    "last_charged_days_ago": "último cargo hace {{days}} días",
     "per_month": "/mes",
     "insights_locked_one": "{{count}} análisis más bloqueado",
     "insights_locked_other": "{{count}} análisis más bloqueados",
