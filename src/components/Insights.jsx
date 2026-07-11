@@ -965,7 +965,7 @@ function RecurringSummary({ transactions, onOpenChat }) {
                     aria-label={tRec("insights.ask_about_subscription", { merchant: displayName })}
                     style={{ background: "none", border: "none", cursor: "pointer", padding: 4, margin: "-4px -4px -4px 0", display: "flex", alignItems: "center", flexShrink: 0 }}
                   >
-                    <Icon name="message" size={14} color={C.muted} />
+                    <Icon name="search" size={14} color={C.muted} />
                   </button>
                 )}
               </div>
