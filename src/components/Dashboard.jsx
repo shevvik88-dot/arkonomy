@@ -733,35 +733,41 @@ function getUpcomingChargesByDay(transactions, aliasMap, referenceDate) {
   return result;
 }
 
-// ─── Month Calendar Strip — replaces Recent Transactions ──────────────────
-// Past days: colored by that day's dominant spending category (tap → filter
-// Transactions by date). Future days: colored by the dominant predicted
-// charge for that day (tap → tooltip with merchant/amount, no navigation —
-// there's no transaction to filter to yet).
+const WEEKDAY_KEYS = ["weekday_mon", "weekday_tue", "weekday_wed", "weekday_thu", "weekday_fri", "weekday_sat", "weekday_sun"];
+
+// ─── Month Calendar Grid — replaces Recent Transactions ────────────────────
+// Classic month view (7 cols × N rows, Monday-first). Past days: colored by
+// that day's dominant spending category (tap → filter Transactions by
+// date). Future days: colored by the dominant predicted charge for that day
+// (tap → tooltip with merchant/amount, or "no bills expected" — every
+// future day responds, not just ones with a prediction).
 function MonthCalendarStrip({ transactions, merchantAliasMap, onDayClick }) {
   const { t } = useTranslation();
   const [tooltipDay, setTooltipDay] = useState(null);
-  const todayRef = useRef(null);
 
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
   const todayDate = now.getDate();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
+  // JS getDay() is Sunday-first (0-6) — convert to Monday-first (0=Mon..6=Sun)
+  const leadingBlanks = (new Date(year, month, 1).getDay() + 6) % 7;
 
   const pastByDay = useMemo(() => getDailyDominantCategory(transactions, year, month), [transactions, year, month]);
   const futureByDay = useMemo(() => getUpcomingChargesByDay(transactions, merchantAliasMap, now), [transactions, merchantAliasMap]);
-
-  useEffect(() => {
-    todayRef.current?.scrollIntoView({ inline: "center", block: "nearest" });
-  }, []);
 
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
   return (
     <GlassCard style={{ padding: "14px 16px" }}>
       <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10 }}>{t("dashboard.month_calendar_title")}</div>
-      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
+        {WEEKDAY_KEYS.map(key => (
+          <div key={key} style={{ textAlign: "center", fontSize: 10, color: C.muted, fontWeight: 600 }}>{t(`dashboard.${key}`)}</div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+        {Array.from({ length: leadingBlanks }, (_, i) => <div key={`blank-${i}`} />)}
         {days.map(day => {
           const isToday = day === todayDate;
           const isPast = day < todayDate;
@@ -769,14 +775,13 @@ function MonthCalendarStrip({ transactions, merchantAliasMap, onDayClick }) {
           const futureInfo = futureByDay[day];
           const info = isPast || isToday ? pastInfo : futureInfo;
           const color = info ? (CAT_COLORS[info.category] || C.faint) : C.sep;
-          const clickable = isPast || isToday ? true : !!futureInfo;
+          const rowIndex = Math.floor((leadingBlanks + day - 1) / 7);
+          const openDown = rowIndex <= 1;
 
           return (
             <div
               key={day}
-              ref={isToday ? todayRef : null}
               onClick={() => {
-                if (!clickable) return;
                 if (isPast || isToday) {
                   const pad = n => String(n).padStart(2, "0");
                   onDayClick?.(`${year}-${pad(month + 1)}-${pad(day)}`);
@@ -785,18 +790,22 @@ function MonthCalendarStrip({ transactions, merchantAliasMap, onDayClick }) {
                 }
               }}
               style={{
-                minWidth: 34, height: 46, borderRadius: 10,
+                aspectRatio: "1", borderRadius: 10,
                 background: color + (isPast || isToday ? "cc" : "33"),
                 border: isToday ? `2px solid ${C.text}` : `1px solid ${color}55`,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: clickable ? "pointer" : "default",
-                flexShrink: 0, position: "relative",
+                cursor: "pointer", position: "relative",
               }}
             >
               <span style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: isPast || isToday ? C.text : C.muted }}>{day}</span>
-              {tooltipDay === day && futureInfo && (
-                <div style={{ position: "absolute", bottom: "120%", left: "50%", transform: "translateX(-50%)", background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", whiteSpace: "nowrap", fontSize: 12, color: C.text, zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.4)" }}>
-                  {futureInfo.merchant} ~${fmt(futureInfo.amount)}
+              {tooltipDay === day && !isPast && !isToday && (
+                <div style={{
+                  position: "absolute", left: "50%", transform: "translateX(-50%)",
+                  ...(openDown ? { top: "120%" } : { bottom: "120%" }),
+                  background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px",
+                  whiteSpace: "nowrap", fontSize: 12, color: C.text, zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                }}>
+                  {futureInfo ? `${futureInfo.merchant} ~$${fmt(futureInfo.amount)}` : t("dashboard.no_bills_expected")}
                 </div>
               )}
             </div>
