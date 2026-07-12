@@ -158,31 +158,6 @@ detection, push pipeline (VAPID, pg_cron, Supabase triggers).
 5. Рекомендации: что перенести в Free/Pro, где переместить пейволл, с обоснованием.
 ```
 
-### 8. App Store submission compliance-чеклист (ПЕРЕД submission)
-
-```
-Проверка готовности к App Store review для финансового приложения. Пройди по
-чеклисту, статус каждого (OK / нужен фикс / отсутствует):
-
-1. Account deletion ИЗ приложения (не только email-запрос) — требование Apple
-   5.1.1(v). Реально удаляет: Supabase user, Plaid items + tokens revoke, Stripe
-   cancel, все данные?
-2. Privacy Policy: явно Plaid, какие банковские данные, хранение, third parties
-   (Plaid/Stripe/Alpaca/Anthropic/Firebase). Доступна ИЗ приложения.
-3. Financial disclaimers "not financial advice" видимо в UI (не только Terms).
-   Alpaca-требования на месте.
-4. IAP (самый вероятный reject — разбери подробно): подписка Pro через Stripe
-   (web). Guideline 3.1.1 — если покупка ВНУТРИ iOS-приложения, Apple требует
-   IAP (30%) или reader-app исключение. Как устроен upgrade в Capacitor-версии?
-   Опиши риск и варианты.
-5. Permissions: purpose strings в Info.plist.
-6. Demo account для ревьюеров: QA-аккаунт с подключённым банком (Plaid Sandbox)
-   и транзакциями, иначе ревьюер увидит пустоту.
-7. Screenshots/метаданные не обещают отсутствующего.
-
-Таблица: пункт | статус | что делать | приоритет. Пункт 4 (IAP) — подробно.
-```
-
 ### 9. Demo account для App Store ревьюеров (ручная задача, не для Claude Code)
 
 ```
@@ -354,6 +329,18 @@ AI предупреждает юзера, что TOTAL REGULAR COMMITMENTS мо�
 - [ ] TIME AWARENESS ("day 1-10 → conservative framing") vs FINANCIAL STATE TIER positive ("speak with confidence") — мягкое тональное напряжение в начале месяца при позитивном STATE, решается TONE-секцией ("confident but not absolute"), фикса не требует.
 
 ---
+
+## ✅ СДЕЛАНО 11 июля (для истории)
+
+### App Store submission compliance-чеклист — проверено по коду, не по памяти о коммитах
+5 из 7 пунктов закрыты, оставшиеся 2 уже отдельно отслеживаются (пункт 9 выше):
+- [x] Account deletion из приложения — `delete-account/index.ts`: Stripe cancel + Plaid /item/remove + полное удаление данных, триггер в Profile.jsx.
+- [x] Privacy Policy — `public/privacy.html` §4 явно называет Plaid/Anthropic/Stripe/Alpaca/Firebase, доступна из Profile.jsx.
+- [x] Financial disclaimers в UI — Markets.jsx + Chat.jsx/Insights.jsx, видимый текст, не только Terms.
+- [x] IAP/Guideline 3.1.1 — Вариант 3 подтверждён: `IS_IOS_NATIVE` скрывает цены/Upgrade на iOS, StoreKit не подключался.
+- [x] Permissions/Info.plist — N/A, приложение не использует камеру/фото/геолокацию.
+- [ ] Demo account для ревьюеров — не сделано, см. пункт 9 выше.
+- [ ] Screenshots/метаданные — не сделано, submission ещё не было, часть той же задачи что demo account.
 
 ## ✅ СДЕЛАНО 9 июля (для истории)
 
