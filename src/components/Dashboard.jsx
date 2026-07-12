@@ -907,6 +907,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
                         emphasized={day === selectedDay}
                         onClick={() => {
                           if (isFuture) setTooltipDay(tooltipDay === day ? null : day);
+                          else if (day === selectedDay) goToDate(day);
                           else setSelectedDay(day);
                         }}
                         tooltip={tooltipDay === day && isFuture && (
