@@ -82,6 +82,7 @@
     "weekday_fri": "Sex",
     "weekday_sat": "Sáb",
     "weekday_sun": "Dom",
+    "no_transactions": "Nenhuma transação ainda",
     "whats_in_other": "O que está em \"Outros\"",
     "transaction_one": "transação",
     "transaction_other": "transações",

@@ -676,9 +676,11 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
   );
 }
 
-// For each day of the given month that has expense transactions, finds the
-// dominant category by total spend that day. Returns { [dayOfMonth]: { category, total } }.
-function getDailyDominantCategory(transactions, year, month) {
+// Groups this month's expenses by day, keeping the full per-category
+// breakdown — { [dayOfMonth]: { [category]: amount } }. Single source for
+// both the grid's dominant-category coloring and the day-detail sheet's
+// full breakdown, so they can't drift apart.
+function groupExpensesByDay(transactions, year, month) {
   const byDay = {};
   transactions
     .filter(t => t.type === "expense" && t.category_name !== "Transfer")
@@ -690,7 +692,13 @@ function getDailyDominantCategory(transactions, year, month) {
       byDay[day] ??= {};
       byDay[day][cat] = (byDay[day][cat] || 0) + Number(t.amount);
     });
+  return byDay;
+}
 
+// For each day with expenses, the dominant category and day total —
+// derived from groupExpensesByDay. Returns { [dayOfMonth]: { category, total } }.
+function getDailyDominantCategory(transactions, year, month) {
+  const byDay = groupExpensesByDay(transactions, year, month);
   const result = {};
   for (const [day, catMap] of Object.entries(byDay)) {
     const [category] = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
@@ -698,6 +706,18 @@ function getDailyDominantCategory(transactions, year, month) {
     result[day] = { category, total };
   }
   return result;
+}
+
+// Log-scale intensity (0.25-1.0) relative to the month's biggest spend day —
+// linear scaling gets crushed by one-time lump payments (rent, insurance),
+// making every ordinary day look equally faint. Log compresses the outlier
+// enough that everyday spending differences stay visible. Returns a 2-digit
+// hex alpha suffix.
+function dailyIntensityAlpha(total, maxTotal) {
+  if (!total || !maxTotal) return "40";
+  const frac = Math.log(1 + total) / Math.log(1 + maxTotal);
+  const intensity = 0.25 + 0.75 * Math.min(1, Math.max(0, frac));
+  return Math.round(intensity * 255).toString(16).padStart(2, "0");
 }
 
 // For each remaining day of the current month, finds the dominant (largest
@@ -735,14 +755,41 @@ function getUpcomingChargesByDay(transactions, aliasMap, referenceDate) {
 
 const WEEKDAY_KEYS = ["weekday_mon", "weekday_tue", "weekday_wed", "weekday_thu", "weekday_fri", "weekday_sat", "weekday_sun"];
 
-// ─── Month Calendar Grid — replaces Recent Transactions ────────────────────
-// Classic month view (7 cols × N rows, Monday-first). Past days: colored by
-// that day's dominant spending category (tap → filter Transactions by
-// date). Future days: colored by the dominant predicted charge for that day
-// (tap → tooltip with merchant/amount, or "no bills expected" — every
-// future day responds, not just ones with a prediction).
-function MonthCalendarStrip({ transactions, merchantAliasMap, onDayClick }) {
+// Small day cell shared by the grid (level 1) and the day-detail strip
+// (level 2) — same color/intensity rules, different size and click behavior.
+function CalendarDayCell({ day, isToday, isPast, color, alpha, size, emphasized, onClick, tooltip }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        width: size, height: size, borderRadius: 10, flexShrink: 0,
+        background: color + alpha,
+        border: isToday ? `2px solid ${C.text}` : emphasized ? `2px solid ${C.cyan}` : `1px solid ${color}55`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        cursor: "pointer", position: "relative",
+      }}
+    >
+      <span style={{ fontSize: 12, fontWeight: isToday || emphasized ? 700 : 500, color: isPast || isToday ? C.text : C.muted }}>{day}</span>
+      {tooltip}
+    </div>
+  );
+}
+
+// ─── Month Calendar — replaces Recent Transactions ─────────────────────────
+// Level 1: classic grid (7 cols × N rows, Monday-first). Past/today days are
+// colored by dominant spending category, with intensity (log-scaled, see
+// dailyIntensityAlpha) proportional to that day's total spend. Future days
+// are colored by the dominant predicted charge. Tapping any day selects it
+// (no navigation) and opens level 2.
+// Level 2: a bottom sheet (same interaction pattern as the "Other" spending
+// breakdown sheet below) showing the selected day ± 2 neighbors as a small
+// strip, plus the full category breakdown for the selected day. Tapping a
+// past/today day in the strip navigates to Transactions filtered by that
+// date; tapping a future day shows a tooltip — same rules as before, just
+// scoped to the strip instead of the whole grid.
+function MonthCalendar({ transactions, merchantAliasMap, onDayClick }) {
   const { t } = useTranslation();
+  const [selectedDay, setSelectedDay] = useState(null);
   const [tooltipDay, setTooltipDay] = useState(null);
 
   const now = new Date();
@@ -753,10 +800,38 @@ function MonthCalendarStrip({ transactions, merchantAliasMap, onDayClick }) {
   // JS getDay() is Sunday-first (0-6) — convert to Monday-first (0=Mon..6=Sun)
   const leadingBlanks = (new Date(year, month, 1).getDay() + 6) % 7;
 
+  const dayBreakdown = useMemo(() => groupExpensesByDay(transactions, year, month), [transactions, year, month]);
   const pastByDay = useMemo(() => getDailyDominantCategory(transactions, year, month), [transactions, year, month]);
   const futureByDay = useMemo(() => getUpcomingChargesByDay(transactions, merchantAliasMap, now), [transactions, merchantAliasMap]);
+  const maxDayTotal = useMemo(() => Math.max(0, ...Object.values(pastByDay).map(d => d.total)), [pastByDay]);
 
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  function dayColorAlpha(day) {
+    const isToday = day === todayDate;
+    const isPast = day < todayDate;
+    const info = isPast || isToday ? pastByDay[day] : futureByDay[day];
+    const color = info ? (CAT_COLORS[info.category] || C.faint) : C.sep;
+    const alpha = isPast || isToday
+      ? dailyIntensityAlpha(pastByDay[day]?.total, maxDayTotal)
+      : (info ? "33" : "00");
+    return { color, alpha, isToday, isPast };
+  }
+
+  function goToDate(day) {
+    const pad = n => String(n).padStart(2, "0");
+    onDayClick?.(`${year}-${pad(month + 1)}-${pad(day)}`);
+  }
+
+  const neighborStart = selectedDay ? Math.max(1, selectedDay - 2) : 1;
+  const neighborEnd = selectedDay ? Math.min(daysInMonth, selectedDay + 2) : 1;
+  const neighborDays = selectedDay ? Array.from({ length: neighborEnd - neighborStart + 1 }, (_, i) => neighborStart + i) : [];
+
+  const selectedIsFuture = selectedDay && selectedDay > todayDate;
+  const selectedCatEntries = selectedDay && !selectedIsFuture
+    ? Object.entries(dayBreakdown[selectedDay] || {}).sort((a, b) => b[1] - a[1])
+    : [];
+  const selectedFutureInfo = selectedDay ? futureByDay[selectedDay] : null;
 
   return (
     <GlassCard style={{ padding: "14px 16px" }}>
@@ -769,49 +844,86 @@ function MonthCalendarStrip({ transactions, merchantAliasMap, onDayClick }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
         {Array.from({ length: leadingBlanks }, (_, i) => <div key={`blank-${i}`} />)}
         {days.map(day => {
-          const isToday = day === todayDate;
-          const isPast = day < todayDate;
-          const pastInfo = pastByDay[day];
-          const futureInfo = futureByDay[day];
-          const info = isPast || isToday ? pastInfo : futureInfo;
-          const color = info ? (CAT_COLORS[info.category] || C.faint) : C.sep;
-          const rowIndex = Math.floor((leadingBlanks + day - 1) / 7);
-          const openDown = rowIndex <= 1;
-
+          const { color, alpha, isToday, isPast } = dayColorAlpha(day);
           return (
-            <div
-              key={day}
-              onClick={() => {
-                if (isPast || isToday) {
-                  const pad = n => String(n).padStart(2, "0");
-                  onDayClick?.(`${year}-${pad(month + 1)}-${pad(day)}`);
-                } else {
-                  setTooltipDay(tooltipDay === day ? null : day);
-                }
-              }}
-              style={{
-                aspectRatio: "1", borderRadius: 10,
-                background: color + (isPast || isToday ? "cc" : "33"),
-                border: isToday ? `2px solid ${C.text}` : `1px solid ${color}55`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer", position: "relative",
-              }}
-            >
-              <span style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: isPast || isToday ? C.text : C.muted }}>{day}</span>
-              {tooltipDay === day && !isPast && !isToday && (
-                <div style={{
-                  position: "absolute", left: "50%", transform: "translateX(-50%)",
-                  ...(openDown ? { top: "120%" } : { bottom: "120%" }),
-                  background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px",
-                  whiteSpace: "nowrap", fontSize: 12, color: C.text, zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-                }}>
-                  {futureInfo ? `${futureInfo.merchant} ~$${fmt(futureInfo.amount)}` : t("dashboard.no_bills_expected")}
-                </div>
-              )}
+            <div key={day} style={{ aspectRatio: "1" }}>
+              <div
+                onClick={() => setSelectedDay(day)}
+                style={{
+                  width: "100%", height: "100%", borderRadius: 10,
+                  background: color + alpha,
+                  border: isToday ? `2px solid ${C.text}` : `1px solid ${color}55`,
+                  display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+                }}
+              >
+                <span style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: isPast || isToday ? C.text : C.muted }}>{day}</span>
+              </div>
             </div>
           );
         })}
       </div>
+
+      {selectedDay && (
+        <div onClick={() => { setSelectedDay(null); setTooltipDay(null); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 180, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", border: `1px solid ${C.border}`, padding: "0 0 32px", maxHeight: "75vh", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "14px 0 0", display: "flex", justifyContent: "center" }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.12)" }} />
+            </div>
+            <div style={{ padding: "12px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${C.sep}`, flexShrink: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>
+                {new Date(year, month, selectedDay).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+              </div>
+              <button onClick={() => { setSelectedDay(null); setTooltipDay(null); }} aria-label="Close" style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 8, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <div style={{ overflowY: "auto", padding: "16px 20px 0" }}>
+              <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16 }}>
+                {neighborDays.map(day => {
+                  const { color, alpha, isToday, isPast } = dayColorAlpha(day);
+                  const isFuture = !isPast && !isToday;
+                  return (
+                    <div key={day} style={{ position: "relative" }}>
+                      <CalendarDayCell
+                        day={day} isToday={isToday} isPast={isPast} color={color} alpha={alpha}
+                        size={day === selectedDay ? 52 : 40}
+                        emphasized={day === selectedDay}
+                        onClick={() => {
+                          if (isFuture) setTooltipDay(tooltipDay === day ? null : day);
+                          else goToDate(day);
+                        }}
+                        tooltip={tooltipDay === day && isFuture && (
+                          <div style={{ position: "absolute", top: "120%", left: "50%", transform: "translateX(-50%)", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", whiteSpace: "nowrap", fontSize: 12, color: C.text, zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.4)" }}>
+                            {futureByDay[day] ? `${futureByDay[day].merchant} ~$${fmt(futureByDay[day].amount)}` : t("dashboard.no_bills_expected")}
+                          </div>
+                        )}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ paddingBottom: 8 }}>
+                {selectedIsFuture ? (
+                  <div style={{ fontSize: 13, color: C.text }}>
+                    {selectedFutureInfo ? `${selectedFutureInfo.merchant} ~$${fmt(selectedFutureInfo.amount)}` : t("dashboard.no_bills_expected")}
+                  </div>
+                ) : selectedCatEntries.length === 0 ? (
+                  <div style={{ fontSize: 13, color: C.muted }}>{t("dashboard.no_transactions")}</div>
+                ) : (
+                  selectedCatEntries.map(([cat, amount]) => (
+                    <div key={cat} onClick={() => goToDate(selectedDay)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: `1px solid ${C.sep}`, cursor: "pointer" }}>
+                      <span style={{ fontSize: 13, color: C.text }}>{tCat(cat, t)}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: CAT_COLORS[cat] || C.muted }}>${fmt(amount)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </GlassCard>
   );
 }
@@ -1076,8 +1188,8 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       {/* 5 ── Market Overview */}
       <MarketOverview onOpenMarket={onOpenMarket} />
 
-      {/* 6 ── Month Calendar Strip (replaces Recent Transactions) */}
-      <MonthCalendarStrip transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} />
+      {/* 6 ── Month Calendar (replaces Recent Transactions) */}
+      <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} />
 
       {/* ── "Other" breakdown sheet ── */}
       {otherBreakdown && (() => {

@@ -82,6 +82,7 @@
     "weekday_fri": "Fr",
     "weekday_sat": "Sa",
     "weekday_sun": "Su",
+    "no_transactions": "No transactions yet",
     "whats_in_other": "What's in \"Other\"",
     "transaction_one": "transaction",
     "transaction_other": "transactions",
