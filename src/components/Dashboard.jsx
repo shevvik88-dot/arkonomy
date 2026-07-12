@@ -877,7 +877,10 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
             </div>
             <div style={{ padding: "12px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${C.sep}`, flexShrink: 0 }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>
+                <div
+                  onClick={() => { if (!selectedIsFuture) goToDate(selectedDay); }}
+                  style={{ fontSize: 16, fontWeight: 700, color: C.text, cursor: selectedIsFuture ? "default" : "pointer" }}
+                >
                   {new Date(year, month, selectedDay).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
                 </div>
                 {!selectedIsFuture && (
