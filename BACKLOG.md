@@ -346,7 +346,6 @@ AI предупреждает юзера, что TOTAL REGULAR COMMITMENTS мо�
 - [ ] `detectRecurringCharges` требует ≥2 списаний — не ловит разовый крупный счёт (первый месяц новой подписки). Тот же детектор у Dashboard Cash Flow Forecast — ошибаются синхронно.
 - [ ] Health Score не имеет balance-floor: формула `calculateHealthScore()` не смотрит на баланс, "Excellent" структурно возможен при дефиците. Пока только косметика (cashPositionLow подпись). Серьёзный фикс — 5-й компонент/множитель в формуле.
 - [ ] available vs current семантика при multi-account: суммирование `available ?? current` по нескольким счетам может смешать разные семантики. Для одного checking неважно. Код-комментарий добавлен в get-insights.
-- [ ] `markets.pro_only_title` / `markets.pro_only_body` (все 4 локали) — мёртвые i18n-ключи, нигде не используются ни в одном компоненте. Удалить при следующей уборке переводов.
 
 **ai-chat промпт tech debt (аудит 11 июля, `buildSystemPrompt()` целиком) — не критично, отложено:**
 - [ ] REGULAR PAYMENTS & SUBSCRIPTIONS данные gate'уются условием `STATE is cash_risk/warning, or user asks about spending/subscriptions` — если спайк вызван подпиской, но STATE=positive и вопрос не про подписки, PRIORITY ORDER велит вести со спайком, а gate формально блокирует доступ к этим данным. Убрать STATE-условие из gate, оставить только relevance.

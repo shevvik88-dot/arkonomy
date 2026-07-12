@@ -297,8 +297,6 @@
     "market_note": "Nota dos Observadores do Mercado",
     "retry_analysis": "Toque em Tentar novamente para carregar a análise",
     "analyze": "Analisar {{symbol}}",
-    "pro_only_title": "🔒 Investimento de troco — Apenas Pro",
-    "pro_only_body": "Faça upgrade para Pro para comprar ações e criptomoedas diretamente no Arkonomy usando sua conta de investimento conectada.",
     "upgrade_pro": "Fazer upgrade para Pro — $9,99/mês",
     "pro_feature": "Recurso Pro",
     "connect_alpaca_title": "Conectar Conta de Investimento",
