@@ -1161,24 +1161,6 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         <InsightCard insight={insight?.type === 'savings_opportunity' && balance <= 0 ? null : insight} onAction={onInsightAction} />
       </div>
 
-      {/* 3 ── Spending by Category */}
-      <GlassCard style={{ padding: "14px 16px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <span style={{ fontWeight: 600, fontSize: 14 }}>{t("dashboard.spending_by_category")}</span>
-          {isPro
-            ? <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: 99 }}>{t("dashboard.tap_to_filter")}</span>
-            : <span style={{ fontSize: 10, color: C.cyan + "AA", background: C.cyan + "10", padding: "3px 8px", borderRadius: 99, cursor: "pointer" }} onClick={onUpgrade}>Pro</span>
-          }
-        </div>
-        {Object.keys(spendingByCategory).length === 0 ? (
-          <div style={{ textAlign: "center", padding: "24px 0", color: C.faint, fontSize: 13 }}>
-            {t("dashboard.no_spending_data")}
-          </div>
-        ) : (
-          <DonutChart data={spendingByCategory} size={196} onCatClick={isPro ? handleCatClick : null} hideAmounts={!balanceVisible} lockList={!isPro} onUpgrade={onUpgrade} />
-        )}
-      </GlassCard>
-
       {/* 7 ── Monthly Budget (compact) */}
       {(() => {
         const isOver = totalSpent > budget;
@@ -1202,11 +1184,29 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         );
       })()}
 
-      {/* 5 ── Market Overview */}
-      <MarketOverview onOpenMarket={onOpenMarket} />
+      {/* 3 ── Spending by Category */}
+      <GlassCard style={{ padding: "14px 16px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>{t("dashboard.spending_by_category")}</span>
+          {isPro
+            ? <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: 99 }}>{t("dashboard.tap_to_filter")}</span>
+            : <span style={{ fontSize: 10, color: C.cyan + "AA", background: C.cyan + "10", padding: "3px 8px", borderRadius: 99, cursor: "pointer" }} onClick={onUpgrade}>Pro</span>
+          }
+        </div>
+        {Object.keys(spendingByCategory).length === 0 ? (
+          <div style={{ textAlign: "center", padding: "24px 0", color: C.faint, fontSize: 13 }}>
+            {t("dashboard.no_spending_data")}
+          </div>
+        ) : (
+          <DonutChart data={spendingByCategory} size={196} onCatClick={isPro ? handleCatClick : null} hideAmounts={!balanceVisible} lockList={!isPro} onUpgrade={onUpgrade} />
+        )}
+      </GlassCard>
 
       {/* 6 ── Month Calendar (replaces Recent Transactions) */}
       <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} />
+
+      {/* 5 ── Market Overview */}
+      <MarketOverview onOpenMarket={onOpenMarket} />
 
       {/* ── "Other" breakdown sheet ── */}
       {otherBreakdown && (() => {
