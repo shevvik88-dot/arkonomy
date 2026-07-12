@@ -13,6 +13,7 @@ import { IS_IOS_NATIVE } from "../lib/platform";
 // ─── Constants ────────────────────────────────────────────────
 
 const DEFAULT_WATCHLIST = ["SPY", "QQQ", "BTC", "ETH"];
+const MAX_WATCHLIST = 20;
 
 const MARKET_META = {
   SPY:  { label: "S&P 500",  color: "#2F80FF", icon: "bar-chart", isCrypto: false },
@@ -385,7 +386,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
   function toggleWatchlist() {
     if (inWatchlist) {
       removeFromWatchlist?.(symbol);
-    } else if (watchlist.length >= 12) {
+    } else if (watchlist.length >= MAX_WATCHLIST) {
       onToast?.(t("markets.watchlist_full"), "warning");
     } else {
       addToWatchlist?.(symbol);
@@ -907,7 +908,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
   }
 
   function addToWatchlist(sym) {
-    if (watchlist.includes(sym) || watchlist.length >= 12) return;
+    if (watchlist.includes(sym) || watchlist.length >= MAX_WATCHLIST) return;
     const next = [...watchlist, sym];
     saveWatchlist(next);
     setDragList(next);
@@ -938,7 +939,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
       <GlassCard style={{ padding: "14px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <span style={{ fontWeight: 600, fontSize: 14 }}>{t("markets.watchlist")}</span>
-          <span style={{ fontSize: 11, color: C.faint }}>{watchlist.length}/12</span>
+          <span style={{ fontSize: 11, color: C.faint }}>{watchlist.length}/{MAX_WATCHLIST}</span>
         </div>
 
         {editMode ? (
@@ -973,7 +974,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
               })}
             </div>
 
-            {watchlist.length < 12 && (
+            {watchlist.length < MAX_WATCHLIST && (
               <div style={{ marginTop: 14 }}>
                 <div style={{ position: "relative" }}>
                   <Icon name="search" size={14} color={C.faint} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
@@ -1001,32 +1002,29 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
             )}
           </>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            {watchlist.map(sym => {
+          <div>
+            {watchlist.map((sym, i) => {
               const meta = MARKET_META[sym] ?? { label: sym, color: C.cyan, icon: "activity", isCrypto: false };
               const q    = quotes[sym];
               const pos  = (q?.changePct ?? 0) >= 0;
               return (
                 <div key={sym} onClick={() => setSelectedSymbol(sym)}
-                  style={{ background: C.bgTertiary, borderRadius: 12, padding: "10px 12px", border: `1px solid ${C.border}`, cursor: "pointer" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                    <StockLogo symbol={sym} color={meta.color} icon={meta.icon} size={24} borderRadius={7} />
-                    <span style={{ fontSize: 11, color: C.muted, fontWeight: 500 }}>{meta.label || sym}</span>
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${C.sep}` : "none", cursor: "pointer" }}>
+                  <StockLogo symbol={sym} color={meta.color} icon={meta.icon} size={32} borderRadius={9} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{sym}</div>
+                    <div style={{ fontSize: 11, color: C.faint }}>{meta.label || sym}</div>
                   </div>
                   {loadingQuotes ? (
-                    <div style={{ height: 20, background: C.border, borderRadius: 4, width: "70%", marginBottom: 4 }} />
+                    <div style={{ height: 20, width: 70, background: C.border, borderRadius: 4 }} />
                   ) : (
-                    <>
-                      <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: -0.3 }}>
-                        {fmtPrice(q?.price, meta.isCrypto)}
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmtPrice(q?.price, meta.isCrypto)}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end", marginTop: 2 }}>
                         <Icon name={pos ? "trending-up" : "trending-down"} size={10} color={pos ? C.green : C.red} strokeWidth={2.5} />
-                        <span style={{ fontSize: 11, color: pos ? C.green : C.red, fontWeight: 600 }}>
-                          {fmtPct(q?.changePct)}
-                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: pos ? C.green : C.red }}>{fmtPct(q?.changePct)}</span>
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
               );
