@@ -1,34 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { C, FONT } from "../utils/colors";
+import { C, FONT, CAT_COLORS } from "../utils/colors";
 import { fmt, fmtDate, parseDate, guessCategory, tCat, cleanMerchantName, localDateString } from "../utils/helpers";
 import Icon from "./shared/Icon";
-
-const CAT_COLORS = {
-  "Housing":       "#60A5FA",
-  "Bills":         "#A78BFA",
-  "Subscriptions": "#A78BFA",
-  "Shopping":      "#FB923C",
-  "Food & Dining": "#F87171",
-  "Transport":     "#2DD4BF",
-  "Transportation":"#2DD4BF",
-  "Entertainment": "#F472B6",
-  "Health":        "#4ADE80",
-  "Health & Fitness": "#34D399",
-  "Personal Care": "#FBBF24",
-  "Travel":        "#818CF8",
-  "Education":     "#38BDF8",
-  "Taxes":         "#F59E0B",
-  "Government":    "#94A3B8",
-  "Charity":       "#EC4899",
-  "Fees":          "#EF4444",
-  "Cost of Debt":  "#F97316",
-  "Utilities":     "#67E8F9",
-  "Transfers":     "#6366F1",
-  "Other":         "#94A3B8",
-  "Transfer":      "#475569",
-  "Income":        "#34D399",
-};
 
 function CatIcon({ name, type, size = 18 }) {
   const map = {
@@ -698,7 +672,7 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
   );
 }
 
-export default function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter, activeMerchantFilter, onClearMerchantFilter, insight, onInsightAction, onToast }) {
+export default function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter, activeMerchantFilter, onClearMerchantFilter, activeDateFilter, onClearDateFilter, insight, onInsightAction, onToast }) {
   const { t } = useTranslation();
   const [filter,          setFilter]          = useState("all");
   const [search,          setSearch]          = useState("");
@@ -712,7 +686,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
   const sentinelRef = useRef(null);
 
   // Reset visible count when filters change
-  useEffect(() => { setVisibleCount(50); }, [filter, search, activeCatFilter, localCatFilter, activeMerchantFilter]);
+  useEffect(() => { setVisibleCount(50); }, [filter, search, activeCatFilter, localCatFilter, activeMerchantFilter, activeDateFilter]);
 
   // IntersectionObserver — load 50 more when sentinel scrolls into view
   useEffect(() => {
@@ -723,7 +697,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
     }, { rootMargin: "200px" });
     obs.observe(el);
     return () => obs.disconnect();
-  }, [filter, search, activeCatFilter, localCatFilter, activeMerchantFilter]);
+  }, [filter, search, activeCatFilter, localCatFilter, activeMerchantFilter, activeDateFilter]);
   const { toasts, show: _localToast, dismiss } = useToasts();
   const toast = onToast || _localToast;
   const catFilter = activeCatFilter || localCatFilter || null;
@@ -757,6 +731,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
   let filtered = filter === "all" ? monthTxs : monthTxs.filter(t => t.type === filter);
   if (catFilter) filtered = filtered.filter(t => t.category_name === catFilter);
   if (activeMerchantFilter) filtered = filtered.filter(t => t.description === activeMerchantFilter);
+  if (activeDateFilter) filtered = filtered.filter(t => t.date === activeDateFilter);
   if (search.trim()) {
     const q = search.trim().toLowerCase();
     filtered = filtered.filter(t =>
@@ -861,6 +836,16 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
           <div style={{ width: 8, height: 8, borderRadius: 99, background: C.cyan }} />
           <span style={{ fontSize: 13, color: C.cyan, fontWeight: 600, flex: 1 }}>{cleanMerchantName(activeMerchantFilter) || activeMerchantFilter}</span>
           <button onClick={onClearMerchantFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4, minHeight: 28 }}>
+            <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
+          </button>
+        </div>
+      )}
+
+      {activeDateFilter && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: C.cyan + "18", borderRadius: 12, border: `1px solid ${C.cyan}33` }}>
+          <div style={{ width: 8, height: 8, borderRadius: 99, background: C.cyan }} />
+          <span style={{ fontSize: 13, color: C.cyan, fontWeight: 600, flex: 1 }}>{fmtDate(activeDateFilter)}</span>
+          <button onClick={onClearDateFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4, minHeight: 28 }}>
             <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
           </button>
         </div>

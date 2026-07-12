@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
 import { getCachedAccounts, setCachedAccounts } from "../utils/accountsCache";
-import { C, FONT } from "../utils/colors";
+import { C, FONT, CAT_COLORS } from "../utils/colors";
 import { fmt, fmtDate, parseDate, fmtPct, resolveCategory, tCat } from "../utils/helpers";
 import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
@@ -10,35 +10,8 @@ import { calculateHealthScore, generateHealthComment, getScoreLabel } from "../h
 import { InsightCard } from "./Insights";
 import UpcomingChargesCard from "./UpcomingChargesCard";
 import { getUpcomingCharges, getUpcomingCardPayments } from '../utils/recurringSummary';
-import { TxRow } from "./Transactions";
 import { BUFFER } from "../shared/financialConstants";
 
-
-const CAT_COLORS = {
-  "Housing":       "#60A5FA",
-  "Bills":         "#A78BFA",
-  "Subscriptions": "#A78BFA",
-  "Shopping":      "#FB923C",
-  "Food & Dining": "#F87171",
-  "Transport":     "#2DD4BF",
-  "Transportation":"#2DD4BF",
-  "Entertainment": "#F472B6",
-  "Health":        "#4ADE80",
-  "Health & Fitness": "#34D399",
-  "Personal Care": "#FBBF24",
-  "Travel":        "#818CF8",
-  "Education":     "#38BDF8",
-  "Taxes":         "#F59E0B",
-  "Government":    "#94A3B8",
-  "Charity":       "#EC4899",
-  "Fees":          "#EF4444",
-  "Cost of Debt":  "#F97316",
-  "Utilities":     "#67E8F9",
-  "Transfers":     "#6366F1",
-  "Other":         "#94A3B8",
-  "Transfer":      "#475569",
-  "Income":        "#34D399",
-};
 
 // ─── Health Score Gauge ──────────────────────────────────────────────────────
 // ─── Health Score Bar (compact, inline, expandable) ─────────────────────────
@@ -703,8 +676,139 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
   );
 }
 
+// For each day of the given month that has expense transactions, finds the
+// dominant category by total spend that day. Returns { [dayOfMonth]: { category, total } }.
+function getDailyDominantCategory(transactions, year, month) {
+  const byDay = {};
+  transactions
+    .filter(t => t.type === "expense" && t.category_name !== "Transfer")
+    .forEach(t => {
+      const d = parseDate(t.date);
+      if (d.getFullYear() !== year || d.getMonth() !== month) return;
+      const day = d.getDate();
+      const cat = t.category_name || "Other";
+      byDay[day] ??= {};
+      byDay[day][cat] = (byDay[day][cat] || 0) + Number(t.amount);
+    });
+
+  const result = {};
+  for (const [day, catMap] of Object.entries(byDay)) {
+    const [category] = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
+    const total = Object.values(catMap).reduce((s, v) => s + v, 0);
+    result[day] = { category, total };
+  }
+  return result;
+}
+
+// For each remaining day of the current month, finds the dominant (largest
+// amount) predicted charge — reuses the same getUpcomingCharges/
+// getUpcomingCardPayments the carousel and Cash Flow Forecast already use,
+// so the calendar can never disagree with them about what's coming up.
+function getUpcomingChargesByDay(transactions, aliasMap, referenceDate) {
+  const daysInMonth = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 0).getDate();
+  const remainingDays = daysInMonth - referenceDate.getDate();
+  const all = [
+    ...getUpcomingCharges(transactions, aliasMap, referenceDate, { maxDays: remainingDays, maxResults: Infinity }),
+    ...getUpcomingCardPayments(transactions, aliasMap, referenceDate, { maxDays: remainingDays, maxResults: Infinity }),
+  ];
+
+  // The interval-based projection can occasionally overshoot into next
+  // month by a day or two (e.g. a ~30-day cycle landing on Aug 1 when only
+  // 30 days remained in July) — guard against that day number colliding
+  // with a still-future day in the CURRENT month being rendered.
+  const monthPrefix = `${referenceDate.getFullYear()}-${String(referenceDate.getMonth() + 1).padStart(2, "0")}`;
+  const byDay = {};
+  all.forEach(c => {
+    if (!c.expectedDate.startsWith(monthPrefix)) return;
+    const day = Number(c.expectedDate.slice(8, 10));
+    byDay[day] ??= [];
+    byDay[day].push(c);
+  });
+
+  const result = {};
+  for (const [day, items] of Object.entries(byDay)) {
+    const dominant = items.slice().sort((a, b) => b.amount - a.amount)[0];
+    result[day] = dominant;
+  }
+  return result;
+}
+
+// ─── Month Calendar Strip — replaces Recent Transactions ──────────────────
+// Past days: colored by that day's dominant spending category (tap → filter
+// Transactions by date). Future days: colored by the dominant predicted
+// charge for that day (tap → tooltip with merchant/amount, no navigation —
+// there's no transaction to filter to yet).
+function MonthCalendarStrip({ transactions, merchantAliasMap, onDayClick }) {
+  const { t } = useTranslation();
+  const [tooltipDay, setTooltipDay] = useState(null);
+  const todayRef = useRef(null);
+
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const todayDate = now.getDate();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const pastByDay = useMemo(() => getDailyDominantCategory(transactions, year, month), [transactions, year, month]);
+  const futureByDay = useMemo(() => getUpcomingChargesByDay(transactions, merchantAliasMap, now), [transactions, merchantAliasMap]);
+
+  useEffect(() => {
+    todayRef.current?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, []);
+
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  return (
+    <GlassCard style={{ padding: "14px 16px" }}>
+      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10 }}>{t("dashboard.month_calendar_title")}</div>
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+        {days.map(day => {
+          const isToday = day === todayDate;
+          const isPast = day < todayDate;
+          const pastInfo = pastByDay[day];
+          const futureInfo = futureByDay[day];
+          const info = isPast || isToday ? pastInfo : futureInfo;
+          const color = info ? (CAT_COLORS[info.category] || C.faint) : C.sep;
+          const clickable = isPast || isToday ? true : !!futureInfo;
+
+          return (
+            <div
+              key={day}
+              ref={isToday ? todayRef : null}
+              onClick={() => {
+                if (!clickable) return;
+                if (isPast || isToday) {
+                  const pad = n => String(n).padStart(2, "0");
+                  onDayClick?.(`${year}-${pad(month + 1)}-${pad(day)}`);
+                } else {
+                  setTooltipDay(tooltipDay === day ? null : day);
+                }
+              }}
+              style={{
+                minWidth: 34, height: 46, borderRadius: 10,
+                background: color + (isPast || isToday ? "cc" : "33"),
+                border: isToday ? `2px solid ${C.text}` : `1px solid ${color}55`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: clickable ? "pointer" : "default",
+                flexShrink: 0, position: "relative",
+              }}
+            >
+              <span style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: isPast || isToday ? C.text : C.muted }}>{day}</span>
+              {tooltipDay === day && futureInfo && (
+                <div style={{ position: "absolute", bottom: "120%", left: "50%", transform: "translateX(-50%)", background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", whiteSpace: "nowrap", fontSize: 12, color: C.text, zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.4)" }}>
+                  {futureInfo.merchant} ~${fmt(futureInfo.amount)}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </GlassCard>
+  );
+}
+
 // ─── Dashboard ────────────────────────────────────────────────
-export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap }) {
+export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap }) {
   const { t } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
@@ -963,24 +1067,8 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       {/* 5 ── Market Overview */}
       <MarketOverview onOpenMarket={onOpenMarket} />
 
-      {/* 6 ── Recent Transactions */}
-      <GlassCard style={{ padding: "14px 16px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <span style={{ fontWeight: 600, fontSize: 14 }}>{t("dashboard.recent_transactions")}</span>
-          <button onClick={() => onNavigate("transactions")} style={{ background: "none", border: "none", cursor: "pointer", color: C.cyan, fontSize: 12, fontWeight: 600, fontFamily: FONT, display: "flex", alignItems: "center", gap: 4, padding: "0 4px", minHeight: 44 }}>
-            {t("dashboard.view_all")} <Icon name="chevron" size={12} color={C.cyan} />
-          </button>
-        </div>
-        {transactions.length === 0
-          ? <div style={{ color: C.muted, textAlign: "center", padding: "16px 0", fontSize: 13 }}>{t("dashboard.no_transactions")}</div>
-          : transactions.slice(0, 3).map((t, i, arr) => (
-              <div key={t.id}>
-                <TxRow t={t} hideAmount={!balanceVisible} onLongPress={onMerchantClick} />
-                {i < arr.length - 1 && <div style={{ height: 1, background: C.sep }} />}
-              </div>
-            ))
-        }
-      </GlassCard>
+      {/* 6 ── Month Calendar Strip (replaces Recent Transactions) */}
+      <MonthCalendarStrip transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} />
 
       {/* ── "Other" breakdown sheet ── */}
       {otherBreakdown && (() => {
