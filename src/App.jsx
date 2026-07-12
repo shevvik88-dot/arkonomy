@@ -334,6 +334,7 @@ export default function App() {
   const [categories, setCategories] = useState([]);
   const [savings, setSavings] = useState([]);
   const [merchantAliases, setMerchantAliases] = useState([]);
+  const [scheduledPayments, setScheduledPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddTx, setShowAddTx] = useState(false);
   const [editTx, setEditTx] = useState(null);
@@ -550,12 +551,13 @@ export default function App() {
   async function loadAll(silent = false) {
     if (!silent) setLoading(true);
     try {
-      const [p, t, c, sv, ma] = await Promise.all([
+      const [p, t, c, sv, ma, sp] = await Promise.all([
         supabase.from("profiles").select("id, email, full_name, avatar_url, monthly_budget, savings_goal, roundup_enabled, created_at, plan, push_subscription, watchlist, stripe_customer_id, tutorial_completed, last_synced_at, trial_ends_at, trial_web_search_count, alpaca_access_token").eq("id", user.id).single(),
         supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }).limit(5000),
         supabase.from("categories").select("*").eq("user_id", user.id),
         supabase.from("savings").select("*").eq("user_id", user.id),
         supabase.from("merchant_aliases").select("*").eq("user_id", user.id),
+        supabase.from("scheduled_payments").select("*").eq("user_id", user.id).eq("status", "pending"),
       ]);
       if (p.data) {
         setProfile(p.data);
@@ -581,6 +583,7 @@ export default function App() {
       if (sv.data) setSavings(sv.data);
       if (c.data) { setCategories(c.data); if (c.data.length === 0) await seedCategories(); }
       if (ma.data) setMerchantAliases(ma.data);
+      if (sp.data) setScheduledPayments(sp.data);
     } catch (err) {
       logger.error("[loadAll] failed:", err);
     } finally {
@@ -792,7 +795,7 @@ export default function App() {
     } catch (err) {
       logger.error("[signOut] failed:", err);
     } finally {
-      setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]); setMerchantAliases([]);
+      setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]); setMerchantAliases([]); setScheduledPayments([]);
     }
   }
 
@@ -815,7 +818,7 @@ export default function App() {
     }
     clearAccountsCache();
     await supabase.auth.signOut();
-    setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]); setMerchantAliases([]);
+    setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]); setMerchantAliases([]); setScheduledPayments([]);
   }
 
   async function addTransaction(tx) {
@@ -942,6 +945,18 @@ export default function App() {
       if (data) setMerchantAliases(prev => [...prev, data]);
     } catch (err) {
       logger.error("[decideMerchantAlias] failed:", err);
+    }
+  }
+
+  async function addScheduledPayment(payment) {
+    try {
+      const { data } = await supabase.from("scheduled_payments")
+        .insert({ user_id: user.id, ...payment })
+        .select().single();
+      if (data) setScheduledPayments(prev => [...prev, data]);
+      return data;
+    } catch (err) {
+      logger.error("[addScheduledPayment] failed:", err);
     }
   }
 
@@ -1520,7 +1535,7 @@ export default function App() {
           );
         })() : (
           <>
-            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setMerchantFilter(null); setDateFilter(null); setScreen("transactions"); }} onMerchantClick={tx => { setMerchantFilter(tx.description); setCatFilter(null); setDateFilter(null); setScreen("transactions"); }} onDayClick={date => { setDateFilter(date); setCatFilter(null); setMerchantFilter(null); setScreen("transactions"); }} onDayCategoryClick={(date, cat) => { setDateFilter(date); setCatFilter(cat); setMerchantFilter(null); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} lastSyncedAt={lastSyncedAt} hideWelcomeBanner={proToast} merchantAliasMap={merchantAliasMap} />}
+            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setMerchantFilter(null); setDateFilter(null); setScreen("transactions"); }} onMerchantClick={tx => { setMerchantFilter(tx.description); setCatFilter(null); setDateFilter(null); setScreen("transactions"); }} onDayClick={date => { setDateFilter(date); setCatFilter(null); setMerchantFilter(null); setScreen("transactions"); }} onDayCategoryClick={(date, cat) => { setDateFilter(date); setCatFilter(cat); setMerchantFilter(null); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} lastSyncedAt={lastSyncedAt} hideWelcomeBanner={proToast} merchantAliasMap={merchantAliasMap} scheduledPayments={scheduledPayments} onAddScheduledPayment={addScheduledPayment} />}
             {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} activeMerchantFilter={merchantFilter} onClearMerchantFilter={() => setMerchantFilter(null)} activeDateFilter={dateFilter} onClearDateFilter={() => setDateFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} InsightCard={InsightCard} roundupEnabled={roundupEnabled} onToggleRoundup={v => { setRoundupEnabled(v); saveProfile({ roundup_enabled: v }); }} />}

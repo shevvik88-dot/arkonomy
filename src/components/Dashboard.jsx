@@ -515,7 +515,92 @@ function Sparkline({ transactions, width = 62, height = 30 }) {
   );
 }
 
-function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, upcomingCharges, balanceVisible, merchantAliasMap }) {
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+function formatDateStr(d) {
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// Projects account balance forward to targetDate: currentBalance + expected
+// income - upcoming bills (recurring + scheduled one-off) - estimated
+// remaining daily spend, all scoped to "referenceDate through targetDate".
+// Single source for "what's left by date X" — used by both Cash Flow
+// Forecast (targetDate = end of month) and the planned-payment form's live
+// preview (targetDate = the payment's due date), so the two can't quietly
+// diverge the way independently-reimplemented financial formulas have
+// before in this project. Returns null if accountBalance isn't loaded yet.
+function projectBalanceAt(transactions, accountBalance, targetDate, aliasMap, scheduledPayments = [], referenceDate = new Date()) {
+  if (accountBalance == null) return null;
+
+  const todayStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+  const daysUntil = Math.max(0, Math.round((targetDate - todayStart) / MS_PER_DAY));
+  const curKey = `${referenceDate.getFullYear()}-${referenceDate.getMonth()}`;
+
+  const isThisMonth = tx => {
+    const d = new Date(tx.date + 'T00:00:00');
+    return d.getMonth() === referenceDate.getMonth() && d.getFullYear() === referenceDate.getFullYear();
+  };
+
+  // ── 3-month avg daily spend (previous full months, not current) ──────────
+  const avg3mDailySpend = (() => {
+    const byMonth = {};
+    for (const t of transactions) {
+      if (t.type !== 'expense') continue;
+      const d = new Date(t.date + 'T00:00:00');
+      const k = `${d.getFullYear()}-${d.getMonth()}`;
+      if (k === curKey) continue;
+      byMonth[k] = (byMonth[k] || 0) + Math.abs(Number(t.amount));
+    }
+    const vals = Object.values(byMonth).slice(-3);
+    if (!vals.length) {
+      // No history — fall back to this month's daily rate
+      const spent = transactions
+        .filter(t => t.type === 'expense' && isThisMonth(t))
+        .reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+      return spent / Math.max(referenceDate.getDate(), 1);
+    }
+    return vals.reduce((s, v) => s + v, 0) / vals.length / 30;
+  })();
+
+  // ── 3-month avg monthly income (previous full months, not current) ────────
+  const avg3mIncome = (() => {
+    const byMonth = {};
+    for (const t of transactions) {
+      if (t.type !== 'income') continue;
+      const d = new Date(t.date + 'T00:00:00');
+      const k = `${d.getFullYear()}-${d.getMonth()}`;
+      if (k === curKey) continue;
+      byMonth[k] = (byMonth[k] || 0) + Math.abs(Number(t.amount));
+    }
+    const vals = Object.values(byMonth).slice(-3);
+    if (!vals.length) {
+      return transactions
+        .filter(t => t.type === 'income' && isThisMonth(t))
+        .reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+    }
+    return vals.reduce((s, v) => s + v, 0) / vals.length;
+  })();
+
+  // ── Formula ───────────────────────────────────────────────────────────────
+  // projected = currentBalance + expectedIncome - upcomingBills - estimatedRemainingSpend
+  const targetDateStr = formatDateStr(targetDate);
+  const bills = [
+    ...getUpcomingCharges(transactions, aliasMap, referenceDate, { maxDays: daysUntil, maxResults: Infinity }),
+    ...getUpcomingCardPayments(transactions, aliasMap, referenceDate, { maxDays: daysUntil, maxResults: Infinity }),
+  ];
+  const billsTotal      = bills.reduce((s, c) => s + Number(c.amount), 0);
+  const scheduledTotal  = scheduledPayments
+    .filter(p => p.status === 'pending' && p.due_date <= targetDateStr)
+    .reduce((s, p) => s + Number(p.amount), 0);
+  const upcomingTotal           = billsTotal + scheduledTotal;
+  const expectedIncome          = avg3mIncome * (daysUntil / 30);
+  const estimatedRemainingSpend = avg3mDailySpend * daysUntil;
+  const projectedRaw            = accountBalance + expectedIncome - upcomingTotal - estimatedRemainingSpend;
+
+  return { projectedRaw, avg3mDailySpend, avg3mIncome, upcomingTotal, expectedIncome, estimatedRemainingSpend, daysUntil };
+}
+
+function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, upcomingCharges, balanceVisible, merchantAliasMap, scheduledPayments }) {
   const { t } = useTranslation();
   const today       = new Date();
   const dayOfMonth  = today.getDate();
@@ -545,63 +630,9 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
   }
 
   const startBalance = accountBalance;
-  const curKey = `${today.getFullYear()}-${today.getMonth()}`;
-
-  const isThisMonth = tx => {
-    const d = new Date(tx.date + 'T00:00:00');
-    return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-  };
-
-  // ── 3-month avg daily spend (previous full months, not current) ──────────
-  const avg3mDailySpend = (() => {
-    const byMonth = {};
-    for (const t of transactions) {
-      if (t.type !== 'expense') continue;
-      const d = new Date(t.date + 'T00:00:00');
-      const k = `${d.getFullYear()}-${d.getMonth()}`;
-      if (k === curKey) continue;
-      byMonth[k] = (byMonth[k] || 0) + Math.abs(Number(t.amount));
-    }
-    const vals = Object.values(byMonth).slice(-3);
-    if (!vals.length) {
-      // No history — fall back to this month's daily rate
-      const spent = transactions
-        .filter(t => t.type === 'expense' && isThisMonth(t))
-        .reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
-      return spent / Math.max(dayOfMonth, 1);
-    }
-    return vals.reduce((s, v) => s + v, 0) / vals.length / 30;
-  })();
-
-  // ── 3-month avg monthly income (previous full months, not current) ────────
-  const avg3mIncome = (() => {
-    const byMonth = {};
-    for (const t of transactions) {
-      if (t.type !== 'income') continue;
-      const d = new Date(t.date + 'T00:00:00');
-      const k = `${d.getFullYear()}-${d.getMonth()}`;
-      if (k === curKey) continue;
-      byMonth[k] = (byMonth[k] || 0) + Math.abs(Number(t.amount));
-    }
-    const vals = Object.values(byMonth).slice(-3);
-    if (!vals.length) {
-      return transactions
-        .filter(t => t.type === 'income' && isThisMonth(t))
-        .reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
-    }
-    return vals.reduce((s, v) => s + v, 0) / vals.length;
-  })();
-
-  // ── Formula ───────────────────────────────────────────────────────────────
-  // projected = currentBalance + expectedIncome - upcomingBills - estimatedRemainingSpend
-  const monthBills              = [
-    ...getUpcomingCharges(transactions, merchantAliasMap, new Date(), { maxDays: remainingDays, maxResults: Infinity }),
-    ...getUpcomingCardPayments(transactions, merchantAliasMap, new Date(), { maxDays: remainingDays, maxResults: Infinity }),
-  ];
-  const upcomingTotal           = monthBills.reduce((s, c) => s + Number(c.amount), 0);
-  const expectedIncome          = avg3mIncome * (remainingDays / 30);
-  const estimatedRemainingSpend = avg3mDailySpend * remainingDays;
-  const projectedRaw            = startBalance + expectedIncome - upcomingTotal - estimatedRemainingSpend;
+  const endOfMonthDate = new Date(today.getFullYear(), today.getMonth(), daysInMonth);
+  const { projectedRaw, avg3mDailySpend, upcomingTotal } =
+    projectBalanceAt(transactions, accountBalance, endOfMonthDate, merchantAliasMap, scheduledPayments, today);
   const projectedBalance        = Math.max(0, projectedRaw);
 
   if (avg3mDailySpend < 0.01 && upcomingTotal === 0) return null;
@@ -724,12 +755,18 @@ function dailyIntensityAlpha(total, maxTotal) {
 // amount) predicted charge — reuses the same getUpcomingCharges/
 // getUpcomingCardPayments the carousel and Cash Flow Forecast already use,
 // so the calendar can never disagree with them about what's coming up.
-function getUpcomingChargesByDay(transactions, aliasMap, referenceDate) {
+// scheduledPayments (user-added one-off future payments) are merged in as
+// the same shape — a day with both a recurring charge and a scheduled
+// payment shows whichever is larger, same tie-break as recurring vs card.
+function getUpcomingChargesByDay(transactions, aliasMap, referenceDate, scheduledPayments = []) {
   const daysInMonth = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 0).getDate();
   const remainingDays = daysInMonth - referenceDate.getDate();
   const all = [
     ...getUpcomingCharges(transactions, aliasMap, referenceDate, { maxDays: remainingDays, maxResults: Infinity }),
     ...getUpcomingCardPayments(transactions, aliasMap, referenceDate, { maxDays: remainingDays, maxResults: Infinity }),
+    ...scheduledPayments
+      .filter(p => p.status === "pending")
+      .map(p => ({ merchant: p.description, amount: Number(p.amount), expectedDate: p.due_date, category: p.category_name })),
   ];
 
   // The interval-based projection can occasionally overshoot into next
@@ -787,10 +824,11 @@ function CalendarDayCell({ day, isToday, isPast, color, alpha, size, emphasized,
 // past/today day in the strip navigates to Transactions filtered by that
 // date; tapping a future day shows a tooltip — same rules as before, just
 // scoped to the strip instead of the whole grid.
-function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCategoryClick }) {
+function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCategoryClick, scheduledPayments = [], onAddScheduledPayment, accountBalance }) {
   const { t } = useTranslation();
   const [selectedDay, setSelectedDay] = useState(null);
   const [tooltipDay, setTooltipDay] = useState(null);
+  const [showAddPayment, setShowAddPayment] = useState(false);
 
   const now = new Date();
   const year = now.getFullYear();
@@ -802,7 +840,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
 
   const dayBreakdown = useMemo(() => groupExpensesByDay(transactions, year, month), [transactions, year, month]);
   const pastByDay = useMemo(() => getDailyDominantCategory(transactions, year, month), [transactions, year, month]);
-  const futureByDay = useMemo(() => getUpcomingChargesByDay(transactions, merchantAliasMap, now), [transactions, merchantAliasMap]);
+  const futureByDay = useMemo(() => getUpcomingChargesByDay(transactions, merchantAliasMap, now, scheduledPayments), [transactions, merchantAliasMap, scheduledPayments]);
   const maxDayTotal = useMemo(() => Math.max(0, ...Object.values(pastByDay).map(d => d.total)), [pastByDay]);
   // Separate scale from maxDayTotal on purpose: past totals are a SUM of every
   // transaction that day, future amounts are a SINGLE dominant merchant's
@@ -928,8 +966,17 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
 
               <div style={{ paddingBottom: 8 }}>
                 {selectedIsFuture ? (
-                  <div style={{ fontSize: 13, color: C.text }}>
-                    {selectedFutureInfo ? `${selectedFutureInfo.merchant} ~$${fmt(selectedFutureInfo.amount)}` : t("dashboard.no_bills_expected")}
+                  <div>
+                    <div style={{ fontSize: 13, color: C.text, marginBottom: 12 }}>
+                      {selectedFutureInfo ? `${selectedFutureInfo.merchant} ~$${fmt(selectedFutureInfo.amount)}` : t("dashboard.no_bills_expected")}
+                    </div>
+                    <button
+                      onClick={() => setShowAddPayment(true)}
+                      style={{ width: "100%", padding: "10px 14px", borderRadius: 12, border: `1px dashed ${C.border}`, background: "transparent", color: C.cyan, fontSize: 13, fontWeight: 600, fontFamily: FONT, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                    >
+                      <Icon name="plus" size={14} color={C.cyan} strokeWidth={2.5} />
+                      {t("dashboard.add_planned_payment")}
+                    </button>
                   </div>
                 ) : selectedCatEntries.length === 0 ? (
                   <div style={{ fontSize: 13, color: C.muted }}>{t("dashboard.no_transactions")}</div>
@@ -946,12 +993,98 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
           </div>
         </div>
       )}
+
+      {showAddPayment && selectedDay && (
+        <AddPlannedPaymentModal
+          dueDate={new Date(year, month, selectedDay)}
+          transactions={transactions}
+          merchantAliasMap={merchantAliasMap}
+          scheduledPayments={scheduledPayments}
+          accountBalance={accountBalance}
+          onAdd={onAddScheduledPayment}
+          onClose={() => setShowAddPayment(false)}
+        />
+      )}
     </GlassCard>
   );
 }
 
+// Form for a user-added one-off future payment ("send $500 to Ivan on the
+// 15th") — shown from the calendar's Level 2 sheet for a future day. Reuses
+// projectBalanceAt (same formula as Cash Flow Forecast) for the live "left
+// after this" preview instead of a second balance calculation.
+const PLANNED_PAYMENT_CATEGORIES = Object.keys(CAT_COLORS).filter(c => !["Transfer", "Transfers", "Income"].includes(c));
+
+function AddPlannedPaymentModal({ dueDate, transactions, merchantAliasMap, scheduledPayments, accountBalance, onAdd, onClose }) {
+  const { t } = useTranslation();
+  const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState(PLANNED_PAYMENT_CATEGORIES[0]);
+  const [saving, setSaving] = useState(false);
+
+  const dueDateStr = formatDateStr(dueDate);
+  const amountNum = Number(amount) || 0;
+
+  const preview = useMemo(() => {
+    if (amountNum <= 0) return null;
+    const withThisPayment = [...scheduledPayments, { amount: amountNum, due_date: dueDateStr, status: "pending" }];
+    return projectBalanceAt(transactions, accountBalance, dueDate, merchantAliasMap, withThisPayment);
+  }, [amountNum, dueDateStr, transactions, accountBalance, merchantAliasMap, scheduledPayments, dueDate]);
+
+  async function handleSave() {
+    if (!(amountNum > 0) || !description.trim() || saving) return;
+    setSaving(true);
+    await onAdd?.({ amount: amountNum, description: description.trim(), category_name: category, due_date: dueDateStr });
+    setSaving(false);
+    onClose();
+  }
+
+  const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 200 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "24px 24px 0 0", padding: 24, border: `1px solid ${C.border}`, maxHeight: "90vh", overflowY: "auto", fontFamily: FONT }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{t("dashboard.add_planned_payment")}</h3>
+          <button onClick={onClose} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 99, cursor: "pointer", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="x" size={14} color={C.muted} strokeWidth={2.5} />
+          </button>
+        </div>
+        <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>
+          {dueDate.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ position: "relative" }}>
+            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: C.muted, fontSize: 16, fontWeight: 600, pointerEvents: "none" }}>$</span>
+            <input type="number" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} style={{ ...inp, paddingLeft: 30 }} />
+          </div>
+          <input style={inp} placeholder={t("dashboard.planned_payment_desc_placeholder")} value={description} onChange={e => setDescription(e.target.value)} />
+          <select value={category} onChange={e => setCategory(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+            {PLANNED_PAYMENT_CATEGORIES.map(c => <option key={c} value={c}>{tCat(c, t)}</option>)}
+          </select>
+        </div>
+
+        {preview && (
+          <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 12, background: C.bgTertiary, fontSize: 13, color: C.muted }}>
+            {t("dashboard.balance_after_planned_payment", { amount: `$${fmt(Math.max(0, preview.projectedRaw), 0)}` })}
+          </div>
+        )}
+
+        <button
+          onClick={handleSave}
+          disabled={!(amountNum > 0) || !description.trim() || saving}
+          style={{ width: "100%", marginTop: 16, padding: 14, borderRadius: 12, border: "none", background: (amountNum > 0 && description.trim()) ? C.cyan : C.bgTertiary, color: (amountNum > 0 && description.trim()) ? "#04121F" : C.muted, fontSize: 15, fontWeight: 700, fontFamily: FONT, cursor: (amountNum > 0 && description.trim()) ? "pointer" : "default" }}
+        >
+          {saving ? t("dashboard.saving") : t("dashboard.save_planned_payment")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Dashboard ────────────────────────────────────────────────
-export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap }) {
+export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment }) {
   const { t } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
@@ -1123,6 +1256,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         upcomingCharges={upcomingCharges}
         balanceVisible={balanceVisible}
         merchantAliasMap={merchantAliasMap}
+        scheduledPayments={scheduledPayments}
       />
 
 
@@ -1208,7 +1342,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       </GlassCard>
 
       {/* 6 ── Month Calendar (replaces Recent Transactions) */}
-      <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} />
+      <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} scheduledPayments={scheduledPayments} onAddScheduledPayment={onAddScheduledPayment} accountBalance={accountBalance} />
 
       {/* 5 ── Market Overview */}
       <MarketOverview onOpenMarket={onOpenMarket} />
