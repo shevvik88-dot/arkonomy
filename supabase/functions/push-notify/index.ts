@@ -347,6 +347,43 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Scheduled (one-off) payments due in NOTIFY_DAYS_AHEAD days ─────────────
+    const reminderDate = new Date(Date.now() + NOTIFY_DAYS_AHEAD * 86_400_000).toISOString().split('T')[0];
+    const { data: scheduled } = await supabase
+      .from('scheduled_payments')
+      .select('user_id, id, amount, description, due_date')
+      .eq('status', 'pending')
+      .eq('due_date', reminderDate);
+
+    for (const p of (scheduled ?? [])) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('push_subscription')
+        .eq('id', p.user_id)
+        .single();
+
+      if (!profile?.push_subscription) continue;
+
+      const payload = {
+        title: `📅 Planned payment: ${p.description}`,
+        body:  `$${Number(p.amount).toFixed(2)} due on ${p.due_date} — ${NOTIFY_DAYS_AHEAD} days away.`,
+        icon:  '/icon-192.png',
+        tag:   `scheduled-payment-${p.id}`,
+        url:   '/',
+      };
+
+      try {
+        await sendPushNotification(
+          profile.push_subscription, payload,
+          vapidPublicKey, vapidPrivateKey, vapidSubject,
+        );
+        results.push({ userId: p.user_id, type: 'scheduled_payment', paymentId: p.id, status: 'sent' });
+      } catch (err) {
+        console.error(`Scheduled payment push failed for user ${p.user_id}:`, err);
+        results.push({ userId: p.user_id, type: 'scheduled_payment', paymentId: p.id, status: 'failed' });
+      }
+    }
+
     return new Response(JSON.stringify({ notified: results.length, results }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
