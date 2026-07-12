@@ -122,7 +122,7 @@ Not touched recently, still open:
 - src/lib/appCheck.js — Firebase App Check init (reCAPTCHA v3); imported in main.jsx before React
 - src/lib/callEdgeFunction.js — unified edge function caller; injects App Check token + auth + apikey; use instead of supabase.functions.invoke() for App-Check-protected functions
 - src/hooks/usePlan.js — free/pro plan gating via Supabase profiles table
-- src/recurringDetector.js — recurring charges detection
+- src/utils/recurringSummary.js — single source for recurring-payment detection: `computeRecurringSummary` (subscriptions/regularPayments/possiblyCancelled), `getUpcomingCharges`/`getUpcomingCardPayments` (next-charge date projection, feeds the Home carousel + Cash Flow Forecast), `findDuplicateSubscriptions`/`findMerchantAliasCandidates` (merchant_aliases merge). `src/recurringDetector.js` (the old, independent, alias-unaware detector) was deleted 2026-07-12 — both its consumers migrated to this file.
 - supabase/functions/ — edge functions (Finnhub market data, ai-chat, etc.)
   - supabase/functions/_shared/appCheck.ts — JWKS-based App Check JWT verification (RS256); skip check for cron/service-role paths
   - supabase/functions/ai-chat/ — AI chat endpoint; version-controlled, deploy via `npx supabase functions deploy ai-chat`

@@ -318,6 +318,7 @@ AI предупреждает юзера, что TOTAL REGULAR COMMITMENTS мо�
 ## 🧷 ТЕХДОЛГ — зафиксировано, не срочно
 
 - [ ] `weekly-report/index.ts` (~236-237) дублирует руками формулу savings-points из `healthScore.js` — числа совпадают, риск дрейфа при будущих правках healthScore.
+- [ ] `supabase/functions/_shared/recurringDetector.ts` (Deno-порт, использует `get-insights` и `push-notify`) — та же проблема, что была у клиентского `src/recurringDetector.js` (удалён 12 июля): 90-дневное окно, keyword allow-list, НЕ знает про `merchant_aliases`. Клиент уже мигрирован на `computeRecurringSummary`/`getUpcomingCharges` (recurringSummary.js), но Deno не может импортировать из `src/` (та же причина, что и weekly-report/healthScore.js дублирование выше) — нужен отдельный заход на портирование alias-aware логики в Deno, не сделано сегодня.
 - [ ] `detectRecurringCharges` требует ≥2 списаний — не ловит разовый крупный счёт (первый месяц новой подписки). Тот же детектор у Dashboard Cash Flow Forecast — ошибаются синхронно.
 - [ ] Health Score не имеет balance-floor: формула `calculateHealthScore()` не смотрит на баланс, "Excellent" структурно возможен при дефиците. Пока только косметика (cashPositionLow подпись). Серьёзный фикс — 5-й компонент/множитель в формуле.
 - [ ] available vs current семантика при multi-account: суммирование `available ?? current` по нескольким счетам может смешать разные семантики. Для одного checking неважно. Код-комментарий добавлен в get-insights.

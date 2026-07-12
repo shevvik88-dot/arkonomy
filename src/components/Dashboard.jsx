@@ -9,7 +9,7 @@ import GlassCard from "./shared/GlassCard";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "../healthScore";
 import { InsightCard } from "./Insights";
 import UpcomingChargesCard from "./UpcomingChargesCard";
-import { detectRecurringCharges } from '../recurringDetector';
+import { getUpcomingCharges, getUpcomingCardPayments } from '../utils/recurringSummary';
 import { TxRow } from "./Transactions";
 import { BUFFER } from "../shared/financialConstants";
 
@@ -542,7 +542,7 @@ function Sparkline({ transactions, width = 62, height = 30 }) {
   );
 }
 
-function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, upcomingCharges, balanceVisible }) {
+function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, upcomingCharges, balanceVisible, merchantAliasMap }) {
   const { t } = useTranslation();
   const today       = new Date();
   const dayOfMonth  = today.getDate();
@@ -621,7 +621,10 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
 
   // ── Formula ───────────────────────────────────────────────────────────────
   // projected = currentBalance + expectedIncome - upcomingBills - estimatedRemainingSpend
-  const monthBills              = detectRecurringCharges(transactions, { maxDays: remainingDays, maxResults: Infinity });
+  const monthBills              = [
+    ...getUpcomingCharges(transactions, merchantAliasMap, new Date(), { maxDays: remainingDays, maxResults: Infinity }),
+    ...getUpcomingCardPayments(transactions, merchantAliasMap, new Date(), { maxDays: remainingDays, maxResults: Infinity }),
+  ];
   const upcomingTotal           = monthBills.reduce((s, c) => s + Number(c.amount), 0);
   const expectedIncome          = avg3mIncome * (remainingDays / 30);
   const estimatedRemainingSpend = avg3mDailySpend * remainingDays;
@@ -701,7 +704,7 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
 }
 
 // ─── Dashboard ────────────────────────────────────────────────
-export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false }) {
+export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap }) {
   const { t } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
@@ -872,6 +875,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         transactions={transactions}
         upcomingCharges={upcomingCharges}
         balanceVisible={balanceVisible}
+        merchantAliasMap={merchantAliasMap}
       />
 
 

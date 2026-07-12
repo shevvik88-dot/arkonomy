@@ -20,7 +20,7 @@
 // instead of two — see findMerchantAliasCandidates below for how matches
 // are suggested (never auto-merged).
 
-import { parseDate } from "./helpers";
+import { parseDate, cleanMerchantName } from "./helpers";
 
 const STALE_MULTIPLIER = 2;
 const MIN_STALE_DAYS = 45;
@@ -105,13 +105,13 @@ function groupTransactionsByMerchant(transactions, aliasMap = new Map()) {
       const d = parseDate(t.date);
       const monthKey = `${d.getFullYear()}-${d.getMonth()}`;
       const displayName = t.description || t.category_name || raw;
-      if (!map[groupKey]) map[groupKey] = { key: groupKey, name: displayName, months: new Set(), monthDates: {}, amounts: [], total: 0, firstDate: d, lastDate: d };
+      if (!map[groupKey]) map[groupKey] = { key: groupKey, name: displayName, category: t.category_name, months: new Set(), monthDates: {}, amounts: [], total: 0, firstDate: d, lastDate: d };
       const g = map[groupKey];
       g.months.add(monthKey);
       g.amounts.push(Number(t.amount));
       g.total += Number(t.amount);
       if (!g.monthDates[monthKey] || d > g.monthDates[monthKey]) g.monthDates[monthKey] = d;
-      if (d > g.lastDate) { g.lastDate = d; g.name = displayName; }
+      if (d > g.lastDate) { g.lastDate = d; g.name = displayName; g.category = t.category_name; }
       if (d < g.firstDate) g.firstDate = d;
     });
   return map;
@@ -132,6 +132,7 @@ export function computeRecurringSummary(transactions, referenceDate = new Date()
       const staleThreshold = Math.max(MIN_STALE_DAYS, typicalIntervalDays * STALE_MULTIPLIER);
       return {
         name: m.name,
+        category: m.category,
         months: m.months.size,
         avgMonthly: m.total / m.months.size,
         spread,
@@ -156,6 +157,85 @@ export function computeRecurringSummary(transactions, referenceDate = new Date()
   const regularTotal = regularPayments.reduce((s, m) => s + m.avgMonthly, 0);
 
   return { subscriptions, regularPayments, subTotal, regularTotal, possiblyCancelled };
+}
+
+// Projects the next occurrence of a recurring charge: lastDate + intervalDays,
+// advanced past todayStart if the projection has already lapsed.
+function projectNextDate(lastDate, intervalDays, todayStart) {
+  let nextDate = new Date(lastDate.getTime() + intervalDays * MS_PER_DAY);
+  while (nextDate < todayStart) nextDate = new Date(nextDate.getTime() + intervalDays * MS_PER_DAY);
+  return nextDate;
+}
+
+function formatDateStr(d) {
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// ── Upcoming charges projection ─────────────────────────────────────────────
+// Single source for "what recurring bill is due next and when" — replaces the
+// old, independent recurringDetector.js (90-day lookback, keyword allow-list,
+// no alias awareness). Projects nextDate = lastSeenDate + typicalIntervalDays
+// (same math as the staleness check, run forward instead of backward).
+// Only considers active merchants (computeRecurringSummary already excludes
+// possiblyCancelled). Credit card payments are NOT included here — see
+// getUpcomingCardPayments below for why they're a separate question.
+export function getUpcomingCharges(transactions, aliasMap = new Map(), referenceDate = new Date(), { maxDays = 14, maxResults = 4 } = {}) {
+  const { subscriptions, regularPayments } = computeRecurringSummary(transactions, referenceDate, aliasMap);
+  const todayStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+
+  const upcoming = [...subscriptions, ...regularPayments].map(m => {
+    const nextDate = projectNextDate(m.lastSeenDate, m.typicalIntervalDays, todayStart);
+    const daysUntil = Math.round((nextDate - referenceDate) / MS_PER_DAY);
+    return {
+      merchant: cleanMerchantName(m.name) || m.name,
+      amount: Math.round(m.avgMonthly * 100) / 100,
+      daysUntil,
+      expectedDate: formatDateStr(nextDate),
+      category: m.category || "Bills",
+    };
+  }).filter(c => c.daysUntil >= 0 && c.daysUntil <= maxDays);
+
+  return upcoming.sort((a, b) => a.daysUntil - b.daysUntil).slice(0, maxResults);
+}
+
+// ── Upcoming credit card payments (Cash Flow Forecast only) ─────────────────
+// RECURRING_EXCLUDE answers "is this a bill you could reconsider?" — a card
+// payment isn't, so it correctly stays out of Subscriptions/Regular Payments.
+// Cash Flow Forecast answers a different question — "how much cash will
+// actually leave the account?" — where a card's payment is just as real as
+// rent, even though the amount varies month to month (so, unlike
+// computeRecurringSummary, this does NOT require consistent amount/spread).
+const CARD_PAYMENT_KEYWORDS = ["card payment", "ccpymt", "credit card", "card online", "online des:payment"];
+
+function isCardPayment(name) {
+  const n = " " + name.toLowerCase() + " ";
+  return CARD_PAYMENT_KEYWORDS.some(k => n.includes(k));
+}
+
+export function getUpcomingCardPayments(transactions, aliasMap = new Map(), referenceDate = new Date(), { maxDays = 14, maxResults = 4 } = {}) {
+  const map = groupTransactionsByMerchant(transactions, aliasMap);
+  const todayStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+
+  const upcoming = Object.values(map)
+    .filter(m => m.months.size >= 2 && isCardPayment(m.name))
+    .map(m => {
+      const monthDatesSorted = Object.values(m.monthDates).sort((a, b) => a - b);
+      const gaps = monthDatesSorted.slice(1).map((d, i) => (d - monthDatesSorted[i]) / MS_PER_DAY);
+      const typicalIntervalDays = median(gaps);
+      const nextDate = projectNextDate(m.lastDate, typicalIntervalDays, todayStart);
+      const daysUntil = Math.round((nextDate - referenceDate) / MS_PER_DAY);
+      return {
+        merchant: cleanMerchantName(m.name) || m.name,
+        amount: Math.round((m.total / m.months.size) * 100) / 100,
+        daysUntil,
+        expectedDate: formatDateStr(nextDate),
+        category: m.category || "Bills",
+      };
+    })
+    .filter(c => c.daysUntil >= 0 && c.daysUntil <= maxDays);
+
+  return upcoming.sort((a, b) => a.daysUntil - b.daysUntil).slice(0, maxResults);
 }
 
 // ── Duplicate / overlapping subscription detection ─────────────────────────

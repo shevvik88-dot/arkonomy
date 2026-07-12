@@ -12,11 +12,10 @@ import UpgradeModal from "./components/UpgradeModal";
 import UpcomingChargesCard from "./components/UpcomingChargesCard";
 import { usePlan } from "./hooks/usePlan";
 import { usePushNotifications } from "./hooks/usePushNotifications";
-import { detectRecurringCharges } from "./recurringDetector";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "./healthScore";
 import { BUFFER } from "./shared/financialConstants";
 import { IS_IOS_NATIVE } from "./lib/platform";
-import { computeRecurringSummary, findDuplicateSubscriptions } from "./utils/recurringSummary";
+import { computeRecurringSummary, findDuplicateSubscriptions, getUpcomingCharges } from "./utils/recurringSummary";
 import GlassCard from "./components/shared/GlassCard";
 import AuthScreen from "./components/AuthScreen";
 import Icon from "./components/shared/Icon";
@@ -575,7 +574,7 @@ export default function App() {
       }
       if (t.data) {
         setTransactions(t.data);
-        const detected = detectRecurringCharges(t.data);
+        const detected = getUpcomingCharges(t.data, merchantAliasMap);
         setUpcomingCharges(detected);
       }
       if (sv.data) setSavings(sv.data);
@@ -905,7 +904,7 @@ export default function App() {
           }
         }
         // Update upcoming charges based on new transaction set
-        setUpcomingCharges(detectRecurringCharges([data, ...transactions]));
+        setUpcomingCharges(getUpcomingCharges([data, ...transactions], merchantAliasMap));
       }
     } catch (err) {
       logger.error("[addTransaction] failed:", err);
@@ -1520,7 +1519,7 @@ export default function App() {
           );
         })() : (
           <>
-            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} onMerchantClick={tx => { setMerchantFilter(tx.description); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} lastSyncedAt={lastSyncedAt} hideWelcomeBanner={proToast} />}
+            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setScreen("transactions"); }} onMerchantClick={tx => { setMerchantFilter(tx.description); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} lastSyncedAt={lastSyncedAt} hideWelcomeBanner={proToast} merchantAliasMap={merchantAliasMap} />}
             {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} activeMerchantFilter={merchantFilter} onClearMerchantFilter={() => setMerchantFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} InsightCard={InsightCard} roundupEnabled={roundupEnabled} onToggleRoundup={v => { setRoundupEnabled(v); saveProfile({ roundup_enabled: v }); }} />}
