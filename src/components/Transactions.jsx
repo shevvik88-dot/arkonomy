@@ -698,7 +698,7 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
   );
 }
 
-export default function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter, insight, onInsightAction, onToast }) {
+export default function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter, activeMerchantFilter, onClearMerchantFilter, insight, onInsightAction, onToast }) {
   const { t } = useTranslation();
   const [filter,          setFilter]          = useState("all");
   const [search,          setSearch]          = useState("");
@@ -712,7 +712,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
   const sentinelRef = useRef(null);
 
   // Reset visible count when filters change
-  useEffect(() => { setVisibleCount(50); }, [filter, search, activeCatFilter, localCatFilter]);
+  useEffect(() => { setVisibleCount(50); }, [filter, search, activeCatFilter, localCatFilter, activeMerchantFilter]);
 
   // IntersectionObserver — load 50 more when sentinel scrolls into view
   useEffect(() => {
@@ -723,7 +723,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
     }, { rootMargin: "200px" });
     obs.observe(el);
     return () => obs.disconnect();
-  }, [filter, search, activeCatFilter, localCatFilter]);
+  }, [filter, search, activeCatFilter, localCatFilter, activeMerchantFilter]);
   const { toasts, show: _localToast, dismiss } = useToasts();
   const toast = onToast || _localToast;
   const catFilter = activeCatFilter || localCatFilter || null;
@@ -756,6 +756,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
   const monthTxs = transactions.filter(t => { const d = parseDate(t.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
   let filtered = filter === "all" ? monthTxs : monthTxs.filter(t => t.type === filter);
   if (catFilter) filtered = filtered.filter(t => t.category_name === catFilter);
+  if (activeMerchantFilter) filtered = filtered.filter(t => t.description === activeMerchantFilter);
   if (search.trim()) {
     const q = search.trim().toLowerCase();
     filtered = filtered.filter(t =>
@@ -850,6 +851,16 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
           <div style={{ width: 8, height: 8, borderRadius: 99, background: CAT_COLORS[catFilter] || C.cyan }} />
           <span style={{ fontSize: 13, color: CAT_COLORS[catFilter] || C.cyan, fontWeight: 600, flex: 1 }}>{tCat(catFilter, t)}</span>
           <button onClick={onClearCatFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4, minHeight: 28 }}>
+            <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
+          </button>
+        </div>
+      )}
+
+      {activeMerchantFilter && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: C.cyan + "18", borderRadius: 12, border: `1px solid ${C.cyan}33` }}>
+          <div style={{ width: 8, height: 8, borderRadius: 99, background: C.cyan }} />
+          <span style={{ fontSize: 13, color: C.cyan, fontWeight: 600, flex: 1 }}>{cleanMerchantName(activeMerchantFilter) || activeMerchantFilter}</span>
+          <button onClick={onClearMerchantFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4, minHeight: 28 }}>
             <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
           </button>
         </div>

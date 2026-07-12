@@ -701,7 +701,7 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
 }
 
 // ─── Dashboard ────────────────────────────────────────────────
-export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false }) {
+export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false }) {
   const { t } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
@@ -971,7 +971,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           ? <div style={{ color: C.muted, textAlign: "center", padding: "16px 0", fontSize: 13 }}>{t("dashboard.no_transactions")}</div>
           : transactions.slice(0, 3).map((t, i, arr) => (
               <div key={t.id}>
-                <TxRow t={t} hideAmount={!balanceVisible} />
+                <TxRow t={t} hideAmount={!balanceVisible} onLongPress={onMerchantClick} />
                 {i < arr.length - 1 && <div style={{ height: 1, background: C.sep }} />}
               </div>
             ))
