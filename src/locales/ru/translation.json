@@ -84,6 +84,7 @@
     "weekday_sat": "Сб",
     "weekday_sun": "Вс",
     "no_transactions": "Нет транзакций",
+    "view_all_day_transactions": "Все транзакции этого дня →",
     "whats_in_other": "Что в категории «Прочее»",
     "transaction_one": "транзакция",
     "transaction_few": "транзакции",

@@ -83,6 +83,7 @@
     "weekday_sat": "Sa",
     "weekday_sun": "Su",
     "no_transactions": "No transactions yet",
+    "view_all_day_transactions": "View all transactions →",
     "whats_in_other": "What's in \"Other\"",
     "transaction_one": "transaction",
     "transaction_other": "transactions",

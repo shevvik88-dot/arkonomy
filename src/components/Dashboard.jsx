@@ -787,7 +787,7 @@ function CalendarDayCell({ day, isToday, isPast, color, alpha, size, emphasized,
 // past/today day in the strip navigates to Transactions filtered by that
 // date; tapping a future day shows a tooltip — same rules as before, just
 // scoped to the strip instead of the whole grid.
-function MonthCalendar({ transactions, merchantAliasMap, onDayClick }) {
+function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCategoryClick }) {
   const { t } = useTranslation();
   const [selectedDay, setSelectedDay] = useState(null);
   const [tooltipDay, setTooltipDay] = useState(null);
@@ -818,9 +818,15 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick }) {
     return { color, alpha, isToday, isPast };
   }
 
-  function goToDate(day) {
+  function dateStr(day) {
     const pad = n => String(n).padStart(2, "0");
-    onDayClick?.(`${year}-${pad(month + 1)}-${pad(day)}`);
+    return `${year}-${pad(month + 1)}-${pad(day)}`;
+  }
+  function goToDate(day) {
+    onDayClick?.(dateStr(day));
+  }
+  function goToDateCategory(day, category) {
+    onDayCategoryClick?.(dateStr(day), category);
   }
 
   const neighborStart = selectedDay ? Math.max(1, selectedDay - 2) : 1;
@@ -870,8 +876,15 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick }) {
               <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.12)" }} />
             </div>
             <div style={{ padding: "12px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${C.sep}`, flexShrink: 0 }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>
-                {new Date(year, month, selectedDay).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>
+                  {new Date(year, month, selectedDay).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+                </div>
+                {!selectedIsFuture && (
+                  <button onClick={() => goToDate(selectedDay)} style={{ background: "none", border: "none", padding: 0, marginTop: 2, cursor: "pointer", color: C.cyan, fontSize: 12, fontWeight: 600, fontFamily: FONT }}>
+                    {t("dashboard.view_all_day_transactions")}
+                  </button>
+                )}
               </div>
               <button onClick={() => { setSelectedDay(null); setTooltipDay(null); }} aria-label="Close" style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 8, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                 <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -913,7 +926,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick }) {
                   <div style={{ fontSize: 13, color: C.muted }}>{t("dashboard.no_transactions")}</div>
                 ) : (
                   selectedCatEntries.map(([cat, amount]) => (
-                    <div key={cat} onClick={() => goToDate(selectedDay)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: `1px solid ${C.sep}`, cursor: "pointer" }}>
+                    <div key={cat} onClick={() => goToDateCategory(selectedDay, cat)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: `1px solid ${C.sep}`, cursor: "pointer" }}>
                       <span style={{ fontSize: 13, color: C.text }}>{tCat(cat, t)}</span>
                       <span style={{ fontSize: 13, fontWeight: 600, color: CAT_COLORS[cat] || C.muted }}>${fmt(amount)}</span>
                     </div>
@@ -929,7 +942,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick }) {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────
-export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap }) {
+export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap }) {
   const { t } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
@@ -1189,7 +1202,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       <MarketOverview onOpenMarket={onOpenMarket} />
 
       {/* 6 ── Month Calendar (replaces Recent Transactions) */}
-      <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} />
+      <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} />
 
       {/* ── "Other" breakdown sheet ── */}
       {otherBreakdown && (() => {
