@@ -804,6 +804,11 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
   const pastByDay = useMemo(() => getDailyDominantCategory(transactions, year, month), [transactions, year, month]);
   const futureByDay = useMemo(() => getUpcomingChargesByDay(transactions, merchantAliasMap, now), [transactions, merchantAliasMap]);
   const maxDayTotal = useMemo(() => Math.max(0, ...Object.values(pastByDay).map(d => d.total)), [pastByDay]);
+  // Separate scale from maxDayTotal on purpose: past totals are a SUM of every
+  // transaction that day, future amounts are a SINGLE dominant merchant's
+  // predicted charge — different quantities. Sharing one max (usually set by
+  // a lump payment like rent) would flatten every future day near the floor.
+  const maxFutureDayTotal = useMemo(() => Math.max(0, ...Object.values(futureByDay).map(c => c.amount)), [futureByDay]);
 
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
@@ -814,7 +819,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
     const color = info ? (CAT_COLORS[info.category] || C.faint) : C.sep;
     const alpha = isPast || isToday
       ? dailyIntensityAlpha(pastByDay[day]?.total, maxDayTotal)
-      : (info ? "33" : "00");
+      : dailyIntensityAlpha(futureByDay[day]?.amount, maxFutureDayTotal);
     return { color, alpha, isToday, isPast };
   }
 
