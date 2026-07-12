@@ -960,6 +960,17 @@ export default function App() {
     }
   }
 
+  async function cancelScheduledPayment(id) {
+    try {
+      await supabase.from("scheduled_payments").update({ status: "cancelled" }).eq("id", id);
+      // Local state only ever holds pending rows (loadAll fetches status=pending),
+      // so cancelling just removes it rather than flipping a status flag in place.
+      setScheduledPayments(prev => prev.filter(p => p.id !== id));
+    } catch (err) {
+      logger.error("[cancelScheduledPayment] failed:", err);
+    }
+  }
+
   async function addSaving(sv) {
     const { data } = await supabase.from("savings").insert({ ...sv, user_id: user.id }).select().single();
     if (data) setSavings(prev => [...prev, data]);
@@ -1535,8 +1546,8 @@ export default function App() {
           );
         })() : (
           <>
-            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setMerchantFilter(null); setDateFilter(null); setScreen("transactions"); }} onMerchantClick={tx => { setMerchantFilter(tx.description); setCatFilter(null); setDateFilter(null); setScreen("transactions"); }} onDayClick={date => { setDateFilter(date); setCatFilter(null); setMerchantFilter(null); setScreen("transactions"); }} onDayCategoryClick={(date, cat) => { setDateFilter(date); setCatFilter(cat); setMerchantFilter(null); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} lastSyncedAt={lastSyncedAt} hideWelcomeBanner={proToast} merchantAliasMap={merchantAliasMap} scheduledPayments={scheduledPayments} onAddScheduledPayment={addScheduledPayment} />}
-            {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} />}
+            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setMerchantFilter(null); setDateFilter(null); setScreen("transactions"); }} onMerchantClick={tx => { setMerchantFilter(tx.description); setCatFilter(null); setDateFilter(null); setScreen("transactions"); }} onDayClick={date => { setDateFilter(date); setCatFilter(null); setMerchantFilter(null); setScreen("transactions"); }} onDayCategoryClick={(date, cat) => { setDateFilter(date); setCatFilter(cat); setMerchantFilter(null); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} lastSyncedAt={lastSyncedAt} hideWelcomeBanner={proToast} merchantAliasMap={merchantAliasMap} scheduledPayments={scheduledPayments} onAddScheduledPayment={addScheduledPayment} onCancelScheduledPayment={cancelScheduledPayment} />}
+            {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} onToast={showAlert} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} activeMerchantFilter={merchantFilter} onClearMerchantFilter={() => setMerchantFilter(null)} activeDateFilter={dateFilter} onClearDateFilter={() => setDateFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} InsightCard={InsightCard} roundupEnabled={roundupEnabled} onToggleRoundup={v => { setRoundupEnabled(v); saveProfile({ roundup_enabled: v }); }} />}
             {screen === "insights" && <Insights {...shared} onOpenChat={msg => { const budget = Number(profile?.monthly_budget)||3000; const sub = ['Subscriptions','Bills','Utilities','Phone','Internet','Insurance'].reduce((s,c)=>s+(spendingByCategory[c]||0),0); const {score:hs}=calculateHealthScore({totalIncome:effectiveIncome,totalSpent,lastIncome,lastSpent,budget,subscriptionSpend:sub}); const greeting=buildContextGreeting('insights',{totalIncome:effectiveIncome,totalSpent,spendingByCategory,savings,transactions,profile,allInsights,healthScore:hs}); const base=[{role:"assistant",text:greeting}]; setChatMessages(base); setShowChat(true); sendChat(msg,base); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} merchantAliasMap={merchantAliasMap} merchantAliases={merchantAliases} onDecideMerchantAlias={decideMerchantAlias} />}

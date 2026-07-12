@@ -766,7 +766,9 @@ function getUpcomingChargesByDay(transactions, aliasMap, referenceDate, schedule
     ...getUpcomingCardPayments(transactions, aliasMap, referenceDate, { maxDays: remainingDays, maxResults: Infinity }),
     ...scheduledPayments
       .filter(p => p.status === "pending")
-      .map(p => ({ merchant: p.description, amount: Number(p.amount), expectedDate: p.due_date, category: p.category_name })),
+      // scheduledPaymentId marks this item as user-cancelable (recurring/card
+      // projections have no id — nothing to cancel, they're derived, not stored)
+      .map(p => ({ merchant: p.description, amount: Number(p.amount), expectedDate: p.due_date, category: p.category_name, scheduledPaymentId: p.id })),
   ];
 
   // The interval-based projection can occasionally overshoot into next
@@ -824,7 +826,7 @@ function CalendarDayCell({ day, isToday, isPast, color, alpha, size, emphasized,
 // past/today day in the strip navigates to Transactions filtered by that
 // date; tapping a future day shows a tooltip — same rules as before, just
 // scoped to the strip instead of the whole grid.
-function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCategoryClick, scheduledPayments = [], onAddScheduledPayment, accountBalance }) {
+function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCategoryClick, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, accountBalance }) {
   const { t } = useTranslation();
   const [selectedDay, setSelectedDay] = useState(null);
   const [tooltipDay, setTooltipDay] = useState(null);
@@ -967,8 +969,19 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
               <div style={{ paddingBottom: 8 }}>
                 {selectedIsFuture ? (
                   <div>
-                    <div style={{ fontSize: 13, color: C.text, marginBottom: 12 }}>
-                      {selectedFutureInfo ? `${selectedFutureInfo.merchant} ~$${fmt(selectedFutureInfo.amount)}` : t("dashboard.no_bills_expected")}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 }}>
+                      <div style={{ fontSize: 13, color: C.text }}>
+                        {selectedFutureInfo ? `${selectedFutureInfo.merchant} ~$${fmt(selectedFutureInfo.amount)}` : t("dashboard.no_bills_expected")}
+                      </div>
+                      {selectedFutureInfo?.scheduledPaymentId && (
+                        <button
+                          onClick={() => onCancelScheduledPayment?.(selectedFutureInfo.scheduledPaymentId)}
+                          aria-label={t("dashboard.cancel_planned_payment")}
+                          style={{ background: C.red + "18", border: `1px solid ${C.red}33`, borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+                        >
+                          <Icon name="x" size={12} color={C.red} />
+                        </button>
+                      )}
                     </div>
                     <button
                       onClick={() => setShowAddPayment(true)}
@@ -1084,7 +1097,7 @@ function AddPlannedPaymentModal({ dueDate, transactions, merchantAliasMap, sched
 }
 
 // ─── Dashboard ────────────────────────────────────────────────
-export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment }) {
+export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment }) {
   const { t } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
@@ -1342,7 +1355,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       </GlassCard>
 
       {/* 6 ── Month Calendar (replaces Recent Transactions) */}
-      <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} scheduledPayments={scheduledPayments} onAddScheduledPayment={onAddScheduledPayment} accountBalance={accountBalance} />
+      <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} scheduledPayments={scheduledPayments} onAddScheduledPayment={onAddScheduledPayment} onCancelScheduledPayment={onCancelScheduledPayment} accountBalance={accountBalance} />
 
       {/* 5 ── Market Overview */}
       <MarketOverview onOpenMarket={onOpenMarket} />

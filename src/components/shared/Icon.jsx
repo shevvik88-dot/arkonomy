@@ -1,7 +1,7 @@
 import { C } from "../../utils/colors";
 
-export default function Icon({ name, size = 20, color = C.muted, strokeWidth = 1.8 }) {
-  const p = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth, strokeLinecap: "round", strokeLinejoin: "round", style: { display: "block", flexShrink: 0 } };
+export default function Icon({ name, size = 20, color = C.muted, strokeWidth = 1.8, fill = "none" }) {
+  const p = { width: size, height: size, viewBox: "0 0 24 24", fill, stroke: color, strokeWidth, strokeLinecap: "round", strokeLinejoin: "round", style: { display: "block", flexShrink: 0 } };
   const icons = {
     home:            <svg {...p}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
     credit:          <svg {...p}><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>,

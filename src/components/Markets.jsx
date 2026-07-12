@@ -241,7 +241,7 @@ function PriceChart({ candles = [], color, height = 130 }) {
 
 // ─── Stock Detail Screen ──────────────────────────────────────
 
-function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, isPro, isTrial, onUpgrade }) {
+function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, isPro, isTrial, onUpgrade, watchlist = [], addToWatchlist, removeFromWatchlist, onToast }) {
   const { t } = useTranslation();
   const meta    = MARKET_META[symbol] ?? { label: symbol, color: C.cyan, icon: "activity", isCrypto: false };
   const [tab, setTab]         = useState("overview");
@@ -381,6 +381,17 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
   const PERIODS = ["1D", "1W", "1M", "1Y"];
   const TABS = ["overview", "chart", "ai", "buy"];
 
+  const inWatchlist = watchlist.includes(symbol);
+  function toggleWatchlist() {
+    if (inWatchlist) {
+      removeFromWatchlist?.(symbol);
+    } else if (watchlist.length >= 12) {
+      onToast?.(t("markets.watchlist_full"), "warning");
+    } else {
+      addToWatchlist?.(symbol);
+    }
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", paddingBottom: 80, fontFamily: FONT }}>
 
@@ -394,6 +405,9 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
           <div style={{ fontWeight: 700, fontSize: 16 }}>{cleanCompanyName(meta.label) || symbol}</div>
           <div style={{ fontSize: 12, color: C.muted }}>{symbol}</div>
         </div>
+        <button onClick={toggleWatchlist} aria-label={t("markets.watchlist")} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+          <Icon name="star" size={16} color={inWatchlist ? "#FFB800" : C.muted} fill={inWatchlist ? "#FFB800" : "none"} />
+        </button>
         {stats && (
           <div style={{ textAlign: "right" }}>
             <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: -0.5 }}>{fmtPrice(stats.price, meta.isCrypto)}</div>
@@ -735,7 +749,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
 
 // ─── Markets Screen ───────────────────────────────────────────
 
-export default function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit, alpacaConnected, onConnectAlpaca, isPro, isTrial, onUpgrade }) {
+export default function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit, alpacaConnected, onConnectAlpaca, isPro, isTrial, onUpgrade, onToast }) {
   const { t } = useTranslation();
   const defaultWatchlist = profile?.watchlist ?? DEFAULT_WATCHLIST;
 
@@ -905,7 +919,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
   if (selectedSymbol) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <StockDetail symbol={selectedSymbol} onBack={() => setSelectedSymbol(null)} user={user} alpacaConnected={alpacaConnected} onConnectAlpaca={onConnectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} />
+        <StockDetail symbol={selectedSymbol} onBack={() => setSelectedSymbol(null)} user={user} alpacaConnected={alpacaConnected} onConnectAlpaca={onConnectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} watchlist={watchlist} addToWatchlist={addToWatchlist} removeFromWatchlist={removeFromWatchlist} onToast={onToast} />
       </div>
     );
   }
