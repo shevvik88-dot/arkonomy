@@ -905,7 +905,11 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
   // outflow — deliberately NEUTRAL color (not red), because unlike the past
   // day's net this isn't "how the day nets out", just "a payment is
   // expected" — same red on both would make one color carry two different
-  // meanings depending on where in the grid you're looking.
+  // meanings depending on where in the grid you're looking. White (not
+  // blue) for the neutral case — blue read too close in tone to the
+  // future-day backgrounds themselves even with the text-shadow; white
+  // also doubles down on the future scale already being a distinct visual
+  // language from past days, rather than blurring into it.
   function dayAmountInfo(day) {
     const isToday = day === todayDate;
     const isPast = day < todayDate;
@@ -916,7 +920,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
     }
     const info = futureByDay[day];
     if (!info) return null;
-    return { text: fmtDayAmount(-info.amount), color: C.blue };
+    return { text: fmtDayAmount(-info.amount), color: C.text };
   }
 
   function dateStr(day) {
