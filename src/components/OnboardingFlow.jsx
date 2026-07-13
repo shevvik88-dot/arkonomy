@@ -3,6 +3,7 @@ import { logger } from "../utils/logger";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../utils/supabase";
 import { C, FONT } from "../utils/colors";
+import Icon from "./shared/Icon";
 import PlaidLinkButton from "./shared/PlaidLinkButton";
 import AppPreviewStep from "./AppPreviewStep";
 import AhaMoment from "./AhaMoment";
@@ -434,14 +435,14 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
         {[
-          { emoji: "🏦", label: t("onboarding.feature_bank_sync"),    desc: t("onboarding.feature_bank_sync_sub"),    bg: "#1A56DB22", border: "#1A56DB44" },
-          { emoji: "🤖", label: t("onboarding.feature_ai_insights"),  desc: t("onboarding.feature_ai_insights_sub"),  bg: C.cyan + "18", border: C.cyan + "44" },
-          { emoji: "📊", label: t("onboarding.feature_health_score"), desc: t("onboarding.feature_health_score_sub"), bg: C.green + "18", border: C.green + "44" },
-          { emoji: "📈", label: t("onboarding.feature_investing"),    desc: t("onboarding.feature_investing_sub"),    bg: C.purple + "18", border: C.purple + "44" },
-        ].map(({ emoji, label, desc, bg, border }) => (
+          { icon: "bank",        label: t("onboarding.feature_bank_sync"),    desc: t("onboarding.feature_bank_sync_sub"),    color: "#1A56DB", bg: "#1A56DB22", border: "#1A56DB44" },
+          { icon: "activity",    label: t("onboarding.feature_ai_insights"),  desc: t("onboarding.feature_ai_insights_sub"),  color: C.cyan,    bg: C.cyan + "18", border: C.cyan + "44" },
+          { icon: "award",       label: t("onboarding.feature_health_score"), desc: t("onboarding.feature_health_score_sub"), color: C.green,   bg: C.green + "18", border: C.green + "44" },
+          { icon: "trending-up", label: t("onboarding.feature_investing"),    desc: t("onboarding.feature_investing_sub"),    color: C.purple,  bg: C.purple + "18", border: C.purple + "44" },
+        ].map(({ icon, label, desc, color, bg, border }) => (
           <div key={label} style={{ background: C.bgSecondary, border: `1px solid #1E293B`, borderRadius: 16, padding: "16px 14px" }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: bg, border: `1px solid ${border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, marginBottom: 10 }}>
-              {emoji}
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: bg, border: `1px solid ${border}`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+              <Icon name={icon} size={19} color={color} strokeWidth={1.8} />
             </div>
             <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 }}>{label}</div>
             <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.5 }}>{desc}</div>
