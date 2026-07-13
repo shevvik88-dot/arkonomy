@@ -966,7 +966,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
               >
                 <span style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: isPast || isToday ? C.text : C.muted, lineHeight: 1.1 }}>{day}</span>
                 {amountInfo && (
-                  <span style={{ fontSize: 8.5, fontWeight: 700, color: amountInfo.color, lineHeight: 1.1, marginTop: 1, whiteSpace: "nowrap" }}>{amountInfo.text}</span>
+                  <span style={{ fontSize: 8.5, fontWeight: 700, color: amountInfo.color, lineHeight: 1.1, marginTop: 3, whiteSpace: "nowrap", textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>{amountInfo.text}</span>
                 )}
               </div>
             </div>
