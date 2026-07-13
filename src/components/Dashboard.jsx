@@ -739,6 +739,41 @@ function getDailyDominantCategory(transactions, year, month) {
   return result;
 }
 
+// Signed net (income - expense) per day — separate from groupExpensesByDay,
+// which is expense-only (drives the cell's dominant category/color and
+// stays that way). Deliberately excludes ONLY "Transfer" (singular), same
+// as groupExpensesByDay — NOT also "Transfers" (plural), even though the
+// plural is the one that actually shows up in real data and arguably
+// should be excluded too. Matching groupExpensesByDay's filter exactly,
+// bug-for-bug, is intentional here: this number and that cell's color
+// must be computed from the same transaction set, or the color and the
+// text underneath it would silently disagree within one cell. The
+// singular/plural inconsistency itself is real and tracked in BACKLOG —
+// fix it there (in groupExpensesByDay, once, for both consumers), not by
+// letting this function quietly diverge from it.
+function getDailyNet(transactions, year, month) {
+  const net = {};
+  transactions.forEach(t => {
+    if (t.category_name === "Transfer") return;
+    const d = parseDate(t.date);
+    if (d.getFullYear() !== year || d.getMonth() !== month) return;
+    const day = d.getDate();
+    const amt = Number(t.amount);
+    net[day] = (net[day] || 0) + (t.type === "income" ? amt : -amt);
+  });
+  return net;
+}
+
+// Whole-thousands abbreviation past $1000 — a decimal ("$2.2k") barely saves
+// width over the plain number ("$2211"), but dropping to whole "k" does
+// ("$2k") and that's what the grid cell actually needs room for.
+function fmtDayAmount(n) {
+  const sign = n < 0 ? "-" : "+";
+  const abs = Math.abs(n);
+  if (abs >= 1000) return sign + "$" + Math.round(abs / 1000) + "k";
+  return sign + "$" + Math.round(abs);
+}
+
 // Log-scale intensity (0.25-1.0) relative to the month's biggest spend day —
 // linear scaling gets crushed by one-time lump payments (rent, insurance),
 // making every ordinary day look equally faint. Log compresses the outlier
@@ -841,6 +876,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
   const leadingBlanks = (new Date(year, month, 1).getDay() + 6) % 7;
 
   const dayBreakdown = useMemo(() => groupExpensesByDay(transactions, year, month), [transactions, year, month]);
+  const dailyNet = useMemo(() => getDailyNet(transactions, year, month), [transactions, year, month]);
   const pastByDay = useMemo(() => getDailyDominantCategory(transactions, year, month), [transactions, year, month]);
   const futureByDay = useMemo(() => getUpcomingChargesByDay(transactions, merchantAliasMap, now, scheduledPayments), [transactions, merchantAliasMap, scheduledPayments]);
   const maxDayTotal = useMemo(() => Math.max(0, ...Object.values(pastByDay).map(d => d.total)), [pastByDay]);
@@ -861,6 +897,26 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
       ? dailyIntensityAlpha(pastByDay[day]?.total, maxDayTotal)
       : dailyIntensityAlpha(futureByDay[day]?.amount, maxFutureDayTotal);
     return { color, alpha, isToday, isPast };
+  }
+
+  // Second line under the day number. Past/today: honest signed net
+  // (income - expense) — red/green because it's a real fact about that day.
+  // Future: the single dominant predicted charge, always shown as an
+  // outflow — deliberately NEUTRAL color (not red), because unlike the past
+  // day's net this isn't "how the day nets out", just "a payment is
+  // expected" — same red on both would make one color carry two different
+  // meanings depending on where in the grid you're looking.
+  function dayAmountInfo(day) {
+    const isToday = day === todayDate;
+    const isPast = day < todayDate;
+    if (isPast || isToday) {
+      const net = dailyNet[day];
+      if (net == null) return null;
+      return { text: fmtDayAmount(net), color: net < 0 ? C.red : C.green };
+    }
+    const info = futureByDay[day];
+    if (!info) return null;
+    return { text: fmtDayAmount(-info.amount), color: C.blue };
   }
 
   function dateStr(day) {
@@ -896,6 +952,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
         {Array.from({ length: leadingBlanks }, (_, i) => <div key={`blank-${i}`} />)}
         {days.map(day => {
           const { color, alpha, isToday, isPast } = dayColorAlpha(day);
+          const amountInfo = dayAmountInfo(day);
           return (
             <div key={day} style={{ aspectRatio: "1" }}>
               <div
@@ -904,10 +961,13 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
                   width: "100%", height: "100%", borderRadius: 10,
                   background: color + alpha,
                   border: isToday ? `2px solid ${C.text}` : `1px solid ${color}55`,
-                  display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer",
                 }}
               >
-                <span style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: isPast || isToday ? C.text : C.muted }}>{day}</span>
+                <span style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: isPast || isToday ? C.text : C.muted, lineHeight: 1.1 }}>{day}</span>
+                {amountInfo && (
+                  <span style={{ fontSize: 8.5, fontWeight: 700, color: amountInfo.color, lineHeight: 1.1, marginTop: 1, whiteSpace: "nowrap" }}>{amountInfo.text}</span>
+                )}
               </div>
             </div>
           );
