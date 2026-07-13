@@ -965,13 +965,23 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
                   width: "100%", height: "100%", borderRadius: 10,
                   background: color + alpha,
                   border: isToday ? `2px solid ${C.text}` : `1px solid ${color}55`,
-                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
                 }}
               >
-                <span style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: isPast || isToday ? C.text : C.muted, lineHeight: 1.1 }}>{day}</span>
-                {amountInfo && (
-                  <span style={{ fontSize: 8.5, fontWeight: 700, color: amountInfo.color, lineHeight: 1.1, marginTop: 3, whiteSpace: "nowrap", textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>{amountInfo.text}</span>
-                )}
+                {/* Light dark backdrop behind the text, not just a shadow on
+                    the text itself — a fixed semi-transparent surface gives
+                    guaranteed contrast no matter the cell's category color/
+                    alpha underneath, where tuning shadow color/direction
+                    per background kept failing on specific combinations
+                    (red-on-blue, white-on-bright-purple, etc). Applied to
+                    every cell uniformly, not just the ones that looked bad
+                    today — same rule everywhere beats a patch per color. */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: "rgba(0,0,0,0.22)", borderRadius: 8, padding: "2px 6px 3px" }}>
+                  <span style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: isPast || isToday ? C.text : C.muted, lineHeight: 1.1, textShadow: "0 1px 2.5px rgba(0,0,0,0.7)" }}>{day}</span>
+                  {amountInfo && (
+                    <span style={{ fontSize: 8.5, fontWeight: 700, color: amountInfo.color, lineHeight: 1.1, marginTop: 3, whiteSpace: "nowrap", textShadow: "0 1px 2.5px rgba(0,0,0,0.7)" }}>{amountInfo.text}</span>
+                  )}
+                </div>
               </div>
             </div>
           );
