@@ -1210,6 +1210,8 @@ export default function App() {
       onPlaidSuccess={onPlaidSuccess}
       onSaveProfile={saveProfile}
       trialCancelled={trialCancelled}
+      transactions={transactions}
+      bankConnected={bankConnected}
     />
   );
 

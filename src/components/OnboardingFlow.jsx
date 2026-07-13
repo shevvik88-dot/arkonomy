@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { logger } from "../utils/logger";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../utils/supabase";
 import { C, FONT } from "../utils/colors";
 import PlaidLinkButton from "./shared/PlaidLinkButton";
 import AppPreviewStep from "./AppPreviewStep";
+import AhaMoment from "./AhaMoment";
 
 export const TUTORIAL_STEPS = [
   { selector: '[data-tutorial="net-balance"]',      screen: "dashboard", title: "onboarding.tut_1_title", description: "onboarding.tut_1_desc" },
@@ -203,14 +204,28 @@ export function HelpButton({ onRestart, onMiniTour }) {
   );
 }
 
-export default function OnboardingFlow({ user, profile, linkToken, getLinkToken, onPlaidSuccess, onSaveProfile, trialCancelled }) {
+export default function OnboardingFlow({ user, profile, linkToken, getLinkToken, onPlaidSuccess, onSaveProfile, trialCancelled, transactions = [], bankConnected }) {
   const { t } = useTranslation();
   const [step, setStep] = useState(trialCancelled ? 6 : 1);
   const [budget, setBudget] = useState("3000");
   const [savingBudget, setSavingBudget] = useState(false);
   const [trialLoading, setTrialLoading] = useState(false);
   const [trialError, setTrialError] = useState("");
+  const [showAha, setShowAha] = useState(false);
+  const pendingFinalizeRef = useRef(null);
   const TOTAL_STEPS = 6;
+
+  // A bank was connected during THIS onboarding pass — go through the
+  // aha-moment interstitial before landing on Dashboard. "Skip for now"
+  // on step 2 leaves bankConnected false, so this is a no-op for those users.
+  function proceedToFinish(finalizeFn) {
+    if (bankConnected) {
+      pendingFinalizeRef.current = finalizeFn;
+      setShowAha(true);
+    } else {
+      finalizeFn();
+    }
+  }
 
   async function startFreeTrial() {
     setTrialLoading(true);
@@ -234,6 +249,8 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
       setTrialLoading(false);
     }
   }
+
+  if (showAha) return <AhaMoment transactions={transactions} onDone={() => pendingFinalizeRef.current?.()} />;
 
   const displayName = profile?.full_name?.split(" ")[0]?.slice(0, 12) || user?.user_metadata?.full_name?.split(" ")[0]?.slice(0, 12) || "there";
   const name = displayName;
@@ -496,7 +513,7 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
       )}
 
       <button
-        onClick={startFreeTrial}
+        onClick={() => proceedToFinish(startFreeTrial)}
         disabled={trialLoading}
         style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.green}, ${C.cyan})`, border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: trialLoading ? "not-allowed" : "pointer", fontFamily: FONT, boxShadow: `0 4px 24px ${C.green}44`, opacity: trialLoading ? 0.7 : 1, marginBottom: 14 }}
       >
@@ -504,7 +521,7 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
       </button>
 
       <button
-        onClick={completeFree}
+        onClick={() => proceedToFinish(completeFree)}
         style={{ width: "100%", padding: 0, background: "none", border: "none", color: C.muted, fontWeight: 500, fontSize: 13, cursor: "pointer", fontFamily: FONT, textDecoration: "underline", textUnderlineOffset: 3 }}
       >
         Continue with Free plan
