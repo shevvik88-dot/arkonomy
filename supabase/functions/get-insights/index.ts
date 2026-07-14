@@ -4,6 +4,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { enforceRateLimit } from '../_shared/rateLimit.ts';
 import { BUFFER, SAVE_CAP_SMALL, SAVE_CAP_MEDIUM, SAVE_CAP_LARGE, REC_MIN, REC_MAX } from '../_shared/financialConstants.ts';
 import { detectRecurringCharges } from '../_shared/recurringDetector.ts';
+import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+
+initSentry('get-insights');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
@@ -50,6 +53,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('get-insights error:', err);
+    await captureAndFlush(err, { function_name: 'get-insights' });
     return new Response(
       JSON.stringify({ error: "Internal Server Error" }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

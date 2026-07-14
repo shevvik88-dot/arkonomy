@@ -1,14 +1,42 @@
 import { logger } from "./utils/logger";
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import * as Sentry from '@sentry/react'
 import './i18n.js'
 import App from './App.jsx'
+
+// Redacts financial/PII fields by name, anywhere in the event — not a value
+// pattern match, so it only touches keys that are actually named this way
+// (e.g. a debug context someone attaches later with {balance, amount}),
+// without needing to know every place data could end up in an event.
+const SENSITIVE_KEYS = /^(balance|amount|amounts|description|descriptions|email)$/i;
+function scrubSensitive(value) {
+  if (Array.isArray(value)) return value.map(scrubSensitive);
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = SENSITIVE_KEYS.test(k) ? '[Redacted]' : scrubSensitive(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+if (import.meta.env.VITE_SENTRY_DSN) {
+  Sentry.init({
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    environment: import.meta.env.MODE,
+    sendDefaultPii: false, // no cookies/IP/headers — explicit, not just relying on the SDK default
+    beforeSend: (event) => scrubSensitive(event),
+  });
+}
 
 class ErrorBoundary extends React.Component {
   state = { hasError: false };
   static getDerivedStateFromError() { return { hasError: true }; }
   componentDidCatch(err, info) {
     if (import.meta.env.DEV) logger.error('ErrorBoundary caught:', err, info);
+    Sentry.captureException(err, { contexts: { react: { componentStack: info.componentStack } } });
   }
   render() {
     if (this.state.hasError) {
