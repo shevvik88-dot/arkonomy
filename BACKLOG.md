@@ -256,15 +256,22 @@ Free-юзеров (profiles.plan != 'pro'), Resend-интеграция (в CLAU
 
 ## ✅ СДЕЛАНО 13 июля (для истории)
 
-### Sentry-мониторинг ошибок (BACKLOG #12, закрыт)
-- [x] Frontend: `@sentry/react`, DSN через `VITE_SENTRY_DSN`, оборачивает существующий `ErrorBoundary.componentDidCatch` (кастомный UI не тронут). PII: `beforeSend` с denylist (`balance/amount/amounts/description/descriptions/email`) поверх `sendDefaultPii: false`.
-- [x] Backend: `ai-chat` + `get-insights` первыми (оба реально падали в проде) — новый `_shared/sentry.ts` (`initSentry`/`captureAndFlush`), `defaultIntegrations: false` + `Sentry.withScope()` per-request — по официальному гайду Supabase против того, что `Deno.serve` не инструментирован для авто-изоляции scope между запросами на переиспользуемом isolate.
-- [x] Scope-изоляция подтверждена вживую, не гипотетически: два параллельных запроса с разными `test_request_id` дали 2 отдельных события в Sentry без утечки контекста друг в друга.
+### Sentry-мониторинг ошибок (BACKLOG #12) — backend ЗАКРЫТ, frontend ЧАСТИЧНО
+
+**Backend (`ai-chat`, `get-insights`) — полностью подтверждено:**
+- [x] Новый `_shared/sentry.ts` (`initSentry`/`captureAndFlush`), `defaultIntegrations: false` + `Sentry.withScope()` per-request — по официальному гайду Supabase против того, что `Deno.serve` не инструментирован для авто-изоляции scope между запросами на переиспользуемом isolate.
+- [x] Scope-изоляция подтверждена вживую, не гипотетически: два параллельных запроса (`testA-111`/`testB-222`) дали 2 отдельных, чистых события в Sentry dashboard без пересечений/утечки контекста друг в друга.
 - [x] **Честно о часе+ диагностики "события не доходят до Sentry"**: реальный root cause — `SENTRY_DSN` secret изначально содержал DSN с ДРУГИМ project ID (`4511730884083712`) и другим publicKey, не настоящий project ID `arkonomy-edge-functions` (`4511730888474624`) — похоже на ошибку копирования при создании Sentry-проекта. Sentry ingest отвечал `200 OK` даже на неверный/чужой project ID (не палит существование чужих проектов), из-за чего `Sentry.flush() === true` создавало ложное впечатление успешной доставки при полном отсутствии событий в дашборде. **Гипотеза "SDK несовместим с Deno 1.45.2" (заявленная как риск с самого начала плана) НЕ подтвердилась** — после исправления DSN штатный `@sentry/deno` SDK заработал корректно с первой попытки. Самописный fetch-based обход SDK (был спроектирован как запасной план и частично продиагностирован через прямой POST на Sentry Store API) не понадобился и не был внедрён.
 - [x] Диагностика по пути: прямой `fetch()` на Sentry Store API в обход SDK подтвердил, что egress/сеть/сами DSN-credentials (публичный ключ, хост) были в порядке в принципе — это сузило гипотезу до конкретно неверного project ID, а не общей несовместимости рантайма.
 - [x] Временные диагностические хуки (`__sentryTest`, `__sentryRawFetchTest`, `console.error("Sentry flush result", ...)`) убраны из кода, задеплоен чистый прод-код (сверено `git diff` = пусто относительно коммита `cb2b159`). Тестовые `.ps1`-скрипты (содержали на диске реальный access token) удалены, не коммитились в git.
-- [ ] Остальные edge functions (кроме ai-chat/get-insights) — покрытие Sentry инкрементальное, не сделано сегодня, не блокер.
-- [ ] `VITE_SENTRY_DSN` в Vercel Production env vars — требует ручного шага (Dashboard → Settings → Environment Variables), не подтверждено на момент записи.
+- [ ] Остальные edge functions (`plaid-sync-transactions`, `delete-account`, `stripe-checkout` и т.д.) — без Sentry. Сознательное решение расширять постепенно по мере необходимости, не техдолг — не все функции одинаково критичны/часто падают.
+
+**Frontend (`@sentry/react`, ErrorBoundary) — код написан, НЕ протестирован вживую:**
+- [x] `@sentry/react` интегрирован, DSN через `VITE_SENTRY_DSN`, оборачивает существующий `ErrorBoundary.componentDidCatch` (кастомный UI не тронут). PII: `beforeSend` с denylist (`balance/amount/amounts/description/descriptions/email`) поверх `sendDefaultPii: false`.
+- [ ] **Не проверено вживую** — браузерное расширение было недоступно всю сессию. Открытые шаги:
+  а) Подтвердить, что `VITE_SENTRY_DSN` реально добавлена в Vercel Environment Variables (Production) — не подтверждено сделано ли.
+  б) Явный деплой на Vercel — Vercel НЕ деплоится автоматически на обычный `git push` (задокументированное поведение проекта, см. память), нужна явная команда/действие.
+  в) Реальный тест намеренной ошибки в браузере (`throw new Error(...)` в консоли) → подтвердить появление в Sentry dashboard `arkonomy-web`.
 
 ### Календарь — сумма дня под датой (BACKLOG #17, полностью закрыт)
 - [x] Level 1 grid: под числом дня — вторая строка, сумма дня со знаком. Прошедшие/сегодня — честный net (доход − расход), красный/зелёный по знаку. Будущие дни — сумма доминирующего ожидаемого платежа (не net — `futureByDay` хранит один платёж, не сумму всех ожидаемых, и проекции дохода в приложении нет в принципе), всегда как отток, нейтральный цвет (не красный/не зелёный, чтобы не путать с честным net прошлых дней).
