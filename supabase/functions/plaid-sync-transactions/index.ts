@@ -11,6 +11,9 @@
 // everything from Plaid with updated category mapping.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+
+initSentry('plaid-sync-transactions');
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 
@@ -503,6 +506,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('plaid-sync-transactions error:', err);
+    await captureAndFlush(err, { function_name: 'plaid-sync-transactions' });
     return json({ error: "Internal Server Error" }, 500, corsHeaders);
   }
 });
