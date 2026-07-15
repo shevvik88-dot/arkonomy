@@ -74,31 +74,26 @@ Markets/StockDetail) —
 Покажи находки по каждому экрану перед любыми правками.
 ```
 
-### 18. Расширить Sentry-мониторинг на остальные edge functions
+### 18. Расширить Sentry-мониторинг на остальные edge functions (в работе)
 
-```
-Сейчас покрыты только ai-chat и get-insights (протестировано и подтверждено
-13 июля, включая scope-изоляцию между параллельными запросами). Остальные
-функции — plaid-sync-transactions, delete-account, stripe-checkout,
-plaid-link-token, plaid-webhook, alpaca-invest, alpaca-portfolio,
-weekly-report, push-notify и другие — пока без мониторинга. Если там
-начнут вылетать ошибки, мы их не увидим автоматически, как и не видели
-раньше — тот же слепой участок, из-за которого Sentry вообще подключали.
+10 функций высокого приоритета (деньги/чувствительные операции), затем 9 среднего:
 
-ПЛАН: переиспользовать уже готовый _shared/sentry.ts — интерфейс
-(initSentry/captureAndFlush) не меняется. Добавлять try/catch с
-captureAndFlush в каждую функцию по очереди, тем же паттерном, что уже
-подтверждён рабочим в ai-chat/get-insights.
+**Высокий приоритет:**
+- [x] `delete-account` — готово 14 июля. `verify_jwt: true` (в отличие от ai-chat/get-insights, у которых `false`) — первая проверка Sentry-паттерна на пути, где JWT валидируется гейтвеем ДО кода функции; подтверждено рабочим. Функция не имела единого try/catch вокруг хендлера (только точечные try/catch вокруг Stripe/Plaid best-effort вызовов, намеренно проглатывающих ошибки в `account_deletion_issues`) — добавлен один общий try/catch вокруг всего тела, точечные оставлены нетронутыми. Событие подтверждено в dashboard (`function_name: delete-account`, `handled: true`). По пути найден и исправлен баг тестового скрипта (не в проде): `$ApiKey` потерялась при ручной правке `.ps1`, из-за чего `Invoke-WebRequest` падал `NullReferenceException` до сети — воспроизведено на dummy-токене, не реальный Sentry/деплой баг.
+- [ ] `stripe-checkout`
+- [ ] `plaid-sync-transactions`
+- [ ] `plaid-link-token`
+- [ ] `alpaca-invest`
+- [ ] `alpaca-portfolio`
+- [ ] `stripe-webhook`
+- [ ] `plaid-exchange-token`
+- [ ] `plaid-batch-sync`
+- [ ] `alpaca-oauth-callback`
 
-ПРИОРИТЕТ: функции, которые трогают деньги/чувствительные операции
-первыми — delete-account, stripe-checkout, plaid-sync-transactions.
-Остальные — по мере надобности.
+**Средний приоритет (после высокого):**
+`weekly-report`, `push-notify`, `plaid-webhook`, `plaid-get-accounts`, `market-data`, `generate-monthly-report`, `stock-ai-analysis`, `check-bank-connection`, `auth-login`
 
-ВАЖНО: не делать всё разом одним большим коммитом — постепенно, функция
-за функцией, с тем же уровнем проверки, что и сегодня для первых двух
-(реальный тест на живом деплое перед тем как считать закрытым, не
-"код написан значит готово").
-```
+ПЛАН (не изменился): переиспользовать `_shared/sentry.ts` без изменений интерфейса — `initSentry`/`captureAndFlush`, один общий try/catch на функцию. Функция за функцией, отдельный коммит/деплой на каждую (или пачку из 2-3 похожих), для высокого приоритета — обязательный реальный тест с подтверждением события в dashboard перед тем как считать закрытым.
 
 ### 3. Кредитные карты — отображение и контроль (план)
 
