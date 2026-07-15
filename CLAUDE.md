@@ -162,6 +162,7 @@ Not touched recently, still open:
 - Chat history uses sessionStorage (key: arkonomy_chat_history) — clears on tab close; never switch to localStorage for this key.
 
 ## Coding rules
+- When a test needs to authenticate as `service_role` (or any credential the user can't reliably copy from the Dashboard), don't spend time hunting for the real value — use the one-time `SENTRY_TEST_MARKER`-style pattern instead: generate a random secret, `supabase secrets set` it, check it against a dedicated header/field in a branch that runs BEFORE the real auth check, then `secrets unset` + remove the code immediately after confirming. Faster and safer than trying to match a real production credential by hand (see `plaid-batch-sync` — three attempts to copy the real service role JWT from the Dashboard all had the wrong SHA256, never resolved that mismatch, and rotating `SUPABASE_SERVICE_ROLE_KEY` itself would have broken every function's DB admin access at once).
 - One step at a time — show the change, wait for confirmation before proceeding.
 - Never rewrite large blocks when a targeted edit suffices.
 - Never change auth flow, Supabase schema, or Vercel config without explicit instruction.

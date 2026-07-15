@@ -4,6 +4,9 @@
 // Must be invoked with the service role key — rejects any other token.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+
+initSentry('plaid-batch-sync');
 
 const CORS = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
@@ -203,6 +206,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('plaid-batch-sync error:', err);
+    await captureAndFlush(err, { function_name: 'plaid-batch-sync' });
     return json({ error: "Internal Server Error" }, 500);
   }
 });
