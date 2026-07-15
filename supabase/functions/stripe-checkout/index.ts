@@ -1,5 +1,8 @@
 import Stripe from 'npm:stripe@14';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+
+initSentry('stripe-checkout');
 
 const APP_URL = Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com';
 const corsHeaders = {
@@ -65,6 +68,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('stripe-checkout error:', err);
+    await captureAndFlush(err, { function_name: 'stripe-checkout' });
     return new Response(JSON.stringify({ error: "Internal Server Error" }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

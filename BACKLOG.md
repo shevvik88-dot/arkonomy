@@ -80,7 +80,7 @@ Markets/StockDetail) —
 
 **Высокий приоритет:**
 - [x] `delete-account` — готово 14 июля. `verify_jwt: true` (в отличие от ai-chat/get-insights, у которых `false`) — первая проверка Sentry-паттерна на пути, где JWT валидируется гейтвеем ДО кода функции; подтверждено рабочим. Функция не имела единого try/catch вокруг хендлера (только точечные try/catch вокруг Stripe/Plaid best-effort вызовов, намеренно проглатывающих ошибки в `account_deletion_issues`) — добавлен один общий try/catch вокруг всего тела, точечные оставлены нетронутыми. Событие подтверждено в dashboard (`function_name: delete-account`, `handled: true`). По пути найден и исправлен баг тестового скрипта (не в проде): `$ApiKey` потерялась при ручной правке `.ps1`, из-за чего `Invoke-WebRequest` падал `NullReferenceException` до сети — воспроизведено на dummy-токене, не реальный Sentry/деплой баг.
-- [ ] `stripe-checkout`
+- [x] `stripe-checkout` — готово 14 июля. `verify_jwt: false` (auth в коде, как ai-chat/get-insights). Уже был единый try/catch на весь хендлер — добавлен только import/init + `captureAndFlush` в существующий catch, тест-хук через `?__sentryTest=1` (функция не читает body). Событие подтверждено в dashboard (`function_name: stripe-checkout`, `handled: true`).
 - [ ] `plaid-sync-transactions`
 - [ ] `plaid-link-token`
 - [ ] `alpaca-invest`
