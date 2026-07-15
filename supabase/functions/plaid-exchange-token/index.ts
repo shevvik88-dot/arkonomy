@@ -6,6 +6,9 @@
 // → { success: true }
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+
+initSentry('plaid-exchange-token');
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 
@@ -107,6 +110,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('plaid-exchange-token error:', err);
+    await captureAndFlush(err, { function_name: 'plaid-exchange-token' });
     return json({ error: "Internal Server Error" }, 500, corsHeaders);
   }
 });
