@@ -84,7 +84,7 @@ Markets/StockDetail) —
 - [x] `plaid-sync-transactions` — готово 14 июля. `verify_jwt: false`. Уже был единый try/catch на весь хендлер (admin resync_all/sync_item + обычный per-user sync в одной функции) — добавлен только import/init + `captureAndFlush`, тест-хук сразу после парсинга body, до всех веток (admin и обычной). Событие подтверждено в dashboard (`function_name: plaid-sync-transactions`, `handled: true`).
 - [x] `plaid-link-token` — готово 14 июля. `verify_jwt: false`. Единый try/catch уже был — добавлен только import/init + `captureAndFlush`, тест-хук после парсинга body, до реального Plaid `/link/token/create` вызова. Событие подтверждено в dashboard (`function_name: plaid-link-token`, `handled: true`).
 - [x] `alpaca-invest` — готово 14 июля. `verify_jwt: false`. Единый try/catch уже был — добавлен только import/init + `captureAndFlush`, тест-хук после парсинга body (пришлось разбить одну строку деструктуризации на присвоение+деструктуризацию, чтобы получить доступ к `__sentryTest`), до реальных Alpaca account/order вызовов. Событие подтверждено в dashboard (`function_name: alpaca-invest`, `handled: true`).
-- [ ] `alpaca-portfolio`
+- [x] `alpaca-portfolio` — готово 14 июля. `verify_jwt: false`. Read-only, не читает body — тест-хук через `?__sentryTest=1` (как stripe-checkout), сразу после auth, до реальных Alpaca account/positions вызовов. Событие подтверждено в dashboard (`function_name: alpaca-portfolio`, `handled: true`).
 - [ ] `stripe-webhook`
 - [ ] `plaid-exchange-token`
 - [ ] `plaid-batch-sync`
