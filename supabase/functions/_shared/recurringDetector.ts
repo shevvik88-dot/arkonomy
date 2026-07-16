@@ -95,8 +95,12 @@ interface MerchantGroup {
 // displayed .name always tracks the MOST RECENT transaction's description —
 // important once merging is involved, since a merged group can contain 2-3
 // different bank descriptions over time.
-function groupTransactionsByMerchant(transactions: any[], aliasMap: Map<string, string> = new Map()): Record<string, MerchantGroup> {
-  const map: Record<string, MerchantGroup> = {};
+function groupTransactionsByMerchant(transactions: any[], aliasMap: Map<string, string> = new Map()): Map<string, MerchantGroup> {
+  // Map, not a plain object — groupKey comes from a bank-controlled transaction
+  // description, and a description that normalizes to "constructor" would collide
+  // with Object.prototype on a plain object (silently returns the inherited
+  // constructor function instead of undefined, corrupting the group).
+  const map = new Map<string, MerchantGroup>();
   transactions
     .filter(t => t.type === "expense" && t.category_name !== "Transfer")
     .forEach(t => {
@@ -109,8 +113,8 @@ function groupTransactionsByMerchant(transactions: any[], aliasMap: Map<string, 
       const d = new Date(t.date + "T00:00:00");
       const monthKey = `${d.getFullYear()}-${d.getMonth()}`;
       const displayName = t.description || t.category_name || raw;
-      if (!map[groupKey]) map[groupKey] = { key: groupKey, name: displayName, category: t.category_name, months: new Set(), monthDates: {}, amounts: [], total: 0, firstDate: d, lastDate: d };
-      const g = map[groupKey];
+      if (!map.has(groupKey)) map.set(groupKey, { key: groupKey, name: displayName, category: t.category_name, months: new Set(), monthDates: {}, amounts: [], total: 0, firstDate: d, lastDate: d });
+      const g = map.get(groupKey)!;
       g.months.add(monthKey);
       g.amounts.push(Number(t.amount));
       g.total += Number(t.amount);
@@ -136,7 +140,7 @@ interface RecurringCandidate {
 export function computeRecurringSummary(transactions: any[], referenceDate: Date = new Date(), aliasMap: Map<string, string> = new Map()) {
   const map = groupTransactionsByMerchant(transactions, aliasMap);
 
-  const candidates: RecurringCandidate[] = Object.values(map)
+  const candidates: RecurringCandidate[] = Array.from(map.values())
     .filter(m => m.months.size >= 2 && !isRecurringExcluded(m.name))
     .map(m => {
       const sorted = m.amounts.slice().sort((a, b) => a - b);
