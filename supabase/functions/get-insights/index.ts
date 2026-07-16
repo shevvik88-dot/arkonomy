@@ -3,7 +3,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { enforceRateLimit } from '../_shared/rateLimit.ts';
 import { BUFFER, SAVE_CAP_SMALL, SAVE_CAP_MEDIUM, SAVE_CAP_LARGE, REC_MIN, REC_MAX } from '../_shared/financialConstants.ts';
-import { detectRecurringCharges } from '../_shared/recurringDetector.ts';
+import { getUpcomingCharges } from '../_shared/recurringDetector.ts';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 
 initSentry('get-insights');
@@ -161,6 +161,7 @@ async function buildFinancialInput(supabase: any, userId: string) {
     { data: historicalTxns,   error: e2 },
     { data: recentIncomeTxns, error: e4 },
     { data: savingsGoals,     error: e3 },
+    { data: merchantAliases,  error: e5 },
   ] = await Promise.all([
     supabase.from('transactions').select('amount, category_name, description, date, type')
       .eq('user_id', userId).gte('date', startOfMonth).lte('date', todayStr),
@@ -171,16 +172,25 @@ async function buildFinancialInput(supabase: any, userId: string) {
       .gte('date', startOfIncomeLookback).lte('date', todayStr)
       .order('date', { ascending: false }),
     supabase.from('savings').select('id, name, target, current').eq('user_id', userId),
+    supabase.from('merchant_aliases').select('alias_key, canonical_key, status').eq('user_id', userId),
   ]);
 
   if (e1) console.error('currentTxns error:', e1);
   if (e2) console.error('historicalTxns error:', e2);
   if (e3) console.error('savingsGoals error:', e3);
   if (e4) console.error('recentIncome error:', e4);
+  if (e5) console.error('merchantAliases error:', e5);
 
   const current      = currentTxns      || [];
   const historical   = historicalTxns   || [];
   const recentIncome = recentIncomeTxns || [];
+
+  // aliasMap: raw alias_key -> canonical_key, confirmed only — mirrors
+  // App.jsx's merchantAliasMap useMemo exactly, so server and client agree
+  // on which merchant groups are merged.
+  const aliasMap = new Map<string, string>();
+  (merchantAliases || []).filter((a: any) => a.status === 'confirmed')
+    .forEach((a: any) => aliasMap.set(a.alias_key, a.canonical_key));
 
   // ── Effective monthly income ──────────────────────────────────────────────
   const currentMonthIncome = current
@@ -307,7 +317,7 @@ async function buildFinancialInput(supabase: any, userId: string) {
 
   // Real upcoming bills due in the next 7 days — same recurring-charge
   // detector Dashboard.jsx Cash Flow Forecast already uses, so both agree.
-  const upcomingBills7d = detectRecurringCharges([...historical, ...current], { maxDays: 7 })
+  const upcomingBills7d = getUpcomingCharges([...historical, ...current], aliasMap, new Date(), { maxDays: 7 })
     .reduce((sum: number, c: any) => sum + Number(c.amount), 0);
 
   return {

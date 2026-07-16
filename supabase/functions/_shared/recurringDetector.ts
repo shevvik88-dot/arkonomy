@@ -1,236 +1,221 @@
 // supabase/functions/_shared/recurringDetector.ts
-// Ported verbatim from src/recurringDetector.js — pure JS/TS, no React
-// dependencies, so it works unchanged in Deno. Keep in sync with the
-// frontend copy (used by Dashboard.jsx Cash Flow Forecast) if either changes.
 //
-// Detects recurring subscription/bill charges from the last 90 days.
-// Conservative by design — only flags genuine recurring billing, not
-// frequent casual spending like coffee shops or fast food.
+// Ported from src/utils/recurringSummary.js's computeRecurringSummary /
+// getUpcomingCharges (the client-side single source of truth for recurring-
+// payment detection, including merchant_aliases-aware merging). Deno edge
+// functions cannot import from src/, so this file must be kept in sync BY
+// HAND whenever recurringSummary.js changes — that's a hard platform
+// constraint, not an oversight.
+//
+// Intentionally left out of this port (not needed by get-insights, the only
+// current consumer of this file):
+//   - cleanMerchantName — client-only display-formatting helper; get-insights
+//     only ever consumes `.amount`, never surfaces `.merchant` to the user.
+//   - findDuplicateSubscriptions / findMerchantAliasCandidates /
+//     getUpcomingCardPayments — not consumed here.
 //
 // Expected transaction shape: { date, amount, type, description, category_name }
-// Output shape: [{ merchant, amount, daysUntil, expectedDate, category }]
+// Output shape (getUpcomingCharges): [{ merchant, amount, daysUntil, expectedDate, category }]
 
-// ─── Thresholds ───────────────────────────────────────────────────────────────
+const STALE_MULTIPLIER = 2;
+const MIN_STALE_DAYS = 45;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-const AMOUNT_TOLERANCE       = 0.50;  // ±$0.50 flat — real subscriptions are always exact same price
-const INTERVAL_MIN           = 7;    // shortest accepted billing cycle (weekly)
-const INTERVAL_MAX           = 95;   // longest accepted billing cycle (quarterly)
-const GAP_VARIANCE_TOLERANCE = 7;    // each gap must be within ±7 days of the merchant's avg gap
-const MIN_OCCURRENCES        = 2;    // need ≥2 confirmed charges
-const MIN_AMOUNT          = 10;     // ignore anything under $10 (coffee, small tips)
-const LOOKBACK_DAYS       = 90;
-const UPCOMING_DAYS       = 14;
-const MAX_RESULTS         = 4;      // cap at 4 most critical items
-const MIN_CONFIRMED       = 1;      // hide the section if fewer than this confirmed
+function median(nums: number[]): number {
+  const s = nums.slice().sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 !== 0 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
 
-// ─── Merchant allow-list: keywords that signal a subscription or bill ─────────
-// A transaction must match at least one of these to be considered recurring.
-// This is the primary defense against coffee shops, restaurants, Uber rides, etc.
-
-const SUBSCRIPTION_KEYWORDS = [
-  // Streaming & entertainment
-  'netflix', 'spotify', 'hulu', 'disney', 'hbo', 'max', 'peacock', 'paramount',
-  'apple tv', 'prime video', 'crunchyroll', 'youtube premium', 'tidal', 'deezer',
-  'pandora', 'siriusxm', 'twitch', 'xbox game pass', 'playstation plus', 'ps plus',
-  'nintendo switch online', 'ea play',
-
-  // Telecom & internet
-  'at&t', 'att', 'verizon', 'tmobile', 't-mobile', 'sprint', 'comcast', 'xfinity',
-  'spectrum', 'cox', 'optimum', 'frontier', 'centurylink', 'lumen', 'boost mobile',
-  'cricket wireless', 'metro', 'visible', 'mint mobile',
-
-  // Utilities
-  'electric', 'electricity', 'water bill', 'gas bill', 'utility', 'utilities',
-  'pge', 'pg&e', 'con edison', 'coned', 'duke energy', 'dominion energy',
-  'national grid', 'dte energy', 'consumers energy', 'eversource',
-
-  // Insurance
-  'insurance', 'geico', 'progressive', 'state farm', 'allstate', 'nationwide',
-  'travelers', 'liberty mutual', 'farmers', 'usaa', 'aaa', 'cigna', 'aetna',
-  'humana', 'blue cross', 'bluecross', 'united health', 'oscar health',
-
-  // Fitness & wellness
-  'gym', 'fitness', 'planet fitness', 'la fitness', 'equinox', 'anytime fitness',
-  '24 hour fitness', 'crunch', 'gold\'s gym', 'ymca', 'peloton', 'classpass',
-
-  // Software & cloud
-  'adobe', 'microsoft', 'office 365', 'microsoft 365', 'dropbox', 'icloud',
-  'google one', 'google storage', 'google workspace', 'github', 'notion',
-  'slack', 'zoom', 'figma', 'canva', 'grammarly', 'lastpass', '1password',
-  'nordvpn', 'expressvpn', 'surfshark', 'malwarebytes', 'norton', 'mcafee',
-
-  // Finance & banking
-  'credit card', 'card payment', 'loan payment', 'mortgage', 'rent', 'lease',
-  'minimum payment', 'autopay', 'auto pay',
-
-  // News & education
-  'nytimes', 'new york times', 'wsj', 'wall street journal', 'washington post',
-  'the atlantic', 'medium', 'substack', 'duolingo', 'coursera', 'udemy',
-  'skillshare', 'masterclass', 'chegg',
-
-  // Subscriptions (generic)
-  'subscription', 'monthly fee', 'annual fee', 'membership', 'renewal',
+// Keywords that disqualify a merchant from appearing in either section.
+// Uses word-boundary padding (" name ") to avoid false partial matches.
+const RECURRING_EXCLUDE = [
+  // Credit card / bank payments
+  "card payment","ccpymt","credit card","card online","online des:payment",
+  "mobile banking","online banking","online payment","payment to ",
+  // Person-to-person transfers
+  "zelle","venmo","cash app","paypal",
+  // Groceries & wholesale
+  "trader joe","walmart","costco","grocery","grocer","supermarket",
+  "safeway","kroger","albertsons","publix","aldi","whole food","sprouts",
+  "target","ralphs","vons","heb ","wegman","meijer","food lion","giant",
+  "stop & shop","stop and shop","price chopper","winco","fresh market",
+  "grocery outlet","smart & final","piggly","food 4 less","save mart",
+  // Pharmacies — variable amounts, not subscriptions
+  "cvs","walgreen","rite aid","duane reade","eckerd","health mart","kinney drug",
+  // General retail
+  "home depot","dollar tree","dollar general","dollar store",
+  "petsmart","petco","jcpenny","jcpenney","marshalls","tj maxx","ross store",
+  "big lots","five below","amazon","best buy","gamestop","kohl","macy","nordstrom",
+  "bath & body","bath and body","gap ","old navy","h&m ","zara ","victoria","sephora","ulta",
+  // Restaurants & fast food
+  "mcdonald","starbucks","chipotle","dunkin","taco bell","wendy",
+  "burger king","pizza hut","domino","restaurant","bistro","diner",
+  "chick-fil","subway ","panera","sonic ","in-n-out","five guys",
+  // Gas stations
+  "chevron","exxon","mobil","arco","fuel","bp ","valero","circle k",
+  "sunoco","speedway","76 ","phillips 66","murphy","quiktrip","wawa",
+  "racetrac","casey","pilot ","flying j","loves travel",
 ];
 
-// ─── Category allow-list: Supabase category_name values that indicate bills ───
-
-const SUBSCRIPTION_CATEGORIES = new Set([
-  'bills', 'subscriptions', 'utilities', 'insurance', 'phone', 'internet',
-  'rent', 'mortgage', 'housing', 'fitness', 'software', 'streaming',
-  'telecom', 'loan', 'finance',
-]);
-
-// ─── Category block-list: never treat these as subscriptions ─────────────────
-// Grocery stores, pharmacies, and retailers repeat regularly but are NOT subs.
-
-const EXCLUDED_CATEGORIES = new Set([
-  'food & dining', 'food and dining', 'groceries', 'grocery', 'supermarkets',
-  'gas', 'gas stations', 'fuel',
-  'pharmacies', 'pharmacy', 'drug stores',
-  'retail', 'shopping', 'department stores', 'clothing', 'electronics',
-  'home improvement', 'sporting goods', 'pet supplies',
-]);
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function normalizeMerchant(raw: string): string {
-  if (!raw) return '';
-  return raw
-    .toLowerCase()
-    .replace(/[#*]\w*\d+\w*/g, '')   // strip ref IDs like #12345
-    .replace(/\d{4,}/g, '')          // strip long digit runs
-    .replace(/[^\w\s&]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+// Shell matches too broadly with padding, check it as a whole-word match separately
+function isRecurringExcluded(name: string): boolean {
+  const n = " " + name.toLowerCase() + " ";
+  if (/ shell /.test(n)) return true;
+  return RECURRING_EXCLUDE.some(k => n.includes(k));
 }
 
-function titleCase(str: string): string {
-  return str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+// Follows an alias chain to its final canonical key (aliasMap entries can
+// point to another alias_key rather than the true final canonical — e.g. a
+// 3rd bank descriptor variant confirmed against the 2nd, which was itself
+// confirmed against the 1st). Cycle-guarded, though real data never cycles.
+function resolveAlias(key: string, aliasMap: Map<string, string>): string {
+  let resolved = key;
+  for (let hops = 0; aliasMap.has(resolved) && hops < 10; hops++) {
+    resolved = aliasMap.get(resolved)!;
+  }
+  return resolved;
 }
 
-function amountsMatch(a: number, b: number): boolean {
-  return Math.abs(a - b) <= Math.max(AMOUNT_TOLERANCE, Math.min(a, b) * 0.03);
+interface MerchantGroup {
+  key: string;
+  name: string;
+  category: string;
+  months: Set<string>;
+  monthDates: Record<string, Date>;
+  amounts: number[];
+  total: number;
+  firstDate: Date;
+  lastDate: Date;
 }
 
-function daysBetween(dateA: string, dateB: string): number {
-  return (new Date(dateB).getTime() - new Date(dateA).getTime()) / 86_400_000;
+// Groups transactions by normalized merchant description. aliasMap (raw key
+// -> canonical raw key, from user-confirmed merchant_aliases) is applied
+// before bucketing, so confirmed aliases merge into one group. The bucket's
+// displayed .name always tracks the MOST RECENT transaction's description —
+// important once merging is involved, since a merged group can contain 2-3
+// different bank descriptions over time.
+function groupTransactionsByMerchant(transactions: any[], aliasMap: Map<string, string> = new Map()): Record<string, MerchantGroup> {
+  const map: Record<string, MerchantGroup> = {};
+  transactions
+    .filter(t => t.type === "expense" && t.category_name !== "Transfer")
+    .forEach(t => {
+      const raw = (t.description || t.category_name || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40);
+      if (!raw || raw.length < 3) return;
+      const groupKey = resolveAlias(raw, aliasMap);
+      // Parse "YYYY-MM-DD" as LOCAL midnight, not UTC — a plain `new Date(dateStr)`
+      // can roll back to the previous calendar day in negative-UTC-offset timezones.
+      // Mirrors src/utils/helpers.js's parseDate().
+      const d = new Date(t.date + "T00:00:00");
+      const monthKey = `${d.getFullYear()}-${d.getMonth()}`;
+      const displayName = t.description || t.category_name || raw;
+      if (!map[groupKey]) map[groupKey] = { key: groupKey, name: displayName, category: t.category_name, months: new Set(), monthDates: {}, amounts: [], total: 0, firstDate: d, lastDate: d };
+      const g = map[groupKey];
+      g.months.add(monthKey);
+      g.amounts.push(Number(t.amount));
+      g.total += Number(t.amount);
+      if (!g.monthDates[monthKey] || d > g.monthDates[monthKey]) g.monthDates[monthKey] = d;
+      if (d > g.lastDate) { g.lastDate = d; g.name = displayName; g.category = t.category_name; }
+      if (d < g.firstDate) g.firstDate = d;
+    });
+  return map;
 }
 
-/** Check if the merchant name or category signals a subscription/bill. */
-function isLikelySubscription(description: string, categoryName: string): boolean {
-  const cat = (categoryName || '').toLowerCase().trim();
-
-  // Block-list takes priority — groceries, pharmacies, retail are never subscriptions
-  if (EXCLUDED_CATEGORIES.has(cat)) return false;
-
-  // Category allow-list
-  if (SUBSCRIPTION_CATEGORIES.has(cat)) return true;
-
-  // Keyword match against description
-  const desc = normalizeMerchant(description || categoryName || '');
-  return SUBSCRIPTION_KEYWORDS.some(kw => desc.includes(kw));
+interface RecurringCandidate {
+  name: string;
+  category: string;
+  months: number;
+  avgMonthly: number;
+  spread: number;
+  lastSeenDate: Date;
+  typicalIntervalDays: number;
+  daysSinceLast: number;
+  possiblyCancelled: boolean;
 }
 
-// ─── Main detection ───────────────────────────────────────────────────────────
+export function computeRecurringSummary(transactions: any[], referenceDate: Date = new Date(), aliasMap: Map<string, string> = new Map()) {
+  const map = groupTransactionsByMerchant(transactions, aliasMap);
 
-export function detectRecurringCharges(
+  const candidates: RecurringCandidate[] = Object.values(map)
+    .filter(m => m.months.size >= 2 && !isRecurringExcluded(m.name))
+    .map(m => {
+      const sorted = m.amounts.slice().sort((a, b) => a - b);
+      const spread = sorted[sorted.length - 1] - sorted[0];
+      const monthDatesSorted = Object.values(m.monthDates).sort((a, b) => a.getTime() - b.getTime());
+      const gaps = monthDatesSorted.slice(1).map((d, i) => (d.getTime() - monthDatesSorted[i].getTime()) / MS_PER_DAY);
+      const typicalIntervalDays = median(gaps);
+      const daysSinceLast = Math.round((referenceDate.getTime() - m.lastDate.getTime()) / MS_PER_DAY);
+      const staleThreshold = Math.max(MIN_STALE_DAYS, typicalIntervalDays * STALE_MULTIPLIER);
+      return {
+        name: m.name,
+        category: m.category,
+        months: m.months.size,
+        avgMonthly: m.total / m.months.size,
+        spread,
+        lastSeenDate: m.lastDate,
+        typicalIntervalDays: Math.round(typicalIntervalDays),
+        daysSinceLast,
+        possiblyCancelled: daysSinceLast > staleThreshold,
+      };
+    })
+    .sort((a, b) => b.avgMonthly - a.avgMonthly);
+
+  const active = candidates.filter(m => !m.possiblyCancelled);
+  const possiblyCancelled = candidates.filter(m => m.possiblyCancelled).sort((a, b) => b.daysSinceLast - a.daysSinceLast);
+
+  // Subscriptions: consistent amount (spread <= $0.50) and under $100/mo
+  const subscriptions   = active.filter(m => m.avgMonthly <  100 && m.spread <= 0.50);
+  // Regular Payments: >= $100/mo fixed bills — allow up to $10 spread for utilities/insurance
+  // that may vary slightly, but reject wildly variable retail/variable spend
+  const regularPayments = active.filter(m => m.avgMonthly >= 100 && m.spread <= Math.max(10, m.avgMonthly * 0.10));
+
+  const subTotal     = subscriptions.reduce((s, m)   => s + m.avgMonthly, 0);
+  const regularTotal = regularPayments.reduce((s, m) => s + m.avgMonthly, 0);
+
+  return { subscriptions, regularPayments, subTotal, regularTotal, possiblyCancelled };
+}
+
+// Projects the next occurrence of a recurring charge: lastDate + intervalDays,
+// advanced past todayStart if the projection has already lapsed.
+function projectNextDate(lastDate: Date, intervalDays: number, todayStart: Date): Date {
+  let nextDate = new Date(lastDate.getTime() + intervalDays * MS_PER_DAY);
+  while (nextDate < todayStart) nextDate = new Date(nextDate.getTime() + intervalDays * MS_PER_DAY);
+  return nextDate;
+}
+
+function formatDateStr(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// ── Upcoming charges projection ─────────────────────────────────────────────
+// Single source for "what recurring bill is due next and when". Projects
+// nextDate = lastSeenDate + typicalIntervalDays (same math as the staleness
+// check, run forward instead of backward). Only considers active merchants
+// (computeRecurringSummary already excludes possiblyCancelled).
+export function getUpcomingCharges(
   transactions: any[],
-  { maxDays = UPCOMING_DAYS, maxResults = MAX_RESULTS }: { maxDays?: number; maxResults?: number } = {},
+  aliasMap: Map<string, string> = new Map(),
+  referenceDate: Date = new Date(),
+  { maxDays = 14, maxResults = 4 }: { maxDays?: number; maxResults?: number } = {},
 ) {
-  const now    = new Date();
-  const cutoff = new Date(now.getTime() - LOOKBACK_DAYS * 86_400_000);
+  const { subscriptions, regularPayments } = computeRecurringSummary(transactions, referenceDate, aliasMap);
+  const todayStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
 
-  // Step 1: filter — real expenses above $10 in the lookback window
-  const expenses = transactions.filter(t =>
-    t.type === 'expense'
-    && t.category_name !== 'Transfer'
-    && Math.abs(Number(t.amount)) >= MIN_AMOUNT
-    && new Date(t.date) >= cutoff
-  );
+  const upcoming = [...subscriptions, ...regularPayments].map(m => {
+    const nextDate = projectNextDate(m.lastSeenDate, m.typicalIntervalDays, todayStart);
+    const daysUntil = Math.round((nextDate.getTime() - referenceDate.getTime()) / MS_PER_DAY);
+    return {
+      // NOTE: intentionally the raw grouped merchant name, not cleanMerchantName-ed —
+      // no current consumer of this function displays .merchant to the user
+      // (get-insights only sums .amount).
+      merchant: m.name,
+      amount: Math.round(m.avgMonthly * 100) / 100,
+      daysUntil,
+      expectedDate: formatDateStr(nextDate),
+      category: m.category || "Bills",
+    };
+  }).filter(c => c.daysUntil >= 0 && c.daysUntil <= maxDays);
 
-  // Step 2: group by normalized merchant name
-  const byMerchant: Record<string, any[]> = {};
-  for (const t of expenses) {
-    const key = normalizeMerchant(t.description || t.category_name || '');
-    if (!key || key.length < 2) continue;
-    (byMerchant[key] ??= []).push(t);
-  }
-
-  const upcoming: any[] = [];
-
-  for (const [key, txs] of Object.entries(byMerchant)) {
-    if (txs.length < MIN_OCCURRENCES) continue;
-
-    // Step 3: subscription/bill filter — skip casual merchants
-    const sample = txs[0];
-    if (!isLikelySubscription(sample.description, sample.category_name)) continue;
-
-    const sorted = [...txs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    // Step 4: cluster by amount ±2%
-    const clusters: { ref: number; txs: any[] }[] = [];
-    for (const tx of sorted) {
-      const amt = Math.abs(Number(tx.amount));
-      let placed = false;
-      for (const c of clusters) {
-        if (amountsMatch(c.ref, amt)) {
-          c.txs.push(tx);
-          c.ref = c.txs.reduce((s, t) => s + Math.abs(Number(t.amount)), 0) / c.txs.length;
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) clusters.push({ ref: amt, txs: [tx] });
-    }
-
-    for (const cluster of clusters) {
-      if (cluster.txs.length < MIN_OCCURRENCES) continue;
-
-      const cs = [...cluster.txs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-      // Step 5: compute average gap; reject if outside any recognised billing cadence
-      const gaps: number[] = [];
-      for (let i = 1; i < cs.length; i++) {
-        gaps.push(daysBetween(cs[i - 1].date, cs[i].date));
-      }
-      const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length;
-      if (avgGap < INTERVAL_MIN || avgGap > INTERVAL_MAX) continue;
-
-      // Step 6: gap consistency — every individual gap must be within ±7 days of avgGap
-      if (!gaps.every(g => Math.abs(g - avgGap) <= GAP_VARIANCE_TOLERANCE)) continue;
-
-      // Step 7: project next charge = lastCharge + avgGap, advanced past today if needed.
-      // Works for any interval (weekly, monthly, bi-monthly, quarterly).
-      // Compare against midnight of today — charges predicted for today are still upcoming.
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const lastMs = new Date(cs[cs.length - 1].date + 'T00:00:00').getTime();
-      let nextDate = new Date(lastMs + avgGap * 86_400_000);
-      while (nextDate < todayStart) {
-        nextDate = new Date(nextDate.getTime() + avgGap * 86_400_000);
-      }
-      const daysUntil = Math.round((nextDate.getTime() - now.getTime()) / 86_400_000);
-      if (daysUntil < 0 || daysUntil > maxDays) continue;
-
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const expectedDateStr = `${nextDate.getFullYear()}-${pad(nextDate.getMonth() + 1)}-${pad(nextDate.getDate())}`;
-
-      const lastTx      = cs[cs.length - 1];
-      const rawName     = lastTx.description || lastTx.category_name || key;
-      const displayName = titleCase(normalizeMerchant(rawName) || rawName);
-
-      upcoming.push({
-        merchant:     displayName,
-        amount:       Math.round(cluster.ref * 100) / 100,
-        daysUntil,
-        expectedDate: expectedDateStr,
-        category:     lastTx.category_name || 'Bills',
-      });
-    }
-  }
-
-  // Sort by urgency, cap at MAX_RESULTS
-  const sorted = upcoming.sort((a, b) => a.daysUntil - b.daysUntil).slice(0, maxResults);
-
-  // Return empty if fewer than MIN_CONFIRMED confirmed — hide the section entirely
-  return sorted.length >= MIN_CONFIRMED ? sorted : [];
+  return upcoming.sort((a, b) => a.daysUntil - b.daysUntil).slice(0, maxResults);
 }
