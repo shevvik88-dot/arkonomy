@@ -8,6 +8,9 @@
 //   REPORT_FROM      — verified sender address, e.g. "Arkonomy <hello@yourdomain.com>"
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+
+initSentry('weekly-report');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
@@ -145,6 +148,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('weekly-report error:', err);
+    await captureAndFlush(err, { function_name: 'weekly-report' });
     return new Response(
       JSON.stringify({ error: "Internal Server Error" }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -11,6 +11,9 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { enforceRateLimit } from '../_shared/rateLimit.ts';
+import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+
+initSentry('stock-ai-analysis');
 
 const CORS = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
@@ -131,6 +134,7 @@ Respond in ${responseLang}. Respond with ONLY valid JSON, no markdown, no extra 
 
   } catch (err) {
     console.error('stock-ai-analysis error:', err);
+    await captureAndFlush(err, { function_name: 'stock-ai-analysis' });
     return new Response(JSON.stringify({ error: "Internal Server Error" }), {
       status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
     });

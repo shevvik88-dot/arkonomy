@@ -121,6 +121,9 @@ async function stockCandlesYahoo(
 }
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+
+initSentry('market-data');
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -279,6 +282,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('market-data error:', err);
+    await captureAndFlush(err, { function_name: 'market-data' });
     return new Response(JSON.stringify({ error: "Internal Server Error" }), {
       status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
     });

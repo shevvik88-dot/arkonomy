@@ -1,4 +1,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { initSentry, captureAndFlush } from "../_shared/sentry.ts";
+
+initSentry("auth-login");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": Deno.env.get("APP_URL") ?? "https://app.arkonomy.com",
@@ -67,6 +70,7 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("auth-login error:", e);
+    await captureAndFlush(e, { function_name: "auth-login" });
     return json({ error: "Internal Server Error" }, 500);
   }
 });

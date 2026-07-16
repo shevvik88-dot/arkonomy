@@ -13,6 +13,9 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import ExcelJS from 'npm:exceljs@4.4.0';
+import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+
+initSentry('generate-monthly-report');
 
 // ── Colour palette (dark-theme Excel) ────────────────────────────────────────
 const ARGB = {
@@ -248,6 +251,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('generate-monthly-report error:', err);
+    await captureAndFlush(err, { function_name: 'generate-monthly-report' });
     return new Response(JSON.stringify({ error: "Internal Server Error" }), {
       status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
     });

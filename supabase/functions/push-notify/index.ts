@@ -13,6 +13,9 @@
 //   VAPID_SUBJECT       — e.g. mailto:you@example.com
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+
+initSentry('push-notify');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
@@ -390,6 +393,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('push-notify error:', err);
+    await captureAndFlush(err, { function_name: 'push-notify' });
     return new Response(
       JSON.stringify({ error: "Internal Server Error" }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

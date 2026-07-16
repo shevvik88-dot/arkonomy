@@ -3,6 +3,9 @@
 // Uses service role to query plaid_items — never exposes access_token to the client.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+
+initSentry('check-bank-connection');
 
 const CORS = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
@@ -47,6 +50,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('check-bank-connection error:', err);
+    await captureAndFlush(err, { function_name: 'check-bank-connection' });
     return json({ error: "Internal Server Error" }, 500);
   }
 });

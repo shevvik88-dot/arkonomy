@@ -1,4 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+
+initSentry('plaid-webhook');
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -65,59 +68,65 @@ async function verifyPlaidWebhook(
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
-  const rawBody = await req.text();
-  const verificationJwt = req.headers.get('plaid-verification');
+  try {
+    const rawBody = await req.text();
+    const verificationJwt = req.headers.get('plaid-verification');
 
-  const plaidEnv  = Deno.env.get('PLAID_ENV') ?? 'production';
-  const plaidBase = `https://${plaidEnv}.plaid.com`;
-  const clientId  = Deno.env.get('PLAID_CLIENT_ID')!;
-  const secret    = Deno.env.get('PLAID_SECRET')!;
+    const plaidEnv  = Deno.env.get('PLAID_ENV') ?? 'production';
+    const plaidBase = `https://${plaidEnv}.plaid.com`;
+    const clientId  = Deno.env.get('PLAID_CLIENT_ID')!;
+    const secret    = Deno.env.get('PLAID_SECRET')!;
 
-  if (!verificationJwt || !(await verifyPlaidWebhook(rawBody, verificationJwt, plaidBase, clientId, secret))) {
-    console.error('plaid-webhook: signature verification failed');
-    return json({ error: 'Unauthorized' }, 401);
-  }
-
-  let body: Record<string, unknown>;
-  try { body = JSON.parse(rawBody); } catch { return json({ error: 'Invalid JSON' }, 400); }
-
-  const webhookType = body.webhook_type as string;
-  const webhookCode = body.webhook_code as string;
-  const itemId      = body.item_id      as string;
-
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-  );
-
-  // ── TRANSACTIONS / SYNC_UPDATES_AVAILABLE ──────────────────────────────────
-  if (webhookType === 'TRANSACTIONS' && webhookCode === 'SYNC_UPDATES_AVAILABLE') {
-    try {
-      await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/plaid-sync-transactions`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ action: 'sync_item', item_id: itemId }),
-      });
-    } catch (err) {
-      console.error('plaid-webhook: failed to trigger sync for item', itemId, err);
+    if (!verificationJwt || !(await verifyPlaidWebhook(rawBody, verificationJwt, plaidBase, clientId, secret))) {
+      console.error('plaid-webhook: signature verification failed');
+      return json({ error: 'Unauthorized' }, 401);
     }
-    return json({ received: true });
-  }
 
-  // ── ITEM / ERROR ──────────────────────────────────────────────────────────
-  if (webhookType === 'ITEM' && webhookCode === 'ERROR') {
-    const errorCode = (body.error as Record<string, string>)?.error_code ?? 'UNKNOWN';
-    const { error } = await supabase
-      .from('plaid_items')
-      .update({ error_code: errorCode })
-      .eq('item_id', itemId);
-    if (error) console.error('plaid-webhook: failed to set error_code', error);
-    return json({ received: true });
-  }
+    let body: Record<string, unknown>;
+    try { body = JSON.parse(rawBody); } catch { return json({ error: 'Invalid JSON' }, 400); }
 
-  // ── All other types — acknowledge and ignore ───────────────────────────────
-  return json({ received: true });
+    const webhookType = body.webhook_type as string;
+    const webhookCode = body.webhook_code as string;
+    const itemId      = body.item_id      as string;
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
+
+    // ── TRANSACTIONS / SYNC_UPDATES_AVAILABLE ──────────────────────────────────
+    if (webhookType === 'TRANSACTIONS' && webhookCode === 'SYNC_UPDATES_AVAILABLE') {
+      try {
+        await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/plaid-sync-transactions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action: 'sync_item', item_id: itemId }),
+        });
+      } catch (err) {
+        console.error('plaid-webhook: failed to trigger sync for item', itemId, err);
+      }
+      return json({ received: true });
+    }
+
+    // ── ITEM / ERROR ──────────────────────────────────────────────────────────
+    if (webhookType === 'ITEM' && webhookCode === 'ERROR') {
+      const errorCode = (body.error as Record<string, string>)?.error_code ?? 'UNKNOWN';
+      const { error } = await supabase
+        .from('plaid_items')
+        .update({ error_code: errorCode })
+        .eq('item_id', itemId);
+      if (error) console.error('plaid-webhook: failed to set error_code', error);
+      return json({ received: true });
+    }
+
+    // ── All other types — acknowledge and ignore ───────────────────────────────
+    return json({ received: true });
+  } catch (err) {
+    console.error('plaid-webhook error:', err);
+    await captureAndFlush(err, { function_name: 'plaid-webhook' });
+    return json({ error: 'Internal Server Error' }, 500);
+  }
 });

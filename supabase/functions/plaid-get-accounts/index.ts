@@ -8,6 +8,9 @@
 // → { accounts: [{ account_id, name, mask, type, subtype, balance_current, balance_available }] }
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+
+initSentry('plaid-get-accounts');
 
 const CORS = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
@@ -92,6 +95,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('plaid-get-accounts error:', err);
+    await captureAndFlush(err, { function_name: 'plaid-get-accounts' });
     return json({ error: "Internal Server Error" }, 500);
   }
 });
