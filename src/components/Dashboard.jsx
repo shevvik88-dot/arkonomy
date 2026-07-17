@@ -600,7 +600,7 @@ function projectBalanceAt(transactions, accountBalance, targetDate, aliasMap, sc
   return { projectedRaw, avg3mDailySpend, avg3mIncome, upcomingTotal, expectedIncome, estimatedRemainingSpend, daysUntil };
 }
 
-function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, upcomingCharges, balanceVisible, merchantAliasMap, scheduledPayments }) {
+function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, upcomingCharges, balanceVisible, merchantAliasMap, scheduledPayments, bankConnected, onNavigate }) {
   const { t } = useTranslation();
   const today       = new Date();
   const dayOfMonth  = today.getDate();
@@ -609,6 +609,27 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
 
   // Need at least 2 days of data for a meaningful rate
   if (dayOfMonth < 2 || transactions.length === 0) return null;
+
+  // No bank connected — accountBalance will never populate, so the loading
+  // skeleton below would render forever. Distinct from "still fetching"
+  // (bankConnected true, accountBalance not yet loaded), which keeps the
+  // skeleton since that resolves on its own.
+  if (!bankConnected) {
+    return (
+      <div style={{ background: 'linear-gradient(145deg,#0E1E35,#0B1426)', borderRadius: 20, padding: '16px 18px', border: '1px solid #1E2D4A' }}>
+        <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>{t('dashboard.cash_flow_forecast')}</div>
+        <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 14 }}>
+          {t('dashboard.connect_bank_forecast')}
+        </div>
+        <button
+          onClick={() => onNavigate('profile')}
+          style={{ width: '100%', padding: '11px 0', background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: FONT, boxShadow: `0 4px 14px ${C.cyan}44` }}
+        >
+          {t('dashboard.connect_bank')}
+        </button>
+      </div>
+    );
+  }
 
   // Wait for Plaid balance — fallback computed balance causes a visible flicker
   if (accountBalance === null) {
@@ -1352,6 +1373,8 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         upcomingCharges={upcomingCharges}
         balanceVisible={balanceVisible}
         merchantAliasMap={merchantAliasMap}
+        bankConnected={bankConnected}
+        onNavigate={onNavigate}
         scheduledPayments={scheduledPayments}
       />
 
