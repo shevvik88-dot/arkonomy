@@ -44,6 +44,20 @@ function finnhubSym(sym: string): string {
   return CRYPTO_MAP[sym] ?? sym;
 }
 
+// Upstream market-data APIs (Finnhub/Yahoo/Kraken) occasionally return an HTML
+// error/interstitial page (rate-limit, outage, consent wall) instead of JSON,
+// sometimes even with a 200 status — res.json() then throws an opaque native
+// SyntaxError ("Unexpected token '<'...") that's useless for diagnosis. Read
+// as text first and throw a clear, source-labeled error instead.
+async function parseJsonSafe(res: Response, source: string): Promise<any> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`${source} returned non-JSON response (status ${res.status}): ${text.slice(0, 100)}`);
+  }
+}
+
 // ── Crypto OHLCV via Kraken (no key, no geo-restriction) ──────────────────────
 async function cryptoCandles(
   sym: string,
@@ -61,7 +75,7 @@ async function cryptoCandles(
   const url = `https://api.kraken.com/0/public/OHLC?pair=${encodeURIComponent(pair)}&interval=${interval}&since=${since}`;
   const res = await fetch(url);
   if (!res.ok) return [];
-  const json = await res.json();
+  const json = await parseJsonSafe(res, 'Kraken');
   if (json.error && json.error.length > 0) return [];
   const resultKey = Object.keys(json.result ?? {}).find((k: string) => k !== 'last');
   if (!resultKey) return [];
@@ -97,7 +111,7 @@ async function stockCandlesYahoo(
     return [];
   }
 
-  const json = await res.json();
+  const json = await parseJsonSafe(res, 'Yahoo Finance');
   const result = json?.chart?.result?.[0];
   if (!result) {
     console.error('Yahoo Finance: no result for', symbol, json?.chart?.error);
@@ -143,20 +157,30 @@ Deno.serve(async (req) => {
 
   // Key is only needed for Finnhub endpoints (not chart)
   const key = Deno.env.get('FINNHUB_API_KEY');
-  const fh = (path: string) =>
-    fetch(`https://finnhub.io/api/v1${path}${path.includes('?') ? '&' : '?'}token=${key}`)
-      .then(r => r.json());
+  const fh = async (path: string) => {
+    const res = await fetch(`https://finnhub.io/api/v1${path}${path.includes('?') ? '&' : '?'}token=${key}`);
+    return parseJsonSafe(res, 'Finnhub');
+  };
 
   const noKey = () => new Response(
     JSON.stringify({ error: 'FINNHUB_API_KEY not configured' }),
     { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } },
   );
 
+  // Hoisted so the catch block below can report which request type/symbol
+  // was being served when an upstream API failed — without this, diagnosing
+  // a failure meant guessing from HTTP-level timing/logs alone (see 2026-07-17
+  // market-data SyntaxError incident).
+  let reqType: string | undefined;
+  let reqSymbol: string | undefined;
+
   try {
     const body = await req.json().catch(() => ({}));
     const { type, symbol, period, query } = body as {
       type?: string; symbol?: string; period?: string; query?: string;
     };
+    reqType = type;
+    reqSymbol = symbol;
 
     // ── OVERVIEW ──────────────────────────────────────────────────────────────
     if (type === 'overview') {
@@ -282,7 +306,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('market-data error:', err);
-    await captureAndFlush(err, { function_name: 'market-data' });
+    await captureAndFlush(err, { function_name: 'market-data', type: reqType, symbol: reqSymbol });
     return new Response(JSON.stringify({ error: "Internal Server Error" }), {
       status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
     });
