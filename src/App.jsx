@@ -551,17 +551,18 @@ export default function App() {
   async function loadAll(silent = false) {
     if (!silent) setLoading(true);
     try {
-      const [p, t, c, sv, ma, sp] = await Promise.all([
-        supabase.from("profiles").select("id, email, full_name, avatar_url, monthly_budget, savings_goal, roundup_enabled, created_at, plan, push_subscription, watchlist, stripe_customer_id, tutorial_completed, last_synced_at, trial_ends_at, trial_web_search_count, alpaca_access_token").eq("id", user.id).single(),
+      const [p, t, c, sv, ma, sp, alpacaCheck] = await Promise.all([
+        supabase.from("profiles").select("id, email, full_name, avatar_url, monthly_budget, savings_goal, roundup_enabled, created_at, plan, push_subscription, watchlist, stripe_customer_id, tutorial_completed, last_synced_at, trial_ends_at, trial_web_search_count").eq("id", user.id).single(),
         supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }).limit(5000),
         supabase.from("categories").select("*").eq("user_id", user.id),
         supabase.from("savings").select("*").eq("user_id", user.id),
         supabase.from("merchant_aliases").select("*").eq("user_id", user.id),
         supabase.from("scheduled_payments").select("*").eq("user_id", user.id).eq("status", "pending"),
+        supabase.rpc("has_alpaca_token"),
       ]);
       if (p.data) {
         setProfile(p.data);
-        setAlpacaConnected(!!p.data.alpaca_access_token);
+        setAlpacaConnected(!!alpacaCheck.data);
         setRoundupEnabled(!!p.data.roundup_enabled);
         if (p.data.last_synced_at && !silent) {
           setLastSyncedAt(p.data.last_synced_at);
