@@ -9,21 +9,15 @@
 
 ## 📋 ЗАПЛАНИРОВАНО — промпты готовы
 
-### 13. Полный RLS-аудит по всем таблицам
+### 13. Полный RLS-аудит по всем таблицам — ЗАКРЫТ 2026-07-17
 
-```
-За последние два дня добавлено 4 новые таблицы (plaid_accounts,
-merchant_aliases, scheduled_payments, account_deletion_issues) — каждая
-получила RLS точечно, в момент создания, без сверки с остальными.
+security-auditor (opus) прошёлся по всем 14 таблиц (live `pg_tables`/`pg_policies`, не только миграции). Найдено 3 находки, все зафиксированы и исправлены:
 
-ЗАДАЧА: пройтись по ВСЕМ таблицам проекта разом (не по одной), убедиться,
-что ни у одной нет забытой SELECT-политики или дыры. Особое внимание —
-plaid_items (сознательно БЕЗ SELECT policy, см. CLAUDE.md "Security
-decisions", не трогать) — используй её как контрольный пример
-"осознанного" отсутствия policy, отличай от случайно забытых. Покажи
-результат аудита (таблица: таблица → policies → вердикт) перед любыми
-правками.
-```
+- **HIGH — `rate_limits`**: `check_and_increment_rate_limit` (`SECURITY DEFINER`) не был зареважен от `PUBLIC`/`anon`/`authenticated` (в отличие от `login_attempts`) — любой залогиненный юзер мог звать RPC с чужим `p_user_id` и выжечь чужой rate-limit. Фикс: `REVOKE EXECUTE ... FROM PUBLIC, anon, authenticated; GRANT ... TO service_role`. Применено, проверено вживую (`information_schema.routine_privileges`).
+- **HIGH — `profiles.alpaca_access_token`**: живой Alpaca trading OAuth-токен грузился в браузер целиком ради `!!token`. Фикс: новый RPC `has_alpaca_token()` (без `SECURITY DEFINER`, без параметров, работает через существующий `profiles_owner_select` RLS) — токен больше не покидает сервер. Заодно проверен `alpaca_refresh_token` на тот же паттерн — чисто, нигде не читается клиентом.
+- **MEDIUM → расширено при расследовании — дрейф миграций**: обнаружилось, что **6** таблиц (`profiles`, `categories`, `savings`, `transactions`, `investments`, `notification_preferences`), а не только `investments`, вообще не имеют `CREATE TABLE` ни в одной миграции — созданы до того, как в проекте завели папку миграций. Закрыто 6 отдельными baseline-миграциями (`20260412000000`-`20260412000005`), каждая — реальная live-схема через `information_schema`/`pg_constraint` (не по коду приложения), с датой раньше первой существующей миграции, трогающей эту таблицу — чтобы чистый replay с нуля реально воспроизводил прод. Каждая миграция прошла code-reviewer + security-auditor по отдельности перед применением, каждая — подтверждённый no-op на живой базе.
+
+Все 5 таблиц изначально без policies (`plaid_items`, `plaid_accounts`, `account_deletion_issues`, `login_attempts`, `rate_limits`) подтверждены как легитимный паттерн service-role/RPC-only — клиент их нигде не читает напрямую (grep). `plaid_items` без SELECT — по-прежнему осознанное решение, не трогали.
 
 ### 14. Rate limiting / cost guard на ai-chat
 
