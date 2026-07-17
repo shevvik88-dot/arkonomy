@@ -95,7 +95,11 @@ function resolveAlias(key, aliasMap) {
 // important once merging is involved, since a merged group can contain 2-3
 // different bank descriptions over time.
 function groupTransactionsByMerchant(transactions, aliasMap = new Map()) {
-  const map = {};
+  // Map, not a plain object — groupKey comes from a bank-controlled transaction
+  // description, and a description that normalizes to "constructor" would collide
+  // with Object.prototype on a plain object (silently returns the inherited
+  // constructor function instead of undefined, corrupting the group).
+  const map = new Map();
   transactions
     .filter(t => t.type === "expense" && t.category_name !== "Transfer")
     .forEach(t => {
@@ -105,8 +109,8 @@ function groupTransactionsByMerchant(transactions, aliasMap = new Map()) {
       const d = parseDate(t.date);
       const monthKey = `${d.getFullYear()}-${d.getMonth()}`;
       const displayName = t.description || t.category_name || raw;
-      if (!map[groupKey]) map[groupKey] = { key: groupKey, name: displayName, category: t.category_name, months: new Set(), monthDates: {}, amounts: [], total: 0, firstDate: d, lastDate: d };
-      const g = map[groupKey];
+      if (!map.has(groupKey)) map.set(groupKey, { key: groupKey, name: displayName, category: t.category_name, months: new Set(), monthDates: {}, amounts: [], total: 0, firstDate: d, lastDate: d });
+      const g = map.get(groupKey);
       g.months.add(monthKey);
       g.amounts.push(Number(t.amount));
       g.total += Number(t.amount);
@@ -120,7 +124,7 @@ function groupTransactionsByMerchant(transactions, aliasMap = new Map()) {
 export function computeRecurringSummary(transactions, referenceDate = new Date(), aliasMap = new Map()) {
   const map = groupTransactionsByMerchant(transactions, aliasMap);
 
-  const candidates = Object.values(map)
+  const candidates = Array.from(map.values())
     .filter(m => m.months.size >= 2 && !isRecurringExcluded(m.name))
     .map(m => {
       const sorted = m.amounts.slice().sort((a, b) => a - b);
@@ -217,7 +221,7 @@ export function getUpcomingCardPayments(transactions, aliasMap = new Map(), refe
   const map = groupTransactionsByMerchant(transactions, aliasMap);
   const todayStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
 
-  const upcoming = Object.values(map)
+  const upcoming = Array.from(map.values())
     .filter(m => m.months.size >= 2 && isCardPayment(m.name))
     .map(m => {
       const monthDatesSorted = Object.values(m.monthDates).sort((a, b) => a - b);
@@ -295,7 +299,7 @@ export function findDuplicateSubscriptions(subscriptions) {
 // billing cycle, not a coincidental one-off match.
 export function findMerchantAliasCandidates(transactions, existingAliases = []) {
   const map = groupTransactionsByMerchant(transactions);
-  const groups = Object.values(map)
+  const groups = Array.from(map.values())
     .filter(m => !isRecurringExcluded(m.name))
     .map(m => {
       const sorted = m.amounts.slice().sort((x, y) => x - y);
