@@ -26,6 +26,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.MODE,
+    release: __RELEASE__,
     sendDefaultPii: false, // no cookies/IP/headers — explicit, not just relying on the SDK default
     beforeSend: (event) => scrubSensitive(event),
   });
