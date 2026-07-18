@@ -98,6 +98,9 @@
     "view_all_transactions": "Ver todas em Transações →",
     "connect_bank_score": "— Conecte seu banco para ver sua pontuação",
     "connect_bank_forecast": "Conecte seu banco para ver sua previsão de fluxo de caixa.",
+    "connect_bank_balance": "Conecte seu banco para ver o saldo da sua conta.",
+    "connect_bank_calendar": "Conecte seu banco para ver seu calendário de gastos.",
+    "connect_bank_cashflow": "Conecte seu banco para ver seu fluxo de caixa mensal.",
     "total_score": "Pontuação total",
     "no_news": "Nenhuma notícia disponível",
     "total_spent": "Total gasto",
@@ -109,7 +112,11 @@
     "vs_last_month_neg": "-${{delta}} vs mês passado",
     "vs_last_month": "vs mês passado",
     "of_total": "do total",
-    "surplus": "Superávit"
+    "surplus": "Superávit",
+    "close": "Fechar",
+    "refresh": "Atualizar",
+    "hide_balance": "Ocultar saldo",
+    "show_balance": "Mostrar saldo"
   },
   "transactions": {
     "title": "Transações",

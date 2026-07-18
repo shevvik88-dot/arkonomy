@@ -98,6 +98,9 @@
     "view_all_transactions": "View all in Transactions →",
     "connect_bank_score": "— Connect your bank to see your score",
     "connect_bank_forecast": "Connect your bank to see your cash flow forecast.",
+    "connect_bank_balance": "Connect your bank to see your account balance.",
+    "connect_bank_calendar": "Connect your bank to see your spending calendar.",
+    "connect_bank_cashflow": "Connect your bank to see your monthly cash flow.",
     "total_score": "Total score",
     "no_news": "No news available",
     "total_spent": "Total spent",
@@ -109,7 +112,11 @@
     "vs_last_month_neg": "-${{delta}} vs last month",
     "vs_last_month": "vs last month",
     "of_total": "of total",
-    "surplus": "Surplus"
+    "surplus": "Surplus",
+    "close": "Close",
+    "refresh": "Refresh",
+    "hide_balance": "Hide balance",
+    "show_balance": "Show balance"
   },
   "transactions": {
     "title": "Transactions",

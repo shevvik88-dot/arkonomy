@@ -167,7 +167,7 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
                     </span>
                   </div>
                 </div>
-                <div style={{ height: 3, background: "#1E2D4A", borderRadius: 99 }}>
+                <div style={{ height: 3, background: C.border, borderRadius: 99 }}>
                   <div style={{
                     height: 3, borderRadius: 99,
                     width: `${pct}%`,
@@ -272,17 +272,17 @@ const sw = 22;
           })}
           <circle cx={cx} cy={cy} r={outerR} fill="url(#cg)" />
         </svg>
-        <div style={{ position: "absolute", left: cx - innerR, top: cy - innerR, width: innerR * 2, height: innerR * 2, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#0e1829", pointerEvents: "none" }}>
+        <div style={{ position: "absolute", left: cx - innerR, top: cy - innerR, width: innerR * 2, height: innerR * 2, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: C.bgDeep, pointerEvents: "none" }}>
           {hovered ? (
             <>
-              <div style={{ fontSize: 10, color: "#ffffff", fontWeight: 600, letterSpacing: 0.5, marginBottom: 2, textAlign: "center", padding: "0 4px" }}>{tCat(hovered, t)}</div>
+              <div style={{ fontSize: 10, color: C.text, fontWeight: 600, letterSpacing: 0.5, marginBottom: 2, textAlign: "center", padding: "0 4px" }}>{tCat(hovered, t)}</div>
               <div style={{ fontSize: 17, fontWeight: 800, color: CAT_COLORS[hovered] || C.cyan }}>{hideAmounts ? "••••" : `$${fmt((data[hovered] || 0), 0)}`}</div>
-              <div style={{ fontSize: 11, color: "#ffffff", fontWeight: 600 }}>{Math.round(((data[hovered] || 0) / total) * 100)}%</div>
+              <div style={{ fontSize: 11, color: C.text, fontWeight: 600 }}>{Math.round(((data[hovered] || 0) / total) * 100)}%</div>
             </>
           ) : (
             <>
-             <div style={{ fontSize: 20, fontWeight: 800, color: "#ffffff", letterSpacing: -0.5, marginBottom: 2 }}>{hideAmounts ? "••••" : `$${fmt(total, 0)}`}</div>
-           <div style={{ fontSize: 10, color: "#9AA4B2", letterSpacing: 0.5, fontWeight: 600 }}>{t("dashboard.total_spent")}</div>
+             <div style={{ fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: -0.5, marginBottom: 2 }}>{hideAmounts ? "••••" : `$${fmt(total, 0)}`}</div>
+           <div style={{ fontSize: 10, color: C.muted, letterSpacing: 0.5, fontWeight: 600 }}>{t("dashboard.total_spent")}</div>
             </>
           )}
         </div>
@@ -297,7 +297,7 @@ const sw = 22;
               onMouseEnter={() => setHovered(s.cat)} onMouseLeave={() => setHovered(null)}>
               <div style={{ width: 10, height: 10, borderRadius: 99, background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}88` }} />
               <span style={{ fontSize: 13, color: i === 0 ? C.text : C.muted, fontWeight: i === 0 ? 600 : 400, flex: 1 }}>{tCat(s.cat, t)}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: i === 0 ? '#ffffff' : C.text }}>{hideAmounts ? "••••" : `$${fmt(s.val, 0)}`}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{hideAmounts ? "••••" : `$${fmt(s.val, 0)}`}</span>
               <span style={{ fontSize: 11, color: s.color, fontWeight: i === 0 ? 700 : 500, minWidth: 36, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>
               {onCatClick && <Icon name="chevron" size={12} color={C.faint} />}
             </div>
@@ -369,10 +369,10 @@ function MarketOverview({ onOpenMarket }) {
   }, []);
 
   const MARKET_META = {
-    SPY:  { label: "S&P 500",  icon: "bar-chart", color: "#2F80FF" },
-    QQQ:  { label: "NASDAQ",   icon: "activity",  color: "#A78BFA" },
-    BTC:  { label: "Bitcoin",  icon: "zap",        color: "#F59E0B" },
-    ETH:  { label: "Ethereum", icon: "zap",        color: "#34D399" },
+    SPY:  { label: "S&P 500",  icon: "bar-chart", color: C.blue },
+    QQQ:  { label: "NASDAQ",   icon: "activity",  color: C.purple },
+    BTC:  { label: "Bitcoin",  icon: "zap",        color: C.amber },
+    ETH:  { label: "Ethereum", icon: "zap",        color: C.emerald },
   };
 
   return (
@@ -385,7 +385,7 @@ function MarketOverview({ onOpenMarket }) {
           <span style={{ fontWeight: 600, fontSize: 14 }}>{t("dashboard.markets")}</span>
           {lastUpdated && !loading && (
             <span style={{ fontSize: 10, color: C.faint }}>
-              {lastUpdated.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+              {lastUpdated.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
             </span>
           )}
         </div>
@@ -396,7 +396,7 @@ function MarketOverview({ onOpenMarket }) {
               {tabId}
             </button>
           ))}
-          <button onClick={load} aria-label="Refresh" style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, opacity: loading ? 0.4 : 0.7 }}>
+          <button onClick={load} aria-label={t("dashboard.refresh")} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, opacity: loading ? 0.4 : 0.7 }}>
             <Icon name="repeat" size={13} color={C.muted} strokeWidth={2} />
           </button>
         </div>
@@ -438,7 +438,7 @@ function MarketOverview({ onOpenMarket }) {
                   <span style={{ fontSize: 11, color: C.muted, fontWeight: 500 }}>{meta.label}</span>
                 </div>
                 <div style={{ fontSize: 15, fontWeight: 800, color: C.text, letterSpacing: -0.3 }}>
-                  ${m.price != null ? Number(m.price).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+                  ${m.price != null ? Number(m.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
                   <Icon name={pos ? "trending-up" : "trending-down"} size={10} color={chColor} strokeWidth={2.5} />
@@ -462,7 +462,7 @@ function MarketOverview({ onOpenMarket }) {
                 )}
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: C.text, lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{n.headline}</div>
-                  <div style={{ fontSize: 10, color: C.faint, marginTop: 3 }}>{n.source} · {new Date(n.datetime * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+                  <div style={{ fontSize: 10, color: C.faint, marginTop: 3 }}>{n.source} · {new Date(n.datetime * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
                 </div>
               </a>
             ))
@@ -510,7 +510,7 @@ function Sparkline({ transactions, width = 62, height = 30 }) {
   const up = points[points.length - 1] >= points[0];
   return (
     <svg width={width} height={height} style={{ display: 'block', flexShrink: 0, opacity: 0.9 }}>
-      <polyline points={pts} fill="none" stroke={up ? '#12D18E' : '#FF5C7A'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points={pts} fill="none" stroke={up ? C.green : C.red} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -600,7 +600,30 @@ function projectBalanceAt(transactions, accountBalance, targetDate, aliasMap, sc
   return { projectedRaw, avg3mDailySpend, avg3mIncome, upcomingTotal, expectedIncome, estimatedRemainingSpend, daysUntil };
 }
 
-function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, upcomingCharges, balanceVisible, merchantAliasMap, scheduledPayments, bankConnected, onNavigate }) {
+// Shared "connect your bank" empty state — same card/CTA used by every
+// Dashboard section gated on bankConnected (Cash Flow Forecast, Account
+// Balance, Monthly Cash Flow, Month Calendar), so a user without a bank
+// sees one consistent prompt instead of a different empty/skeleton state
+// per card.
+function ConnectBankPrompt({ title, message, onNavigate }) {
+  const { t } = useTranslation();
+  return (
+    <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: 20, padding: '16px 18px', border: `1px solid ${C.border}` }}>
+      <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>{title}</div>
+      <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 14 }}>
+        {message}
+      </div>
+      <button
+        onClick={() => onNavigate('profile')}
+        style={{ width: '100%', padding: '11px 0', background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: FONT, boxShadow: `0 4px 14px ${C.cyan}44` }}
+      >
+        {t('dashboard.connect_bank')}
+      </button>
+    </div>
+  );
+}
+
+function CashFlowForecast({ accountBalance, transactions, balanceVisible, merchantAliasMap, scheduledPayments, bankConnected, onNavigate }) {
   const { t } = useTranslation();
   const today       = new Date();
   const dayOfMonth  = today.getDate();
@@ -615,26 +638,13 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
   // (bankConnected true, accountBalance not yet loaded), which keeps the
   // skeleton since that resolves on its own.
   if (!bankConnected) {
-    return (
-      <div style={{ background: 'linear-gradient(145deg,#0E1E35,#0B1426)', borderRadius: 20, padding: '16px 18px', border: '1px solid #1E2D4A' }}>
-        <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>{t('dashboard.cash_flow_forecast')}</div>
-        <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 14 }}>
-          {t('dashboard.connect_bank_forecast')}
-        </div>
-        <button
-          onClick={() => onNavigate('profile')}
-          style={{ width: '100%', padding: '11px 0', background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: FONT, boxShadow: `0 4px 14px ${C.cyan}44` }}
-        >
-          {t('dashboard.connect_bank')}
-        </button>
-      </div>
-    );
+    return <ConnectBankPrompt title={t('dashboard.cash_flow_forecast')} message={t('dashboard.connect_bank_forecast')} onNavigate={onNavigate} />;
   }
 
   // Wait for Plaid balance — fallback computed balance causes a visible flicker
   if (accountBalance === null) {
     return (
-      <div style={{ background: 'linear-gradient(145deg,#0E1E35,#0B1426)', borderRadius: 20, padding: '16px 18px', border: '1px solid #1E2D4A' }}>
+      <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: 20, padding: '16px 18px', border: `1px solid ${C.border}` }}>
         <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>{t('dashboard.cash_flow_forecast')}</div>
         <div style={{ height: 36, borderRadius: 8, background: C.bgTertiary, marginBottom: 10, width: '55%' }} />
         <div style={{ height: 8, borderRadius: 99, background: C.bgTertiary, marginBottom: 14 }} />
@@ -675,12 +685,12 @@ function CashFlowForecast({ accountBalance, balance, totalSpent, transactions, u
     : 0;
 
   const endOfMonth = new Date(today.getFullYear(), today.getMonth(), daysInMonth)
-    .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    .toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
   const mask  = n => balanceVisible ? (n < 0 ? `-$${fmt(Math.abs(n), 0)}` : `$${fmt(n, 0)}`) : '••••';
 
   return (
-    <div style={{ background: 'linear-gradient(145deg,#0E1E35,#0B1426)', borderRadius: 20, padding: '16px 18px', border: `1px solid ${S.border}`, position: 'relative', overflow: 'hidden' }}>
+    <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: 20, padding: '16px 18px', border: `1px solid ${S.border}`, position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', top: -24, right: -24, width: 90, height: 90, borderRadius: '50%', background: S.color + '09', pointerEvents: 'none' }} />
 
       {/* Header */}
@@ -882,7 +892,7 @@ function CalendarDayCell({ day, isToday, isPast, color, alpha, size, emphasized,
 // past/today day in the strip navigates to Transactions filtered by that
 // date; tapping a future day shows a tooltip — same rules as before, just
 // scoped to the strip instead of the whole grid.
-function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCategoryClick, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, accountBalance }) {
+function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCategoryClick, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, accountBalance, bankConnected, onNavigate }) {
   const { t } = useTranslation();
   const [selectedDay, setSelectedDay] = useState(null);
   const [tooltipDay, setTooltipDay] = useState(null);
@@ -906,6 +916,10 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
   // predicted charge — different quantities. Sharing one max (usually set by
   // a lump payment like rent) would flatten every future day near the floor.
   const maxFutureDayTotal = useMemo(() => Math.max(0, ...Object.values(futureByDay).map(c => c.amount)), [futureByDay]);
+
+  if (!bankConnected) {
+    return <ConnectBankPrompt title={t("dashboard.month_calendar_title")} message={t("dashboard.connect_bank_calendar")} onNavigate={onNavigate} />;
+  }
 
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
@@ -1038,7 +1052,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
                   </button>
                 )}
               </div>
-              <button onClick={() => { setSelectedDay(null); setTooltipDay(null); }} aria-label="Close" style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 8, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <button onClick={() => { setSelectedDay(null); setTooltipDay(null); }} aria-label={t("dashboard.close")} style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 8, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                 <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
@@ -1304,12 +1318,18 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
             {t("dashboard.welcome_body")}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button
-              onClick={() => onNavigate("profile")}
-              style={{ flex: 1, padding: "11px 0", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 14px ${C.cyan}44` }}
-            >
-              {t("dashboard.connect_bank")}
-            </button>
+            {/* bankConnected but transactions.length===0 is the transient
+                "already connected, first sync hasn't landed yet" state —
+                showing "Connect Bank" there would be misleading, so only
+                offer it to users who haven't connected at all. */}
+            {!bankConnected && (
+              <button
+                onClick={() => onNavigate("profile")}
+                style={{ flex: 1, padding: "11px 0", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 14px ${C.cyan}44` }}
+              >
+                {t("dashboard.connect_bank")}
+              </button>
+            )}
             <button
               onClick={() => onNavigate("transactions")}
               style={{ flex: 1, padding: "11px 0", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT }}
@@ -1326,51 +1346,56 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       )}
 
       {/* 1 ── Account Balance */}
-      <style>{`@keyframes bal-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
-      <div data-tutorial="net-balance" style={{ background: "linear-gradient(145deg,#0D1F3C,#0B1426)", borderRadius: 20, padding: "16px 18px", border: `1px solid #1E2D4A`, position: "relative", overflow: "hidden", boxShadow: "0 4px 32px rgba(0,194,255,0.08)" }}>
-        <div style={{ position: "absolute", top: -30, right: -30, width: 110, height: 110, borderRadius: "50%", background: C.cyan + "0B", pointerEvents: "none" }} />
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <span style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
-            {t("dashboard.account_balance")}
-          </span>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {isShowingLastMonth && <span style={{ fontSize: 9, color: C.yellow, fontWeight: 600, background: C.yellow + "18", padding: "2px 7px", borderRadius: 99, letterSpacing: 0.3 }}>
-              {new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleString('en-US', { month: 'short' })} data
-            </span>}
-            <button onClick={() => setBalanceVisible(v => !v)} aria-label={balanceVisible ? "Hide balance" : "Show balance"} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44 }}>
-              <Icon name={balanceVisible ? "eye" : "eye-off"} size={15} color={C.faint} />
-            </button>
-          </div>
+      {!bankConnected ? (
+        <div data-tutorial="net-balance">
+          <ConnectBankPrompt title={t("dashboard.account_balance")} message={t("dashboard.connect_bank_balance")} onNavigate={onNavigate} />
         </div>
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8 }}>
-          <div>
-            {accountBalance != null ? (
-              <>
-                <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? C.cyan : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${C.cyan}44` : "none" }}>
-                  {balanceVisible ? `$${fmt(accountBalance)}` : "••••"}
-                </div>
-                <div style={{ fontSize: 9, color: C.faint, marginTop: 2, letterSpacing: 0.5 }}>
-                  {t("dashboard.available_in_bank")}
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ width: 160, height: 42, borderRadius: 8, background: `linear-gradient(90deg,${C.bgSecondary} 0%,${C.bgTertiary} 40%,${C.bgSecondary} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite", marginBottom: 6 }} />
-                <div style={{ width: 90, height: 10, borderRadius: 4, background: `linear-gradient(90deg,${C.bgSecondary} 0%,${C.bgTertiary} 40%,${C.bgSecondary} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
-              </>
-            )}
+      ) : (
+        <>
+          <style>{`@keyframes bal-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+          <div data-tutorial="net-balance" style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: 20, padding: "16px 18px", border: `1px solid ${C.border}`, position: "relative", overflow: "hidden", boxShadow: "0 4px 32px rgba(0,194,255,0.08)" }}>
+            <div style={{ position: "absolute", top: -30, right: -30, width: 110, height: 110, borderRadius: "50%", background: C.cyan + "0B", pointerEvents: "none" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
+                {t("dashboard.account_balance")}
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {isShowingLastMonth && <span style={{ fontSize: 9, color: C.yellow, fontWeight: 600, background: C.yellow + "18", padding: "2px 7px", borderRadius: 99, letterSpacing: 0.3 }}>
+                  {new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleString('en-US', { month: 'short' })} data
+                </span>}
+                <button onClick={() => setBalanceVisible(v => !v)} aria-label={balanceVisible ? t("dashboard.hide_balance") : t("dashboard.show_balance")} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44 }}>
+                  <Icon name={balanceVisible ? "eye" : "eye-off"} size={15} color={C.faint} />
+                </button>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8 }}>
+              <div>
+                {accountBalance != null ? (
+                  <>
+                    <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? C.cyan : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${C.cyan}44` : "none" }}>
+                      {balanceVisible ? `$${fmt(accountBalance)}` : "••••"}
+                    </div>
+                    <div style={{ fontSize: 9, color: C.faint, marginTop: 2, letterSpacing: 0.5 }}>
+                      {t("dashboard.available_in_bank")}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ width: 160, height: 42, borderRadius: 8, background: `linear-gradient(90deg,${C.bgSecondary} 0%,${C.bgTertiary} 40%,${C.bgSecondary} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite", marginBottom: 6 }} />
+                    <div style={{ width: 90, height: 10, borderRadius: 4, background: `linear-gradient(90deg,${C.bgSecondary} 0%,${C.bgTertiary} 40%,${C.bgSecondary} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
+                  </>
+                )}
+              </div>
+              <Sparkline transactions={transactions} />
+            </div>
           </div>
-          <Sparkline transactions={transactions} />
-        </div>
-      </div>
+        </>
+      )}
 
       {/* 2 ── Cash Flow Forecast */}
       <CashFlowForecast
         accountBalance={accountBalance}
-        balance={balance}
-        totalSpent={totalSpent}
         transactions={transactions}
-        upcomingCharges={upcomingCharges}
         balanceVisible={balanceVisible}
         merchantAliasMap={merchantAliasMap}
         bankConnected={bankConnected}
@@ -1380,25 +1405,29 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
 
 
       {/* 3 ── Monthly Cash Flow */}
-      <div style={{ background: "linear-gradient(145deg,#0D1F3C,#0B1426)", borderRadius: 16, padding: "14px 18px", border: `1px solid #1E2D4A` }}>
-        <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 12 }}>{t("dashboard.monthly_cash_flow")}</div>
-        <div style={{ display: "flex" }}>
-          {[
-            { label: t("dashboard.income"),   value: m(totalIncome), color: C.green, dot: C.green, change: incomeChange },
-            { label: t("dashboard.expenses"), value: m(totalSpent),  color: C.red,   dot: C.red,   change: expenseChange, flip: true },
-            { label: t("dashboard.net"),      value: balanceVisible ? (balance < 0 ? `-$${fmt(Math.abs(balance))}` : `$${fmt(balance)}`) : "••••", color: balance >= 0 ? C.green : C.red, dot: balance >= 0 ? C.green : C.red },
-          ].map((item, i) => (
-            <div key={item.label} style={{ flex: 1, paddingLeft: i > 0 ? 10 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : "none", marginLeft: i > 0 ? 10 : 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
-                <div style={{ width: 5, height: 5, borderRadius: 99, background: item.dot }} />
-                <span style={{ fontSize: 9, color: C.muted, fontWeight: 500 }}>{item.label}</span>
+      {!bankConnected ? (
+        <ConnectBankPrompt title={t("dashboard.monthly_cash_flow")} message={t("dashboard.connect_bank_cashflow")} onNavigate={onNavigate} />
+      ) : (
+        <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: 16, padding: "14px 18px", border: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 12 }}>{t("dashboard.monthly_cash_flow")}</div>
+          <div style={{ display: "flex" }}>
+            {[
+              { key: "income",   label: t("dashboard.income"),   value: m(totalIncome), color: C.green, dot: C.green, change: incomeChange },
+              { key: "expenses", label: t("dashboard.expenses"), value: m(totalSpent),  color: C.red,   dot: C.red,   change: expenseChange, flip: true },
+              { key: "net",      label: t("dashboard.net"),      value: balanceVisible ? (balance < 0 ? `-$${fmt(Math.abs(balance))}` : `$${fmt(balance)}`) : "••••", color: balance >= 0 ? C.green : C.red, dot: balance >= 0 ? C.green : C.red },
+            ].map((item, i) => (
+              <div key={item.key} style={{ flex: 1, paddingLeft: i > 0 ? 10 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : "none", marginLeft: i > 0 ? 10 : 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
+                  <div style={{ width: 5, height: 5, borderRadius: 99, background: item.dot }} />
+                  <span style={{ fontSize: 9, color: C.muted, fontWeight: 500 }}>{item.label}</span>
+                </div>
+                <div style={{ fontSize: item.key === "net" ? 17 : 13, fontWeight: item.key === "net" ? 800 : 700, color: item.color, marginBottom: 3 }}>{item.value}</div>
+                {item.change !== undefined && <StatBadge value={item.flip ? -item.change : item.change} suffix="" />}
               </div>
-              <div style={{ fontSize: item.label === "Net" ? 17 : 13, fontWeight: item.label === "Net" ? 800 : 700, color: item.color, marginBottom: 3 }}>{item.value}</div>
-              {item.change !== undefined && <StatBadge value={item.flip ? -item.change : item.change} suffix="" />}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 2 ── Financial Health Score */}
       <div data-tutorial="health-score">
@@ -1461,7 +1490,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       </GlassCard>
 
       {/* 6 ── Month Calendar (replaces Recent Transactions) */}
-      <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} scheduledPayments={scheduledPayments} onAddScheduledPayment={onAddScheduledPayment} onCancelScheduledPayment={onCancelScheduledPayment} accountBalance={accountBalance} />
+      <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} scheduledPayments={scheduledPayments} onAddScheduledPayment={onAddScheduledPayment} onCancelScheduledPayment={onCancelScheduledPayment} accountBalance={accountBalance} bankConnected={bankConnected} onNavigate={onNavigate} />
 
       {/* 5 ── Market Overview */}
       <MarketOverview onOpenMarket={onOpenMarket} />
@@ -1501,7 +1530,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
                   <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{t("dashboard.whats_in_other")}</div>
                   <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>${fmt(otherTotal, 0)} {t("dashboard.this_month")} · {t("dashboard.transaction", { count: otherTxs.length })}</div>
                 </div>
-                <button onClick={() => setOtherBreakdown(false)} aria-label="Close" style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 8, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <button onClick={() => setOtherBreakdown(false)} aria-label={t("dashboard.close")} style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 8, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                   <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>

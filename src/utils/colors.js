@@ -1,10 +1,11 @@
 export const FONT = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
 
 export const C = {
-  bg: "#0B1426", bgSecondary: "#0F1A2E", bgTertiary: "#162035",
-  card: "#111E33", border: "#1E2D4A", sep: "#192840",
+  bg: "#0B1426", bgSecondary: "#0F1A2E", bgTertiary: "#162035", bgDeep: "#0E1829",
+  card: "#111E33", border: "#1E2D4A", sep: "#192840", cardBgStart: "#0E1E35",
   blue: "#2F80FF", cyan: "#00C2FF", green: "#12D18E",
   red: "#FF5C7A", yellow: "#FFB800", orange: "#F97316", purple: "#A78BFA",
+  amber: "#F59E0B", emerald: "#34D399",
   text: "#FFFFFF", muted: "#9AA4B2", faint: "#8BA1B7",
 };
 
