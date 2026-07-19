@@ -461,12 +461,10 @@ function AIInsightCard({ summary, transactions, onAction }) {
   );
 }
 
-function QuickActionsMenu({ tx, onClose, onEdit, onDelete, onMoveToSavings, onFlag, onDuplicate }) {
+function QuickActionsMenu({ tx, onClose, onEdit, onDelete, onDuplicate }) {
   const { t } = useTranslation();
   const actions = [
     { label: t("transactions.action_edit"),          desc: t("transactions.action_edit_desc"),          icon: "edit",         color: "#2F80FF", fn: () => { onClose(); onEdit(tx); } },
-    { label: t("transactions.action_move_savings"),  desc: t("transactions.action_move_savings_desc"),  icon: "target",       color: "#12D18E", fn: () => { onClose(); onMoveToSavings(tx); } },
-    { label: t("transactions.action_flag"),          desc: t("transactions.action_flag_desc"),          icon: "alert-circle", color: "#FFB800", fn: () => { onClose(); onFlag(tx); } },
     { label: t("transactions.action_duplicate"),     desc: t("transactions.action_duplicate_desc"),     icon: "repeat",       color: "#2F80FF", fn: () => { onClose(); onDuplicate(tx); } },
     { label: t("transactions.delete"),               desc: t("transactions.action_delete_desc"),        icon: "x",            color: "#FF5C7A", danger: true, fn: () => { onClose(); onDelete(tx.id); } },
   ];
@@ -747,15 +745,13 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
     income:  monthTxs.filter(t => t.type === "income").length,
   };
 
-  const expenseMap  = transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer").reduce((a, t) => { const k = t.category_name || "Other"; a[k] = (a[k] || 0) + Number(t.amount); return a; }, {});
+  const expenseMap  = effectiveCurTxs.filter(t => t.type === "expense" && t.category_name !== "Transfer").reduce((a, t) => { const k = t.category_name || "Other"; a[k] = (a[k] || 0) + Number(t.amount); return a; }, {});
   const expenseRows = Object.entries(expenseMap).sort((a, b) => b[1] - a[1]).map(([name, total], _, arr) => ({
     name, amount: fmtMoney(total), color: CAT_COLORS[name] || C.blue, icon: CAT_ICONS_MAP[name] || "credit",
     pct: Math.round((total / arr.reduce((s, [, v]) => s + v, 0)) * 100),
   }));
 
   function handleDelete(id)     { onDelete(id); toast("Deleted", "warning"); }
-  function handleMoveToSavings(tx) { toast(fmtMoney(Number(tx.amount)) + " moved to savings", "success"); }
-  function handleFlag(tx)       { toast("Flagged for review", "warning"); }
   function handleDuplicate(tx)  { onAdd({ amount: tx.amount, description: tx.description, category_id: tx.category_id, category_name: tx.category_name, date: tx.date, type: tx.type }); toast("Transaction duplicated", "info"); }
 
   const monthLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
@@ -793,9 +789,9 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
 
       <SummaryCards
         summary={summary}
-        onIncomeClick={() => setSheet({ title: "Income breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.income)} total`, rows: transactions.filter(t => t.type === "income").map(t => ({ name: normalizeTxName(t), sub: fmtDate(t.date), amount: fmtMoney(Number(t.amount), true), color: "#12D18E", icon: "dollar" })), actionLabel: "Move surplus to savings", actionColor: "#12D18E", onAction: () => toast("Surplus moved to savings", "success") })}
-        onExpenseClick={() => setSheet({ title: "Expenses breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.expense)} total`, rows: expenseRows, actionLabel: "Set category limit", actionColor: "#FFB800", onAction: () => toast("Category limit saved", "success") })}
-        onNetClick={() => setSheet({ title: "Net summary", subtitle: monthLabel, rows: [{ name: "Total income", amount: fmtMoney(summary.income, true), color: "#12D18E", icon: "trending-up", pct: 100 }, { name: "Total expenses", amount: fmtMoney(summary.expense), color: "#FF5C7A", icon: "trending-down", pct: Math.round(summary.expense / Math.max(summary.income, 1) * 100) }, { name: "Net balance", amount: fmtMoney(summary.net, true), color: "#12D18E", icon: "award", pct: Math.round(summary.net / Math.max(summary.income, 1) * 100) }], actionLabel: "Boost savings goal", actionColor: "#12D18E", onAction: () => toast("Savings goal updated", "success") })}
+        onIncomeClick={() => setSheet({ title: "Income breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.income)} total`, rows: effectiveCurTxs.filter(t => t.type === "income").map(t => ({ name: normalizeTxName(t), sub: fmtDate(t.date), amount: fmtMoney(Number(t.amount), true), color: "#12D18E", icon: "dollar" })) })}
+        onExpenseClick={() => setSheet({ title: "Expenses breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.expense)} total`, rows: expenseRows })}
+        onNetClick={() => setSheet({ title: "Net summary", subtitle: monthLabel, rows: [{ name: "Total income", amount: fmtMoney(summary.income, true), color: "#12D18E", icon: "trending-up", pct: 100 }, { name: "Total expenses", amount: fmtMoney(summary.expense), color: "#FF5C7A", icon: "trending-down", pct: Math.round(summary.expense / Math.max(summary.income, 1) * 100) }, { name: "Net balance", amount: fmtMoney(summary.net, true), color: "#12D18E", icon: "award", pct: Math.round(summary.net / Math.max(summary.income, 1) * 100) }] })}
       />
 
 
@@ -1001,7 +997,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
       )}
 
       {sheet && <BreakdownSheet title={sheet.title} subtitle={sheet.subtitle} rows={sheet.rows} actionLabel={sheet.actionLabel} actionColor={sheet.actionColor} onAction={sheet.onAction} onClose={() => setSheet(null)} />}
-      {quickTx && <QuickActionsMenu tx={quickTx} onClose={() => setQuickTx(null)} onEdit={tx => { setQuickTx(null); onEdit(tx); }} onDelete={id => { setQuickTx(null); handleDelete(id); }} onMoveToSavings={tx => { setQuickTx(null); handleMoveToSavings(tx); }} onFlag={tx => { setQuickTx(null); handleFlag(tx); }} onDuplicate={tx => { setQuickTx(null); handleDuplicate(tx); }} />}
+      {quickTx && <QuickActionsMenu tx={quickTx} onClose={() => setQuickTx(null)} onEdit={tx => { setQuickTx(null); onEdit(tx); }} onDelete={id => { setQuickTx(null); handleDelete(id); }} onDuplicate={tx => { setQuickTx(null); handleDuplicate(tx); }} />}
       {!onToast && <ToastStack toasts={toasts} dismiss={dismiss} />}
     </div>
   );

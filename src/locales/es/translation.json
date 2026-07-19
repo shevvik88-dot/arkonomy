@@ -190,10 +190,6 @@
     "pending": "Procesando",
     "action_edit": "Editar transacción",
     "action_edit_desc": "Corregir monto, categoría o fecha",
-    "action_move_savings": "Mover a ahorros",
-    "action_move_savings_desc": "Asignar a un objetivo",
-    "action_flag": "Marcar como inusual",
-    "action_flag_desc": "Marcar para revisión",
     "action_duplicate": "Duplicar",
     "action_duplicate_desc": "Copiar esta transacción",
     "action_delete_desc": "Eliminar permanentemente"

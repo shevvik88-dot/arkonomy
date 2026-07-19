@@ -190,10 +190,6 @@
     "pending": "Processing",
     "action_edit": "Edit transaction",
     "action_edit_desc": "Fix amount, category or date",
-    "action_move_savings": "Move to savings",
-    "action_move_savings_desc": "Allocate to a goal",
-    "action_flag": "Flag as unusual",
-    "action_flag_desc": "Mark for review",
     "action_duplicate": "Duplicate",
     "action_duplicate_desc": "Copy this transaction",
     "action_delete_desc": "Remove permanently"

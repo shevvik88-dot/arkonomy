@@ -192,10 +192,6 @@
     "pending": "Обработка",
     "action_edit": "Редактировать",
     "action_edit_desc": "Исправить сумму, категорию или дату",
-    "action_move_savings": "В накопления",
-    "action_move_savings_desc": "Добавить к цели",
-    "action_flag": "Пометить как нетипичную",
-    "action_flag_desc": "Отметить для проверки",
     "action_duplicate": "Дублировать",
     "action_duplicate_desc": "Скопировать транзакцию",
     "action_delete_desc": "Удалить без возможности восстановления"
