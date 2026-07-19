@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { C, FONT, CAT_COLORS } from "../utils/colors";
 import { fmt, fmtDate, parseDate, guessCategory, tCat, cleanMerchantName, localDateString } from "../utils/helpers";
 import Icon from "./shared/Icon";
+import { ConnectBankPrompt } from "./Dashboard";
 
 function CatIcon({ name, type, size = 18 }) {
   const map = {
@@ -670,7 +671,7 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
   );
 }
 
-export default function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter, activeMerchantFilter, onClearMerchantFilter, activeDateFilter, onClearDateFilter, insight, onInsightAction, onToast }) {
+export default function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter, activeMerchantFilter, onClearMerchantFilter, activeDateFilter, onClearDateFilter, insight, onInsightAction, onToast, bankConnected, onNavigate }) {
   const { t } = useTranslation();
   const [filter,          setFilter]          = useState("all");
   const [search,          setSearch]          = useState("");
@@ -925,7 +926,9 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
         })()}
       </div>
 
-      {filtered.length === 0 ? (
+      {!bankConnected && transactions.length === 0 && !search && filter === "all" ? (
+        <ConnectBankPrompt title={t("transactions.title")} message={t("dashboard.connect_bank_transactions")} onNavigate={onNavigate} />
+      ) : filtered.length === 0 ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "36px 20px", textAlign: "center" }}>
           <div style={{ width: 56, height: 56, background: C.bgSecondary, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name="credit" size={24} color={C.faint} strokeWidth={1.6} />

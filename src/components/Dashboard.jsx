@@ -601,11 +601,11 @@ function projectBalanceAt(transactions, accountBalance, targetDate, aliasMap, sc
 }
 
 // Shared "connect your bank" empty state — same card/CTA used by every
-// Dashboard section gated on bankConnected (Cash Flow Forecast, Account
-// Balance, Monthly Cash Flow, Month Calendar), so a user without a bank
-// sees one consistent prompt instead of a different empty/skeleton state
-// per card.
-function ConnectBankPrompt({ title, message, onNavigate }) {
+// section gated on bankConnected across screens (Dashboard's Cash Flow
+// Forecast, Account Balance, Monthly Cash Flow, Month Calendar; also
+// Transactions), so a user without a bank sees one consistent prompt
+// instead of a different empty/skeleton state per section.
+export function ConnectBankPrompt({ title, message, onNavigate }) {
   const { t } = useTranslation();
   return (
     <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: 20, padding: '16px 18px', border: `1px solid ${C.border}` }}>
