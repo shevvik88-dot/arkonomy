@@ -123,6 +123,8 @@
   },
   "transactions": {
     "title": "Транзакции",
+    "previous_month": "Предыдущий месяц",
+    "next_month": "Следующий месяц",
     "add": "Добавить",
     "search": "Поиск транзакций...",
     "filter_all": "Все",

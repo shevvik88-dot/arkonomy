@@ -501,9 +501,9 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
         <div>
           <h2 style={{ margin: "0 0 6px", fontSize: 26, fontWeight: 700, letterSpacing: -0.6, color: C.text, lineHeight: 1.1 }}>{t("transactions.title")}</h2>
           <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
-            <button onClick={() => setMonthOffset(o => o - 1)} aria-label="Previous month" style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px 2px 0", minHeight: 44, minWidth: 32, color: C.muted, fontSize: 15, lineHeight: 1, fontFamily: FONT, display: "flex", alignItems: "center" }}>‹</button>
+            <button onClick={() => setMonthOffset(o => o - 1)} aria-label={t("transactions.previous_month")} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px 2px 0", minHeight: 44, minWidth: 32, color: C.muted, fontSize: 15, lineHeight: 1, fontFamily: FONT, display: "flex", alignItems: "center" }}>‹</button>
             <span style={{ fontSize: 13, fontWeight: 600, color: C.text, minWidth: 100, textAlign: "center" }}>{monthLabel}</span>
-            <button onClick={() => setMonthOffset(o => Math.min(o + 1, 0))} disabled={monthOffset === 0} aria-label="Next month" style={{ background: "none", border: "none", cursor: monthOffset === 0 ? "default" : "pointer", padding: "2px 0 2px 6px", minHeight: 44, minWidth: 32, color: monthOffset === 0 ? C.faint : C.muted, fontSize: 15, lineHeight: 1, fontFamily: FONT, display: "flex", alignItems: "center", opacity: monthOffset === 0 ? 0.3 : 1 }}>›</button>
+            <button onClick={() => setMonthOffset(o => Math.min(o + 1, 0))} disabled={monthOffset === 0} aria-label={t("transactions.next_month")} style={{ background: "none", border: "none", cursor: monthOffset === 0 ? "default" : "pointer", padding: "2px 0 2px 6px", minHeight: 44, minWidth: 32, color: monthOffset === 0 ? C.faint : C.muted, fontSize: 15, lineHeight: 1, fontFamily: FONT, display: "flex", alignItems: "center", opacity: monthOffset === 0 ? 0.3 : 1 }}>›</button>
           </div>
         </div>
         <button onClick={onAdd}

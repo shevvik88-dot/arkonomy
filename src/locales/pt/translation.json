@@ -121,6 +121,8 @@
   },
   "transactions": {
     "title": "Transações",
+    "previous_month": "Mês anterior",
+    "next_month": "Próximo mês",
     "add": "Adicionar",
     "search": "Buscar transações...",
     "filter_all": "Todas",
