@@ -55,7 +55,6 @@ function highlightNumbers(text, accentColor = "#FFFFFF") {
   });
 }
 
-// ─── InsightCardControlled: controlled expand версия ─────────
 // Санитизация AI текста — убираем misleading фразы глобально
 function sanitizeAiBody(text) {
   return (text || "")
@@ -177,113 +176,6 @@ function getSmartCta(insight) {
   }
 }
 
-function InsightCardControlled({ insight, expanded, onToggle, onAction }) {
-  const { t } = useTranslation();
-  if (!insight) return null;
-
-  const cfg = INSIGHT_CONFIG[insight.type] ?? INSIGHT_CONFIG.overspending;
-  const { headline, body: rawBody, cta, action, range, breakdown: rawBreakdown, roundUpPrompt } = insight.rendered;
-  const body = sanitizeAiBody(rawBody);
-  const { accent, border, bg, label } = cfg;
-
-  const SAFE_CAP = 400;
-  const breakdown = rawBreakdown ? {
-    ...rawBreakdown,
-    suggestedSave: rawBreakdown.suggestedSave > SAFE_CAP ? SAFE_CAP : rawBreakdown.suggestedSave
-  } : rawBreakdown;
-
-  const cleanCta      = (cta || "").replace(/~/g, "").trim();
-  const cleanHeadline = (headline || "").replace(/~\$/, "$").trim();
-  const isSavings     = insight.type === "savings_opportunity";
-  const isGoalOffTrack = insight.type === "goal_off_track";
-  const goalContribution = isGoalOffTrack
-    ? Number(insight.rendered?.contribution?.recommended ?? 0)
-    : null;
-
-  // Strict guard: hide CTA button when amount would be $0
-  const showCtaButton = (() => {
-    if (isSavings) return Number(breakdown?.suggestedSave) > 0;
-    if (isGoalOffTrack) return goalContribution > 0;
-    return true;
-  })();
-
-
-  return (
-    <div
-      onClick={onToggle}
-      style={{ background: bg, border: `1px solid ${border}22`, borderRadius: 16, padding: "14px 16px", marginBottom: 10, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif" }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <cfg.Icon color={accent} />
-          <span style={{ fontSize: 10, fontWeight: 600, color: accent + "99", letterSpacing: 0.5 }}>{label}</span>
-        </div>
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#4A5E7A" strokeWidth="2.5" strokeLinecap="round">
-          {expanded ? <polyline points="18 15 12 9 6 15"/> : <polyline points="6 9 12 15 18 9"/>}
-        </svg>
-      </div>
-
-      <div style={{ fontSize: 16, fontWeight: 700, color: "#FFFFFF", letterSpacing: -0.35, lineHeight: 1.3, marginBottom: expanded ? 12 : 0 }}>
-        {highlightNumbers(cleanHeadline, accent)}
-      </div>
-
-      {expanded && (
-        <div style={{ borderTop: `1px solid ${border}14`, paddingTop: 12 }}>
-          <p style={{ color: "rgba(154,164,178,0.85)", fontSize: 13, lineHeight: 1.6, margin: "0 0 12px", whiteSpace: "pre-line" }}>
-            {highlightNumbers(body, accent)}
-          </p>
-          {isSavings && breakdown && (
-            <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: "10px 12px", marginBottom: 14, display: "flex", flexDirection: "column", gap: 4 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", minWidth: 110 }}>Available</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#FFFFFF" }}>${Number(breakdown.available || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div>
-                  <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", display: "block", paddingTop: 1 }}>Safe to move</span>
-                  <span style={{ fontSize: 11, color: "rgba(154,164,178,0.60)", display: "block", marginTop: 3, paddingLeft: 2 }}>keeps ~${Number(breakdown.bufferAmount || 1000).toLocaleString("en-US", { maximumFractionDigits: 0 })} buffer</span>
-                </div>
-                <span style={{ fontSize: 13, fontWeight: 600, color: accent, paddingTop: 1 }}>${Number(breakdown.suggestedSave || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
-              </div>
-            </div>
-          )}
-          {showCtaButton && (
-            <button
-              onClick={e => { e.stopPropagation(); onAction?.(action, insight.data); }}
-              style={{ width: "100%", padding: "13px 16px", background: accent, border: "none", borderRadius: 11, color: isSavings ? "#061A10" : "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif", letterSpacing: -0.3, boxShadow: `0 4px 20px ${accent}32`, transition: "transform 0.12s ease", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-              onPointerDown={e => { e.stopPropagation(); e.currentTarget.style.transform = "scale(0.98)"; }}
-              onPointerUp={e => { e.currentTarget.style.transform = ""; }}
-              onPointerLeave={e => { e.currentTarget.style.transform = ""; }}
-            >
-              {isSavings && Number(breakdown?.suggestedSave) > 0
-                ? <>
-                    Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} safely
-                    <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
-                      {t("insights.recommended_safe")}
-                    </span>
-                  </>
-                : getSmartCta(insight)}
-            </button>
-          )}
-          {isSavings && Number(rawBreakdown?.suggestedSave) > 0 && Number(rawBreakdown.suggestedSave) > SAFE_CAP && (
-            <button
-              onClick={e => { e.stopPropagation(); onAction?.(action, { ...insight.data, _useMax: true }); }}
-              style={{ width: "100%", marginTop: 6, padding: "9px 16px", background: "transparent", border: `1px solid ${accent}33`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif", opacity: 0.7 }}
-            >
-              Add ${Number(rawBreakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} (max)
-            </button>
-          )}
-          {range && (
-            <div style={{ textAlign: "center", marginTop: 7, fontSize: 11, color: "rgba(154,164,178,0.60)", letterSpacing: 0.1 }}>
-              {range.replace("Suggested range:", "Safe range:").replace("Flexible:", "Safe range:")}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── InsightCardGroup: только один insight expanded за раз ───
 function InsightCardGroup({ insights, onAction }) {
   // Первый insight открыт по умолчанию (top priority)
@@ -292,7 +184,7 @@ function InsightCardGroup({ insights, onAction }) {
   return (
     <div>
       {insights.map((ins, i) => (
-        <InsightCardControlled
+        <InsightCard
           key={ins.type + i}
           insight={ins}
           expanded={expandedIdx === i}
@@ -304,14 +196,19 @@ function InsightCardGroup({ insights, onAction }) {
   );
 }
 
-export function InsightCard({ insight, onAction }) {
+// expanded/onToggle are optional — pass both for controlled mode (e.g. InsightCardGroup's
+// "only one open at a time"), omit both to let the card manage its own expand state.
+export function InsightCard({ insight, onAction, expanded: expandedProp, onToggle }) {
   const { t, i18n } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
+  const [expandedState, setExpandedState] = useState(false);
+  const isControlled = expandedProp !== undefined;
+  const expanded = isControlled ? expandedProp : expandedState;
+  const toggle   = isControlled ? onToggle : () => setExpandedState(e => !e);
 
   if (!insight) return null;
 
   const cfg = INSIGHT_CONFIG[insight.type] ?? INSIGHT_CONFIG.overspending;
-  const { headline, body: rawBody, cta, action, range, breakdown: rawBreakdown, roundUpPrompt } = insight.rendered;
+  const { headline, body: rawBody, action, range, breakdown: rawBreakdown, roundUpPrompt } = insight.rendered;
   const body = sanitizeAiBody(rawBody);
   const { accent, border, bg, label } = cfg;
 
@@ -322,7 +219,6 @@ export function InsightCard({ insight, onAction }) {
     suggestedSave: rawBreakdown.suggestedSave > SAFE_CAP ? SAFE_CAP : rawBreakdown.suggestedSave
   } : rawBreakdown;
 
-  const cleanCta      = (cta || "").replace(/~/g, "").trim();
   const cleanHeadline = (headline || "").replace(/~\$/, "$").trim();
 
   const isSavings = insight.type === "savings_opportunity";
@@ -341,7 +237,7 @@ export function InsightCard({ insight, onAction }) {
 
   return (
     <div
-      onClick={() => setExpanded(e => !e)}
+      onClick={toggle}
       style={{
         background: bg,
         border: `1px solid ${border}22`,
