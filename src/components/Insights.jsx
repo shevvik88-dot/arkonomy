@@ -245,7 +245,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
         padding: "12px 16px",
         marginBottom: 10,
         cursor: "pointer",
-        fontFamily: "'Inter', -apple-system, sans-serif",
+        fontFamily: FONT,
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
@@ -355,7 +355,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
                 background: accent, border: "none", borderRadius: 11,
                 color: insight.type === "savings_opportunity" ? "#061A10" : "#fff",
                 fontWeight: 800, fontSize: 15, cursor: "pointer",
-                fontFamily: "'Inter', -apple-system, sans-serif",
+                fontFamily: FONT,
                 letterSpacing: -0.3,
                 boxShadow: `0 4px 20px ${accent}32`,
                 transition: "transform 0.12s ease, box-shadow 0.12s ease",
@@ -378,7 +378,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
           {isSavings && Number(rawBreakdown?.suggestedSave) > 0 && Number(rawBreakdown.suggestedSave) > SAFE_CAP && (
             <button
               onClick={e => { e.stopPropagation(); onAction?.(action, { ...insight.data, _useMax: true }); }}
-              style={{ width: "100%", marginTop: 6, padding: "9px 16px", background: "transparent", border: `1px solid ${accent}33`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif", opacity: 0.7 }}
+              style={{ width: "100%", marginTop: 6, padding: "9px 16px", background: "transparent", border: `1px solid ${accent}33`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, opacity: 0.7 }}
             >
               Add ${Number(rawBreakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} (max)
             </button>
@@ -402,7 +402,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
                 border: "1px solid rgba(75,108,183,0.35)",
                 borderRadius: 11, color: "#8BA7E8",
                 fontWeight: 600, fontSize: 13,
-                cursor: "pointer", fontFamily: "'Inter', -apple-system, sans-serif",
+                cursor: "pointer", fontFamily: FONT,
                 letterSpacing: -0.1,
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                 transition: "background 0.15s",
