@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { C, FONT, CAT_COLORS } from "../utils/colors";
 import { fmt, fmtDate, parseDate, guessCategory, tCat, cleanMerchantName, localDateString } from "../utils/helpers";
 import Icon from "./shared/Icon";
-import { ConnectBankPrompt } from "./Dashboard";
+import { ConnectBankPrompt } from "./shared/ConnectBankPrompt";
 import { InsightCard } from "./Insights";
 
 function CatIcon({ name, type, size = 18 }) {

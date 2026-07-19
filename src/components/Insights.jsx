@@ -4,6 +4,7 @@ import { C, FONT } from "../utils/colors";
 import { fmt, parseDate, tCat, cleanMerchantName } from "../utils/helpers";
 import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
+import { ConnectBankPrompt } from "./shared/ConnectBankPrompt";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "../healthScore";
 import { IS_IOS_NATIVE } from "../lib/platform";
 import { computeRecurringSummary, findDuplicateSubscriptions, findMerchantAliasCandidates } from "../utils/recurringSummary";
@@ -1052,8 +1053,28 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
   );
 }
 
-export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, onOpenChat, transactions, savings, profile, allInsights, onInsightAction, isPro, onUpgrade, plaidBalance, merchantAliasMap, merchantAliases, onDecideMerchantAlias }) {
+export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, onOpenChat, transactions, savings, profile, allInsights, onInsightAction, isPro, onUpgrade, plaidBalance, merchantAliasMap, merchantAliases, onDecideMerchantAlias, bankConnected, onNavigate }) {
   const { t } = useTranslation();
+  const hasNoData = totalIncome === 0 && totalSpent === 0;
+
+  if (hasNoData) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ marginBottom: 4 }}>
+          <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 700 }}>{t("insights.title")}</h2>
+          <div style={{ fontSize: 13, color: C.muted }}>{t("insights.subtitle")}</div>
+        </div>
+        {bankConnected ? (
+          <GlassCard>
+            <div style={{ fontSize: 15, fontWeight: 600, color: C.muted, marginBottom: 4 }}>{t("insights.no_data")}</div>
+            <div style={{ fontSize: 12, color: C.faint, lineHeight: 1.5 }}>{t("insights.no_data_body")}</div>
+          </GlassCard>
+        ) : (
+          <ConnectBankPrompt title={t("insights.title")} message={t("dashboard.connect_bank_insights")} onNavigate={onNavigate} />
+        )}
+      </div>
+    );
+  }
   const monthlySavings = totalIncome - totalSpent;
   const savingsRate = totalIncome > 0 ? Math.round((monthlySavings / totalIncome) * 100) : 0;
   const BUFFER = 1000;
