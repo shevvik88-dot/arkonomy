@@ -164,6 +164,12 @@
     "ctx_vs_budget": "vs orçamento",
     "ctx_of_income": "{{pct}}% da renda",
     "ctx_net_balance": "saldo líquido",
+    "income_breakdown": "Detalhamento de receitas",
+    "expenses_breakdown": "Detalhamento de despesas",
+    "net_summary": "Resumo líquido",
+    "total_income": "Receita total",
+    "total_expenses": "Despesas totais",
+    "net_balance": "Saldo líquido",
     "swipe_hint": "Deslize",
     "swipe_edit": "← Editar",
     "swipe_delete": "Excluir →",
@@ -183,6 +189,7 @@
     "add_transaction_modal": "Adicionar Transação",
     "select_income_source": "Selecionar fonte de receita",
     "select_category": "Selecionar categoria",
+    "saving": "Salvando...",
     "save_changes": "Salvar Alterações",
     "add_expense": "Adicionar Despesa",
     "add_income": "Adicionar Receita",
@@ -195,7 +202,9 @@
     "action_edit_desc": "Corrigir valor, categoria ou data",
     "action_duplicate": "Duplicar",
     "action_duplicate_desc": "Copiar esta transação",
-    "action_delete_desc": "Remover permanentemente"
+    "action_delete_desc": "Remover permanentemente",
+    "toast_deleted": "Excluído",
+    "toast_duplicated": "Transação duplicada"
   },
   "insights": {
     "title": "Insights",

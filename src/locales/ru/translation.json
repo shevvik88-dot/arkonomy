@@ -166,6 +166,12 @@
     "ctx_vs_budget": "vs бюджет",
     "ctx_of_income": "{{pct}}% от дохода",
     "ctx_net_balance": "чистый баланс",
+    "income_breakdown": "Структура доходов",
+    "expenses_breakdown": "Структура расходов",
+    "net_summary": "Итог по балансу",
+    "total_income": "Всего доходов",
+    "total_expenses": "Всего расходов",
+    "net_balance": "Чистый баланс",
     "swipe_hint": "Свайп",
     "swipe_edit": "← Изменить",
     "swipe_delete": "Удалить →",
@@ -185,6 +191,7 @@
     "add_transaction_modal": "Добавить транзакцию",
     "select_income_source": "Выберите источник дохода",
     "select_category": "Выберите категорию",
+    "saving": "Сохранение...",
     "save_changes": "Сохранить изменения",
     "add_expense": "Добавить расход",
     "add_income": "Добавить доход",
@@ -197,7 +204,9 @@
     "action_edit_desc": "Исправить сумму, категорию или дату",
     "action_duplicate": "Дублировать",
     "action_duplicate_desc": "Скопировать транзакцию",
-    "action_delete_desc": "Удалить без возможности восстановления"
+    "action_delete_desc": "Удалить без возможности восстановления",
+    "toast_deleted": "Удалено",
+    "toast_duplicated": "Транзакция продублирована"
   },
   "insights": {
     "title": "Аналитика",

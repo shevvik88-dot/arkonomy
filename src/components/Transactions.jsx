@@ -489,8 +489,8 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
     pct: Math.round((total / arr.reduce((s, [, v]) => s + v, 0)) * 100),
   }));
 
-  function handleDelete(id)     { onDelete(id); toast("Deleted", "warning"); }
-  function handleDuplicate(tx)  { onAdd({ amount: tx.amount, description: tx.description, category_id: tx.category_id, category_name: tx.category_name, date: tx.date, type: tx.type }); toast("Transaction duplicated", "info"); }
+  function handleDelete(id)     { onDelete(id); toast(t("transactions.toast_deleted"), "warning"); }
+  function handleDuplicate(tx)  { onAdd({ amount: tx.amount, description: tx.description, category_id: tx.category_id, category_name: tx.category_name, date: tx.date, type: tx.type }); toast(t("transactions.toast_duplicated"), "info"); }
 
   const monthLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   useEffect(() => { setVisibleCount(50); }, [monthOffset]);
@@ -527,9 +527,9 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
 
       <SummaryCards
         summary={summary}
-        onIncomeClick={() => setSheet({ title: "Income breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.income)} total`, rows: effectiveCurTxs.filter(t => t.type === "income").map(t => ({ name: normalizeTxName(t), sub: fmtDate(t.date), amount: fmtMoney(Number(t.amount), true), color: "#12D18E", icon: "dollar" })) })}
-        onExpenseClick={() => setSheet({ title: "Expenses breakdown", subtitle: `${monthLabel} · ${fmtMoney(summary.expense)} total`, rows: expenseRows })}
-        onNetClick={() => setSheet({ title: "Net summary", subtitle: monthLabel, rows: [{ name: "Total income", amount: fmtMoney(summary.income, true), color: "#12D18E", icon: "trending-up", pct: 100 }, { name: "Total expenses", amount: fmtMoney(summary.expense), color: "#FF5C7A", icon: "trending-down", pct: Math.round(summary.expense / Math.max(summary.income, 1) * 100) }, { name: "Net balance", amount: fmtMoney(summary.net, true), color: "#12D18E", icon: "award", pct: Math.round(summary.net / Math.max(summary.income, 1) * 100) }] })}
+        onIncomeClick={() => setSheet({ title: t("transactions.income_breakdown"), subtitle: `${monthLabel} · ${fmtMoney(summary.income)} total`, rows: effectiveCurTxs.filter(t => t.type === "income").map(t => ({ name: normalizeTxName(t), sub: fmtDate(t.date), amount: fmtMoney(Number(t.amount), true), color: "#12D18E", icon: "dollar" })) })}
+        onExpenseClick={() => setSheet({ title: t("transactions.expenses_breakdown"), subtitle: `${monthLabel} · ${fmtMoney(summary.expense)} total`, rows: expenseRows })}
+        onNetClick={() => setSheet({ title: t("transactions.net_summary"), subtitle: monthLabel, rows: [{ name: t("transactions.total_income"), amount: fmtMoney(summary.income, true), color: "#12D18E", icon: "trending-up", pct: 100 }, { name: t("transactions.total_expenses"), amount: fmtMoney(summary.expense), color: "#FF5C7A", icon: "trending-down", pct: Math.round(summary.expense / Math.max(summary.income, 1) * 100) }, { name: t("transactions.net_balance"), amount: fmtMoney(summary.net, true), color: "#12D18E", icon: "award", pct: Math.round(summary.net / Math.max(summary.income, 1) * 100) }] })}
       />
 
       <InsightCard insight={insight} onAction={onInsightAction} />
@@ -830,7 +830,7 @@ export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
           disabled={submitting}
           onClick={() => { if (!amount || submitting) return; setSubmitting(true); onAdd({ amount: parseFloat(amount), description: desc || catName, category_id: type === "expense" ? (catId || null) : null, category_name: catName, date, type }); }}
           style={{ width: "100%", marginTop: 18, padding: 15, background: submitting ? C.border : `linear-gradient(90deg,${type === "expense" ? C.red : C.green},${type === "expense" ? "#CC1A3A" : "#00A67E"})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: submitting ? "not-allowed" : "pointer", fontFamily: FONT, opacity: submitting ? 0.6 : 1 }}>
-          {submitting ? "Saving..." : isEdit ? t("transactions.save_changes") : type === "expense" ? t("transactions.add_expense") : t("transactions.add_income")}
+          {submitting ? t("transactions.saving") : isEdit ? t("transactions.save_changes") : type === "expense" ? t("transactions.add_expense") : t("transactions.add_income")}
         </button>
       </div>
     </div>
