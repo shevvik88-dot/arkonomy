@@ -759,28 +759,6 @@ function getBrandStyle(name) {
   }
   return { color: '#475569', letter: (name || '?').trim()[0].toUpperCase() };
 }
-function getMerchantDomainCandidates(name) {
-  const lower = (name || '').toLowerCase().trim();
-  const out = [];
-  // Known exact domains first
-  for (const [kw, domain] of Object.entries(BRAND_DOMAINS)) {
-    if (lower.includes(kw)) { out.push(domain); break; }
-  }
-  // Auto-generate from merchant name
-  const isCU   = /credit union|cu\b/.test(lower);
-  const isBank = /\bbank\b|\bfederal\b|\bsavings\b/.test(lower);
-  const core = lower
-    .replace(/\b(credit union|federal credit union|federal credit|federal|national bank|community bank|savings bank|state bank|bank|insurance|financial|services|solutions|group|inc|llc|corp|ltd)\b/g, ' ')
-    .replace(/[^a-z0-9]+/g, '');
-  if (core) {
-    if (isCU)        out.push(`${core}cu.org`, `${core}cu.com`, `${core}creditunion.org`, `${core}.org`, `${core}.com`);
-    else if (isBank) out.push(`${core}bank.com`, `${core}.com`, `${core}.org`);
-    else             out.push(`${core}.com`, `${core}.net`, `${core}.org`);
-    const full = lower.replace(/[^a-z0-9]+/g, '');
-    if (full !== core) out.push(`${full}.com`);
-  }
-  return [...new Set(out)];
-}
 // Merchants that always render a letter avatar, no favicon attempt
 const LETTER_AVATAR_ONLY = new Set(['golden one', 'atlanta postal']);
 
