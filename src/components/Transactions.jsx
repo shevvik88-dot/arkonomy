@@ -7,23 +7,9 @@ import { ConnectBankPrompt } from "./Dashboard";
 import { InsightCard } from "./Insights";
 
 function CatIcon({ name, type, size = 18 }) {
-  const map = {
-    "Food & Dining": { color: "#F87171", icon: "food" },
-    "Transport":     { color: "#2DD4BF", icon: "car" },
-    "Shopping":      { color: "#FB923C", icon: "shopping" },
-    "Entertainment": { color: "#F472B6", icon: "film" },
-    "Health":        { color: "#4ADE80", icon: "heart" },
-    "Bills":         { color: "#A78BFA", icon: "file" },
-    "Subscriptions": { color: "#A78BFA", icon: "repeat" },
-    "Housing":       { color: "#60A5FA", icon: "home" },
-    "Personal Care": { color: "#FBBF24", icon: "heart" },
-    "Travel":        { color: "#818CF8", icon: "activity" },
-    "Cost of Debt":  { color: "#F97316", icon: "credit" },
-    "income":        { color: "#34D399", icon: "dollar" },
-    "default":       { color: "#94A3B8", icon: "credit" },
-  };
-  const key = type === "income" ? "income" : (map[name] ? name : "default");
-  const { color, icon } = map[key];
+  const isIncome = type === "income";
+  const color = isIncome ? (CAT_COLORS["Income"] || C.green) : (CAT_COLORS[name] || C.blue);
+  const icon  = isIncome ? "dollar" : (CAT_ICONS_MAP[name] || "credit");
   return (
     <div style={{ width: 42, height: 42, borderRadius: 13, background: color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: `0 2px 8px ${color}44` }}>
       <Icon name={icon} size={size} color="#fff" strokeWidth={2} />
