@@ -162,17 +162,17 @@ const INSIGHT_CONFIG = {
   },
 };
 
-function getSmartCta(insight) {
-  if (!insight) return "View Transactions";
+function getSmartCta(insight, t) {
+  if (!insight) return t("insights.cta_view_transactions");
   const { type, data } = insight;
   switch (type) {
-    case "category_spike":      return data?.categoryName ? `Review ${data.categoryName}` : "View Transactions";
-    case "overspending":        return "View Transactions";
-    case "cash_risk":           return "Review Recurring";
-    case "savings_opportunity": return "View Savings";
-    case "goal_off_track":      return "View Savings";
-    case "positive_progress":   return "Improve Score";
-    default:                    return "View Transactions";
+    case "category_spike":      return data?.categoryName ? t("insights.cta_review_category", { category: tCat(data.categoryName, t) }) : t("insights.cta_view_transactions");
+    case "overspending":        return t("insights.cta_view_transactions");
+    case "cash_risk":           return t("insights.cta_review_recurring");
+    case "savings_opportunity": return t("insights.cta_view_savings");
+    case "goal_off_track":      return t("insights.cta_view_savings");
+    case "positive_progress":   return t("insights.cta_improve_score");
+    default:                    return t("insights.cta_view_transactions");
   }
 }
 
@@ -285,7 +285,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
             return (
               <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{insight.data?.goalName || "Goal"}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{insight.data?.goalName || t("insights.goal_fallback_name")}</span>
                   <span style={{ fontSize: 12, color: accent, fontWeight: 600 }}>{pct.toFixed(0)}%</span>
                 </div>
                 <div style={{ height: 6, background: "rgba(255,255,255,0.08)", borderRadius: 99, marginBottom: 6, overflow: "hidden", position: "relative" }}>
@@ -324,16 +324,16 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
               gap: 4,
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", minWidth: 110 }}>Available</span>
+                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", minWidth: 110 }}>{t("insights.available")}</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "#FFFFFF" }}>
                   ${Number(breakdown.available || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
-                  <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", display: "block", paddingTop: 1 }}>Safe to move</span>
+                  <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", display: "block", paddingTop: 1 }}>{t("insights.safe_to_move")}</span>
                   <span style={{ fontSize: 11, color: "rgba(154,164,178,0.60)", display: "block", marginTop: 3, paddingLeft: 2 }}>
-                    keeps ~${Number(breakdown.bufferAmount || 1000).toLocaleString("en-US", { maximumFractionDigits: 0 })} buffer
+                    {t("insights.keeps_buffer", { amount: Number(breakdown.bufferAmount || 1000).toLocaleString("en-US", { maximumFractionDigits: 0 }) })}
                   </span>
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 600, color: accent, paddingTop: 1 }}>
@@ -364,12 +364,12 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
             >
               {isSavings && Number(breakdown?.suggestedSave) > 0
                 ? <>
-                    Add ${Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} safely
+                    {t("insights.add_amount_safely", { amount: Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 }) })}
                     <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
                       {t("insights.recommended_safe")}
                     </span>
                   </>
-                : getSmartCta(insight)
+                : getSmartCta(insight, t)
               }
             </button>
           )}
@@ -380,7 +380,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
               onClick={e => { e.stopPropagation(); onAction?.(action, { ...insight.data, _useMax: true }); }}
               style={{ width: "100%", marginTop: 6, padding: "9px 16px", background: "transparent", border: `1px solid ${accent}33`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, opacity: 0.7 }}
             >
-              Add ${Number(rawBreakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 })} (max)
+              {t("insights.add_amount_max", { amount: Number(rawBreakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 }) })}
             </button>
           )}
 
@@ -413,7 +413,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
               </svg>
-              Invest ${Math.floor(insight.data.roundUpMonthly)} in spare change
+              {t("insights.invest_spare_change", { amount: Math.floor(insight.data.roundUpMonthly) })}
             </button>
           )}
 
@@ -984,54 +984,55 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
     if (prev > 0) {
       const change = ((amount - prev) / prev) * 100;
       if (change > 25) {
-        const cause = `$${fmt(amount, 0)} this month vs $${fmt(prev, 0)} last month.`;
+        const catLabel = tCat(cat, t);
+        const cause = t("insights.cat_spike_cause", { amount: fmt(amount, 0), prevAmount: fmt(prev, 0), savings: fmt(amount - prev, 0) });
         const guidance = change > 100
-          ? `→ This is a significant jump. Review recent ${cat} transactions to identify the cause and decide if action is needed.`
-          : `→ This is elevated spending — not yet a confirmed trend. Monitor next month to decide if action is needed.`;
+          ? t("insights.cat_spike_guidance_significant", { cat: catLabel })
+          : t("insights.cat_spike_guidance_elevated");
         insights.push({
           id: `u-${cat}`, icon: "trending-up",
-          title: `${cat} up ${change.toFixed(0)}%`,
-          desc: `${cause} Reducing could save ~$${fmt(amount - prev, 0)}/month.\n\n${guidance}`,
+          title: t("insights.cat_spike_title", { cat: catLabel, pct: change.toFixed(0) }),
+          desc: `${cause}\n\n${guidance}`,
           severity: change > 50 ? "danger" : "warning",
           value: `+${change.toFixed(0)}%`,
-          context: `My ${cat} spending is ${change.toFixed(0)}% higher than last month. What's driving this and how do I cut back?`
+          context: t("insights.cat_spike_context", { cat: catLabel, pct: change.toFixed(0) })
         });
       }
     }
   });
 
   if (savingsRate < 10 && totalIncome > 0) insights.push({
-    id: "savings-low", icon: "target", title: "Low Savings Rate",
-    desc: `You're saving ${savingsRate.toFixed(1)}% of income — well below the 20% target.\n\n→ This puts long-term financial stability at risk.\n→ Start with automating a small fixed amount each month to build the habit.`,
+    id: "savings-low", icon: "target", title: t("insights.low_savings_title"),
+    desc: t("insights.low_savings_desc", { rate: savingsRate.toFixed(1) }),
     severity: "warning", value: `${savingsRate.toFixed(1)}%`,
-    context: `My savings rate is only ${savingsRate.toFixed(1)}%. How do I reach 20%?`
+    context: t("insights.low_savings_context", { rate: savingsRate.toFixed(1) })
   });
   else if (savingsRate >= 20) insights.push({
-    id: "savings-good", icon: "star", title: "Excellent Savings Rate",
+    id: "savings-good", icon: "star", title: t("insights.high_savings_title"),
     desc: availableSafe > 0
-      ? `You're saving ${savingsRate.toFixed(1)}% of income — above the 20% recommended target.\n\n→ This is a strong financial habit.\n→ Consider putting part of this surplus into an investment account to grow it further.`
-      : `You're saving ${savingsRate.toFixed(1)}% of income — above the 20% recommended target.\n\n→ This is a strong financial habit. Keep monitoring your cash position as upcoming bills clear.`,
+      ? t("insights.high_savings_desc_surplus", { rate: savingsRate.toFixed(1) })
+      : t("insights.high_savings_desc_low_cash", { rate: savingsRate.toFixed(1) }),
     severity: "good", value: `${savingsRate.toFixed(1)}%`,
     context: availableSafe > 0
-      ? `My savings rate is ${savingsRate.toFixed(1)}%. How should I best invest this surplus?`
-      : `My savings rate is ${savingsRate.toFixed(1)}%. My cash balance is low — how do I prepare for upcoming bills?`
+      ? t("insights.high_savings_context_surplus", { rate: savingsRate.toFixed(1) })
+      : t("insights.high_savings_context_low_cash", { rate: savingsRate.toFixed(1) })
   });
 
   const shopping = spendingByCategory["Shopping"] || 0;
   if (shopping > 300) insights.push({
-    id: "shopping", icon: "shopping", title: "High Shopping Spend",
-    desc: `You spent $${fmt(shopping, 0)} on shopping this month.\n\n→ This is above a healthy threshold for discretionary spending.\n→ A 30-day rule for non-essential purchases can reduce impulse buys by 20–40%.`,
+    id: "shopping", icon: "shopping", title: t("insights.high_shopping_title"),
+    desc: t("insights.high_shopping_desc", { amount: fmt(shopping, 0) }),
     severity: "info", value: `$${fmt(shopping, 0)}`,
-    context: `I spent $${fmt(shopping, 0)} on shopping. Help me build habits to reduce impulse purchases.`
+    context: t("insights.high_shopping_context", { amount: fmt(shopping, 0) })
   });
 
   if (insights.length === 0) {
     if (insightScore >= 70) {
-      insights.push({ id: "all-good", icon: "check-circle", title: "You're on track!", desc: "Your spending looks healthy this month. Keep it up!", severity: "good", context: "My finances look healthy. What should I focus on to build long-term wealth?" });
+      insights.push({ id: "all-good", icon: "check-circle", title: t("insights.on_track"), desc: t("insights.score_good_desc"), severity: "good", context: t("insights.score_good_context") });
     } else if (insightScore >= 50) {
-      insights.push({ id: "neutral", icon: "info", title: "Some areas to watch", desc: "Your finances are mostly stable but there's room to improve. Small increases in savings or tighter budget tracking could push your score into the green.", severity: "info", context: "My financial health score is around 50-70. What are the highest-impact changes I can make?" });
+      insights.push({ id: "neutral", icon: "info", title: t("insights.some_areas"), desc: t("insights.score_mid_desc"), severity: "info", context: t("insights.score_mid_context") });
     } else {
-      insights.push({ id: "needs-work", icon: "alert-circle", title: "Attention needed", desc: "Your financial health score is below 50. Focus on reducing discretionary spending and building a consistent savings habit.", severity: "warning", context: "My financial health score is below 50. Where should I start to turn this around?" });
+      insights.push({ id: "needs-work", icon: "alert-circle", title: t("insights.attention_needed"), desc: t("insights.score_low_desc"), severity: "warning", context: t("insights.score_low_context") });
     }
   }
 
@@ -1092,7 +1093,7 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
             <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>{ins.title}</div>
             <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 14 }}>{ins.desc}</div>
             <button onClick={() => onOpenChat?.(ins.context)} style={{ background: "none", border: "none", cursor: "pointer", color, fontSize: 13, fontWeight: 600, padding: 0, display: "flex", alignItems: "center", gap: 6, fontFamily: FONT }}>
-              <Icon name="message" size={13} color={color} /> Ask AI about this <Icon name="chevron" size={13} color={color} />
+              <Icon name="message" size={13} color={color} /> {t("insights.ask_ai_about_this")} <Icon name="chevron" size={13} color={color} />
             </button>
           </GlassCard>
         );
