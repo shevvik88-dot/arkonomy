@@ -35,11 +35,14 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
   const [editingReminder, setEditingReminder] = useState(false);
 
   const DAYS = [
-    { label: "Mon", dow: 1 }, { label: "Tue", dow: 2 }, { label: "Wed", dow: 3 },
-    { label: "Thu", dow: 4 }, { label: "Fri", dow: 5 }, { label: "Sat", dow: 6 },
-    { label: "Sun", dow: 0 },
+    { dayKey: "mon", dow: 1 }, { dayKey: "tue", dow: 2 }, { dayKey: "wed", dow: 3 },
+    { dayKey: "thu", dow: 4 }, { dayKey: "fri", dow: 5 }, { dayKey: "sat", dow: 6 },
+    { dayKey: "sun", dow: 0 },
   ];
-  const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const DAY_NAMES = [
+    t("day.sunday"), t("day.monday"), t("day.tuesday"), t("day.wednesday"),
+    t("day.thursday"), t("day.friday"), t("day.saturday"),
+  ];
 
   async function loadReminder() {
     if (reminder !== null || !userId) return;
@@ -82,13 +85,13 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
       if (data) {
         setReminder(data);
         setEditingReminder(false);
-        const dayLabel = reminderDays.length === 7 ? "every day" : reminderDays.map(d => DAY_NAMES[d]).join(", ");
+        const dayLabel = reminderDays.length === 7 ? t("savings.every_day") : reminderDays.map(d => DAY_NAMES[d]).join(", ");
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (!session) return;
           fetch(`${SUPABASE_URL}/functions/v1/push-notify`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}`, "apikey": SUPABASE_KEY },
-            body: JSON.stringify({ user_id: userId, title: "Reminder set! 💰", body: `${dayLabel} — transfer $${amt.toFixed(2)} to ${sv.name}`, icon: "/icon-192.png", tag: "savings-reminder-set" }),
+            body: JSON.stringify({ user_id: userId, title: t("savings.reminder_push_title"), body: t("savings.reminder_push_body", { day: dayLabel, amount: amt.toFixed(2), name: sv.name }), icon: "/icon-192.png", tag: "savings-reminder-set" }),
           }).catch(() => {});
         }).catch(err => logger.error("[saveReminder] session fetch failed:", err));
       }
@@ -272,7 +275,7 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
                 <Icon name="arrow-up-right" size={24} color={C.cyan} strokeWidth={2.5} />
               </div>
               <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{t("savings.move_money_title")}</div>
-              <div style={{ fontSize: 14, color: C.muted }}>{t("savings.transfer_in_app", { bank: linkedAccount?.institution_name || "your bank" })}</div>
+              <div style={{ fontSize: 14, color: C.muted }}>{t("savings.transfer_in_app", { bank: linkedAccount?.institution_name || t("savings.your_bank_fallback") })}</div>
             </div>
 
             <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 16, padding: "18px 20px", marginBottom: 24 }}>
@@ -321,9 +324,9 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
                   <div style={{ background: C.bgSecondary, border: `1px solid ${C.cyan}33`, borderRadius: 14, padding: 18 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: C.cyan, letterSpacing: 0.8, marginBottom: 12 }}>{t("savings.active_reminder")}</div>
                     <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
-                      {fmtMoney(reminder.amount)} {reminder.day_of_week.length === 7 ? "every day" : reminder.day_of_week.map(d => DAY_NAMES[d]).join(", ")}
+                      {fmtMoney(reminder.amount)} {reminder.day_of_week.length === 7 ? t("savings.every_day") : reminder.day_of_week.map(d => DAY_NAMES[d]).join(", ")}
                     </div>
-                    <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>Reminding you to transfer to {sv.name}</div>
+                    <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>{t("savings.reminding_transfer", { name: sv.name })}</div>
                     <div style={{ display: "flex", gap: 10 }}>
                       <button onClick={() => setEditingReminder(true)} style={{ flex: 1, padding: "10px 0", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{t("savings.edit")}</button>
                       <button onClick={cancelReminder} style={{ flex: 1, padding: "10px 0", background: "none", border: `1px solid ${C.red}33`, borderRadius: 10, color: C.red, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{t("savings.cancel_reminder")}</button>
@@ -338,11 +341,11 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
                           const active = reminderDays.includes(day.dow);
                           return (
                             <button
-                              key={day.label}
+                              key={day.dow}
                               onClick={() => setReminderDays(prev => active ? prev.filter(d => d !== day.dow) : [...prev, day.dow])}
                               style={{ padding: "8px 12px", borderRadius: 10, background: active ? C.cyan : C.bgSecondary, border: `1px solid ${active ? C.cyan : C.border}`, color: active ? "#000" : C.text, fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}
                             >
-                              {day.label}
+                              {t("day." + day.dayKey)}
                             </button>
                           );
                         })}
@@ -755,13 +758,13 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
                           >
                             <option value="">{t("savings.track_manually_no_link")}</option>
                             {savingsAccounts.length > 0 ? (
-                               <optgroup label="Savings Accounts">
+                               <optgroup label={t("savings.savings_accounts_group")}>
                                  {savingsAccounts.map(a => <option key={a.account_id} value={a.account_id}>{a.name} (••••{a.mask})</option>)}
                                </optgroup>
                             ) : (
-                               <option disabled>No savings accounts found</option>
+                               <option disabled>{t("savings.no_savings_accounts_found")}</option>
                             )}
-                            <optgroup label="Other Accounts">
+                            <optgroup label={t("savings.other_accounts_group")}>
                                {plaidAccounts.filter(a => a.subtype !== "savings" && a.type !== "savings").map(a => <option key={a.account_id} value={a.account_id}>{a.name} (••••{a.mask})</option>)}
                             </optgroup>
                           </select>
