@@ -190,7 +190,7 @@ export function getUpcomingCharges(transactions, aliasMap = new Map(), reference
 
   const upcoming = [...subscriptions, ...regularPayments].map(m => {
     const nextDate = projectNextDate(m.lastSeenDate, m.typicalIntervalDays, todayStart);
-    const daysUntil = Math.round((nextDate - referenceDate) / MS_PER_DAY);
+    const daysUntil = Math.round((nextDate - todayStart) / MS_PER_DAY);
     return {
       merchant: cleanMerchantName(m.name) || m.name,
       amount: Math.round(m.avgMonthly * 100) / 100,
@@ -228,7 +228,7 @@ export function getUpcomingCardPayments(transactions, aliasMap = new Map(), refe
       const gaps = monthDatesSorted.slice(1).map((d, i) => (d - monthDatesSorted[i]) / MS_PER_DAY);
       const typicalIntervalDays = median(gaps);
       const nextDate = projectNextDate(m.lastDate, typicalIntervalDays, todayStart);
-      const daysUntil = Math.round((nextDate - referenceDate) / MS_PER_DAY);
+      const daysUntil = Math.round((nextDate - todayStart) / MS_PER_DAY);
       return {
         merchant: cleanMerchantName(m.name) || m.name,
         amount: Math.round((m.total / m.months.size) * 100) / 100,

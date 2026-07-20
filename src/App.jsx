@@ -15,7 +15,7 @@ import { usePushNotifications } from "./hooks/usePushNotifications";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "./healthScore";
 import { BUFFER } from "./shared/financialConstants";
 import { IS_IOS_NATIVE } from "./lib/platform";
-import { computeRecurringSummary, findDuplicateSubscriptions, getUpcomingCharges } from "./utils/recurringSummary";
+import { computeRecurringSummary, findDuplicateSubscriptions, getUpcomingCharges, getUpcomingCardPayments } from "./utils/recurringSummary";
 import GlassCard from "./components/shared/GlassCard";
 import AuthScreen from "./components/AuthScreen";
 import Icon from "./components/shared/Icon";
@@ -58,6 +58,17 @@ function useInsights(screen, userId, lang) {
     allInsights: data.screens?.insights ?? [],
     aiContext: data.screens?.ai ?? null,
   };
+}
+
+// Home's Upcoming Charges carousel — same merge Dashboard's Cash Flow
+// Forecast/Month Calendar already do (getUpcomingCharges + getUpcomingCardPayments),
+// re-sorted and capped to the carousel's top-4 after merging.
+function getUpcomingChargesForCarousel(transactions, aliasMap) {
+  const referenceDate = new Date();
+  return [
+    ...getUpcomingCharges(transactions, aliasMap, referenceDate, { maxDays: 14, maxResults: Infinity }),
+    ...getUpcomingCardPayments(transactions, aliasMap, referenceDate, { maxDays: 14, maxResults: Infinity }),
+  ].sort((a, b) => a.daysUntil - b.daysUntil).slice(0, 4);
 }
 
 
@@ -578,8 +589,7 @@ export default function App() {
       }
       if (t.data) {
         setTransactions(t.data);
-        const detected = getUpcomingCharges(t.data, merchantAliasMap);
-        setUpcomingCharges(detected);
+        setUpcomingCharges(getUpcomingChargesForCarousel(t.data, merchantAliasMap));
       }
       if (sv.data) setSavings(sv.data);
       if (c.data) { setCategories(c.data); if (c.data.length === 0) await seedCategories(); }
@@ -909,7 +919,7 @@ export default function App() {
           }
         }
         // Update upcoming charges based on new transaction set
-        setUpcomingCharges(getUpcomingCharges([data, ...transactions], merchantAliasMap));
+        setUpcomingCharges(getUpcomingChargesForCarousel([data, ...transactions], merchantAliasMap));
       }
     } catch (err) {
       logger.error("[addTransaction] failed:", err);
