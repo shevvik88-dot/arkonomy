@@ -126,7 +126,6 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
   const pct = Math.round(progress * 100);
 
   const monthlySurplus = totalIncome - totalSpent;
-  const isDeficit = monthlySurplus < 0;
 
   const remaining = Math.max(0, Number(sv.target) - Number(current));
 
@@ -460,13 +459,11 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
   }, [transactions]);
 
   const roundupMonth  = parseFloat((roundupBase * roundupMultiplier).toFixed(2));
-  const roundupYearly = Math.round(roundupBase * roundupMultiplier * 12 / 10) * 10;
 
   const inp = { width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, boxSizing: "border-box", marginBottom: 10, fontFamily: FONT };
 
   const totalSaved     = savings.reduce((s, sv) => s + Number(sv.current), 0);
   const monthlySurplus = totalIncome - totalSpent;
-  const isDeficit      = monthlySurplus < 0;
 
   const availableBalance = Math.max(monthlySurplus, 0);
   const safetyBuffer = Math.min(500, availableBalance * 0.5);
