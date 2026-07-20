@@ -644,10 +644,10 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
               </div>
               <div style={{ background: "rgba(245,200,66,0.07)", border: "1px solid rgba(245,200,66,0.35)", borderRadius: 12, padding: "14px 16px", marginBottom: 16, textAlign: "left" }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#F5C842", marginBottom: 8, letterSpacing: 0.3 }}>{t("markets.authorize_alpaca")}</div>
-                <div style={{ fontSize: 12, color: "#C8B86A", lineHeight: 1.65 }}>
+                <div style={{ fontSize: 12, color: C.alpacaWarningMuted, lineHeight: 1.65 }}>
                   {t("markets.alpaca_disclaimer1")}
                 </div>
-                <div style={{ fontSize: 12, color: "#C8B86A", lineHeight: 1.65, marginTop: 8 }}>
+                <div style={{ fontSize: 12, color: C.alpacaWarningMuted, lineHeight: 1.65, marginTop: 8 }}>
                   {t("markets.alpaca_disclaimer2")}
                 </div>
               </div>

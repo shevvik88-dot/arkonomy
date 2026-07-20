@@ -23,6 +23,9 @@ export const C = {
   // Named (not inlined) since more glass-style cards may reuse them.
   chargeCardText: "#EEF4FF",
   chargeCardDate: "#4A6480",
+  // Muted body text inside Markets.jsx's Alpaca-authorization disclaimer box —
+  // local to that one box, not an alpha variant of any existing color.
+  alpacaWarningMuted: "#C8B86A",
 };
 
 export const CAT_COLORS = {
