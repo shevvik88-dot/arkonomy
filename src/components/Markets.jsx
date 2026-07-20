@@ -580,9 +580,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
             <div style={{ background: C.red + "12", border: `1px solid ${C.red}33`, borderRadius: 10, padding: "12px 14px" }}>
               <div style={{ fontSize: 13, color: C.red, fontWeight: 600, marginBottom: 4 }}>{t("markets.analysis_unavailable")}</div>
               <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
-                {aiError.includes("ANTHROPIC_API_KEY")
-                  ? "ANTHROPIC_API_KEY is not configured in Supabase secrets. Run: supabase secrets set ANTHROPIC_API_KEY=your_key"
-                  : aiError}
+                {t("markets.analysis_unavailable_body")}
               </div>
             </div>
           ) : ai ? (
@@ -727,7 +725,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
               ) : (
                 <div style={{ marginTop: 12, padding: "10px 14px", background: buyResult.success ? C.green + "12" : C.red + "12", border: `1px solid ${buyResult.success ? C.green : C.red}33`, borderRadius: 10 }}>
                   <div style={{ fontSize: 13, color: buyResult.success ? C.green : C.red, fontWeight: 600 }}>
-                    {buyResult.success ? "✓ " + buyResult.message : "✗ " + buyResult.error}
+                    {buyResult.success ? "✓ " + buyResult.message : "✗ " + t("markets.order_failed")}
                   </div>
                 </div>
               )
