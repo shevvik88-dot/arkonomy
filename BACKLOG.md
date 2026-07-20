@@ -47,7 +47,7 @@ push_subscription). Дайджест вида "на этой неделе пот
 реализацией.
 ```
 
-### 16. Аудит экранов — Dashboard/Home ЗАКРЫТ 2026-07-18, Transactions ЗАКРЫТ 2026-07-19, Insights ЗАКРЫТ 2026-07-20, дальше по очереди: Recurring, Savings, Markets/StockDetail, Profile/Settings
+### 16. Аудит экранов — Dashboard/Home ЗАКРЫТ 2026-07-18, Transactions ЗАКРЫТ 2026-07-19, Insights ЗАКРЫТ 2026-07-20, Recurring ЗАКРЫТ 2026-07-20, дальше по очереди: Savings, Markets/StockDetail, Profile/Settings
 
 **Dashboard/Home — done, коммит `a5d4453`.** Полный проход по `Dashboard.jsx` (не только недавние правки), находки разбиты на функциональные/визуальные/App Store readiness, обе группы зафиксированы отдельным ревью code-reviewer перед деплоем каждой:
 
@@ -71,11 +71,17 @@ push_subscription). Дайджест вида "на этой неделе пот
 - `ConnectBankPrompt` по ходу вынесен из `Dashboard.jsx` в `src/components/shared/ConnectBankPrompt.jsx` — прямой импорт в `Insights.jsx` создавал бы circular import (`Dashboard.jsx` уже импортирует `InsightCard` из `Insights.jsx`).
 - Также обёрнут в `t()` большой оставшийся i18n-пробел: `getSmartCta()` CTA-лейблы, "Available"/"Safe to move"/"Goal"-fallback, весь текст локального fallback-массива (6 генераторов инсайтов, включая AI-context строки, которые реально уходят в чат).
 
-Тот же шаблон (три категории, ничего не чинить без подтверждения, коммит после каждой группы перед следующей — см. CLAUDE.md Coding rules) — на следующий экран: **Recurring**.
+**Recurring — done, коммиты `fa1fc49`, `6fd79b4`, `9243d7b`, `415e44e`.** Не отдельный экран (в App.jsx нет раута "recurring") — полный проход по `recurringSummary.js` (ядро логики) + `UpcomingChargesCard.jsx` (Dashboard-карусель); `RecurringSummary`-компонент внутри `Insights.jsx` уже покрыт прошлым аудитом, не повторяли; `_shared/recurringDetector.ts` (Deno) сознательно не включён — уже прошёл security-auditor + live-verification отдельным процессом при миграции push-notify:
+
+- **Самое критичное, живой баг**: `getUpcomingCharges`/`getUpcomingCardPayments` считали `daysUntil = Math.round((nextDate - referenceDate) / MS_PER_DAY)` — `nextDate` всегда выровнен на полночь, а `referenceDate` — сырой `new Date()` с текущим временем суток; рядом уже был корректно посчитанный `todayStart` (полночь), но использовался не он. Один и тот же платёж на "завтра в полночь" показывал "Today" вечером и "Tomorrow" утром. Тот же баг-класс уже задокументирован в Known issues для Deno-версии (`_shared/recurringDetector.ts:211`), но там он признан не срочным из-за фиксированного cron в 09:00 — здесь обе функции вызываются живьём в любое время суток и затрагивают все 3 потребителя (карусель Upcoming Charges, Cash Flow Forecast, Month Calendar), то есть клиентская версия была больше подвержена этой проблеме. Исправлено на `todayStart` в обеих функциях.
+- Функциональное: карусель "Upcoming Charges" на Home молча не учитывала платежи по кредитке — `App.jsx`'s `upcomingCharges` state считался только через `getUpcomingCharges()`, без мержа с `getUpcomingCardPayments()`, хотя `Dashboard.jsx`'s собственные Cash Flow Forecast и Month Calendar уже мержили обе функции. Добавлен `getUpcomingChargesForCarousel()` тем же паттерном, что уже в Dashboard.jsx.
+- Цветовая консолидация: `#FF5C7A`/`#FFB800`/`#1E2D4A` → `C.red`/`C.yellow`/`C.border` (точные дубли). `#FF9320` — оказался реально переиспользуемым акцентом (тот же хекс независимо хардкодился в `CheckInCard.jsx`'s `UPCOMING_CHARGES`-состоянии) — заведена именованная `C.urgentOrange`, не смешана с близким, но другим `C.orange`. `#EEF4FF`/`#4A6480` (текст названия/даты платежа, больше нигде в проекте) — заведены `C.chargeCardText`/`C.chargeCardDate` отдельной группой под будущие похожие "glass card" карточки.
+- i18n: `UpcomingChargesCard.jsx` не имел вообще ни одного `t()` — заголовок "Upcoming Charges" (переиспользовал уже существующий, но нигде не подключённый ключ `dashboard.upcoming_charges`) + urgency-лейблы Today/Tomorrow/{{n}}d обёрнуты в `t()` (4 локали).
+
+Тот же шаблон (три категории, ничего не чинить без подтверждения, коммит после каждой группы перед следующей — см. CLAUDE.md Coding rules) — на следующий экран: **Savings**.
 
 ```
-Для каждого экрана по очереди (Recurring,
-Savings, Markets/StockDetail, Profile/Settings) —
+Для каждого экрана по очереди (Savings, Markets/StockDetail, Profile/Settings) —
 (а) полный список блоков/секций на экране,
 (б) проверка на избыточность/дублирование путей к одной и той же информации
     (тот же класс проблемы, что recurringDetector.js/CAT_COLORS/C-объект —
