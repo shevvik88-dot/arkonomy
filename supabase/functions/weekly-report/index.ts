@@ -9,6 +9,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+import { getUpcomingCharges } from '../_shared/recurringDetector.ts';
 
 initSentry('weekly-report');
 
@@ -51,7 +52,7 @@ Deno.serve(async (req) => {
     const isCron = token === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     // ── Load users ─────────────────────────────────────────────────────────────
-    const PREFS_SELECT = 'frequency,include_spending,include_balance,include_ai_tip,next_digest_at';
+    const PREFS_SELECT = 'frequency,include_spending,include_balance,include_ai_tip,include_upcoming_bills,next_digest_at';
     let profiles: { id: string; full_name: string | null; email: string | null; _prefs?: any }[];
 
     if (isCron) {
@@ -102,7 +103,7 @@ Deno.serve(async (req) => {
           if (prefs.next_digest_at && new Date(prefs.next_digest_at) > now) { results.push({ userId: user.id, status: 'skipped', error: 'not_due_yet' }); continue; }
         }
 
-        if (!prefs.include_spending && !prefs.include_balance && !prefs.include_ai_tip) {
+        if (!prefs.include_spending && !prefs.include_balance && !prefs.include_ai_tip && !prefs.include_upcoming_bills) {
           results.push({ userId: user.id, status: 'skipped', error: 'no_sections_enabled' }); continue;
         }
 
@@ -160,9 +161,15 @@ Deno.serve(async (req) => {
 // DATA
 // ══════════════════════════════════════════════════════════════════════════════
 
-const DEFAULT_PREFS = { frequency: 'weekly', include_spending: true, include_balance: true, include_ai_tip: true, next_digest_at: null as string | null };
+const DEFAULT_PREFS = { frequency: 'weekly', include_spending: true, include_balance: true, include_ai_tip: true, include_upcoming_bills: true, next_digest_at: null as string | null };
 
 interface CategoryTotal { name: string; amount: number }
+
+// Category, not merchant — getUpcomingCharges().merchant is a raw bank
+// descriptor (cleanMerchantName was deliberately not ported to Deno; see
+// _shared/recurringDetector.ts's header comment), and this is the first
+// consumer that would ever surface it directly in user-facing text.
+interface UpcomingBill { category: string; amount: number; daysUntil: number }
 
 interface WeekReport {
   dateRange:      string;
@@ -173,6 +180,7 @@ interface WeekReport {
   healthScore:    number;
   scoreColor:     string;
   aiInsight:      string;
+  upcomingBills:  UpcomingBill[];
 }
 
 async function buildReport(supabase: any, userId: string): Promise<WeekReport> {
@@ -182,16 +190,17 @@ async function buildReport(supabase: any, userId: string): Promise<WeekReport> {
 
   const fmt = (d: Date) => d.toISOString().split('T')[0];
 
-  const [{ data: thisTxns }, { data: lastTxns }, { data: allTxns }] = await Promise.all([
+  const [{ data: thisTxns }, { data: lastTxns }, { data: allTxns }, { data: merchantAliases }] = await Promise.all([
     supabase.from('transactions').select('amount, category_name, type, date')
       .eq('user_id', userId).eq('type', 'expense').neq('category_name', 'Transfer')
       .gte('date', fmt(thisStart)).lte('date', fmt(now)),
     supabase.from('transactions').select('amount, category_name, type, date')
       .eq('user_id', userId).eq('type', 'expense').neq('category_name', 'Transfer')
       .gte('date', fmt(lastStart)).lt('date', fmt(thisStart)),
-    supabase.from('transactions').select('amount, type, date, category_name')
+    supabase.from('transactions').select('amount, type, date, category_name, description')
       .eq('user_id', userId)
       .gte('date', fmt(new Date(now.getTime() - 60 * 86_400_000))),
+    supabase.from('merchant_aliases').select('alias_key, canonical_key, status').eq('user_id', userId),
   ]);
 
   const thisWeekTotal = (thisTxns || []).reduce((s: number, t: any) => s + Number(t.amount), 0);
@@ -214,9 +223,18 @@ async function buildReport(supabase: any, userId: string): Promise<WeekReport> {
   // One AI insight
   const aiInsight = pickInsight({ thisWeekTotal, lastWeekTotal, top3Categories, healthScore });
 
+  // aliasMap: raw alias_key -> canonical_key, confirmed only — mirrors
+  // get-insights/App.jsx exactly, so this agrees with what the client shows.
+  const aliasMap = new Map<string, string>();
+  (merchantAliases || []).filter((a: any) => a.status === 'confirmed')
+    .forEach((a: any) => aliasMap.set(a.alias_key, a.canonical_key));
+
+  const upcomingBills: UpcomingBill[] = getUpcomingCharges(allTxns || [], aliasMap, now, { maxDays: 7, maxResults: 5 })
+    .map((c: any) => ({ category: c.category, amount: c.amount, daysUntil: c.daysUntil }));
+
   const dateRange = `${thisStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 
-  return { dateRange, thisWeekTotal, lastWeekTotal, weekDelta: thisWeekTotal - lastWeekTotal, top3Categories, healthScore, scoreColor, aiInsight };
+  return { dateRange, thisWeekTotal, lastWeekTotal, weekDelta: thisWeekTotal - lastWeekTotal, top3Categories, healthScore, scoreColor, aiInsight, upcomingBills };
 }
 
 function computeHealthScore(txns: any[]): { score: number; color: string } {
@@ -333,6 +351,31 @@ function buildEmailHtml(name: string, r: WeekReport, prefs = DEFAULT_PREFS): str
         </div>
       </div>` : '';
 
+  const billRows = r.upcomingBills.map(b => {
+    const dayLabel = b.daysUntil === 0 ? 'Today' : b.daysUntil === 1 ? 'Tomorrow' : `in ${b.daysUntil}d`;
+    return `
+      <tr>
+        <td style="padding:8px 0; border-bottom:1px solid #1E2D4A; color:#9AA4B2; font-size:13px;">
+          ${esc(b.category)}
+        </td>
+        <td style="padding:8px 0; border-bottom:1px solid #1E2D4A; text-align:center; color:#4A5E7A; font-size:12px;">
+          ${dayLabel}
+        </td>
+        <td style="padding:8px 0; border-bottom:1px solid #1E2D4A; text-align:right; font-weight:700; color:#FFFFFF; font-size:13px;">
+          $${fmtAmt(b.amount)}
+        </td>
+      </tr>`;
+  }).join('');
+
+  const upcomingBillsSection = prefs.include_upcoming_bills && r.upcomingBills.length > 0 ? `
+      <!-- Upcoming Bills -->
+      <div style="background:#111E33;border:1px solid #1E2D4A;border-radius:14px;padding:20px;margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:#9AA4B2;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:12px;">Upcoming Bills (Next 7 Days)</div>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          ${billRows}
+        </table>
+      </div>` : '';
+
   const aiSection = prefs.include_ai_tip ? `
       <!-- AI Insight -->
       <div style="background:linear-gradient(135deg,#0D1F3C 0%,#111E33 100%);border:1px solid #00C2FF22;border-radius:14px;padding:20px;margin-bottom:28px;">
@@ -370,6 +413,7 @@ function buildEmailHtml(name: string, r: WeekReport, prefs = DEFAULT_PREFS): str
     <div style="padding:28px 32px;">
       ${spendingSection}
       ${balanceSection}
+      ${upcomingBillsSection}
       ${aiSection}
 
       <!-- CTA -->
