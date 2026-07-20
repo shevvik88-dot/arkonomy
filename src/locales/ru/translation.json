@@ -492,6 +492,7 @@
     "months_short": "{{count}} мес",
     "pct_saved": "{{pct}}%",
     "on_track_goal": "При текущей норме накоплений вы достигнете цели к {{date}}",
+    "goal_reached": "Цель «{{name}}» достигнута!",
     "not_on_track": "Вы не успеваете — увеличьте ежемесячные накопления на ${{shortfall}} для достижения цели к {{date}}",
     "available_label": "доступно",
     "saved_balance": "накоплено",

@@ -488,6 +488,7 @@
     "months_short": "{{count}}m",
     "pct_saved": "{{pct}}%",
     "on_track_goal": "No seu ritmo atual de poupança, você atingirá esta meta até {{date}}",
+    "goal_reached": "Meta «{{name}}» alcançada!",
     "not_on_track": "Você está fora do ritmo — aumente a poupança mensal em ${{shortfall}} para atingir a meta até {{date}}",
     "available_label": "disponível",
     "saved_balance": "poupado",

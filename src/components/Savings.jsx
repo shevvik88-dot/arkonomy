@@ -198,7 +198,7 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
           {t("savings.start_saving_mo", { amount: Math.round(remaining / 12), date: new Date(new Date().getFullYear() + 1, new Date().getMonth(), 1).toLocaleDateString("en-US", { month: "short", year: "numeric" }) })}
         </div>
       ) : (
-        <div style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>✨ {t("upgrade.benefit_investing_title")} goal reached!</div>
+        <div style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>✨ {t("savings.goal_reached", { name: sv.name })}</div>
       )}
 
       {/* Edit Modal */}

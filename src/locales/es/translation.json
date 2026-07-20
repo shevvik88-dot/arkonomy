@@ -488,6 +488,7 @@
     "months_short": "{{count}} mes",
     "pct_saved": "{{pct}}%",
     "on_track_goal": "Con tu tasa de ahorro actual, alcanzarás esta meta el {{date}}",
+    "goal_reached": "¡Meta «{{name}}» alcanzada!",
     "not_on_track": "No vas al ritmo — aumenta tus ahorros mensuales ${{shortfall}} para alcanzar esta meta el {{date}}",
     "available_label": "disponible",
     "saved_balance": "ahorrado",

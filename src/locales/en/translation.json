@@ -488,6 +488,7 @@
     "months_short": "{{count}}mo",
     "pct_saved": "{{pct}}%",
     "on_track_goal": "At your current savings rate, you'll reach this goal by {{date}}",
+    "goal_reached": "{{name}} goal reached!",
     "not_on_track": "You're not on track — increase monthly savings by ${{shortfall}} to reach this goal by {{date}}",
     "available_label": "available",
     "saved_balance": "saved",
