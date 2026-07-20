@@ -23,8 +23,8 @@ function catIcon(cat) {
 }
 
 function accentColor(daysUntil) {
-  if (daysUntil <= 1) return "#FF5C7A";
-  if (daysUntil <= 3) return "#FFB800";
+  if (daysUntil <= 1) return C.red;
+  if (daysUntil <= 3) return C.yellow;
   return "#FF9320";
 }
 
@@ -170,7 +170,7 @@ export default function UpcomingChargesCarousel({ charges }) {
               width: i === active ? 16 : 5,
               height: 5,
               borderRadius: 99,
-              background: i === active ? "#FF9320" : "#1E2D4A",
+              background: i === active ? "#FF9320" : C.border,
               transition: "width 0.2s ease, background 0.2s ease",
             }} />
           ))}
