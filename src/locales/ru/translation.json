@@ -407,6 +407,7 @@
     "portfolio_value": "Стоимость портфеля",
     "buying_power": "Доступные средства",
     "holdings": "Активы",
+    "qty_shares": "{{qty}} акций",
     "no_holdings": "Позиций пока нет — купите первые акции",
     "loading_portfolio": "Загрузка портфеля..."
   },

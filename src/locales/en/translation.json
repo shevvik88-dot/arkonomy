@@ -403,6 +403,7 @@
     "portfolio_value": "Portfolio Value",
     "buying_power": "Buying Power",
     "holdings": "Holdings",
+    "qty_shares": "{{qty}} shares",
     "no_holdings": "No positions yet — buy your first shares",
     "loading_portfolio": "Loading portfolio..."
   },

@@ -1062,7 +1062,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
                         <StockLogo symbol={p.symbol} color={meta.color ?? C.cyan} icon={meta.icon ?? "activity"} size={32} borderRadius={9} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{p.symbol}</div>
-                          <div style={{ fontSize: 11, color: C.faint }}>{p.qty.toFixed(4)} shares</div>
+                          <div style={{ fontSize: 11, color: C.faint }}>{t("markets.qty_shares", { qty: p.qty.toFixed(4) })}</div>
                         </div>
                         <div style={{ textAlign: "right" }}>
                           <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmtPrice(p.market_value)}</div>

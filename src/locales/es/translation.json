@@ -403,6 +403,7 @@
     "portfolio_value": "Valor del Portafolio",
     "buying_power": "Poder de Compra",
     "holdings": "Posiciones",
+    "qty_shares": "{{qty}} acciones",
     "no_holdings": "Sin posiciones aún — compra tus primeras acciones",
     "loading_portfolio": "Cargando portafolio..."
   },
