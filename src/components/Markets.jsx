@@ -1042,11 +1042,11 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
                 <div style={{ background: C.bgSecondary, borderRadius: 10, padding: "12px 14px" }}>
                   <div style={{ fontSize: 10, color: C.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.portfolio_value")}</div>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: C.text }}>${portfolio.portfolio_value.toFixed(2)}</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: C.text }}>{fmtPrice(portfolio.portfolio_value)}</div>
                 </div>
                 <div style={{ background: C.bgSecondary, borderRadius: 10, padding: "12px 14px" }}>
                   <div style={{ fontSize: 10, color: C.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.buying_power")}</div>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: C.cyan }}>${portfolio.buying_power.toFixed(2)}</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: C.cyan }}>{fmtPrice(portfolio.buying_power)}</div>
                 </div>
               </div>
               {portfolio.positions.length > 0 ? (
@@ -1065,8 +1065,8 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
                           <div style={{ fontSize: 11, color: C.faint }}>{p.qty.toFixed(4)} shares</div>
                         </div>
                         <div style={{ textAlign: "right" }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>${p.market_value.toFixed(2)}</div>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: pos ? C.green : C.red }}>{pos ? "+" : ""}{pl.toFixed(2)}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmtPrice(p.market_value)}</div>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: pos ? C.green : C.red }}>{pos ? "+" : "-"}{fmtPrice(Math.abs(pl))}</div>
                         </div>
                       </div>
                     );
