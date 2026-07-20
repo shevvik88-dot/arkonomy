@@ -26,7 +26,7 @@ function catIcon(cat) {
 function accentColor(daysUntil) {
   if (daysUntil <= 1) return C.red;
   if (daysUntil <= 3) return C.yellow;
-  return "#FF9320";
+  return C.urgentOrange;
 }
 
 function urgencyLabel(daysUntil, t) {
@@ -62,12 +62,12 @@ export default function UpcomingChargesCarousel({ charges }) {
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, padding: "0 2px" }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: "#FF9320", letterSpacing: 0.5, textTransform: "uppercase" }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: C.urgentOrange, letterSpacing: 0.5, textTransform: "uppercase" }}>
           {t("dashboard.upcoming_charges")}
         </span>
         <span style={{
-          fontSize: 10, color: C.faint, background: "#FF932018",
-          border: "1px solid #FF932033", borderRadius: 4,
+          fontSize: 10, color: C.faint, background: C.urgentOrange + "18",
+          border: `1px solid ${C.urgentOrange}33`, borderRadius: 4,
           padding: "1px 6px", fontWeight: 600,
         }}>
           {sorted.length}
@@ -133,12 +133,12 @@ export default function UpcomingChargesCarousel({ charges }) {
               {/* Merchant + date */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{
-                  fontWeight: 700, fontSize: 14, color: "#EEF4FF",
+                  fontWeight: 700, fontSize: 14, color: C.chargeCardText,
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                 }}>
                   {charge.merchant}
                 </div>
-                <div style={{ fontSize: 11, color: "#4A6480", marginTop: 3 }}>
+                <div style={{ fontSize: 11, color: C.chargeCardDate, marginTop: 3 }}>
                   {charge.expectedDate}
                 </div>
               </div>
@@ -172,7 +172,7 @@ export default function UpcomingChargesCarousel({ charges }) {
               width: i === active ? 16 : 5,
               height: 5,
               borderRadius: 99,
-              background: i === active ? "#FF9320" : C.border,
+              background: i === active ? C.urgentOrange : C.border,
               transition: "width 0.2s ease, background 0.2s ease",
             }} />
           ))}

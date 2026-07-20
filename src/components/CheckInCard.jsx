@@ -1,13 +1,14 @@
 // src/components/CheckInCard.jsx
 import { useTranslation } from 'react-i18next';
 import { getCheckIn } from '../engine/checkInEngine';
+import { C } from '../utils/colors';
 
 const THEME = {
   CRITICAL:          { labelKey:'checkin.critical',          accent:'#e03535', cardBorder:'#3d0808', cardBg:'#0e0606' },
   DANGER:            { labelKey:'checkin.danger',             accent:'#e06020', cardBorder:'#3d1804', cardBg:'#0e0904' },
   NEEDS_ATTENTION:   { labelKey:'checkin.needs_attention',    accent:'#d4a020', cardBorder:'#3a2804', cardBg:'#0e0c04' },
   WATCH_CATEGORY:    { labelKey:'checkin.watch_category',     accent:'#9060d0', cardBorder:'#28104a', cardBg:'#0a080e' },
-  UPCOMING_CHARGES:  { labelKey:'checkin.upcoming_charges',   accent:'#FF9320', cardBorder:'#3d2000', cardBg:'#0e0900' },
+  UPCOMING_CHARGES:  { labelKey:'checkin.upcoming_charges',   accent: C.urgentOrange, cardBorder:'#3d2000', cardBg:'#0e0900' },
   STRONG_PROGRESS:   { labelKey:'checkin.strong_progress',    accent:'#4e9eff', cardBorder:'#0c2844', cardBg:'#070d1c' },
   ON_TRACK:          { labelKey:'checkin.on_track',           accent:'#00c98a', cardBorder:'#082c1c', cardBg:'#060e0a' },
   EARLY_STABLE:      { labelKey:'checkin.early_month',        accent:'#4a6080', cardBorder:'#1a2840', cardBg:'#080c14' },

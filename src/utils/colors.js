@@ -13,6 +13,16 @@ export const C = {
   roundupAccentBg: "rgba(75,108,183,0.15)",
   roundupAccentBgHover: "rgba(75,108,183,0.25)",
   roundupAccentBorder: "rgba(75,108,183,0.35)",
+  // "Urgent/upcoming charges" accent — reused independently by
+  // UpcomingChargesCard.jsx and CheckInCard.jsx's UPCOMING_CHARGES state.
+  // Close to but not the same shade as C.orange — kept separate so merging
+  // them isn't a silent visual regression.
+  urgentOrange: "#FF9320",
+  // Glass-card text tones (UpcomingChargesCard.jsx) — visually distinct from
+  // C.text/C.faint, tuned for a translucent glassmorphism card background.
+  // Named (not inlined) since more glass-style cards may reuse them.
+  chargeCardText: "#EEF4FF",
+  chargeCardDate: "#4A6480",
 };
 
 export const CAT_COLORS = {
