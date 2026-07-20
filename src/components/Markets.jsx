@@ -407,7 +407,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
           <div style={{ fontSize: 12, color: C.muted }}>{symbol}</div>
         </div>
         <button onClick={toggleWatchlist} aria-label={t("markets.watchlist")} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-          <Icon name="star" size={16} color={inWatchlist ? "#FFB800" : C.muted} fill={inWatchlist ? "#FFB800" : "none"} />
+          <Icon name="star" size={16} color={inWatchlist ? C.yellow : C.muted} fill={inWatchlist ? C.yellow : "none"} />
         </button>
         {stats && (
           <div style={{ textAlign: "right" }}>
