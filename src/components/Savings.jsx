@@ -460,7 +460,6 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
   }, [transactions]);
 
   const roundupMonth  = parseFloat((roundupBase * roundupMultiplier).toFixed(2));
-  const roundupTotal  = parseFloat((roundupBase * roundupMultiplier * 3.2).toFixed(2));
   const roundupYearly = Math.round(roundupBase * roundupMultiplier * 12 / 10) * 10;
 
   const inp = { width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, boxSizing: "border-box", marginBottom: 10, fontFamily: FONT };
@@ -640,16 +639,11 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
-          <div style={{ flex: 1, background: C.bg, border: `1px solid ${C.sep}`, borderRadius: 14, padding: "14px 16px" }}>
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ background: C.bg, border: `1px solid ${C.sep}`, borderRadius: 14, padding: "14px 16px" }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: 0.8, marginBottom: 6 }}>{t("savings.this_month")}</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: roundupEnabled ? C.text : C.faint }}>{roundupEnabled ? fmtMoney(roundupMonth) : "—"}</div>
             <div style={{ fontSize: 10, color: C.faint, marginTop: 4 }}>{t("savings.based_on_purchases")}</div>
-          </div>
-          <div style={{ flex: 1, background: C.bg, border: `1px solid ${C.sep}`, borderRadius: 14, padding: "14px 16px" }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: 0.8, marginBottom: 6 }}>{t("savings.all_time")}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: roundupEnabled ? C.green : C.faint }}>{roundupEnabled ? fmtMoney(roundupTotal) : "—"}</div>
-            <div style={{ fontSize: 10, color: C.faint, marginTop: 4 }}>+12.4% avg yield</div>
           </div>
         </div>
 
