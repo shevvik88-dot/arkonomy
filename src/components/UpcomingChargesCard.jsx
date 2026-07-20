@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import Icon from "./shared/Icon";
 import { C } from "../utils/colors";
 
@@ -28,10 +29,10 @@ function accentColor(daysUntil) {
   return "#FF9320";
 }
 
-function urgencyLabel(daysUntil) {
-  if (daysUntil === 0) return "Today";
-  if (daysUntil === 1) return "Tomorrow";
-  return `${daysUntil}d`;
+function urgencyLabel(daysUntil, t) {
+  if (daysUntil === 0) return t("dashboard.due_today");
+  if (daysUntil === 1) return t("dashboard.due_tomorrow");
+  return t("dashboard.due_in_days", { days: daysUntil });
 }
 
 function fmtAmt(n) {
@@ -39,6 +40,7 @@ function fmtAmt(n) {
 }
 
 export default function UpcomingChargesCarousel({ charges }) {
+  const { t } = useTranslation();
   const sorted = [...charges].sort((a, b) => a.daysUntil - b.daysUntil);
   const [active, setActive] = useState(0);
   const scrollRef = useRef(null);
@@ -61,7 +63,7 @@ export default function UpcomingChargesCarousel({ charges }) {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, padding: "0 2px" }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: "#FF9320", letterSpacing: 0.5, textTransform: "uppercase" }}>
-          Upcoming Charges
+          {t("dashboard.upcoming_charges")}
         </span>
         <span style={{
           fontSize: 10, color: C.faint, background: "#FF932018",
@@ -154,7 +156,7 @@ export default function UpcomingChargesCarousel({ charges }) {
                   borderRadius: 6, padding: "2px 8px",
                   whiteSpace: "nowrap",
                 }}>
-                  {urgencyLabel(charge.daysUntil)}
+                  {urgencyLabel(charge.daysUntil, t)}
                 </span>
               </div>
             </div>
