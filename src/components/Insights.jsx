@@ -259,7 +259,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
         }}>
           {highlightNumbers(cleanHeadline, accent)}
         </div>
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#4A5E7A" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 3 }}>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 3 }}>
           {expanded
             ? <polyline points="18 15 12 9 6 15"/>
             : <polyline points="6 9 12 15 18 9"/>
@@ -296,7 +296,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
                     <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${accent}BB, ${accent})`, borderRadius: 99 }} />
                   )}
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(154,164,178,0.6)", marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.muted + "99", marginBottom: 10 }}>
                   <span>${goalCurrent.toLocaleString("en-US", { maximumFractionDigits: 0 })} {t("insights.goal_saved")}</span>
                   <span>${goalTarget.toLocaleString("en-US", { maximumFractionDigits: 0 })} {t("insights.goal_label")}</span>
                 </div>
@@ -308,7 +308,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
               </div>
             );
           })() : (
-            <p style={{ color: "rgba(154,164,178,0.85)", fontSize: 13, lineHeight: 1.6, margin: "0 0 12px" }}>
+            <p style={{ color: C.muted + "D9", fontSize: 13, lineHeight: 1.6, margin: "0 0 12px" }}>
               {highlightNumbers(body, accent)}
             </p>
           )}
@@ -324,15 +324,15 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
               gap: 4,
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", minWidth: 110 }}>{t("insights.available")}</span>
+                <span style={{ fontSize: 12, color: C.muted + "B3", minWidth: 110 }}>{t("insights.available")}</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "#FFFFFF" }}>
                   ${Number(breakdown.available || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
-                  <span style={{ fontSize: 12, color: "rgba(154,164,178,0.7)", display: "block", paddingTop: 1 }}>{t("insights.safe_to_move")}</span>
-                  <span style={{ fontSize: 11, color: "rgba(154,164,178,0.60)", display: "block", marginTop: 3, paddingLeft: 2 }}>
+                  <span style={{ fontSize: 12, color: C.muted + "B3", display: "block", paddingTop: 1 }}>{t("insights.safe_to_move")}</span>
+                  <span style={{ fontSize: 11, color: C.muted + "99", display: "block", marginTop: 3, paddingLeft: 2 }}>
                     {t("insights.keeps_buffer", { amount: Number(breakdown.bufferAmount || 1000).toLocaleString("en-US", { maximumFractionDigits: 0 }) })}
                   </span>
                 </div>
@@ -387,7 +387,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
           {range && (
             <div style={{
               textAlign: "center", marginTop: 7, fontSize: 11,
-              color: "rgba(154,164,178,0.60)", letterSpacing: 0.1,
+              color: C.muted + "99", letterSpacing: 0.1,
             }}>
               {range.replace("Suggested range:", "Safe range:").replace("Flexible:", "Safe range:")}
             </div>
@@ -398,17 +398,17 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
               onClick={e => { e.stopPropagation(); onAction?.("invest_alpaca", insight.data); }}
               style={{
                 width: "100%", marginTop: 8, padding: "11px 16px",
-                background: "rgba(75,108,183,0.15)",
-                border: "1px solid rgba(75,108,183,0.35)",
-                borderRadius: 11, color: "#8BA7E8",
+                background: C.roundupAccentBg,
+                border: `1px solid ${C.roundupAccentBorder}`,
+                borderRadius: 11, color: C.roundupAccent,
                 fontWeight: 600, fontSize: 13,
                 cursor: "pointer", fontFamily: FONT,
                 letterSpacing: -0.1,
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                 transition: "background 0.15s",
               }}
-              onPointerEnter={e => { e.currentTarget.style.background = "rgba(75,108,183,0.25)"; }}
-              onPointerLeave={e => { e.currentTarget.style.background = "rgba(75,108,183,0.15)"; }}
+              onPointerEnter={e => { e.currentTarget.style.background = C.roundupAccentBgHover; }}
+              onPointerLeave={e => { e.currentTarget.style.background = C.roundupAccentBg; }}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
@@ -420,7 +420,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
           {isSavings && roundUpPrompt && !(insight.data?.roundUpMonthly > 0) && (
             <div style={{
               marginTop: 6, textAlign: "center", fontSize: 12,
-              color: "rgba(154,164,178,0.80)", letterSpacing: 0.1, cursor: "pointer",
+              color: C.muted + "CC", letterSpacing: 0.1, cursor: "pointer",
             }}>
               {t("insights.automate_roundups")}
             </div>

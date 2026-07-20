@@ -122,7 +122,7 @@ export function TutorialOverlay({ stepIdx, totalSteps, steps, onNext, onSkip }) 
         zIndex: 1002, pointerEvents: "all",
         fontFamily: "'Inter',-apple-system,sans-serif",
       }}>
-        <div style={{ fontSize: 10, color: "#4A5E7A", fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>
+        <div style={{ fontSize: 10, color: C.faint, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>
           {t("onboarding.step_of", { step: stepIdx + 1, total: totalSteps })}
         </div>
         <div style={{ fontSize: 15, fontWeight: 800, color: "#fff", marginBottom: 6, lineHeight: 1.3 }}>
@@ -137,7 +137,7 @@ export function TutorialOverlay({ stepIdx, totalSteps, steps, onNext, onSkip }) 
           ))}
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button onClick={onSkip} style={{ padding: "7px 14px", minHeight: 44, borderRadius: 8, border: "1px solid #1E2D4A", background: "none", color: "#4A5E7A", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'Inter',-apple-system,sans-serif" }}>
+          <button onClick={onSkip} style={{ padding: "7px 14px", minHeight: 44, borderRadius: 8, border: "1px solid #1E2D4A", background: "none", color: C.faint, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "'Inter',-apple-system,sans-serif" }}>
             {t("onboarding.skip")}
           </button>
           <button onClick={onNext} style={{ padding: "7px 18px", minHeight: 44, borderRadius: 8, border: "none", background: "linear-gradient(135deg,#00C2FF,#2F80FF)", color: "#000", fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "'Inter',-apple-system,sans-serif" }}>

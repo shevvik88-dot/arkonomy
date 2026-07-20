@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import Icon from "./shared/Icon";
+import { C } from "../utils/colors";
 
 const FONT = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
 
@@ -63,7 +64,7 @@ export default function UpcomingChargesCarousel({ charges }) {
           Upcoming Charges
         </span>
         <span style={{
-          fontSize: 10, color: "#4A5E7A", background: "#FF932018",
+          fontSize: 10, color: C.faint, background: "#FF932018",
           border: "1px solid #FF932033", borderRadius: 4,
           padding: "1px 6px", fontWeight: 600,
         }}>

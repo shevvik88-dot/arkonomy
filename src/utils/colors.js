@@ -7,6 +7,12 @@ export const C = {
   red: "#FF5C7A", yellow: "#FFB800", orange: "#F97316", purple: "#A78BFA",
   amber: "#F59E0B", emerald: "#34D399",
   text: "#FFFFFF", muted: "#9AA4B2", faint: "#8BA1B7",
+  // Round-up investing CTA (Insights.jsx) — its own accent, doesn't match any
+  // color above; kept as its own named group rather than forced onto C.blue.
+  roundupAccent: "#8BA7E8",
+  roundupAccentBg: "rgba(75,108,183,0.15)",
+  roundupAccentBgHover: "rgba(75,108,183,0.25)",
+  roundupAccentBorder: "rgba(75,108,183,0.35)",
 };
 
 export const CAT_COLORS = {
