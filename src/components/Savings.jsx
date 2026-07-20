@@ -830,7 +830,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
              </div>
              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <button onClick={() => { onInvestAlpaca({ roundUpMonthly: roundupMonth }); setShowAlpacaSheet(false); }} style={{ width: "100%", padding: 18, background: `linear-gradient(90deg, ${C.green}, ${C.cyan})`, border: "none", borderRadius: 16, color: "#000", fontSize: 16, fontWeight: 800, cursor: "pointer" }}>
-                   Confirm & Place Order
+                   {t("savings.confirm_place_order")}
                 </button>
                 <button onClick={() => setShowAlpacaSheet(false)} style={{ width: "100%", padding: 14, background: "none", border: `1px solid ${C.border}`, borderRadius: 16, color: C.muted, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
                    {t("common.cancel")}

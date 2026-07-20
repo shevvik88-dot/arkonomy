@@ -484,6 +484,7 @@
     "multiplier": "Multiplicador",
     "once_balanced": "Assim que seus gastos ficarem equilibrados, o investimento de troco será desbloqueado automaticamente.",
     "confirm_investment": "Confirmar investimento",
+    "confirm_place_order": "Confirmar e Fazer Pedido",
     "months_short": "{{count}}m",
     "pct_saved": "{{pct}}%",
     "on_track_goal": "No seu ritmo atual de poupança, você atingirá esta meta até {{date}}",

@@ -484,6 +484,7 @@
     "multiplier": "Multiplier",
     "once_balanced": "Once your spending is balanced, round-up savings will unlock automatically.",
     "confirm_investment": "Confirm investment",
+    "confirm_place_order": "Confirm & Place Order",
     "months_short": "{{count}}mo",
     "pct_saved": "{{pct}}%",
     "on_track_goal": "At your current savings rate, you'll reach this goal by {{date}}",

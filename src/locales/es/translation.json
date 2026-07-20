@@ -484,6 +484,7 @@
     "multiplier": "Multiplicador",
     "once_balanced": "Una vez que tus gastos se equilibren, los ahorros de redondeos se desbloquearán automáticamente.",
     "confirm_investment": "Confirmar inversión",
+    "confirm_place_order": "Confirmar y realizar orden",
     "months_short": "{{count}} mes",
     "pct_saved": "{{pct}}%",
     "on_track_goal": "Con tu tasa de ahorro actual, alcanzarás esta meta el {{date}}",
