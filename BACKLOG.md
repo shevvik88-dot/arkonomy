@@ -47,7 +47,7 @@ push_subscription). Дайджест вида "на этой неделе пот
 реализацией.
 ```
 
-### 16. Аудит экранов — Dashboard/Home ЗАКРЫТ 2026-07-18, дальше по очереди: Transactions, Spending/Insights, Recurring, Savings, Markets/StockDetail, Profile/Settings
+### 16. Аудит экранов — Dashboard/Home ЗАКРЫТ 2026-07-18, Transactions ЗАКРЫТ 2026-07-19, Insights ЗАКРЫТ 2026-07-20, дальше по очереди: Recurring, Savings, Markets/StockDetail, Profile/Settings
 
 **Dashboard/Home — done, коммит `a5d4453`.** Полный проход по `Dashboard.jsx` (не только недавние правки), находки разбиты на функциональные/визуальные/App Store readiness, обе группы зафиксированы отдельным ревью code-reviewer перед деплоем каждой:
 
@@ -56,10 +56,25 @@ push_subscription). Дайджест вида "на этой неделе пот
 - Осознанно не тронуто: welcome-баннер градиент (`linear-gradient(135deg,#0D2A4A,#0B1A30)`, другой угол + cyan-рамка/тень) — намеренный CTA-акцент, не дрейф, подтверждено пользователем.
 - Найдено, не в скоупе: onboarding-тур шаг 1 (`OnboardingFlow.jsx:12`) — copy не подходит под состояние `ConnectBankPrompt` (см. ТЕХДОЛГ ниже).
 
-Тот же шаблон (три категории, ничего не чинить без подтверждения, коммит после каждой группы перед следующей — см. CLAUDE.md Coding rules) — на следующий экран: **Transactions**.
+**Transactions — done, коммиты `d88ba13`, `9f01d56`, `2873a27`, `ae8bfe5`, `fa878b7`, `7c1d765`.** Полный проход по `Transactions.jsx`:
+
+- Функциональные: Income/Expenses breakdown sheet считался по all-time транзакциям вместо текущего месяца (не совпадал с заголовком sheet'а) — исправлено на `effectiveCurTxs`, тот же баг нашёлся и в Income sheet, не только в Expense. Убраны 5 фейковых UI-действий ("Move to Savings"/"Flag" в QuickActionsMenu, 3 CTA в BreakdownSheet) — показывали success-тост без реального сохранения. `bankConnected` + `ConnectBankPrompt` добавлены (экран вообще не проверял банк). Удалён мёртвый `AIInsightCard`/`INSIGHT_DEFS` (~250 строк, ни разу не рендерился) + orphan-файл `InsightCard.jsx` — подключён реальный `InsightCard` из `Insights.jsx`.
+- Визуальные/дублирование: локальная `CatIcon`-мапа в `AddTransactionModal` дублировала уже импортированные `CAT_COLORS`/`CAT_ICONS_MAP` — консолидировано, заодно поймало реальный дрейф (Travel-иконка отличалась от остального экрана).
+- i18n: aria-label "Previous/Next month" + оставшиеся хардкод-тосты/sheet-тексты обёрнуты в `t()` (4 локали).
+
+**Insights.jsx — done, коммиты `3d144fe`, `91eca35`, `4f7d81d`, `1e10e9b`, `8289466`, `2d606fe`, `9009ee7`.** Полный проход по `Insights.jsx`:
+
+- **Самое критичное**: локальный fallback-инсайт (срабатывает когда бэкенд `get-insights` не вернул `allInsights` — ровно сценарий нового юзера без единой транзакции) кормил `calculateHealthScore({totalIncome:0, totalSpent:0,...})` — формула на чистых нулях отдаёт не 0, а ~62/100 (floor/neutral-логика по каждому из 4 компонентов), из-за чего юзеру без единой транзакции показывалась сфабрикованная карточка "Some areas to watch — your finances are mostly stable". Все остальные секции экрана (`HealthScore`, `WeeklySummary`, `RecurringSummary`) уже честно гейтились на отсутствие данных — только эта не гейтилась. Фикс: `hasNoData` гейт (`totalIncome===0 && totalSpent===0`) перед всеми вычислениями + `bankConnected`/`ConnectBankPrompt` (тот же паттерн, что на Dashboard/Transactions) — один гейт закрыл оба бага сразу.
+- Дублирование: `InsightCardControlled` (использовался только на самом экране Insights через `InsightCardGroup`) разошёлся с экспортируемым `InsightCard` (Dashboard/Savings/Transactions) — не умел goal_off_track мини-карточку, round-up CTA, automate-roundups подсказку. Один и тот же инсайт выглядел по-разному в зависимости от экрана. Консолидировано в `InsightCard` с опциональным controlled-режимом (`expanded`/`onToggle`), `InsightCardControlled` удалён целиком (104 строки). Заодно убрана мёртвая переменная `cleanCta` (считалась, нигде не использовалась) из обоих компонентов.
+- Мёртвый код: `getMerchantDomainCandidates()` (22 строки, ни разу не вызывалась) удалена.
+- Цветовая консолидация: `#4A5E7A` хардкодился в 4 местах (Insights/OnboardingFlow×2/UpcomingChargesCard) — это оказалось точным значением ЧУЖОГО, уже задокументированного как дрейф `C.faint` из локального `C`-объекта `App.jsx` (не из `colors.js`); стандартизировано на `colors.js`'s `C.faint`. `rgba(154,164,178,X)` (7 мест) — точный RGB-эквивалент `C.muted`, переведено на `C.muted + hex-альфа`. Round-up-CTA акцент (`rgba(75,108,183,...)`/`#8BA7E8`) не совпадал ни с одним существующим цветом — заведены новые именованные константы (`C.roundupAccent*`), не смешаны с существующей палитрой.
+- `ConnectBankPrompt` по ходу вынесен из `Dashboard.jsx` в `src/components/shared/ConnectBankPrompt.jsx` — прямой импорт в `Insights.jsx` создавал бы circular import (`Dashboard.jsx` уже импортирует `InsightCard` из `Insights.jsx`).
+- Также обёрнут в `t()` большой оставшийся i18n-пробел: `getSmartCta()` CTA-лейблы, "Available"/"Safe to move"/"Goal"-fallback, весь текст локального fallback-массива (6 генераторов инсайтов, включая AI-context строки, которые реально уходят в чат).
+
+Тот же шаблон (три категории, ничего не чинить без подтверждения, коммит после каждой группы перед следующей — см. CLAUDE.md Coding rules) — на следующий экран: **Recurring**.
 
 ```
-Для каждого экрана по очереди (Transactions, Spending/Insights, Recurring,
+Для каждого экрана по очереди (Recurring,
 Savings, Markets/StockDetail, Profile/Settings) —
 (а) полный список блоков/секций на экране,
 (б) проверка на избыточность/дублирование путей к одной и той же информации
