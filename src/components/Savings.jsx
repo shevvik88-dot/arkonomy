@@ -133,17 +133,18 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
   const remaining = Math.max(0, Number(sv.target) - Number(current));
 
   const monthlyRate = useMemo(() => {
+    if (!sv.plaid_account_id) return 0;
     const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
     const goalTransfers = transactions.filter(t => {
       const d = new Date(t.date);
-      return t.type === "income" && t.category_name === "Transfer" && d >= monthStart;
+      return t.account_id === sv.plaid_account_id && t.type === "income" && d >= monthStart;
     });
     return goalTransfers.reduce((s, t) => s + Number(t.amount), 0);
-  }, [transactions]);
+  }, [transactions, sv.plaid_account_id]);
 
   const projectedDate = useMemo(() => {
     if (remaining <= 0) return null;
-    // Fall back to monthly surplus when no transfer-based rate is available
+    // Fall back to monthly surplus when the goal has no linked account (or it has no income this month)
     const rate = monthlyRate > 0 ? monthlyRate : Math.max(monthlySurplus, 0);
     if (rate <= 0) return null;
     const monthsLeft = Math.ceil(remaining / rate);
