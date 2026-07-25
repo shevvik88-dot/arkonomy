@@ -680,9 +680,9 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
             {t("savings.connect_alpaca")}
           </button>
         ) : (!isPro || isTrial) ? (
-          <div style={{ background: "#7C6BFF12", border: "1px solid #7C6BFF33", borderRadius: 14, padding: 16, textAlign: "center" }}>
+          <div style={{ background: C.proAccent + "12", border: `1px solid ${C.proAccent}33`, borderRadius: 14, padding: 16, textAlign: "center" }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.purple, marginBottom: 12 }}>{t("savings.invest_alpaca_pro")}</div>
-            <button onClick={onUpgrade} style={{ background: "#7C6BFF", border: "none", borderRadius: 10, padding: "10px 20px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{IS_IOS_NATIVE ? "Pro" : t("savings.upgrade_pro")}</button>
+            <button onClick={onUpgrade} style={{ background: C.proAccent, border: "none", borderRadius: 10, padding: "10px 20px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{IS_IOS_NATIVE ? "Pro" : t("savings.upgrade_pro")}</button>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

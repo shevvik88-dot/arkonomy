@@ -26,6 +26,11 @@ export const C = {
   // Muted body text inside Markets.jsx's Alpaca-authorization disclaimer box —
   // local to that one box, not an alpha variant of any existing color.
   alpacaWarningMuted: "#C8B86A",
+  // "Pro"/upgrade accent — reused across BottomNav/Markets/Profile/Savings
+  // (and App.jsx/UpgradeModal.jsx's own separate local C objects). Distinct
+  // from C.purple (#A78BFA) — the two coexist in the same UI element in
+  // Savings.jsx's Pro-upsell box, so they must not be merged.
+  proAccent: "#7C6BFF",
 };
 
 export const CAT_COLORS = {

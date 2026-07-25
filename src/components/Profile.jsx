@@ -231,16 +231,16 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           onClick={onUpgrade}
           style={{
             display: "flex", alignItems: "center", gap: 14,
-            background: "linear-gradient(135deg, #7C6BFF18, #38B6FF0A)",
-            border: "1px solid #7C6BFF33",
+            background: `linear-gradient(135deg, ${C.proAccent}18, #38B6FF0A)`,
+            border: `1px solid ${C.proAccent}33`,
             borderRadius: 18, padding: "16px 18px",
             cursor: "pointer",
           }}
         >
           <div style={{
             width: 42, height: 42, borderRadius: 13, flexShrink: 0,
-            background: "linear-gradient(135deg, #7C6BFF33, #38B6FF22)",
-            border: "1px solid #7C6BFF44",
+            background: `linear-gradient(135deg, ${C.proAccent}33, #38B6FF22)`,
+            border: `1px solid ${C.proAccent}44`,
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
             <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#38B6FF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

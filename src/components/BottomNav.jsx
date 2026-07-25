@@ -99,7 +99,7 @@ export default function BottomNav({ screen, setScreen, onOpenChat, insightCount 
               <defs>
                 <linearGradient id="spark-g" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
                   <stop offset="0%" stopColor="#00C2FF"/>
-                  <stop offset="100%" stopColor="#7C6BFF"/>
+                  <stop offset="100%" stopColor={C.proAccent}/>
                 </linearGradient>
               </defs>
               {/* 4-pointed star */}
