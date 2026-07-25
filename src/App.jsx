@@ -1657,9 +1657,9 @@ export default function App() {
         <div style={{
           position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)",
           background: alpacaToast.addFunds ? "#1A1A0D" : alpacaToast.error ? "#2D1515" : alpacaToast.loading ? "#0D1F2D" : "#0D2A1F",
-          border: `1px solid ${alpacaToast.addFunds ? "#F5C84244" : alpacaToast.error ? "#E05C5C44" : alpacaToast.loading ? "#4B6CB744" : "#12D18E44"}`,
+          border: `1px solid ${alpacaToast.addFunds ? sharedC.alpacaAccent + "44" : alpacaToast.error ? "#E05C5C44" : alpacaToast.loading ? "#4B6CB744" : "#12D18E44"}`,
           borderRadius: 14, padding: "14px 18px", zIndex: 9999,
-          color: alpacaToast.addFunds ? "#F5C842" : alpacaToast.error ? "#E05C5C" : alpacaToast.loading ? "#8BA7E8" : "#12D18E",
+          color: alpacaToast.addFunds ? sharedC.alpacaAccent : alpacaToast.error ? "#E05C5C" : alpacaToast.loading ? "#8BA7E8" : "#12D18E",
           fontSize: 13, fontWeight: 600, fontFamily: FONT,
           boxShadow: "0 4px 24px rgba(0,0,0,0.5)", whiteSpace: "pre-wrap", maxWidth: 340,
           display: "flex", flexDirection: "column", gap: 10, alignItems: "center",
@@ -1672,7 +1672,7 @@ export default function App() {
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
-                  background: "#F5C842", color: "#000", borderRadius: 8,
+                  background: sharedC.alpacaAccent, color: "#000", borderRadius: 8,
                   padding: "6px 16px", fontSize: 13, fontWeight: 700,
                   textDecoration: "none", display: "inline-block",
                 }}

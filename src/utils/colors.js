@@ -31,6 +31,10 @@ export const C = {
   // from C.purple (#A78BFA) — the two coexist in the same UI element in
   // Savings.jsx's Pro-upsell box, so they must not be merged.
   proAccent: "#7C6BFF",
+  // Alpaca-brand gold accent — reused across Markets.jsx's "Authorize
+  // Alpaca" heading and App.jsx's alpacaToast "add funds" state (confirmed
+  // both are genuinely Alpaca-specific contexts, not a coincidental match).
+  alpacaAccent: "#F5C842",
 };
 
 export const CAT_COLORS = {

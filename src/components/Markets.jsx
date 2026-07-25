@@ -642,8 +642,8 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
               <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 20 }}>
                 {t("markets.connect_alpaca_body")}
               </div>
-              <div style={{ background: "rgba(245,200,66,0.07)", border: "1px solid rgba(245,200,66,0.35)", borderRadius: 12, padding: "14px 16px", marginBottom: 16, textAlign: "left" }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#F5C842", marginBottom: 8, letterSpacing: 0.3 }}>{t("markets.authorize_alpaca")}</div>
+              <div style={{ background: C.alpacaAccent + "12", border: `1px solid ${C.alpacaAccent}59`, borderRadius: 12, padding: "14px 16px", marginBottom: 16, textAlign: "left" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.alpacaAccent, marginBottom: 8, letterSpacing: 0.3 }}>{t("markets.authorize_alpaca")}</div>
                 <div style={{ fontSize: 12, color: C.alpacaWarningMuted, lineHeight: 1.65 }}>
                   {t("markets.alpaca_disclaimer1")}
                 </div>
