@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { usePlaidLink } from "react-plaid-link";
 import { usePlaidOAuth } from "../../hooks/usePlaidOAuth";
-import { FONT } from "../../utils/colors";
+import { C, FONT } from "../../utils/colors";
 
 export default function PlaidLinkButton({ linkToken, onSuccess, onExit, autoOpen = false }) {
   const { receivedRedirectUri, clearRedirectUri } = usePlaidOAuth();
@@ -35,13 +35,13 @@ export default function PlaidLinkButton({ linkToken, onSuccess, onExit, autoOpen
       disabled={!ready}
       style={{
         width: "100%", padding: 14,
-        background: ready ? "linear-gradient(135deg,#1A56DB,#2F80FF)" : "rgba(26,86,219,0.4)",
+        background: ready ? `linear-gradient(135deg,${C.bankConnectBlue},#2F80FF)` : C.bankConnectBlue + "66",
         border: "none", borderRadius: 14,
         color: "#fff", fontWeight: 700, fontSize: 15,
         cursor: ready ? "pointer" : "not-allowed",
         fontFamily: FONT,
         display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-        boxShadow: ready ? "0 4px 20px rgba(26,86,219,0.4)" : "none",
+        boxShadow: ready ? `0 4px 20px ${C.bankConnectBlue}66` : "none",
         transition: "all 0.2s",
       }}
     >

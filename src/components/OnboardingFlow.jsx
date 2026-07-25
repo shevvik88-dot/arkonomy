@@ -310,7 +310,7 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
       <div style={{ textAlign: "center", marginBottom: 32 }}>
         <div style={{
           width: 72, height: 72, borderRadius: 22, margin: "0 auto 20px",
-          background: "rgba(26,86,219,0.15)", border: "1px solid rgba(26,86,219,0.3)",
+          background: C.bankConnectBlue + "26", border: `1px solid ${C.bankConnectBlue}4D`,
           display: "flex", alignItems: "center", justifyContent: "center",
         }}>
           <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="#2F80FF" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
@@ -352,7 +352,7 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
         <button
           className="pulse-connect-bank"
           onClick={getLinkToken}
-          style={{ width: "100%", padding: 16, background: `linear-gradient(135deg,#1A56DB,#2F80FF)`, border: "none", borderRadius: 16, color: "#fff", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: "0 4px 20px rgba(26,86,219,0.4)" }}
+          style={{ width: "100%", padding: 16, background: `linear-gradient(135deg,${C.bankConnectBlue},#2F80FF)`, border: "none", borderRadius: 16, color: "#fff", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 20px ${C.bankConnectBlue}66` }}
         >
           {t("onboarding.connect_bank_btn")}
         </button>
@@ -435,7 +435,7 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
         {[
-          { icon: "bank",        label: t("onboarding.feature_bank_sync"),    desc: t("onboarding.feature_bank_sync_sub"),    color: "#1A56DB", bg: "#1A56DB22", border: "#1A56DB44" },
+          { icon: "bank",        label: t("onboarding.feature_bank_sync"),    desc: t("onboarding.feature_bank_sync_sub"),    color: C.bankConnectBlue, bg: C.bankConnectBlue + "22", border: C.bankConnectBlue + "44" },
           { icon: "activity",    label: t("onboarding.feature_ai_insights"),  desc: t("onboarding.feature_ai_insights_sub"),  color: C.cyan,    bg: C.cyan + "18", border: C.cyan + "44" },
           { icon: "award",       label: t("onboarding.feature_health_score"), desc: t("onboarding.feature_health_score_sub"), color: C.green,   bg: C.green + "18", border: C.green + "44" },
           { icon: "trending-up", label: t("onboarding.feature_investing"),    desc: t("onboarding.feature_investing_sub"),    color: C.purple,  bg: C.purple + "18", border: C.purple + "44" },

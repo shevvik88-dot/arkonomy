@@ -41,6 +41,9 @@ export const C = {
   // one shared cross-file accent. See C.trialEndedAccent in App.jsx's
   // own local C object.
   nonUsTickerWarning: "#F5A623",
+  // "Plaid/bank-connect" blue — reused across Profile.jsx, OnboardingFlow.jsx,
+  // and shared/PlaidLinkButton.jsx for the bank-connection CTA/icon/badge.
+  bankConnectBlue: "#1A56DB",
 };
 
 export const CAT_COLORS = {

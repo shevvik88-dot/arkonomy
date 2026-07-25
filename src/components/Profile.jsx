@@ -258,10 +258,10 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
       )}
 
       {/* ── PLAID BANK CONNECTION ── */}
-      <GlassCard style={{ border: `1px solid ${bankConnected ? C.green + "44" : "#1A56DB44"}` }}>
+      <GlassCard style={{ border: `1px solid ${bankConnected ? C.green + "44" : C.bankConnectBlue + "44"}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: bankConnected ? C.green + "22" : "#1A56DB22", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name="bank" size={18} color={bankConnected ? C.green : "#1A56DB"} />
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: bankConnected ? C.green + "22" : C.bankConnectBlue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="bank" size={18} color={bankConnected ? C.green : C.bankConnectBlue} />
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, fontSize: 15 }}>
@@ -302,7 +302,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             </button>
             <button
               onClick={() => { if (!isPro) { onUpgrade(); return; } getLinkToken(); }}
-              style={{ width: "100%", padding: 12, background: isPro ? "#1A56DB22" : C.bgTertiary, border: `1px solid ${isPro ? "#1A56DB44" : C.border}`, borderRadius: 14, color: isPro ? "#4B8EFF" : C.faint, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
+              style={{ width: "100%", padding: 12, background: isPro ? C.bankConnectBlue + "22" : C.bgTertiary, border: `1px solid ${isPro ? C.bankConnectBlue + "44" : C.border}`, borderRadius: 14, color: isPro ? "#4B8EFF" : C.faint, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
               {isPro ? <Icon name="plus" size={13} color="#4B8EFF" strokeWidth={2.5} /> : <span>🔒</span>}
               {isPro ? t("profile.add_another_bank", { count: bankCount }) : t("profile.add_another_bank_pro")}
             </button>
@@ -311,7 +311,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           <PlaidLinkButton linkToken={linkToken} onSuccess={onPlaidSuccess} onExit={() => {}} autoOpen />
         ) : (
           <button onClick={getLinkToken}
-            style={{ width: "100%", padding: 14, background: "linear-gradient(135deg,#1A56DB,#2F80FF)", border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: "0 4px 20px rgba(26,86,219,0.4)" }}>
+            style={{ width: "100%", padding: 14, background: `linear-gradient(135deg,${C.bankConnectBlue},#2F80FF)`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: `0 4px 20px ${C.bankConnectBlue}66` }}>
             <Icon name="bank" size={17} color="#fff" strokeWidth={2} />
             {t("profile.connect_bank")}
           </button>
