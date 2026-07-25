@@ -330,7 +330,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
         <div style={{ color: C.muted, fontSize: 12, fontWeight: 500, marginBottom: 6 }}>{t("profile.monthly_budget")}</div>
         <input style={{ ...inp, marginBottom: 8 }} type="number" value={budget} onChange={e => setBudget(e.target.value)} />
         {avgMonthlyIncome !== null && Number(budget) > avgMonthlyIncome && (
-          <div style={{ fontSize: 12, color: "#F59E0B", background: "#F59E0B14", border: "1px solid #F59E0B33", borderRadius: 10, padding: "8px 12px", marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: C.amber, background: C.amber + "14", border: `1px solid ${C.amber}33`, borderRadius: 10, padding: "8px 12px", marginBottom: 8 }}>
             ⚠️ {t("profile.budget_exceeds_income", { amount: avgMonthlyIncome.toLocaleString() })}
           </div>
         )}
