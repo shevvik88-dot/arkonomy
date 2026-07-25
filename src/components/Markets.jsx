@@ -1107,7 +1107,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
         </div>
         {searchingExplore && <div style={{ color: C.faint, fontSize: 12, textAlign: "center", padding: "8px 0" }}>{t("markets.searching")}</div>}
         {!searchingExplore && exploreNonUS && (
-          <div style={{ fontSize: 12, color: "#F5A623", padding: "8px 12px", background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.25)", borderRadius: 10, marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: C.nonUsTickerWarning, padding: "8px 12px", background: C.nonUsTickerWarning + "14", border: `1px solid ${C.nonUsTickerWarning}40`, borderRadius: 10, marginBottom: 8 }}>
             {t("markets.us_only")}
           </div>
         )}

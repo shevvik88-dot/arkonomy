@@ -115,6 +115,12 @@ const C = {
   blue: "#2F80FF", cyan: "#00C2FF", green: "#12D18E",
   red: "#FF5C7A", yellow: "#FFB800", purple: "#A78BFA",
   text: "#FFFFFF", muted: "#9AA4B2", faint: "#4A5E7A",
+  // Trial-ended icon accent — local, one-off value, nothing else in this
+  // file (or elsewhere) needs to stay in sync with it, unlike proAccent/
+  // alpacaAccent above (imported via sharedC). Same hex coincidentally
+  // appears in Markets.jsx as C.nonUsTickerWarning — unrelated feature,
+  // not merged.
+  trialEndedAccent: "#F5A623",
 };
 
 
@@ -1598,8 +1604,8 @@ export default function App() {
           <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: "#131C2E", borderRadius: "24px 24px 0 0", border: "1px solid #1E2D45", borderBottom: "none", padding: "28px 20px 36px", fontFamily: FONT, color: C.text, boxShadow: "0 -8px 48px rgba(0,0,0,0.6)" }}>
             <div style={{ width: 36, height: 4, borderRadius: 99, background: "#1E2D45", margin: "0 auto 24px" }} />
             <div style={{ textAlign: "center", marginBottom: 24 }}>
-              <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 56, height: 56, borderRadius: 18, background: "#F5A62322", border: "1px solid #F5A62344", marginBottom: 14 }}>
-                <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="#F5A623" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 56, height: 56, borderRadius: 18, background: C.trialEndedAccent + "22", border: `1px solid ${C.trialEndedAccent}44`, marginBottom: 14 }}>
+                <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={C.trialEndedAccent} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
                 </svg>
               </div>

@@ -35,6 +35,12 @@ export const C = {
   // Alpaca" heading and App.jsx's alpacaToast "add funds" state (confirmed
   // both are genuinely Alpaca-specific contexts, not a coincidental match).
   alpacaAccent: "#F5C842",
+  // Non-US-ticker search-result warning (Markets.jsx). Same hex also
+  // appears in App.jsx's trial-ended icon, but that's a coincidental
+  // match, not the same feature — kept as two separate constants, not
+  // one shared cross-file accent. See C.trialEndedAccent in App.jsx's
+  // own local C object.
+  nonUsTickerWarning: "#F5A623",
 };
 
 export const CAT_COLORS = {
