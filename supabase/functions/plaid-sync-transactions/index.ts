@@ -167,6 +167,7 @@ function mapCategory(primary?: string, detailed?: string): string {
 
 interface PlaidTransaction {
   transaction_id:             string;
+  account_id:                 string;
   date:                       string;
   amount:                     number;       // positive = debit/expense, negative = credit/income
   name:                       string;
@@ -196,6 +197,7 @@ function plaidTxToRow(tx: PlaidTransaction, userId: string) {
   return {
     user_id:              userId,
     plaid_transaction_id: tx.transaction_id,
+    account_id:           tx.account_id,
     date:                 tx.date,
     amount:               Math.abs(tx.amount),
     type:                 isIncome ? 'income' : 'expense',
