@@ -400,14 +400,14 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             <Icon name="bell" size={17} color={C.cyan} />
           </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>Notifications & Reports</div>
-            <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>Email digests and scheduled reports</div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{t("profile.notifications_reports_title")}</div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>{t("profile.notifications_reports_subtitle")}</div>
           </div>
         </div>
 
         {/* Email digest frequency */}
-        <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 2 }}>Email digest frequency</div>
-        <div style={{ fontSize: 11, color: C.faint, marginBottom: 8 }}>Short summary sent to your email</div>
+        <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 2 }}>{t("profile.email_digest_frequency")}</div>
+        <div style={{ fontSize: 11, color: C.faint, marginBottom: 8 }}>{t("profile.email_digest_frequency_sub")}</div>
         <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
           {["weekly", "biweekly", "monthly", "off"].map(opt => (
             <button
@@ -415,7 +415,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
               onClick={() => setNotifPrefs(p => ({ ...p, frequency: opt }))}
               style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${notifPrefs.frequency === opt ? C.cyan + "88" : C.border}`, background: notifPrefs.frequency === opt ? C.cyan + "22" : C.bgTertiary, color: notifPrefs.frequency === opt ? C.cyan : C.muted, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT, textTransform: "capitalize" }}
             >
-              {opt}
+              {t("profile.freq_" + opt)}
             </button>
           ))}
         </div>
@@ -423,12 +423,12 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
         {/* Content toggles */}
         {notifPrefs.frequency !== "off" && (
           <>
-            <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 10 }}>Include in digest</div>
+            <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, marginBottom: 10 }}>{t("profile.include_in_digest")}</div>
             {[
-              { key: "include_spending",       label: "Spending summary" },
-              { key: "include_balance",         label: "Account balance" },
-              { key: "include_upcoming_bills",  label: "Upcoming bills" },
-              { key: "include_ai_tip",          label: "AI financial tip" },
+              { key: "include_spending",       label: t("profile.digest_spending") },
+              { key: "include_balance",         label: t("profile.digest_balance") },
+              { key: "include_upcoming_bills",  label: t("profile.digest_upcoming_bills") },
+              { key: "include_ai_tip",          label: t("profile.digest_ai_tip") },
               // include_market_update deliberately hidden — no backend consumer
               // yet (weekly-report doesn't fetch market data). Don't show a
               // control for a preference that has no real effect. See BACKLOG.md.
@@ -450,11 +450,11 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
           <Icon name="file-text" size={13} color={isPro ? C.green : C.faint} />
           <span style={{ fontSize: 12, fontWeight: 500, color: isPro ? C.muted : C.faint }}>
-            <span style={{ color: isPro ? C.green : C.faint, fontWeight: 700 }}>Excel</span> report frequency
+            <span style={{ color: isPro ? C.green : C.faint, fontWeight: 700 }}>{t("profile.excel_label")}</span> {t("profile.excel_report_frequency")}
           </span>
-          {!isPro && <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 700, color: C.faint, background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 99, padding: "2px 7px" }}>Pro</span>}
+          {!isPro && <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 700, color: C.faint, background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 99, padding: "2px 7px" }}>{t("common.pro_badge")}</span>}
         </div>
-        <div style={{ fontSize: 11, color: C.faint, marginBottom: 8 }}>Detailed spreadsheet with all transactions</div>
+        <div style={{ fontSize: 11, color: C.faint, marginBottom: 8 }}>{t("profile.excel_report_sub")}</div>
         {isPro ? (
           <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
             {["monthly", "quarterly", "off"].map(opt => (
@@ -463,7 +463,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
                 onClick={() => setNotifPrefs(p => ({ ...p, excel_frequency: opt }))}
                 style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${notifPrefs.excel_frequency === opt ? C.blue + "88" : C.border}`, background: notifPrefs.excel_frequency === opt ? C.blue + "22" : C.bgTertiary, color: notifPrefs.excel_frequency === opt ? C.blue : C.muted, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT, textTransform: "capitalize" }}
               >
-                {opt}
+                {t("profile.excel_freq_" + opt)}
               </button>
             ))}
           </div>
@@ -471,7 +471,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           <div onClick={onUpgrade} style={{ display: "flex", gap: 6, marginBottom: 18, cursor: "pointer", opacity: 0.45, pointerEvents: "auto" }}>
             {["monthly", "quarterly", "off"].map(opt => (
               <div key={opt} style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: C.bgTertiary, color: C.faint, fontWeight: 600, fontSize: 11, textAlign: "center", textTransform: "capitalize", userSelect: "none" }}>
-                {opt}
+                {t("profile.excel_freq_" + opt)}
               </div>
             ))}
           </div>
@@ -482,7 +482,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           disabled={notifSaving}
           style={{ width: "100%", padding: 13, background: notifSaved ? C.green : notifSaving ? C.bgTertiary : `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: notifSaved ? C.bg : notifSaving ? C.faint : "#fff", fontWeight: 700, fontSize: 14, cursor: notifSaving ? "default" : "pointer", transition: "background 0.3s", fontFamily: FONT }}
         >
-          {notifSaved ? "Saved" : notifSaving ? "Saving…" : "Save Preferences"}
+          {notifSaved ? t("profile.saved") : notifSaving ? t("profile.saving") : t("profile.save_preferences")}
         </button>
       </GlassCard>
 
