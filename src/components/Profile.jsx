@@ -16,13 +16,13 @@ function maskEmail(email) {
   return `${local.slice(0, 2)}***@${domain}`;
 }
 
-function pwError(pw) {
+function pwError(pw, t) {
   if (!pw) return null;
   const missing = [];
-  if (pw.length < 8)      missing.push("8+ characters");
-  if (!/[A-Z]/.test(pw)) missing.push("uppercase letter");
-  if (!/[0-9]/.test(pw)) missing.push("number");
-  return missing.length ? "Needs: " + missing.join(", ") : null;
+  if (pw.length < 8)      missing.push(t("profile.pw_needs_length"));
+  if (!/[A-Z]/.test(pw)) missing.push(t("profile.pw_needs_uppercase"));
+  if (!/[0-9]/.test(pw)) missing.push(t("profile.pw_needs_number"));
+  return missing.length ? t("profile.pw_needs_prefix") + " " + missing.join(", ") : null;
 }
 
 export default function Profile({ profile, user, onSave, onSignOut, onDeleteAccount, onBack, autopilot, setAutopilot, bankConnected, bankName, bankCount, linkToken, getLinkToken, getReconnectToken, onPlaidSuccess, syncBankTransactions, syncingBank, lastSyncedAt, backgroundSyncing, isPro, onUpgrade, transactions = [] }) {
@@ -101,7 +101,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
     setPwMsg(null);
     if (!newPw || !confirmPw) { setPwMsg({ type: "error", text: t("profile.error_fill_both") }); return; }
     if (newPw !== confirmPw) { setPwMsg({ type: "error", text: t("profile.error_passwords_match") }); return; }
-    const pwErr = pwError(newPw);
+    const pwErr = pwError(newPw, t);
     if (pwErr) { setPwMsg({ type: "error", text: pwErr }); return; }
     setPwLoading(true);
     const { error } = await supabase.auth.updateUser({ password: newPw });
@@ -298,7 +298,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
               onClick={getReconnectToken}
               style={{ width: "100%", padding: 12, background: C.yellow + "18", border: `1px solid ${C.yellow}44`, borderRadius: 14, color: C.yellow, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 8 }}>
               <Icon name="refresh-cw" size={13} color={C.yellow} strokeWidth={2.5} />
-              Reconnect Bank
+              {t("profile.reconnect_bank")}
             </button>
             <button
               onClick={() => { if (!isPro) { onUpgrade(); return; } getLinkToken(); }}
@@ -331,7 +331,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
         <input style={{ ...inp, marginBottom: 8 }} type="number" value={budget} onChange={e => setBudget(e.target.value)} />
         {avgMonthlyIncome !== null && Number(budget) > avgMonthlyIncome && (
           <div style={{ fontSize: 12, color: "#F59E0B", background: "#F59E0B14", border: "1px solid #F59E0B33", borderRadius: 10, padding: "8px 12px", marginBottom: 8 }}>
-            ⚠️ Your budget exceeds your average income (${avgMonthlyIncome.toLocaleString()}/mo)
+            ⚠️ {t("profile.budget_exceeds_income", { amount: avgMonthlyIncome.toLocaleString() })}
           </div>
         )}
         {budgetSuggestion !== null ? (
