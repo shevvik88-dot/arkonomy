@@ -56,7 +56,7 @@ const BenefitIcon = ({ type, color }) => {
 
 const BENEFIT_KEYS = [
   { icon: "bank",    color: "#38B6FF", titleKey: "upgrade.benefit_banks_title",    descKey: "upgrade.benefit_banks_desc" },
-  { icon: "ai",     color: "#7C6BFF", titleKey: "upgrade.benefit_ai_title",       descKey: "upgrade.benefit_ai_desc" },
+  { icon: "ai",     color: C.purple, titleKey: "upgrade.benefit_ai_title",       descKey: "upgrade.benefit_ai_desc" },
   { icon: "savings",color: "#00E5A0", titleKey: "upgrade.benefit_cashflow_title", descKey: "upgrade.benefit_cashflow_desc" },
   { icon: "invest", color: "#00E5A0", titleKey: "upgrade.benefit_investing_title",descKey: "upgrade.benefit_investing_desc" },
   { icon: "chart",  color: "#38B6FF", titleKey: "upgrade.benefit_charts_title",   descKey: "upgrade.benefit_charts_desc" },
