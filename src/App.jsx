@@ -1,5 +1,10 @@
 ﻿// arkonomy v1
 import { logger } from "./utils/logger";
+// Scoped import of one shared constant, not a merge of App.jsx's own local C
+// (below) with utils/colors.js's C — that consolidation is separate, riskier
+// tech debt (hundreds of usages, already documented, deliberately untouched).
+// Aliased to avoid colliding with the local C object's own name.
+import { C as sharedC } from "./utils/colors";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "./utils/supabase";
@@ -1429,7 +1434,7 @@ export default function App() {
                 ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: "#F59E0B", background: "#F59E0B20", borderRadius: 20, padding: "3px 9px", cursor: "pointer" }}>Trial: {trialDaysLeft}d left</span>
                 : trialExpired
                 ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: "#EF4444", background: "#EF444420", borderRadius: 20, padding: "3px 9px", cursor: "pointer" }}>Trial ended</span>
-                : isPro && <span style={{ fontSize: 10, fontWeight: 700, color: "#7C6BFF", background: "#7C6BFF18", border: "1px solid #7C6BFF44", borderRadius: 99, padding: "2px 8px", letterSpacing: 0.5 }}>PRO</span>
+                : isPro && <span style={{ fontSize: 10, fontWeight: 700, color: sharedC.proAccent, background: sharedC.proAccent + "18", border: `1px solid ${sharedC.proAccent}44`, borderRadius: 99, padding: "2px 8px", letterSpacing: 0.5 }}>PRO</span>
               }
             </div>
             {backgroundSyncing
@@ -1575,11 +1580,11 @@ export default function App() {
       {proToast && (
         <div style={{
           position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)",
-          background: "linear-gradient(135deg, #7C6BFF22, #38B6FF11)",
-          border: "1px solid #7C6BFF66",
+          background: `linear-gradient(135deg, ${sharedC.proAccent}22, #38B6FF11)`,
+          border: `1px solid ${sharedC.proAccent}66`,
           borderRadius: 16, padding: "16px 24px", zIndex: 10000,
           color: "#E8EDF5", fontFamily: "'DM Sans', sans-serif",
-          textAlign: "center", boxShadow: "0 8px 32px rgba(124,107,255,0.3)",
+          textAlign: "center", boxShadow: `0 8px 32px ${sharedC.proAccent}4D`,
           minWidth: 260,
         }}>
           <div style={{ fontSize: 28, marginBottom: 6 }}>⚡</div>
@@ -1603,7 +1608,7 @@ export default function App() {
             </div>
             {/* No purchase button on iOS (Guideline 3.1.3 anti-steering) */}
             {!IS_IOS_NATIVE && (
-              <button onClick={() => { setShowTrialExpiredModal(false); setShowUpgradeModal(true); }} style={{ width: "100%", padding: 16, background: "linear-gradient(135deg,#7C6BFF,#38B6FF)", border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: "0 4px 24px rgba(124,107,255,0.44)", marginBottom: 12 }}>
+              <button onClick={() => { setShowTrialExpiredModal(false); setShowUpgradeModal(true); }} style={{ width: "100%", padding: 16, background: `linear-gradient(135deg,${sharedC.proAccent},#38B6FF)`, border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 24px ${sharedC.proAccent}70`, marginBottom: 12 }}>
                 Upgrade to Pro — $9.99/mo
               </button>
             )}
@@ -1732,7 +1737,7 @@ export default function App() {
               </div>
               {/* Modal header */}
               <div style={{ padding: "6px 16px 10px", display: "flex", alignItems: "center", gap: 10, borderBottom: `1px solid ${C.sep}` }}>
-              <div style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg,#7C6BFF22,#00C2FF18)`, border: `1px solid #7C6BFF33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg,${sharedC.proAccent}22,#00C2FF18)`, border: `1px solid ${sharedC.proAccent}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#00C2FF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                 </svg>
@@ -1796,7 +1801,7 @@ export default function App() {
             backdropFilter: 'blur(12px)',
           }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-              <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'linear-gradient(135deg,#7C6BFF,#00C2FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+              <div style={{ width: 20, height: 20, borderRadius: '50%', background: `linear-gradient(135deg,${sharedC.proAccent},#00C2FF)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
                 <svg width={10} height={10} viewBox="0 0 24 24" fill="none">
                   <path d="M12 2 L13.4 9.3 L20 12 L13.4 14.7 L12 22 L10.6 14.7 L4 12 L10.6 9.3 Z" fill="#fff"/>
                 </svg>
