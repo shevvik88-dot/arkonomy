@@ -10,6 +10,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 import { getUpcomingCharges } from '../_shared/recurringDetector.ts';
+import { getMarketSnapshot, type MarketQuote } from '../_shared/marketSnapshot.ts';
 
 initSentry('weekly-report');
 
@@ -52,7 +53,7 @@ Deno.serve(async (req) => {
     const isCron = token === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     // ── Load users ─────────────────────────────────────────────────────────────
-    const PREFS_SELECT = 'frequency,include_spending,include_balance,include_ai_tip,include_upcoming_bills,next_digest_at';
+    const PREFS_SELECT = 'frequency,include_spending,include_balance,include_ai_tip,include_upcoming_bills,include_market_update,next_digest_at';
     let profiles: { id: string; full_name: string | null; email: string | null; _prefs?: any }[];
 
     if (isCron) {
@@ -91,6 +92,11 @@ Deno.serve(async (req) => {
 
     const results: { userId: string; status: string; error?: string }[] = [];
 
+    // Not user-specific — same snapshot for every recipient, so fetch it once
+    // for the whole batch instead of once per user (see _shared/marketSnapshot.ts).
+    const finnhubKey = Deno.env.get('FINNHUB_API_KEY');
+    const marketSnapshot: MarketQuote[] | null = finnhubKey ? await getMarketSnapshot(finnhubKey).catch(() => null) : null;
+
     for (const user of profiles) {
       if (!user.email) continue;
       try {
@@ -103,12 +109,12 @@ Deno.serve(async (req) => {
           if (prefs.next_digest_at && new Date(prefs.next_digest_at) > now) { results.push({ userId: user.id, status: 'skipped', error: 'not_due_yet' }); continue; }
         }
 
-        if (!prefs.include_spending && !prefs.include_balance && !prefs.include_ai_tip && !prefs.include_upcoming_bills) {
+        if (!prefs.include_spending && !prefs.include_balance && !prefs.include_ai_tip && !prefs.include_upcoming_bills && !prefs.include_market_update) {
           results.push({ userId: user.id, status: 'skipped', error: 'no_sections_enabled' }); continue;
         }
 
         const report = await buildReport(supabase, user.id);
-        const html   = buildEmailHtml(user.full_name || user.email || 'User', report, prefs);
+        const html   = buildEmailHtml(user.full_name || user.email || 'User', report, prefs, marketSnapshot);
 
         const res = await fetch('https://api.resend.com/emails', {
           method:  'POST',
@@ -161,7 +167,7 @@ Deno.serve(async (req) => {
 // DATA
 // ══════════════════════════════════════════════════════════════════════════════
 
-const DEFAULT_PREFS = { frequency: 'weekly', include_spending: true, include_balance: true, include_ai_tip: true, include_upcoming_bills: true, next_digest_at: null as string | null };
+const DEFAULT_PREFS = { frequency: 'weekly', include_spending: true, include_balance: true, include_ai_tip: true, include_upcoming_bills: true, include_market_update: false, next_digest_at: null as string | null };
 
 interface CategoryTotal { name: string; amount: number }
 
@@ -289,7 +295,9 @@ function fmtAmt(n: number): string {
 
 const esc = (s: string) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
-function buildEmailHtml(name: string, r: WeekReport, prefs = DEFAULT_PREFS): string {
+const MARKET_LABELS: Record<string, string> = { SPY: 'S&P 500', QQQ: 'Nasdaq 100', BTC: 'Bitcoin', ETH: 'Ethereum' };
+
+function buildEmailHtml(name: string, r: WeekReport, prefs = DEFAULT_PREFS, marketSnapshot: MarketQuote[] | null = null): string {
   const deltaColor  = r.weekDelta <= 0 ? '#12D18E' : '#FF5C7A';
   const deltaSign   = r.weekDelta > 0 ? '+' : '';
   const scoreColor  = r.scoreColor;
@@ -376,6 +384,33 @@ function buildEmailHtml(name: string, r: WeekReport, prefs = DEFAULT_PREFS): str
         </table>
       </div>` : '';
 
+  const marketRows = (marketSnapshot ?? []).map(q => {
+    const pct   = q.changePct;
+    const color = pct == null ? '#9AA4B2' : pct >= 0 ? '#12D18E' : '#FF5C7A';
+    const sign  = pct != null && pct > 0 ? '+' : '';
+    return `
+      <tr>
+        <td style="padding:8px 0; border-bottom:1px solid #1E2D4A; color:#9AA4B2; font-size:13px;">
+          ${esc(MARKET_LABELS[q.symbol] ?? q.symbol)}
+        </td>
+        <td style="padding:8px 0; border-bottom:1px solid #1E2D4A; text-align:right; font-weight:700; color:#FFFFFF; font-size:13px;">
+          ${q.price != null ? `$${fmtAmt(q.price)}` : '—'}
+        </td>
+        <td style="padding:8px 0; border-bottom:1px solid #1E2D4A; text-align:right; font-weight:700; color:${color}; font-size:13px; width:70px;">
+          ${pct != null ? `${sign}${pct.toFixed(2)}%` : '—'}
+        </td>
+      </tr>`;
+  }).join('');
+
+  const marketSection = prefs.include_market_update && marketSnapshot && marketSnapshot.length > 0 ? `
+      <!-- Market Update -->
+      <div style="background:#111E33;border:1px solid #1E2D4A;border-radius:14px;padding:20px;margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:700;color:#9AA4B2;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:12px;">Market Update</div>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          ${marketRows}
+        </table>
+      </div>` : '';
+
   const aiSection = prefs.include_ai_tip ? `
       <!-- AI Insight -->
       <div style="background:linear-gradient(135deg,#0D1F3C 0%,#111E33 100%);border:1px solid #00C2FF22;border-radius:14px;padding:20px;margin-bottom:28px;">
@@ -414,6 +449,7 @@ function buildEmailHtml(name: string, r: WeekReport, prefs = DEFAULT_PREFS): str
       ${spendingSection}
       ${balanceSection}
       ${upcomingBillsSection}
+      ${marketSection}
       ${aiSection}
 
       <!-- CTA -->

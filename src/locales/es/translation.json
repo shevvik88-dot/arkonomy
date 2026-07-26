@@ -625,6 +625,7 @@
     "digest_balance": "Saldo de la cuenta",
     "digest_upcoming_bills": "Próximos pagos",
     "digest_ai_tip": "Consejo de la IA",
+    "digest_market_update": "Resumen del mercado",
     "excel_label": "Excel",
     "excel_report_frequency": "frecuencia del informe",
     "excel_report_sub": "Hoja de cálculo detallada con todas las transacciones",

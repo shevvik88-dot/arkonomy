@@ -429,9 +429,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
               { key: "include_balance",         label: t("profile.digest_balance") },
               { key: "include_upcoming_bills",  label: t("profile.digest_upcoming_bills") },
               { key: "include_ai_tip",          label: t("profile.digest_ai_tip") },
-              // include_market_update deliberately hidden — no backend consumer
-              // yet (weekly-report doesn't fetch market data). Don't show a
-              // control for a preference that has no real effect. See BACKLOG.md.
+              { key: "include_market_update",   label: t("profile.digest_market_update") },
             ].map((item, i, arr) => (
               <div key={item.key}>
                 {i > 0 && <div style={{ height: 1, background: C.sep, margin: "10px 0" }} />}

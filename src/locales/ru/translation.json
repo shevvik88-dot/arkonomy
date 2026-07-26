@@ -629,6 +629,7 @@
     "digest_balance": "Баланс счёта",
     "digest_upcoming_bills": "Предстоящие платежи",
     "digest_ai_tip": "Совет от ИИ",
+    "digest_market_update": "Обзор рынка",
     "excel_label": "Excel",
     "excel_report_frequency": "частота отчётов",
     "excel_report_sub": "Подробная таблица со всеми транзакциями",

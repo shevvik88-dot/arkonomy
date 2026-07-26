@@ -625,6 +625,7 @@
     "digest_balance": "Account balance",
     "digest_upcoming_bills": "Upcoming bills",
     "digest_ai_tip": "AI financial tip",
+    "digest_market_update": "Market update",
     "excel_label": "Excel",
     "excel_report_frequency": "report frequency",
     "excel_report_sub": "Detailed spreadsheet with all transactions",

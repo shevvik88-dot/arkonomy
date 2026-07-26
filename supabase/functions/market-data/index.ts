@@ -15,6 +15,8 @@
 //   { type: "stats",  symbol: "AAPL" }
 //   { type: "search", query:  "apple" }
 
+import { getMarketSnapshot } from '../_shared/marketSnapshot.ts';
+
 const CORS = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -185,18 +187,7 @@ Deno.serve(async (req) => {
     // ── OVERVIEW ──────────────────────────────────────────────────────────────
     if (type === 'overview') {
       if (!key) return noKey();
-      const symbols  = ['SPY', 'QQQ', 'BTC', 'ETH'];
-      const results  = await Promise.allSettled(
-        symbols.map(s => fh(`/quote?symbol=${encodeURIComponent(finnhubSym(s))}`))
-      );
-      const markets = symbols.map((s, i) => {
-        const r = results[i];
-        if (r.status === 'rejected' || !r.value || r.value.error) {
-          return { symbol: s, price: null, change: null, changePct: null };
-        }
-        const q = r.value;
-        return { symbol: s, price: q.c ?? null, change: q.d ?? null, changePct: q.dp ?? null };
-      });
+      const markets = await getMarketSnapshot(key);
       return new Response(JSON.stringify({ markets }), {
         headers: { ...CORS, 'Content-Type': 'application/json' },
       });
