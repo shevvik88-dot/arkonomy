@@ -142,25 +142,18 @@ push_subscription). Дайджест вида "на этой неделе пот
 
 **Средний приоритет — ПОДТВЕРЖДЁН ЗАКРЫТЫМ 2026-07-26** (запись была устаревшей, не отмечена закрытой после фактического завершения в одной из прошлых сессий — закрытие проверено сейчас напрямую по коду, не по памяти): `grep initSentry\( supabase/functions/*/index.ts` — все 9 функций очереди (`weekly-report`, `push-notify`, `plaid-webhook`, `plaid-get-accounts`, `market-data`, `generate-monthly-report`, `stock-ai-analysis`, `check-bank-connection`, `auth-login`) содержат `initSentry(`. Итог: **21 из 21** директорий edge-функций проекта покрыты Sentry — полное совпадение с числом реальных папок в `supabase/functions/`, ни одна не пропущена.
 
-### 19. "Refresh balance now" кнопка — ручной вызов Plaid /transactions/refresh (не срочно)
+### 19. "Refresh balance now" кнопка — ЗАБЛОКИРОВАНО на стороне Plaid (не код), код полностью готов и протестирован
 
-```
-Найдено 2026-07-17 при диагностике лага обновления баланса "до суток":
-код нигде не вызывает Plaid /transactions/refresh (принудительный
-переопрос банка Plaid'ом прямо сейчас) — только /transactions/sync
-(читает то, что Plaid уже закэшировал у себя, без гарантии свежести).
+Найдено 2026-07-17 при диагностике лага обновления баланса "до суток": код нигде не вызывает Plaid `/transactions/refresh` (принудительный переопрос банка Plaid'ом прямо сейчас) — только `/transactions/sync` (читает то, что Plaid уже закэшировал у себя, без гарантии свежести).
 
-НЕ заменять автосинк (bgSync/webhook) на /transactions/refresh —
-осознанное решение: /refresh асинхронный (не возвращает данные сразу,
-только запускает переопрос, потом стреляет webhook), и Plaid жёстко
-лимитирует /transactions/refresh per-Item в сутки (значительно жёстче,
-чем /sync) — в автоматическом цикле (сейчас: 1ч staleness + раз в 4ч)
-риск быстро выесть лимит.
+**Реализовано 2026-07-26, все 3 части, code-reviewer — ship it на каждой:**
+1. Миграция `20260726000000_balance_refresh_cooldown.sql` — `profiles.last_balance_refresh_at` + атомарная `SECURITY DEFINER` RPC `check_and_set_balance_refresh` (5-минутный cooldown, `REVOKE`/`GRANT` сразу, не задним числом).
+2. Новая edge function `plaid-refresh-balance` — форсирует `/transactions/refresh` для каждого `plaid_items` юзера, server-side cooldown enforcement, `config.toml` запись `verify_jwt = false` (не полагаясь на CLI-флаг, тот же урок, что и сегодняшний cron-verify_jwt инцидент).
+3. UI-кнопка в `Profile.jsx`, рядом с "Sync Now" — loading-стейт, client-side cooldown-countdown (5 мин), 2 отложенных повторных фетча (15с/45с) для подхвата данных после реального вебхука.
 
-ЗАДАЧА: точечная кнопка "Refresh balance now" (Settings или Dashboard),
-по запросу юзера, с client-side cooldown (например 5-10 мин между
-нажатиями) — не трогает существующий bgSync/webhook путь.
-```
+**Live-тест (2026-07-26) нашёл блокер — не баг реализации:** реальный вызов дошёл до Plaid и получил `400 INVALID_PRODUCT`: `"client is not authorized to access the following products: [\"transactions_refresh\"]"`. Auth/cooldown/RPC — всё отработало правильно; сам Plaid-клиент проекта не имеет доступа к продукту `transactions_refresh`. Это, вероятно, не самостоятельный переключатель в Dashboard, а гейтированная возможность, требующая отдельного запроса через Plaid Support/account manager — нужно проверить Team Settings → API → Products в Plaid Dashboard и, если там нет `Transactions Refresh`, запросить доступ у Plaid до включения кнопки.
+
+**Кнопка скрыта до подтверждения доступа** — `REFRESH_BALANCE_ENABLED = false` в `Profile.jsx` (одна строка, комментарий с деталями), весь остальной код нетронут и готов — просто флип в `true`, когда Plaid подтвердит продукт. Коммит `f2229ba`. НЕ включать в проде до подтверждения.
 
 ### 3. Кредитные карты — отображение и контроль (план)
 
