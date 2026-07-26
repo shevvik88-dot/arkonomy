@@ -16,6 +16,15 @@ function maskEmail(email) {
   return `${local.slice(0, 2)}***@${domain}`;
 }
 
+// BLOCKED on Plaid's side, not a code issue: this Plaid client_id is not
+// authorized for the transactions_refresh product (confirmed via a live
+// test 2026-07-26 — Plaid returned INVALID_PRODUCT). The button, its
+// handler (App.jsx refreshBalanceNow), the edge function, and the cooldown
+// migration are all built and tested end-to-end except for a real
+// successful Plaid call, which needs Plaid to grant product access first.
+// Flip to true once that's confirmed. See BACKLOG.md #19.
+const REFRESH_BALANCE_ENABLED = false;
+
 function pwError(pw, t) {
   if (!pw) return null;
   const missing = [];
@@ -311,15 +320,17 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
               <Icon name="repeat" size={15} color={C.green} strokeWidth={2} />
               {syncingBank ? t("profile.syncing_btn") : t("profile.sync_transactions")}
             </button>
-            <button onClick={onRefreshBalance} disabled={refreshingBalance || refreshCooldownActive}
-              style={{ width: "100%", padding: 13, background: (refreshingBalance || refreshCooldownActive) ? C.bgTertiary : C.cyan + "18", border: `1px solid ${C.cyan}44`, borderRadius: 14, color: (refreshingBalance || refreshCooldownActive) ? C.faint : C.cyan, fontWeight: 600, fontSize: 14, cursor: (refreshingBalance || refreshCooldownActive) ? "not-allowed" : "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
-              <Icon name="zap" size={15} color={(refreshingBalance || refreshCooldownActive) ? C.faint : C.cyan} strokeWidth={2} />
-              {refreshingBalance
-                ? t("profile.refreshing_balance_btn")
-                : refreshCooldownActive
-                  ? t("profile.refresh_balance_cooldown_btn", { min: refreshCooldownMinutesLeft })
-                  : t("profile.refresh_balance_btn")}
-            </button>
+            {REFRESH_BALANCE_ENABLED && (
+              <button onClick={onRefreshBalance} disabled={refreshingBalance || refreshCooldownActive}
+                style={{ width: "100%", padding: 13, background: (refreshingBalance || refreshCooldownActive) ? C.bgTertiary : C.cyan + "18", border: `1px solid ${C.cyan}44`, borderRadius: 14, color: (refreshingBalance || refreshCooldownActive) ? C.faint : C.cyan, fontWeight: 600, fontSize: 14, cursor: (refreshingBalance || refreshCooldownActive) ? "not-allowed" : "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
+                <Icon name="zap" size={15} color={(refreshingBalance || refreshCooldownActive) ? C.faint : C.cyan} strokeWidth={2} />
+                {refreshingBalance
+                  ? t("profile.refreshing_balance_btn")
+                  : refreshCooldownActive
+                    ? t("profile.refresh_balance_cooldown_btn", { min: refreshCooldownMinutesLeft })
+                    : t("profile.refresh_balance_btn")}
+              </button>
+            )}
             <button
               onClick={getReconnectToken}
               style={{ width: "100%", padding: 12, background: C.yellow + "18", border: `1px solid ${C.yellow}44`, borderRadius: 14, color: C.yellow, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 8 }}>
