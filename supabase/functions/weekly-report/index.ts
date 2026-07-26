@@ -57,17 +57,30 @@ Deno.serve(async (req) => {
     let profiles: { id: string; full_name: string | null; email: string | null; _prefs?: any }[];
 
     if (isCron) {
-      // Batch mode — cron job only; email always comes from DB
-      const { data, error: profileErr } = await supabase
-        .from('profiles')
-        .select(`id, full_name, email, notification_preferences(${PREFS_SELECT})`);
-      if (profileErr || !data?.length) {
+      // Batch mode — cron job only; email always comes from DB.
+      // notification_preferences.user_id references auth.users, not profiles,
+      // so PostgREST can't embedded-join profiles+notification_preferences
+      // (no FK between the two tables) — fetch separately and merge here.
+      const { data: profileRows, error: profileErr } = await supabase
+        .from('profiles').select('id, full_name, email');
+      if (profileErr || !profileRows?.length) {
         return new Response(
           JSON.stringify({ error: 'No users found', detail: profileErr }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      profiles = (data as any[]).map(p => ({ ...p, _prefs: (p.notification_preferences as any[])?.[0] ?? null }));
+      const { data: prefsRows, error: prefsErr } = await supabase
+        .from('notification_preferences')
+        .select(`${PREFS_SELECT},user_id`)
+        .in('user_id', profileRows.map(p => p.id));
+      if (prefsErr) {
+        return new Response(
+          JSON.stringify({ error: 'Failed to load notification preferences', detail: prefsErr }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const prefsByUser = new Map((prefsRows ?? []).map((p: any) => [p.user_id, p]));
+      profiles = profileRows.map(p => ({ ...p, _prefs: prefsByUser.get(p.id) ?? null }));
     } else {
       // User mode — validate JWT; email always comes from DB, never from request body
       const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
