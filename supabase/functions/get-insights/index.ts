@@ -776,18 +776,29 @@ function renderInsight(signal: any, ctx: RenderContext, lang: 'en' | 'ru' | 'es'
         ? (ru ? ` Осталось ${ctx.daysLeft} дней для корректировки.` : es ? ` Quedan ${ctx.daysLeft} días para ajustar.` : ` ${ctx.daysLeft} days left to adjust.`)
         : '';
       if (d.subtype === 'one_time_driver' && d.primaryDriver) {
+        // A tiny base (e.g. avgSpend ~$2/mo) turns a real but small delta into
+        // a mathematically-correct but meaningless percentage (e.g. 8000%+).
+        // Below this floor, state the absolute difference instead of a %.
+        const baseTooSmallForPct = d.avgSpend < 15;
+        const headline = baseTooSmallForPct
+          ? (ru ? `${d.categoryName}: на $${fmt(d.delta)} больше обычного — разовая трата`
+             : es ? `${d.categoryName}: $${fmt(d.delta)} más de lo habitual — gasto único`
+             : `${d.categoryName}: $${fmt(d.delta)} more than usual — one-time expense`)
+          : (ru ? `${d.categoryName} вырос на ${pct}% — разовая трата`
+             : es ? `${d.categoryName} subió ${pct}% — gasto único`
+             : `${d.categoryName} up ${pct}% — one-time expense`);
         return ru ? {
-          headline: `${d.categoryName} вырос на ${pct}% — разовая трата`,
+          headline,
           body:     `Рост вызван ${d.primaryDriver.label} на $${fmt(d.primaryDriver.amount)}. Ваши обычные расходы на ${d.categoryName} значительно ниже.\n\n→ Это разовая трата, не тренд.\n→ Пока ничего менять не нужно, но отслеживайте следующий месяц.`,
           cta:      'Отслеживать расходы',
           range:    null, action: 'reduce_category',
         } : es ? {
-          headline: `${d.categoryName} subió ${pct}% — gasto único`,
+          headline,
           body:     `Este aumento fue causado por ${d.primaryDriver.label} de $${fmt(d.primaryDriver.amount)}. Tu gasto habitual en ${d.categoryName} es mucho menor.\n\n→ Es un gasto único, no una tendencia.\n→ No necesitas hacer cambios ahora, pero revisa el próximo mes.`,
           cta:      'Monitorear gastos',
           range:    null, action: 'reduce_category',
         } : {
-          headline: `${d.categoryName} up ${pct}% — one-time expense`,
+          headline,
           body:     `This increase was caused by a $${fmt(d.primaryDriver.amount)} ${d.primaryDriver.label}. Your usual ${d.categoryName} spending is much lower.\n\n→ This is a one-time expense, not a trend.\n→ No changes needed now, but monitor next month to confirm stability.`,
           cta:      'Monitor Spending',
           range:    null, action: 'reduce_category',

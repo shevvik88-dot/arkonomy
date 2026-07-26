@@ -1274,7 +1274,10 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
     spikePct: (() => {
       const spikes = Object.entries(spendingByCategory).map(([cat, amt]) => {
         const p = prevSpendingByCategory[cat] || 0;
-        return p > 0 ? ((amt - p) / p) * 100 : 0;
+        // Same $15 threshold as get-insights' renderInsight baseTooSmallForPct
+        // check: a tiny previous-month base turns a small real delta into a
+        // meaningless %, so exclude it instead of letting it win the max.
+        return p >= 15 ? ((amt - p) / p) * 100 : 0;
       });
       return spikes.length ? Math.round(Math.max(...spikes)) : 0;
     })(),
