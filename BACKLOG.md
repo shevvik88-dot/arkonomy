@@ -19,16 +19,16 @@ security-auditor (opus) прошёлся по всем 14 таблиц (live `pg
 
 Все 5 таблиц изначально без policies (`plaid_items`, `plaid_accounts`, `account_deletion_issues`, `login_attempts`, `rate_limits`) подтверждены как легитимный паттерн service-role/RPC-only — клиент их нигде не читает напрямую (grep). `plaid_items` без SELECT — по-прежнему осознанное решение, не трогали.
 
-### 14. Rate limiting / cost guard на ai-chat
+### 14. Rate limiting / cost guard на ai-chat — ЗАКРЫТ 2026-07-26, уже был реализован ранее
 
-```
-Каждое сообщение в ai-chat — оплачиваемый вызов Claude API. Проверь,
-есть ли уже ограничение — enforceRateLimit используется в других edge
-functions (_shared/rateLimit.ts), проверь, применяется ли он в ai-chat
-конкретно. Если нет — добавь мягкий лимит на юзера (предложи разумное
-число сообщений/мин или /час, с учётом App Check уже защищает от чисто
-анонимного спама). Покажи текущее состояние перед изменением.
-```
+Проверено на живом задеплоенном бандле (не только в исходниках, через `get_edge_function`) — доделывать нечего:
+
+- `ai-chat/index.ts:41-42` — `enforceRateLimit(user.id, "ai-chat")` сразу после `auth.getUser(token)` (реальный ID юзера, не клиентский), до парсинга body и до вызова Anthropic API.
+- `_shared/rateLimit.ts`: `RATE_LIMITS['ai-chat'] = 20`, честный скользящий часовой лимит через `check_and_increment_rate_limit` RPC (`20260610000000_rate_limits.sql`) — не заглушка, реальный `window_start < NOW() - INTERVAL '1 hour'` сброс.
+- RPC защищена: `20260717000000_revoke_rate_limit_rpc.sql` — `REVOKE ... FROM PUBLIC/anon/authenticated`, `GRANT ... TO service_role` (найдено и исправлено при RLS-аудите 17 июля) — клиент не может дёрнуть RPC напрямую с чужим `p_user_id`.
+- Fail-open при ошибке БД (`if (error) return null`) — корректно: это reliability-guard cost-контроля, не access-control, падение проверки не должно блокировать легитимных юзеров.
+
+App Check (упомянутый в исходной задаче) закрывает анонимный спам на транспортном уровне — оба слоя защиты уже на месте, новый код не требуется.
 
 ### 15. Weekly digest push
 
