@@ -84,6 +84,10 @@ self.addEventListener('fetch', event => {
         }
         return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() =>
+        caches.match(event.request).then(cached =>
+          cached || new Response('', { status: 504, statusText: 'Network error' })
+        )
+      )
   );
 });
