@@ -25,8 +25,25 @@ function pwError(pw, t) {
   return missing.length ? t("profile.pw_needs_prefix") + " " + missing.join(", ") : null;
 }
 
-export default function Profile({ profile, user, onSave, onSignOut, onDeleteAccount, onBack, autopilot, setAutopilot, bankConnected, bankName, bankCount, linkToken, getLinkToken, getReconnectToken, onPlaidSuccess, syncBankTransactions, syncingBank, lastSyncedAt, backgroundSyncing, isPro, onUpgrade, transactions = [] }) {
+export default function Profile({ profile, user, onSave, onSignOut, onDeleteAccount, onBack, autopilot, setAutopilot, bankConnected, bankName, bankCount, linkToken, getLinkToken, getReconnectToken, onPlaidSuccess, syncBankTransactions, syncingBank, lastSyncedAt, backgroundSyncing, onRefreshBalance, refreshingBalance, lastBalanceRefreshAt, isPro, onUpgrade, transactions = [] }) {
   const { t } = useTranslation();
+
+  // Client-side mirror of the server's 5-minute cooldown (see
+  // check_and_set_balance_refresh RPC) — this is only for immediate button
+  // feedback; the server call is the real enforcement. Ticks every 15s
+  // while a cooldown is active so the "available in Xm" label counts down
+  // without requiring a re-render from elsewhere.
+  const [refreshTick, setRefreshTick] = useState(0);
+  const refreshCooldownUntil = lastBalanceRefreshAt ? new Date(lastBalanceRefreshAt).getTime() + 5 * 60 * 1000 : null;
+  const refreshCooldownActive = refreshCooldownUntil != null && Date.now() < refreshCooldownUntil;
+  useEffect(() => {
+    if (!refreshCooldownActive) return;
+    const id = setInterval(() => setRefreshTick(v => v + 1), 15000);
+    return () => clearInterval(id);
+  }, [refreshCooldownActive]);
+  const refreshCooldownMinutesLeft = refreshCooldownActive
+    ? Math.max(1, Math.ceil((refreshCooldownUntil - Date.now()) / 60000))
+    : 0;
   const [budget, setBudget] = useState(profile?.monthly_budget || 3000);
   const [goal, setGoal] = useState(profile?.savings_goal || 10000);
   const [saved, setSaved] = useState(false);
@@ -293,6 +310,15 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
               style={{ width: "100%", padding: 13, background: syncingBank ? C.bgTertiary : C.green + "22", border: `1px solid ${C.green}44`, borderRadius: 14, color: C.green, fontWeight: 600, fontSize: 14, cursor: syncingBank ? "not-allowed" : "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
               <Icon name="repeat" size={15} color={C.green} strokeWidth={2} />
               {syncingBank ? t("profile.syncing_btn") : t("profile.sync_transactions")}
+            </button>
+            <button onClick={onRefreshBalance} disabled={refreshingBalance || refreshCooldownActive}
+              style={{ width: "100%", padding: 13, background: (refreshingBalance || refreshCooldownActive) ? C.bgTertiary : C.cyan + "18", border: `1px solid ${C.cyan}44`, borderRadius: 14, color: (refreshingBalance || refreshCooldownActive) ? C.faint : C.cyan, fontWeight: 600, fontSize: 14, cursor: (refreshingBalance || refreshCooldownActive) ? "not-allowed" : "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
+              <Icon name="zap" size={15} color={(refreshingBalance || refreshCooldownActive) ? C.faint : C.cyan} strokeWidth={2} />
+              {refreshingBalance
+                ? t("profile.refreshing_balance_btn")
+                : refreshCooldownActive
+                  ? t("profile.refresh_balance_cooldown_btn", { min: refreshCooldownMinutesLeft })
+                  : t("profile.refresh_balance_btn")}
             </button>
             <button
               onClick={getReconnectToken}

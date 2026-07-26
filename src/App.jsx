@@ -442,6 +442,7 @@ export default function App() {
   const [backgroundSyncing, setBackgroundSyncing] = useState(false);
   const bgSyncRef = useRef(null);
   const bgSyncLockRef = useRef(false);
+  const [refreshingBalance, setRefreshingBalance] = useState(false);
   const [tutorialActive, setTutorialActive] = useState(false);
   const [tutorialStepIdx, setTutorialStepIdx] = useState(0);
   const [activeTourSteps, setActiveTourSteps] = useState(TUTORIAL_STEPS);
@@ -791,6 +792,37 @@ export default function App() {
     }
   }
   bgSyncRef.current = bgSync;
+
+  // Forces Plaid to re-poll the bank (POST /transactions/refresh) instead of
+  // reading its cache like syncBankTransactions/bgSync above. Async on
+  // Plaid's side — this call only confirms the request was accepted; the
+  // real update lands later via the existing webhook -> sync_item path.
+  // Two short delayed re-fetches opportunistically pick it up without
+  // requiring the user to manually pull-to-refresh; if the webhook is
+  // still slower than that, the next bgSync cycle will catch it anyway.
+  async function refreshBalanceNow() {
+    setRefreshingBalance(true);
+    try {
+      const data = await callEdgeFunction("plaid-refresh-balance", {});
+      if (data.error === "cooldown") {
+        showAlert(t("profile.refresh_balance_cooldown"), "warning", "info");
+      } else if (data.error) {
+        logger.error("[Plaid] refresh-balance error:", data);
+        showAlert(t("profile.refresh_balance_failed"), "danger", "alert-circle");
+      } else {
+        showAlert(t("profile.refresh_balance_requested"), "success", "repeat");
+        setProfile(p => (p ? { ...p, last_balance_refresh_at: new Date().toISOString() } : p));
+        clearAccountsCache();
+        setTimeout(() => loadAll(true), 15000);
+        setTimeout(() => loadAll(true), 45000);
+      }
+    } catch (err) {
+      logger.error("[Plaid] refresh-balance exception:", err);
+      showAlert(t("profile.refresh_balance_failed"), "danger", "alert-circle");
+    } finally {
+      setRefreshingBalance(false);
+    }
+  }
 
   async function seedCategories() {
     const defaults = [
@@ -1575,7 +1607,7 @@ export default function App() {
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} activeMerchantFilter={merchantFilter} onClearMerchantFilter={() => setMerchantFilter(null)} activeDateFilter={dateFilter} onClearDateFilter={() => setDateFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} bankConnected={bankConnected} onNavigate={setScreen} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} InsightCard={InsightCard} roundupEnabled={roundupEnabled} onToggleRoundup={v => { setRoundupEnabled(v); saveProfile({ roundup_enabled: v }); }} />}
             {screen === "insights" && <Insights {...shared} onOpenChat={msg => { const budget = Number(profile?.monthly_budget)||3000; const sub = ['Subscriptions','Bills','Utilities','Phone','Internet','Insurance'].reduce((s,c)=>s+(spendingByCategory[c]||0),0); const {score:hs}=calculateHealthScore({totalIncome:effectiveIncome,totalSpent,lastIncome,lastSpent,budget,subscriptionSpend:sub}); const greeting=buildContextGreeting('insights',{totalIncome:effectiveIncome,totalSpent,spendingByCategory,savings,transactions,profile,allInsights,healthScore:hs}); const base=[{role:"assistant",text:greeting}]; setChatMessages(base); setShowChat(true); sendChat(msg,base); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} merchantAliasMap={merchantAliasMap} merchantAliases={merchantAliases} onDecideMerchantAlias={decideMerchantAlias} bankConnected={bankConnected} onNavigate={setScreen} />}
-            {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} onSignOut={signOut} onDeleteAccount={deleteAccount} onBack={() => setScreen("dashboard")} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} getReconnectToken={getReconnectToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} lastSyncedAt={lastSyncedAt} backgroundSyncing={backgroundSyncing} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
+            {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} onSignOut={signOut} onDeleteAccount={deleteAccount} onBack={() => setScreen("dashboard")} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} getReconnectToken={getReconnectToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} lastSyncedAt={lastSyncedAt} backgroundSyncing={backgroundSyncing} onRefreshBalance={refreshBalanceNow} refreshingBalance={refreshingBalance} lastBalanceRefreshAt={profile?.last_balance_refresh_at} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
           </>
         )}
       </div>
