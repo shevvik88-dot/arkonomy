@@ -51,7 +51,7 @@ function highlightNumbers(text, accentColor = "#FFFFFF") {
     const isPos = part.startsWith("+");
     const color = isNeg ? "#FF5C7A" : isPos ? "#12D18E" : accentColor;
     return (
-      <span key={i} style={{ color, fontWeight: 700, fontSize: "1.05em" }}>{part}</span>
+      <span key={i} className="ph-mask" style={{ color, fontWeight: 700, fontSize: "1.05em" }}>{part}</span>
     );
   });
 }
@@ -655,7 +655,7 @@ function WeeklySummary({ transactions }) {
         })}
       </div>
 
-      <div style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 3 }}>${fmt(thisWeek)}</div>
+      <div className="ph-mask" style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 3 }}>${fmt(thisWeek)}</div>
       <div style={{ fontSize: 12, color: C.muted }}>
         {t("insights.week_start")}–{todayLabel}{topCat ? t("insights.mostly_cat", { cat: tCat(topCat[0], t) }) : ""}
       </div>
@@ -823,7 +823,7 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
             <Icon name={icon} size={14} color={color} />
           </div>
           <span style={{ fontWeight: 600, fontSize: 14, color }}>{title}</span>
-          <span style={{ marginLeft: "auto", fontSize: 14, fontWeight: 800, color }}>${fmt(total)}/mo</span>
+          <span className="ph-mask" style={{ marginLeft: "auto", fontSize: 14, fontWeight: 800, color }}>${fmt(total)}/mo</span>
         </div>
         {items.slice(0, 6).map((m, i) => {
           const brand = getBrandStyle(m.name);
@@ -836,7 +836,7 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
                   <MerchantFavicon name={m.name} color={brand.color} letter={brand.letter} />
                 </div>
                 <span style={{ fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{displayName}</span>
-                <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{m.months} mo · <span style={{ color, fontWeight: 600 }}>${fmt(m.avgMonthly)}/mo</span></span>
+                <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{m.months} mo · <span className="ph-mask" style={{ color, fontWeight: 600 }}>${fmt(m.avgMonthly)}/mo</span></span>
                 {showAskAction && (
                   <button
                     onClick={() => { posthog?.capture('subscription_ai_inquiry_started'); onOpenChat?.(tRec("insights.ask_about_subscription", { merchant: displayName })); }}
@@ -881,7 +881,7 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
                   <MerchantFavicon name={m.name} color={brand.color} letter={brand.letter} />
                 </div>
                 <span style={{ fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{displayName}</span>
-                <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>${fmt(m.avgMonthly)}/mo · {tRec("insights.last_charged_days_ago", { days: m.daysSinceLast })}</span>
+                <span className="ph-mask" style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>${fmt(m.avgMonthly)}/mo · {tRec("insights.last_charged_days_ago", { days: m.daysSinceLast })}</span>
               </div>
             );
           })}
@@ -900,7 +900,7 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
             const newerName = cleanMerchantName(c.newer.name) || c.newer.name;
             return (
               <div key={i} style={{ padding: "9px 0", borderTop: i > 0 ? `1px solid ${C.sep}` : "none" }}>
-                <div style={{ fontSize: 13, color: C.text, marginBottom: 6 }}>
+                <div className="ph-mask" style={{ fontSize: 13, color: C.text, marginBottom: 6 }}>
                   {olderName} (${fmt(c.older.amount)}/mo) &harr; {newerName} (${fmt(c.newer.amount)}/mo)
                 </div>
                 <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>{tRec("insights.same_payment_hint")}</div>
@@ -1090,10 +1090,10 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
               <div style={{ width: 44, height: 44, borderRadius: 14, background: color + "22", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 14px ${color}33` }}>
                 <Icon name={ins.icon} size={20} color={color} />
               </div>
-              {ins.value && <span style={{ background: color + "22", color, borderRadius: 100, padding: "4px 12px", fontSize: 13, fontWeight: 700 }}>{ins.value}</span>}
+              {ins.value && <span className="ph-mask" style={{ background: color + "22", color, borderRadius: 100, padding: "4px 12px", fontSize: 13, fontWeight: 700 }}>{ins.value}</span>}
             </div>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>{ins.title}</div>
-            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 14 }}>{ins.desc}</div>
+            <div className="ph-mask" style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>{ins.title}</div>
+            <div className="ph-mask" style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 14 }}>{ins.desc}</div>
             <button onClick={() => onOpenChat?.(ins.context)} style={{ background: "none", border: "none", cursor: "pointer", color, fontSize: 13, fontWeight: 600, padding: 0, display: "flex", alignItems: "center", gap: 6, fontFamily: FONT }}>
               <Icon name="message" size={13} color={color} /> {t("insights.ask_ai_about_this")} <Icon name="chevron" size={13} color={color} />
             </button>
@@ -1145,13 +1145,13 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
                 <div key={sv.id} style={{ marginTop: i > 0 ? 12 : 0, paddingTop: i > 0 ? 12 : 0, borderTop: i > 0 ? `1px solid ${C.sep}` : 'none' }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 5 }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{sv.name}</span>
-                    <span style={{ fontSize: 11, color: C.muted }}>${fmt(cur, 0)} / ${fmt(tgt, 0)}</span>
+                    <span className="ph-mask" style={{ fontSize: 11, color: C.muted }}>${fmt(cur, 0)} / ${fmt(tgt, 0)}</span>
                   </div>
                   <div style={{ height: 6, background: C.bgTertiary, borderRadius: 99, marginBottom: 4, overflow: "visible" }}>
                     <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg,${C.green}AA,${C.green})`, borderRadius: 99, boxShadow: pct > 0 ? `0 0 8px ${C.green}44` : 'none', transition: "width 0.6s ease" }} />
                   </div>
                   {fc.type !== 'complete' && (
-                    <div style={{ fontSize: 11, color: fc.type === 'on_track' ? C.green : C.yellow, lineHeight: 1.4 }}>
+                    <div className="ph-mask" style={{ fontSize: 11, color: fc.type === 'on_track' ? C.green : C.yellow, lineHeight: 1.4 }}>
                       {fc.type === 'on_track'
                         ? t("insights.on_track_for", { date: formatForecastDate(fc.date) })
                         : t("insights.need_more_for", { amount: fmt(fc.shortfall, 0), date: formatForecastDate(fc.targetDate) })}

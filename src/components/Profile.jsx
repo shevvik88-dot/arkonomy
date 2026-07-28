@@ -290,7 +290,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             <Icon name="bank" size={18} color={bankConnected ? C.green : C.bankConnectBlue} />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>
+            <div className={bankConnected && bankName ? "ph-mask" : undefined} style={{ fontWeight: 700, fontSize: 15 }}>
               {bankConnected ? bankName || t("profile.bank_connected_name") : t("profile.connect_bank")}
             </div>
             <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>

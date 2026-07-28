@@ -162,7 +162,7 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{sv.name}</h3>
             {linkedAccount && <div style={{ fontSize: 10, fontWeight: 700, color: C.green, background: C.green + "18", border: `1px solid ${C.green}33`, borderRadius: 20, padding: "2px 7px", letterSpacing: 0.5 }}>{t("savings.live").toUpperCase()}</div>}
           </div>
-          <div style={{ fontSize: 13, color: C.muted }}>
+          <div className="ph-mask" style={{ fontSize: 13, color: C.muted }}>
             {linkedAccount ? `Linked: ${linkedAccount.name} ••••${linkedAccount.mask}` : t("savings.tracking_manually")}
           </div>
         </div>
@@ -181,8 +181,8 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 8 }}>
         <div>
-          <span style={{ fontSize: 24, fontWeight: 800, color: C.text }}>{fmtMoney(current)}</span>
-          <span style={{ fontSize: 13, color: C.muted, marginLeft: 6 }}>/ {fmtMoney(sv.target)}</span>
+          <span className="ph-mask" style={{ fontSize: 24, fontWeight: 800, color: C.text }}>{fmtMoney(current)}</span>
+          <span className="ph-mask" style={{ fontSize: 13, color: C.muted, marginLeft: 6 }}>/ {fmtMoney(sv.target)}</span>
         </div>
         <div style={{ fontSize: 14, fontWeight: 700, color: progress >= 1 ? C.green : C.cyan }}>{pct}%</div>
       </div>
@@ -276,7 +276,7 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
                 <Icon name="arrow-up-right" size={24} color={C.cyan} strokeWidth={2.5} />
               </div>
               <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{t("savings.move_money_title")}</div>
-              <div style={{ fontSize: 14, color: C.muted }}>{t("savings.transfer_in_app", { bank: linkedAccount?.institution_name || t("savings.your_bank_fallback") })}</div>
+              <div className="ph-mask" style={{ fontSize: 14, color: C.muted }}>{t("savings.transfer_in_app", { bank: linkedAccount?.institution_name || t("savings.your_bank_fallback") })}</div>
             </div>
 
             <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 16, padding: "18px 20px", marginBottom: 24 }}>
@@ -284,10 +284,10 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
                 <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: 0.8 }}>{t("savings.linked_account")}</span>
                 <span style={{ fontSize: 11, fontWeight: 700, color: C.green }}>{t("savings.live").toUpperCase()}</span>
               </div>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{linkedAccount?.name || sv.name}</div>
-              <div style={{ fontSize: 13, color: C.muted }}>{linkedAccount ? `••••${linkedAccount.mask} · ${linkedAccount.official_name || "Savings"}` : t("savings.tracking_manually")}</div>
+              <div className="ph-mask" style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{linkedAccount?.name || sv.name}</div>
+              <div className="ph-mask" style={{ fontSize: 13, color: C.muted }}>{linkedAccount ? `••••${linkedAccount.mask} · ${linkedAccount.official_name || "Savings"}` : t("savings.tracking_manually")}</div>
               {linkedAccount && (
-                <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}`, fontSize: 15, fontWeight: 600, color: C.cyan }}>
+                <div className="ph-mask" style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.border}`, fontSize: 15, fontWeight: 600, color: C.cyan }}>
                   {t("savings.available_balance", { balance: fmtMoney(linkedAccount.balance_available ?? linkedAccount.balance_current ?? 0) })}
                 </div>
               )}
@@ -324,7 +324,7 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
                 {reminder && !editingReminder ? (
                   <div style={{ background: C.bgSecondary, border: `1px solid ${C.cyan}33`, borderRadius: 14, padding: 18 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: C.cyan, letterSpacing: 0.8, marginBottom: 12 }}>{t("savings.active_reminder")}</div>
-                    <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
+                    <div className="ph-mask" style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
                       {fmtMoney(reminder.amount)} {reminder.day_of_week.length === 7 ? t("savings.every_day") : reminder.day_of_week.map(d => DAY_NAMES[d]).join(", ")}
                     </div>
                     <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>{t("savings.reminding_transfer", { name: sv.name })}</div>
@@ -530,7 +530,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
           <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: 1, marginBottom: 8 }}>
             {t("savings.asset_allocation").toUpperCase()}
           </div>
-          <div style={{ fontSize: 34, fontWeight: 800, color: C.text, letterSpacing: -0.5, marginBottom: 2 }}>
+          <div className="ph-mask" style={{ fontSize: 34, fontWeight: 800, color: C.text, letterSpacing: -0.5, marginBottom: 2 }}>
             {fmtMoney(totalAssets)}
           </div>
           <div style={{ fontSize: 12, color: C.muted, marginBottom: 18 }}>{t("savings.net_worth")}</div>
@@ -551,7 +551,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
                 <div key={r.key} style={{ background: C.bg, border: `1px solid ${C.sep}`, borderRadius: 12, padding: "9px 11px", display: "flex", alignItems: "center", gap: 7 }}>
                   <div style={{ width: 7, height: 7, borderRadius: 99, background: r.color, flexShrink: 0 }} />
                   <span style={{ fontSize: 12, color: C.muted, fontWeight: 600, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
-                  <span style={{ fontSize: r.amount > 0 ? 13 : 11, fontWeight: 700, color: r.amount > 0 ? C.text : C.faint, whiteSpace: "nowrap" }}>{fmtMoney(r.amount)}</span>
+                  <span className="ph-mask" style={{ fontSize: r.amount > 0 ? 13 : 11, fontWeight: 700, color: r.amount > 0 ? C.text : C.faint, whiteSpace: "nowrap" }}>{fmtMoney(r.amount)}</span>
                   <div style={{ background: pct > 0 ? C.green + "25" : C.faint + "30", borderRadius: 20, padding: "2px 6px", flexShrink: 0 }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: pct > 0 ? C.green : C.faint }}>{pct}%</span>
                   </div>
@@ -643,7 +643,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
         <div style={{ marginBottom: 24 }}>
           <div style={{ background: C.bg, border: `1px solid ${C.sep}`, borderRadius: 14, padding: "14px 16px" }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: 0.8, marginBottom: 6 }}>{t("savings.this_month")}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: roundupEnabled ? C.text : C.faint }}>{roundupEnabled ? fmtMoney(roundupMonth) : "—"}</div>
+            <div className="ph-mask" style={{ fontSize: 20, fontWeight: 800, color: roundupEnabled ? C.text : C.faint }}>{roundupEnabled ? fmtMoney(roundupMonth) : "—"}</div>
             <div style={{ fontSize: 10, color: C.faint, marginTop: 4 }}>{t("savings.based_on_purchases")}</div>
           </div>
         </div>
@@ -687,7 +687,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <button onClick={() => setShowAlpacaSheet(true)}
+            <button onClick={() => setShowAlpacaSheet(true)} className="ph-mask"
               style={{ width: "100%", padding: 16, background: `linear-gradient(90deg, ${C.green}, ${C.cyan})`, border: "none", borderRadius: 14, color: "#000", fontSize: 15, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 20px ${C.green}33` }}>
               {t("savings.invest_amount", { amount: fmtMoney(roundupMonth) })}
             </button>
@@ -826,7 +826,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
                 <div style={{ fontSize: 14, color: C.muted }}>{t("savings.to_invest")}</div>
              </div>
              <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20, marginBottom: 24, textAlign: "center" }}>
-                <div style={{ fontSize: 42, fontWeight: 800, color: C.text, marginBottom: 4 }}>{fmtMoney(roundupMonth)}</div>
+                <div className="ph-mask" style={{ fontSize: 42, fontWeight: 800, color: C.text, marginBottom: 4 }}>{fmtMoney(roundupMonth)}</div>
                 <div style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>SPDR S&P 500 ETF (SPY)</div>
              </div>
              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

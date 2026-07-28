@@ -102,9 +102,9 @@ export function useToasts() {
     delete timers.current[id];
   };
 
-  const show = (msg, type = "success", icon = null) => {
+  const show = (msg, type = "success", icon = null, mask = false) => {
     const id = "t" + Date.now() + Math.random().toString(36).slice(2);
-    setToasts(prev => [...prev.slice(-4), { id, msg, type, icon, exiting: false }]);
+    setToasts(prev => [...prev.slice(-4), { id, msg, type, icon, mask, exiting: false }]);
     timers.current[id] = setTimeout(() => dismiss(id), 4000);
   };
 
@@ -138,7 +138,7 @@ export function ToastStack({ toasts, dismiss }) {
             <div style={{ width: 24, height: 24, borderRadius: 12, background: c.color + "22", border: `1px solid ${c.color}55`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
               <Icon name={t.icon || c.icon} size={13} color={c.color} strokeWidth={2.2} />
             </div>
-            <span style={{ fontSize: 13, fontWeight: 500, color: "#fff", flex: 1, lineHeight: 1.4, paddingTop: 3 }}>{t.msg}</span>
+            <span className={t.mask ? "ph-mask" : undefined} style={{ fontSize: 13, fontWeight: 500, color: "#fff", flex: 1, lineHeight: 1.4, paddingTop: 3 }}>{t.msg}</span>
             {dismiss && (
               <button onClick={() => dismiss(t.id)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "2px 0 0 4px", flexShrink: 0 }}>×</button>
             )}
@@ -185,9 +185,9 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
           onPointerLeave={e => e.currentTarget.style.transform = ""}
         >
           <span style={{ fontSize: 10, fontWeight: 600, color: C.faint, letterSpacing: 0.5, textTransform: "uppercase" }}>{card.label}</span>
-          <span style={{ fontSize: 15, fontWeight: 700, color: card.valColor, letterSpacing: -0.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.value}</span>
+          <span className="ph-mask" style={{ fontSize: 15, fontWeight: 700, color: card.valColor, letterSpacing: -0.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.value}</span>
           {card.ctx
-            ? <span style={{ fontSize: 10, color: card.ctxColor, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.ctx}</span>
+            ? <span className="ph-mask" style={{ fontSize: 10, color: card.ctxColor, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.ctx}</span>
             : <span style={{ fontSize: 10, color: C.faint }}>{t("transactions.this_month")}</span>
           }
           {card.badge && (
@@ -241,7 +241,7 @@ function BreakdownSheet({ title, subtitle, rows, actionLabel, actionColor, onAct
       <div style={{ width: "100%", background: C.card, borderRadius: "22px 22px 0 0", border: `1px solid ${C.border}`, maxHeight: "85vh", overflowY: "auto", paddingBottom: 32, fontFamily: FONT }} onClick={e => e.stopPropagation()}>
         <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.11)", borderRadius: 2, margin: "10px auto 0" }} />
         <div style={{ fontSize: 16, fontWeight: 600, color: C.text, padding: "14px 18px 3px", letterSpacing: -0.3 }}>{title}</div>
-        <div style={{ fontSize: 12, color: C.faint, padding: "0 18px 12px" }}>{subtitle}</div>
+        <div className="ph-mask" style={{ fontSize: 12, color: C.faint, padding: "0 18px 12px" }}>{subtitle}</div>
         <div style={{ height: 1, background: C.sep, marginBottom: 2 }} />
         {rows.map((r, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 18px" }}>
@@ -255,7 +255,7 @@ function BreakdownSheet({ title, subtitle, rows, actionLabel, actionColor, onAct
               </div>
             </div>
             <div style={{ textAlign: "right", flexShrink: 0, paddingLeft: 10 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: "nowrap" }}>{r.amount}</div>
+              <div className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: "nowrap" }}>{r.amount}</div>
               {r.pct !== undefined && (
                 <div style={{ height: 2, width: 60, background: "rgba(255,255,255,0.07)", borderRadius: 1, marginTop: 5, marginLeft: "auto" }}>
                   <div style={{ height: "100%", width: Math.min(r.pct, 100) + "%", background: r.color, borderRadius: 1 }} />
@@ -396,7 +396,7 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0, paddingLeft: 8, gap: 2 }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: isIncome ? "#12D18E" : "#FF5C7A", letterSpacing: -0.35, fontFamily: FONT }}>
+          <span className="ph-mask" style={{ fontSize: 15, fontWeight: 600, color: isIncome ? "#12D18E" : "#FF5C7A", letterSpacing: -0.35, fontFamily: FONT }}>
             {hideAmount ? "••••" : `${isIncome ? "+" : "−"}${fmtMoney(Number(t.amount))}`}
           </span>
           {t._incomeTotal > 0 && !isIncome && Number(t.amount) > 0 && (
@@ -549,7 +549,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
               <span style={{ fontSize: 12, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{normalizeTxName(topTx)}</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, paddingLeft: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: C.red }}>{fmtMoney(Number(topTx.amount))}</span>
+              <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: C.red }}>{fmtMoney(Number(topTx.amount))}</span>
               <span style={{ fontSize: 13, color: C.faint }}>→</span>
             </div>
           </div>
@@ -705,7 +705,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
               <div key={group.date}>
                 <div style={{ padding: "10px 4px 4px", fontSize: 11, fontWeight: 700, color: C.faint, letterSpacing: 0.6, textTransform: "uppercase", position: "sticky", top: 0, background: "transparent", backdropFilter: "blur(8px)", zIndex: 2, display: "flex", alignItems: "center", gap: 6 }}>
                   <span>{group.label}</span>
-                  {dayNetStr && <span style={{ color: dayNetColor, fontSize: 12, fontWeight: 500, opacity: 0.6, letterSpacing: 0, textTransform: "none" }}>{dayNetStr}</span>}
+                  {dayNetStr && <span className="ph-mask" style={{ color: dayNetColor, fontSize: 12, fontWeight: 500, opacity: 0.6, letterSpacing: 0, textTransform: "none" }}>{dayNetStr}</span>}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   {group.txs.map(t => <TxRow key={t.id} t={{ ...t, _incomeTotal: summary.income }} onDelete={handleDelete} onEdit={onEdit} onLongPress={tx => setQuickTx(tx)} />)}

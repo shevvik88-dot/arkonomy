@@ -932,17 +932,17 @@ export default function App() {
 
           // 1. Large Transaction
           if (ap.largeTxAlerts && Number(tx.amount) > ap.largeTxThreshold) {
-            showAlertRef.current(`Large transaction: ${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, "warning", "alert-circle");
+            showAlertRef.current(`Large transaction: ${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, "warning", "alert-circle", true);
             sendPush({ title: "Large Transaction", body: `${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, icon: "/icon-192.png", tag: "large-tx" });
           }
           // 2. Overspending Alert
           if (ap.overspendAlerts && monthlyExpenses > budget) {
-            showAlertRef.current(`You've exceeded your monthly budget by ${fmtMoney(monthlyExpenses - budget)}`, "danger", "alert-circle");
+            showAlertRef.current(`You've exceeded your monthly budget by ${fmtMoney(monthlyExpenses - budget)}`, "danger", "alert-circle", true);
             sendPush({ title: "Budget Exceeded", body: `Monthly spending exceeds your ${fmtMoney(budget)} budget by ${fmtMoney(monthlyExpenses - budget)}`, icon: "/icon-192.png", tag: "budget-exceeded" });
           }
           // 3. Low Balance Alert
           if (ap.lowBalanceAlerts && remaining < ap.lowBalanceThreshold && remaining >= 0) {
-            showAlertRef.current(`Low balance warning: ${fmtMoney(remaining)} remaining in budget`, "warning", "dollar");
+            showAlertRef.current(`Low balance warning: ${fmtMoney(remaining)} remaining in budget`, "warning", "dollar", true);
             sendPush({ title: "Low Balance", body: `${fmtMoney(remaining)} remaining in your monthly budget`, icon: "/icon-192.png", tag: "low-balance" });
           }
           // 4. Unusual Spending Alert
@@ -959,7 +959,7 @@ export default function App() {
               .reduce((s, t) => s + Number(t.amount), 0);
             if (prevTotal >= 50 && thisTotal >= prevTotal * 1.25) {
               const pct = Math.round((thisTotal / prevTotal - 1) * 100);
-              showAlertRef.current(`${cat} spending is up ${pct}% vs last month`, "warning", "trending-up");
+              showAlertRef.current(`${cat} spending is up ${pct}% vs last month`, "warning", "trending-up", true);
               sendPush({
                 title: `⚠️ ${cat} Spending Up`,
                 body:  `${cat} is up ${pct}% vs last month ($${Math.round(thisTotal)} vs $${Math.round(prevTotal)})`,

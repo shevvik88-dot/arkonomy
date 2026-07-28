@@ -277,12 +277,12 @@ const sw = 22;
           {hovered ? (
             <>
               <div style={{ fontSize: 10, color: C.text, fontWeight: 600, letterSpacing: 0.5, marginBottom: 2, textAlign: "center", padding: "0 4px" }}>{tCat(hovered, t)}</div>
-              <div style={{ fontSize: 17, fontWeight: 800, color: CAT_COLORS[hovered] || C.cyan }}>{hideAmounts ? "••••" : `$${fmt((data[hovered] || 0), 0)}`}</div>
+              <div className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: CAT_COLORS[hovered] || C.cyan }}>{hideAmounts ? "••••" : `$${fmt((data[hovered] || 0), 0)}`}</div>
               <div style={{ fontSize: 11, color: C.text, fontWeight: 600 }}>{Math.round(((data[hovered] || 0) / total) * 100)}%</div>
             </>
           ) : (
             <>
-             <div style={{ fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: -0.5, marginBottom: 2 }}>{hideAmounts ? "••••" : `$${fmt(total, 0)}`}</div>
+             <div className="ph-mask" style={{ fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: -0.5, marginBottom: 2 }}>{hideAmounts ? "••••" : `$${fmt(total, 0)}`}</div>
            <div style={{ fontSize: 10, color: C.muted, letterSpacing: 0.5, fontWeight: 600 }}>{t("dashboard.total_spent")}</div>
             </>
           )}
@@ -298,7 +298,7 @@ const sw = 22;
               onMouseEnter={() => setHovered(s.cat)} onMouseLeave={() => setHovered(null)}>
               <div style={{ width: 10, height: 10, borderRadius: 99, background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}88` }} />
               <span style={{ fontSize: 13, color: i === 0 ? C.text : C.muted, fontWeight: i === 0 ? 600 : 400, flex: 1 }}>{tCat(s.cat, t)}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{hideAmounts ? "••••" : `$${fmt(s.val, 0)}`}</span>
+              <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{hideAmounts ? "••••" : `$${fmt(s.val, 0)}`}</span>
               <span style={{ fontSize: 11, color: s.color, fontWeight: i === 0 ? 700 : 500, minWidth: 36, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>
               {onCatClick && <Icon name="chevron" size={12} color={C.faint} />}
             </div>
@@ -685,7 +685,7 @@ function CashFlowForecast({ accountBalance, transactions, balanceVisible, mercha
         <div style={{ fontSize: 9, color: C.faint, fontWeight: 600, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 4 }}>
           {t('dashboard.projected_end_of_month', 'Projected end of month')}
         </div>
-        <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: -1, color: balanceVisible ? S.color : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 20px ${S.color}30` : 'none' }}>
+        <div className="ph-mask" style={{ fontSize: 34, fontWeight: 800, letterSpacing: -1, color: balanceVisible ? S.color : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 20px ${S.color}30` : 'none' }}>
           {mask(projectedBalance)}
         </div>
         <div style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>
@@ -708,7 +708,7 @@ function CashFlowForecast({ accountBalance, transactions, balanceVisible, mercha
         ].map((item, i) => (
           <div key={item.label} style={{ paddingLeft: i > 0 ? 12 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : 'none', marginLeft: i > 0 ? 0 : 0 }}>
             <div style={{ fontSize: 9, color: C.faint, fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 3 }}>{item.label}</div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: item.color }}>{item.value}</div>
+            <div className="ph-mask" style={{ fontSize: 12, fontWeight: 700, color: item.color }}>{item.value}</div>
           </div>
         ))}
       </div>
@@ -1052,7 +1052,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
                           else setSelectedDay(day);
                         }}
                         tooltip={tooltipDay === day && isFuture && (
-                          <div style={{ position: "absolute", top: "120%", left: "50%", transform: "translateX(-50%)", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", whiteSpace: "nowrap", fontSize: 12, color: C.text, zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.4)" }}>
+                          <div className="ph-mask" style={{ position: "absolute", top: "120%", left: "50%", transform: "translateX(-50%)", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", whiteSpace: "nowrap", fontSize: 12, color: C.text, zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.4)" }}>
                             {futureByDay[day] ? `${futureByDay[day].merchant} ~$${fmt(futureByDay[day].amount)}` : t("dashboard.no_bills_expected")}
                           </div>
                         )}
@@ -1066,7 +1066,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
                 {selectedIsFuture ? (
                   <div>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 }}>
-                      <div style={{ fontSize: 13, color: C.text }}>
+                      <div className="ph-mask" style={{ fontSize: 13, color: C.text }}>
                         {selectedFutureInfo ? `${selectedFutureInfo.merchant} ~$${fmt(selectedFutureInfo.amount)}` : t("dashboard.no_bills_expected")}
                       </div>
                       {selectedFutureInfo?.scheduledPaymentId && (
@@ -1093,7 +1093,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
                   selectedCatEntries.map(([cat, amount]) => (
                     <div key={cat} onClick={() => goToDateCategory(selectedDay, cat)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: `1px solid ${C.sep}`, cursor: "pointer" }}>
                       <span style={{ fontSize: 13, color: C.text }}>{tCat(cat, t)}</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: CAT_COLORS[cat] || C.muted }}>${fmt(amount)}</span>
+                      <span className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: CAT_COLORS[cat] || C.muted }}>${fmt(amount)}</span>
                     </div>
                   ))
                 )}
@@ -1175,7 +1175,7 @@ function AddPlannedPaymentModal({ dueDate, transactions, merchantAliasMap, sched
         </div>
 
         {preview && (
-          <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 12, background: C.bgTertiary, fontSize: 13, color: C.muted }}>
+          <div className="ph-mask" style={{ marginTop: 14, padding: "10px 14px", borderRadius: 12, background: C.bgTertiary, fontSize: 13, color: C.muted }}>
             {t("dashboard.balance_after_planned_payment", { amount: `$${fmt(Math.max(0, preview.projectedRaw), 0)}` })}
           </div>
         )}
@@ -1353,7 +1353,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
               <div>
                 {accountBalance != null ? (
                   <>
-                    <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? C.cyan : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${C.cyan}44` : "none" }}>
+                    <div className="ph-mask" style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? C.cyan : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${C.cyan}44` : "none" }}>
                       {balanceVisible ? `$${fmt(accountBalance)}` : "••••"}
                     </div>
                     <div style={{ fontSize: 9, color: C.faint, marginTop: 2, letterSpacing: 0.5 }}>
@@ -1402,7 +1402,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
                   <div style={{ width: 5, height: 5, borderRadius: 99, background: item.dot }} />
                   <span style={{ fontSize: 9, color: C.muted, fontWeight: 500 }}>{item.label}</span>
                 </div>
-                <div style={{ fontSize: item.key === "net" ? 17 : 13, fontWeight: item.key === "net" ? 800 : 700, color: item.color, marginBottom: 3 }}>{item.value}</div>
+                <div className="ph-mask" style={{ fontSize: item.key === "net" ? 17 : 13, fontWeight: item.key === "net" ? 800 : 700, color: item.color, marginBottom: 3 }}>{item.value}</div>
                 {item.change !== undefined && <StatBadge value={item.flip ? -item.change : item.change} suffix="" />}
               </div>
             ))}
@@ -1509,7 +1509,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
               <div style={{ padding: '12px 20px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.sep}`, flexShrink: 0 }}>
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{t("dashboard.whats_in_other")}</div>
-                  <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>${fmt(otherTotal, 0)} {t("dashboard.this_month")} · {t("dashboard.transaction", { count: otherTxs.length })}</div>
+                  <div className="ph-mask" style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>${fmt(otherTotal, 0)} {t("dashboard.this_month")} · {t("dashboard.transaction", { count: otherTxs.length })}</div>
                 </div>
                 <button onClick={() => setOtherBreakdown(false)} aria-label={t("dashboard.close")} style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 8, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                   <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1536,7 +1536,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
                           </div>
                         </div>
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{balanceVisible ? `$${fmt(row.total, 0)}` : '••••'}</div>
+                          <div className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{balanceVisible ? `$${fmt(row.total, 0)}` : '••••'}</div>
                           {row.count > 1 && <div style={{ fontSize: 10, color: C.faint }}>{row.count} txns</div>}
                         </div>
                       </div>
