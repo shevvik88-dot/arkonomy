@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { logger } from "../utils/logger";
 import { useTranslation } from "react-i18next";
+import { usePostHog } from "@posthog/react";
 import { supabase } from "../utils/supabase";
 import { C, FONT } from "../utils/colors";
 import Icon from "./shared/Icon";
@@ -207,6 +208,7 @@ export function HelpButton({ onRestart, onMiniTour }) {
 
 export default function OnboardingFlow({ user, profile, linkToken, getLinkToken, onPlaidSuccess, onSaveProfile, trialCancelled, transactions = [], bankConnected }) {
   const { t } = useTranslation();
+  const posthog = usePostHog();
   const [step, setStep] = useState(trialCancelled ? 6 : 1);
   const [budget, setBudget] = useState("3000");
   const [savingBudget, setSavingBudget] = useState(false);
@@ -243,6 +245,7 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
         return;
       }
       try { localStorage.setItem("arkonomy_onboarding_done", "1"); } catch {}
+      posthog?.capture('onboarding_completed', { method: 'trial' });
       window.location.href = window.location.origin + "?trial_started=true";
     } catch (err) {
       logger.error("[startFreeTrial] failed:", err);
@@ -461,6 +464,7 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
 
   function completeFree() {
     try { localStorage.setItem("arkonomy_onboarding_done", "1"); } catch {}
+    posthog?.capture('onboarding_completed', { method: 'free' });
     window.location.reload();
   }
 

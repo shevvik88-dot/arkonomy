@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { usePostHog } from "@posthog/react";
 import { C, FONT } from "../utils/colors";
 import { fmt, parseDate, tCat, cleanMerchantName } from "../utils/helpers";
 import Icon from "./shared/Icon";
@@ -804,6 +805,7 @@ function MerchantFavicon({ name, color, letter }) {
 
 function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchantAliases, onDecideMerchantAlias }) {
   const tRec = useTranslation().t;
+  const posthog = usePostHog();
   const { subscriptions, regularPayments, subTotal, regularTotal, possiblyCancelled } = computeRecurringSummary(transactions, new Date(), merchantAliasMap);
   const aliasCandidates = findMerchantAliasCandidates(transactions, merchantAliases || []);
 
@@ -837,7 +839,7 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
                 <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{m.months} mo · <span style={{ color, fontWeight: 600 }}>${fmt(m.avgMonthly)}/mo</span></span>
                 {showAskAction && (
                   <button
-                    onClick={() => onOpenChat?.(tRec("insights.ask_about_subscription", { merchant: displayName }))}
+                    onClick={() => { posthog?.capture('subscription_ai_inquiry_started'); onOpenChat?.(tRec("insights.ask_about_subscription", { merchant: displayName })); }}
                     aria-label={tRec("insights.ask_about_subscription", { merchant: displayName })}
                     style={{ background: "none", border: "none", cursor: "pointer", padding: 4, margin: "-4px -4px -4px 0", display: "flex", alignItems: "center", flexShrink: 0 }}
                   >

@@ -4,6 +4,19 @@ import ReactDOM from 'react-dom/client'
 import * as Sentry from '@sentry/react'
 import './i18n.js'
 import App from './App.jsx'
+import posthog from 'posthog-js'
+import { PostHogProvider } from '@posthog/react'
+
+if (!import.meta.env.VITE_POSTHOG_PROJECT_TOKEN) {
+  if (import.meta.env.DEV) {
+    console.error('VITE_POSTHOG_PROJECT_TOKEN variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once VITE_POSTHOG_PROJECT_TOKEN is configured')
+  }
+} else {
+  posthog.init(import.meta.env.VITE_POSTHOG_PROJECT_TOKEN, {
+    api_host: import.meta.env.VITE_POSTHOG_HOST,
+    defaults: '2026-05-30',
+  })
+}
 
 // Redacts financial/PII fields by name, anywhere in the event — not a value
 // pattern match, so it only touches keys that are actually named this way
@@ -60,8 +73,10 @@ class ErrorBoundary extends React.Component {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
+    <PostHogProvider client={posthog}>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </PostHogProvider>
   </React.StrictMode>,
 )

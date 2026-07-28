@@ -6,6 +6,7 @@ import { logger } from "./utils/logger";
 // Aliased to avoid colliding with the local C object's own name.
 import { C as sharedC } from "./utils/colors";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { usePostHog } from "@posthog/react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "./utils/supabase";
 import { callEdgeFunction } from "./lib/callEdgeFunction";
@@ -346,6 +347,7 @@ function buildContextGreeting(screen, { totalIncome, totalSpent, spendingByCateg
 
 // ─── Main App ─────────────────────────────────────────────────
 export default function App() {
+  const posthog = usePostHog();
   const { t, i18n } = useTranslation();
   const [langOpen, setLangOpen] = useState(false);
   const langRef = useRef(null);
@@ -487,6 +489,7 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
 
     if (params.get("upgraded") === "true") {
+      posthog?.capture('plan_upgraded');
       setProToast(true);
       window.history.replaceState({}, "", window.location.pathname);
       setTimeout(() => { if (user) loadAll(); }, 2000);
@@ -494,6 +497,7 @@ export default function App() {
     }
 
     if (params.get("trial_started") === "true") {
+      posthog?.capture('trial_started');
       window.history.replaceState({}, "", window.location.pathname);
       setProToast(true);
       setTimeout(() => { if (user) loadAll(); }, 2000);
@@ -509,6 +513,7 @@ export default function App() {
     }
 
     if (params.get("alpaca_connected") === "true") {
+      posthog?.capture('alpaca_account_connected');
       window.history.replaceState({}, "", window.location.pathname);
       // Refresh profile to pick up the new alpaca_access_token
       setTimeout(() => { if (user) loadAll(); }, 500);
@@ -585,6 +590,7 @@ export default function App() {
       ]);
       if (p.data) {
         setProfile(p.data);
+        posthog?.identify(user.id, { plan: p.data.plan });
         setAlpacaConnected(!!alpacaCheck.data);
         setRoundupEnabled(!!p.data.roundup_enabled);
         if (p.data.last_synced_at && !silent) {
@@ -735,6 +741,7 @@ export default function App() {
     setBankConnected(true);
     setBankName(metadata.institution.name);
     setLinkToken(null);
+    posthog?.capture('bank_connected', { institution: metadata.institution.name });
     await syncBankTransactionsRef.current();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -843,6 +850,7 @@ export default function App() {
 
   async function signOut() {
     try {
+      posthog?.reset();
       clearAccountsCache();
       localStorage.removeItem('arkonomy_autopilot');
       await supabase.auth.signOut({ scope: 'global' });
@@ -963,6 +971,7 @@ export default function App() {
         }
         // Update upcoming charges based on new transaction set
         setUpcomingCharges(getUpcomingChargesForCarousel([data, ...transactions], merchantAliasMap));
+        posthog?.capture('transaction_added', { type: tx.type });
       }
     } catch (err) {
       logger.error("[addTransaction] failed:", err);
@@ -996,7 +1005,10 @@ export default function App() {
       const { data } = await supabase.from("merchant_aliases")
         .insert({ user_id: user.id, alias_key: aliasKey, canonical_key: canonicalKey, status })
         .select().single();
-      if (data) setMerchantAliases(prev => [...prev, data]);
+      if (data) {
+        setMerchantAliases(prev => [...prev, data]);
+        if (status === 'confirmed') posthog?.capture('merchant_alias_confirmed');
+      }
     } catch (err) {
       logger.error("[decideMerchantAlias] failed:", err);
     }
@@ -1027,7 +1039,10 @@ export default function App() {
 
   async function addSaving(sv) {
     const { data } = await supabase.from("savings").insert({ ...sv, user_id: user.id }).select().single();
-    if (data) setSavings(prev => [...prev, data]);
+    if (data) {
+      setSavings(prev => [...prev, data]);
+      posthog?.capture('savings_goal_created');
+    }
   }
 
   async function updateSaving(id, current) {
@@ -1270,7 +1285,7 @@ export default function App() {
   );
 
   const isShowingLastMonth = rawThisMonth.length === 0 && lastMonthTxs.length > 0;
-  const onUpgrade = () => setShowUpgradeModal(true);
+  const onUpgrade = () => { posthog?.capture('upgrade_modal_viewed'); setShowUpgradeModal(true); };
   const _plaidAccounts = getCachedAccounts();
   const _plaidAcct = _plaidAccounts
     ? (_plaidAccounts.find(a => a.subtype === "checking") ?? _plaidAccounts.find(a => a.type === "depository") ?? _plaidAccounts[0])
@@ -1308,7 +1323,7 @@ export default function App() {
   }
 
   async function investAlpaca(data) {
-    if (!isPro || isTrial) { setShowUpgradeModal(true); return; }
+    if (!isPro || isTrial) { posthog?.capture('upgrade_modal_viewed', { trigger: 'invest' }); setShowUpgradeModal(true); return; }
     if (!alpacaConnected) { connectAlpaca(); return; }
     const amount = data?.roundUpMonthly;
     if (!amount || Number(amount) < 1) {
@@ -1376,6 +1391,7 @@ export default function App() {
     if (!hasHistory) {
       setChatMessages([{ role: "assistant", text: buildChatGreeting() }]);
     }
+    posthog?.capture('ai_chat_opened', { has_history: hasHistory });
     setShowChat(true);
     markInsightsSeen();
   }

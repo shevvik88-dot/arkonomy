@@ -297,6 +297,25 @@ Free-юзеров (profiles.plan != 'pro'), Resend-интеграция (в CLAU
 Покажи план перед реализацией.
 ```
 
+### 20. Source-map upload — ни Sentry, ни PostHog сейчас не получают читаемые стектрейсы прод-билда
+
+```
+Найдено 2026-07-27 при разборе posthog-setup-report.md чек-листа
+("Verify before merging"): в проекте нет CI, который делает билд/деплой
+(только Semgrep + dependency-review GitHub Actions — Vercel билдит
+напрямую на push, не через Actions). Проверил vite.config.js — там нет
+@sentry/vite-plugin и никакого upload сорсмапов вообще. Значит Sentry
+стектрейсы в проде УЖЕ, вероятно, минифицированы и трудночитаемы — это
+не новая проблема от PostHog, она просто всплыла при его чек-листе.
+
+ЗАДАЧА: настроить upload сорсмапов и для Sentry (@sentry/vite-plugin
+или posthog-cli-стиль release step), и для PostHog (posthog-cli
+sourcemap) — реалистичнее как build-time шаг в package.json (например
+postbuild), а не GitHub Actions, раз тут нет билд-CI, куда это
+включать. Покажи план перед реализацией — два разных сервиса, возможно
+разный upload-механизм под каждый.
+```
+
 ---
 
 ## 🧭 Long-term / product roadmap
@@ -359,6 +378,7 @@ UI-заглушками: показывали success-тост, но ничег�
 
 ## 🧷 ТЕХДОЛГ — зафиксировано, не срочно
 
+- [x] **Закрыто 2026-07-27: PostHog wizard-интеграция — проверен чек-лист "Verify before merging" из `posthog-setup-report.md`, найдены и исправлены реальные проблемы.** Wizard добавил `posthog-js`/`@posthog/react`, `PostHogProvider` в `main.jsx`, 13 событий в 4 файлах, обновил CSP в `vercel.json` (`connect-src`/`script-src`/новая `worker-src` директива под session replay). Прошёлся по всем 7 пунктам чек-листа: билд чистый; тест-сьют — единственный e2e (`e2e/new-user-journey.spec.js`) реально бьёт по продакшену (`baseURL: https://app.arkonomy.com`), не запущен, оставлен на юзера; `.env.example` — в проекте такой конвенции никогда не было (нет ни файла, ни root README в git-истории), пропущено осознанно; Vercel env vars — добавлены `VITE_POSTHOG_PROJECT_TOKEN`/`VITE_POSTHOG_HOST` в Production+Preview (были только в `.env.local`, прод их не видел бы); source-map upload — вынесен в отдельную задачу #20 (затрагивает и Sentry тоже, который сорсмапы вообще никогда не грузил); `identify()`-на-возврате — проверено по коду (не live), корректно, один `useEffect` покрывает и логин, и session restore. **Найдено сверх чек-листа, самое существенное**: `posthog.identify()` в `AuthScreen.jsx` слал `email`/`name` как person-traits — прямое расхождение с уже существующей политикой проекта (`main.jsx`'s Sentry-конфиг явно скрабит `email` через `SENSITIVE_KEYS` + `sendDefaultPii: false`). Исправлено — оставлен только `identify(userId)`, PII убран (2 места, signup+login). `App.jsx`'s `identify(userId, {plan})` не тронут — `plan` не PII. `.env.local`/`.env.test` (содержат реальный `SUPABASE_SERVICE_ROLE_KEY` и e2e-пароль) перепроверены — корректно в `.gitignore`, никогда не коммитились.
 - [x] **Закрыто 2026-07-25: `notification_preferences.include_market_update` — тумблер активирован.** Вынесен общий `_shared/marketSnapshot.ts` (SPY/QQQ/BTC/ETH через Finnhub) — чистый рефакторинг существующей логики `market-data`'s `overview`-ветки (сама ветка теперь тоже вызывает этот хелпер, поведение не изменилось), `weekly-report` его переиспользует вместо второй независимой реализации. Снепшот не персонализирован — считается один раз за весь батч-прогон cron, не на каждого юзера. MVP: дневное изменение (`dp` от Finnhub), не настоящий week-over-week расчёт — осознанно отложено до реального сигнала, что это вводит в заблуждение. Тумблер разблокирован в Profile.jsx, `profile.digest_market_update` добавлен во все 4 локали. Коммит `e85bb2a`, code-reviewer — ship it, live-подтверждено реальным письмом (котировки отрендерились).
 - [ ] **`cleanMerchantName` не портирован в Deno (`_shared/recurringDetector.ts`) — станет проблемой, если Deno-side email/push когда-нибудь захочет показать merchant name, а не только category/amount.** Найдено при реализации `include_upcoming_bills` в `weekly-report` (2026-07-20) — файл уже содержал предупреждение в шапке, что `cleanMerchantName` сознательно не портирован, так как единственный потребитель (`get-insights`) никогда не показывал `.merchant` юзеру. `weekly-report` стал первым живым исключением — решено показывать `category`, не `merchant`, чтобы не раскрывать сырой банковский дескриптор в письме и не тащить сейчас большой риск рассинхронизации (client-версия `cleanMerchantName` — это десятки regex-правил + brand-fix таблица). Если в будущем понадобится merchant name на Deno-стороне — нужно решить: полный порт (риск дрейфа, тот же класс, что уже задокументирован для всего этого файла — "must be kept in sync BY HAND"), или более лёгкий partial-cleanup без полной параллельной копии.
 - [x] **Закрыто 2026-07-25: `GoalCard`'s `monthlyRate` (Savings.jsx) — задваивание прогноза при 2+ целях.** Расследование показало, что исходное условие (`type==="income" && category_name==="Transfer"`) было мёртвым кодом для реальных Plaid-синканных данных — маппинг категорий Plaid никогда не производит `category_name:"Transfer"` на income-транзакции (только TRANSFER_OUT/ATM-снятия, все expense); подтверждено SQL по проду: 0 совпадений за всю историю (1246 транзакций). Это же означало, что изначально описанное задваивание физически не могло проявиться на реальных данных (в проде на момент проверки — 1 юзер, 1 цель, 0 целей с 2+ и 0 привязанных счетов). Дополнительно найдено и исправлено: `transactions.account_id` — колонка существовала в схеме, но `plaidTxToRow()` в `plaid-sync-transactions` никогда не читала `tx.account_id` из ответа Plaid, поэтому колонка была пустой у ВСЕХ синканных транзакций (0 из 1246). Фикс: прокинут `tx.account_id` → `transactions.account_id` (коммит `b867cc5`), бэкофилл через `resync_all` (временный маркер-хук по паттерну stripe-webhook/plaid-batch-sync, использован и удалён в течение сессии), подтверждено вживую SQL-запросом — 1224/1246 строк теперь имеют `account_id` (недостающие 22 — ручные транзакции без Plaid-счёта, корректно). `monthlyRate` переключен с мёртвого `category_name==="Transfer"` на `t.account_id === sv.plaid_account_id` (уже существующее поле привязки цели к счёту, ранее использовалось только для live-баланса) — коммит `c0a31e0`. Побочный эффект: задваивание между целями теперь архитектурно исключено (у каждой цели свой `account_id`, транзакции с разных счетов не пересекаются). Оба коммита прошли code-reviewer ("ship it").

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
 import { C, FONT } from "../utils/colors";
 import GlassCard from "./shared/GlassCard";
+import { usePostHog } from "@posthog/react";
 
 function EyeIcon() {
   return (
@@ -81,6 +82,7 @@ const RESEND_COOLDOWN = 30;
 
 export default function AuthScreen({ onAuth }) {
   const { t } = useTranslation();
+  const posthog = usePostHog();
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -145,7 +147,11 @@ export default function AuthScreen({ onAuth }) {
     setLoading(true);
     try {
       if (mode === "signup") {
-        await supabase.auth.signUp({ email, password, options: { data: { full_name: name }, emailRedirectTo: 'https://app.arkonomy.com' } });
+        const { data: signUpData } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name }, emailRedirectTo: 'https://app.arkonomy.com' } });
+        if (signUpData?.user) {
+          posthog?.identify(signUpData.user.id);
+          posthog?.capture('user_signed_up', { method: 'email' });
+        }
         setMsg(t("auth.success_check_email"));
       } else {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/auth-login`, {
@@ -168,6 +174,8 @@ export default function AuthScreen({ onAuth }) {
           access_token: data.access_token,
           refresh_token: data.refresh_token,
         });
+        posthog?.identify(data.user.id);
+        posthog?.capture('user_logged_in', { method: 'email' });
         onAuth(data.user);
       }
     } catch (e) { setError(friendlyError(e.message)); }
