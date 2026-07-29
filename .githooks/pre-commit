@@ -1,0 +1,19 @@
+#!/bin/sh
+# Deterministic secret scan on staged changes — baseline protection for every
+# commit, regardless of whether it goes through Claude Code (unlike the
+# .claude/hooks layer, which only sees commits Claude Code itself runs).
+# Wired up via `git config core.hooksPath .githooks` (see package.json "prepare").
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks not installed, skipping secret scan (install: https://github.com/gitleaks/gitleaks#installing)" >&2
+  exit 0
+fi
+
+gitleaks protect --staged --redact --no-banner
+status=$?
+if [ $status -ne 0 ]; then
+  echo "pre-commit: gitleaks found a potential secret in staged changes — commit blocked." >&2
+  exit 1
+fi
+
+exit 0

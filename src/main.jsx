@@ -42,6 +42,12 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     release: __RELEASE__,
     sendDefaultPii: false, // no cookies/IP/headers — explicit, not just relying on the SDK default
     beforeSend: (event) => scrubSensitive(event),
+    integrations: [Sentry.browserTracingIntegration(), Sentry.replayIntegration()],
+    tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
+    // Replay's own privacy defaults (maskAllText/blockAllMedia) are already on —
+    // separate from PostHog's ph-mask classes, which only affect PostHog's recorder.
+    replaysSessionSampleRate: import.meta.env.PROD ? 0.1 : 0,
+    replaysOnErrorSampleRate: 1.0,
   });
 }
 

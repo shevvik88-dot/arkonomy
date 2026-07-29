@@ -1,0 +1,37 @@
+name: Gitleaks
+
+# The only layer in this repo's secret-scanning setup that can't be silently
+# skipped: .githooks/pre-commit degrades to a no-op if gitleaks isn't
+# installed locally, and .claude/hooks/pre-commit-security-review.cjs only
+# sees commits made through Claude Code's own Bash tool. This one hard-fails
+# CI regardless of how the commit was made.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz -o gitleaks.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          sudo mv gitleaks /usr/local/bin/gitleaks
+
+      - name: Scan pushed/PR commits for secrets
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            RANGE="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          elif [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ] && [ -n "${{ github.event.before }}" ]; then
+            RANGE="${{ github.event.before }}..${{ github.event.after }}"
+          else
+            RANGE="-1"
+          fi
+          gitleaks detect --source . --redact --no-banner --log-opts="$RANGE"

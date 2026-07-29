@@ -6,6 +6,7 @@ node_modules/
 supabase/.temp/
 supabase/supabase/
 .claude/settings.local.json
+.mcp.json
 .env*.local
 .env.test
 screenshots/
