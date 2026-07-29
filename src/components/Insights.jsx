@@ -9,6 +9,7 @@ import { ConnectBankPrompt } from "./shared/ConnectBankPrompt";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "../healthScore";
 import { IS_IOS_NATIVE } from "../lib/platform";
 import { computeRecurringSummary, findDuplicateSubscriptions, findMerchantAliasCandidates } from "../utils/recurringSummary";
+import { isFeatureEnabled } from "../lib/featureFlags";
 
 // Maps findDuplicateSubscriptions' category labels to i18n keys for the "Similar service" badge.
 const DUPLICATE_CATEGORY_I18N_KEY = {
@@ -808,6 +809,10 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
   const posthog = usePostHog();
   const { subscriptions, regularPayments, subTotal, regularTotal, possiblyCancelled } = computeRecurringSummary(transactions, new Date(), merchantAliasMap);
   const aliasCandidates = findMerchantAliasCandidates(transactions, merchantAliases || []);
+  // Example flag usage: kill-switch for the "ask about subscription" icon.
+  // defaultValue true — same as before this flag existed — so nothing changes
+  // in prod until a flag with this key is created and turned off.
+  const askAboutSubscriptionEnabled = isFeatureEnabled('insights-ask-about-subscription', true);
 
   if (subscriptions.length === 0 && regularPayments.length === 0 && possiblyCancelled.length === 0 && aliasCandidates.length === 0) return null;
 
@@ -862,7 +867,7 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
 
   return (
     <>
-      <SectionRec title={tRec("insights.subscriptions")}    items={subscriptions}   color={C.purple} total={subTotal}     icon="repeat" showAskAction duplicateCategoryByName={duplicateCategoryByName} />
+      <SectionRec title={tRec("insights.subscriptions")}    items={subscriptions}   color={C.purple} total={subTotal}     icon="repeat" showAskAction={askAboutSubscriptionEnabled} duplicateCategoryByName={duplicateCategoryByName} />
       <SectionRec title={tRec("insights.regular_payments")} items={regularPayments} color={C.blue}   total={regularTotal} icon="file"   />
       {possiblyCancelled.length > 0 && (
         <GlassCard style={{ background: `linear-gradient(135deg,${C.yellow}0D,${C.card})`, border: `1px solid ${C.yellow}30` }}>
