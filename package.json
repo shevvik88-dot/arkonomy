@@ -34,6 +34,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
+    "@sentry/vite-plugin": "^5.4.0",
     "@vitejs/plugin-react": "^6.0.3",
     "dotenv": "^17.4.2",
     "pdfkit": "^0.19.1",
