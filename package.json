@@ -35,8 +35,11 @@
   "devDependencies": {
     "@playwright/test": "^1.61.1",
     "@sentry/vite-plugin": "^5.4.0",
+    "@typescript-eslint/parser": "^8.65.0",
     "@vitejs/plugin-react": "^6.0.3",
     "dotenv": "^17.4.2",
+    "eslint": "^9.39.5",
+    "eslint-plugin-import": "^2.32.0",
     "pdfkit": "^0.19.1",
     "playwright": "^1.61.1",
     "sharp": "^0.35.2",
