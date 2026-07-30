@@ -242,13 +242,26 @@ test.describe('Arkonomy — full user journey', () => {
     try {
       await shot(page, '12_settings_for_upgrade');
 
-      const upgradeBtn = page.locator('button:has-text("Upgrade"), button:has-text("Go Pro"), button:has-text("Start trial")').first();
-      const isPlanPro = !await upgradeBtn.isVisible({ timeout: 3_000 }).catch(() => true);
+      // Positive check: App.jsx renders an exact "PRO" badge in the fixed header
+      // (visible on every screen) only when isPro is true. Checking for absence of
+      // the upgrade button was a false-positive trap — the button can fail to render
+      // for unrelated reasons (timing, copy changes) and get misread as "already Pro".
+      // Profile.jsx's upgrade CTA is a clickable <div onClick={onUpgrade}>, not a
+      // <button> — a plain `button:has-text(...)` locator can never match it. Text
+      // is "profile.upgrade_title" ("Upgrade to Pro"), included as a fallback below.
+      const upgradeBtn = page.locator('button:has-text("Upgrade"), button:has-text("Go Pro"), button:has-text("Start trial")')
+        .or(page.getByText('Upgrade to Pro'))
+        .first();
+      const proBadge = page.getByText('PRO', { exact: true }).first();
+      const isPlanPro = await proBadge.isVisible({ timeout: 3_000 }).catch(() => false);
 
       if (isPlanPro) {
-        logInfo('Account is already Pro — upgrade button not shown (expected)');
+        logInfo('Account is already Pro — PRO badge visible in header (expected)');
         await shot(page, '13_already_pro');
       } else {
+        // Explicit timeout so a broken locator fails fast (was hanging the full
+        // 420s test timeout before the div-vs-button locator fix above).
+        await upgradeBtn.waitFor({ state: 'visible', timeout: 8_000 });
         await upgradeBtn.click();
         await idle(page, 1_200);
         await shot(page, '13_upgrade_modal');

@@ -253,14 +253,16 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
       </GlassCard>
 
       {!isPro && (
-        <div
+        <button
+          type="button"
           onClick={onUpgrade}
           style={{
             display: "flex", alignItems: "center", gap: 14,
+            width: "100%", textAlign: "left",
             background: `linear-gradient(135deg, ${C.proAccent}18, #38B6FF0A)`,
             border: `1px solid ${C.proAccent}33`,
             borderRadius: 18, padding: "16px 18px",
-            cursor: "pointer",
+            cursor: "pointer", fontFamily: FONT,
           }}
         >
           <div style={{
@@ -280,7 +282,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <polyline points="9 18 15 12 9 6" />
           </svg>
-        </div>
+        </button>
       )}
 
       {/* ── PLAID BANK CONNECTION ── */}
