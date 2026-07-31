@@ -577,7 +577,18 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
       )}
 
       <div style={{ marginBottom: 24 }}>
-        <h4 style={{ margin: "0 0 14px", fontSize: 13, fontWeight: 700, color: C.muted, letterSpacing: 1 }}>{t("savings.savings_goals").toUpperCase()}</h4>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.muted, letterSpacing: 1 }}>{t("savings.savings_goals").toUpperCase()}</h4>
+          {/* Always-visible entry point — the empty-state CTA below only renders
+              when savings.length === 0, so without this, adding a second (or
+              later) goal had no way to reach setShowAdd(true) at all. */}
+          {savings.length > 0 && (
+            <button onClick={() => setShowAdd(true)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, color: C.cyan, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
+              <Icon name="plus" size={13} color={C.cyan} strokeWidth={2.5} />
+              {t("savings.add_goal")}
+            </button>
+          )}
+        </div>
         {savings.length === 0 ? (
           <GlassCard style={{ padding: "40px 20px", textAlign: "center" }}>
             <div style={{ width: 60, height: 60, borderRadius: 20, background: C.bgSecondary, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
