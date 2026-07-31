@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
 import { getCachedAccounts, setCachedAccounts } from "../utils/accountsCache";
 import { C, FONT, CAT_COLORS } from "../utils/colors";
-import { fmt, fmtDate, parseDate, fmtPct, resolveCategory, tCat } from "../utils/helpers";
+import { fmt, fmtDate, parseDate, fmtPct, resolveCategory, tCat, sumAmounts } from "../utils/helpers";
 import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
 import { ConnectBankPrompt } from "./shared/ConnectBankPrompt";
@@ -1496,7 +1496,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           grouped[key].count++;
         });
         const rows = Object.values(grouped).sort((a, b) => b.total - a.total).slice(0, 10);
-        const otherTotal = otherTxs.reduce((s, t) => s + Number(t.amount), 0);
+        const otherTotal = sumAmounts(otherTxs);
 
         return (
           <div onClick={() => setOtherBreakdown(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 180, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>

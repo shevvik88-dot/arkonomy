@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { usePostHog } from "@posthog/react";
 import { C, FONT } from "../utils/colors";
-import { fmt, parseDate, tCat, cleanMerchantName } from "../utils/helpers";
+import { fmt, parseDate, tCat, cleanMerchantName, sumAmounts } from "../utils/helpers";
 import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
 import { ConnectBankPrompt } from "./shared/ConnectBankPrompt";
@@ -594,15 +594,15 @@ function WeeklySummary({ transactions }) {
   thisWeekTxs.forEach(t => {
     const d = parseDate(t.date);
     const idx = Math.round((d - startOfWeek) / 86400000);
-    if (idx >= 0 && idx < 7) dailyTotals[idx] += Number(t.amount);
+    if (idx >= 0 && idx < 7) dailyTotals[idx] += Math.abs(Number(t.amount) || 0);
   });
 
   const thisWeek = dailyTotals.reduce((s, v) => s + v, 0);
   if (thisWeek === 0) return null;
 
-  const lastWeek = transactions
-    .filter(t => t.type === "expense" && t.category_name !== "Transfer" && parseDate(t.date) >= startOfLastWeek && parseDate(t.date) < startOfWeek)
-    .reduce((s, t) => s + Number(t.amount), 0);
+  const lastWeek = sumAmounts(
+    transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer" && parseDate(t.date) >= startOfLastWeek && parseDate(t.date) < startOfWeek)
+  );
 
   const change = lastWeek > 0 ? ((thisWeek - lastWeek) / lastWeek) * 100 : null;
   const pos = change !== null && change <= 0;

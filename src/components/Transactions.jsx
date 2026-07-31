@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { C, FONT, CAT_COLORS } from "../utils/colors";
-import { fmt, fmtDate, parseDate, guessCategory, tCat, cleanMerchantName, localDateString } from "../utils/helpers";
+import { fmt, fmtDate, parseDate, guessCategory, tCat, cleanMerchantName, localDateString, sumAmounts } from "../utils/helpers";
 import Icon from "./shared/Icon";
 import { ConnectBankPrompt } from "./shared/ConnectBankPrompt";
 import { InsightCard } from "./Insights";
@@ -31,8 +31,8 @@ function normalizeTxName(t) {
 }
 
 function calcSummary(txs, prevTxs = []) {
-  const realExpense = arr => arr.filter(t => t.type === "expense" && t.category_name !== "Transfer").reduce((s, t) => s + Number(t.amount), 0);
-  const byIncome = arr => arr.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
+  const realExpense = arr => sumAmounts(arr.filter(t => t.type === "expense" && t.category_name !== "Transfer"));
+  const byIncome = arr => sumAmounts(arr.filter(t => t.type === "income"));
   const income  = byIncome(txs);
   const expense = realExpense(txs);
   const net     = income - expense;
@@ -40,7 +40,7 @@ function calcSummary(txs, prevTxs = []) {
   const pExpense = realExpense(prevTxs);
   const pNet     = pIncome - pExpense;
   const monthlyGap = Math.max(pExpense - expense, 0);
-  const foodSpend  = txs.filter(t => t.type === "expense" && t.category_name === "Food & Dining").reduce((s, t) => s + Number(t.amount), 0);
+  const foodSpend  = sumAmounts(txs.filter(t => t.type === "expense" && t.category_name === "Food & Dining"));
   const foodGap    = Math.max(300 - foodSpend, 0);
   const surplus    = Math.min(Math.round(Math.max(monthlyGap, foodGap)), 200);
   return {
@@ -754,9 +754,14 @@ const INCOME_CATS = [
   { name: "Other Income", icon: "plus", color: "#94A3B8" },
 ];
 
+// Matches the transactions.amount column (NUMERIC(10,2)) — Supabase rejects
+// anything at or above this with a 22003 numeric field overflow error.
+const MAX_TX_AMOUNT = 99999999.99;
+
 export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
   const { t } = useTranslation();
   const [amount, setAmount] = useState(existing ? String(existing.amount) : "");
+  const [amountError, setAmountError] = useState("");
   const [desc, setDesc] = useState(existing?.description || "");
   const [catId, setCatId] = useState(existing?.category_id || "");
   const [catName, setCatName] = useState(existing?.category_name || "");
@@ -793,8 +798,9 @@ export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ position: "relative" }}>
             <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: C.muted, fontSize: 16, fontWeight: 600, pointerEvents: "none" }}>$</span>
-            <input type="number" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} style={{ ...inp, paddingLeft: 30 }} />
+            <input type="number" min="0.01" max={MAX_TX_AMOUNT} step="0.01" placeholder="0.00" value={amount} onChange={e => { setAmount(e.target.value); setAmountError(""); }} style={{ ...inp, paddingLeft: 30, border: amountError ? `1px solid ${C.red}` : inp.border }} />
           </div>
+          {amountError && <div style={{ color: C.red, fontSize: 12, fontWeight: 500, marginTop: -4 }}>{amountError}</div>}
           <input style={inp} placeholder={t("transactions.description_optional")} value={desc} onChange={e => setDesc(e.target.value)} />
           <div>
             <button onClick={() => setShowCats(!showCats)} style={{ ...inp, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left" }}>
@@ -828,7 +834,33 @@ export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
         </div>
         <button
           disabled={submitting}
-          onClick={() => { if (!amount || submitting) return; setSubmitting(true); onAdd({ amount: parseFloat(amount), description: desc || catName, category_id: type === "expense" ? (catId || null) : null, category_name: catName, date, type }); }}
+          onClick={async () => {
+            if (!amount || submitting) return;
+            const amt = parseFloat(amount);
+            // Reject non-positive and out-of-range amounts client-side, before
+            // ever hitting the DB — negative amounts previously flipped the
+            // sign of Net/Budget math inconsistently across the app; amounts
+            // at/above the NUMERIC(10,2) column limit failed the insert
+            // silently with no feedback (see addTransaction's error handling).
+            if (!Number.isFinite(amt) || amt <= 0) {
+              setAmountError(t("transactions.amount_must_be_positive", "Enter an amount greater than $0"));
+              return;
+            }
+            if (amt >= MAX_TX_AMOUNT) {
+              setAmountError(t("transactions.amount_too_large", "Amount is too large — max $99,999,999.99"));
+              return;
+            }
+            setSubmitting(true);
+            try {
+              await onAdd({ amount: amt, description: desc || catName, category_id: type === "expense" ? (catId || null) : null, category_name: catName, date, type });
+            } finally {
+              // If onAdd succeeded, the parent closes this modal and unmounts it —
+              // this reset is a no-op then. If it failed, the modal stays open
+              // (parent's error handling keeps it mounted) and the button must
+              // re-enable for retry, since it's never reset anywhere else.
+              setSubmitting(false);
+            }
+          }}
           style={{ width: "100%", marginTop: 18, padding: 15, background: submitting ? C.border : `linear-gradient(90deg,${type === "expense" ? C.red : C.green},${type === "expense" ? "#CC1A3A" : "#00A67E"})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: submitting ? "not-allowed" : "pointer", fontFamily: FONT, opacity: submitting ? 0.6 : 1 }}>
           {submitting ? t("transactions.saving") : isEdit ? t("transactions.save_changes") : type === "expense" ? t("transactions.add_expense") : t("transactions.add_income")}
         </button>

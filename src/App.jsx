@@ -33,7 +33,7 @@ import Profile from "./components/Profile";
 import Markets from "./components/Markets";
 import Savings from "./components/Savings";
 import Transactions, { AddTransactionModal, useToasts, ToastStack, fmtMoney } from "./components/Transactions";
-import { cleanMerchantName } from "./utils/helpers";
+import { cleanMerchantName, sumAmounts } from "./utils/helpers";
 import Insights, { InsightCard } from "./components/Insights";
 import Dashboard from "./components/Dashboard";
 
@@ -279,9 +279,9 @@ function buildFirstDashboardSuggestion({ spendingByCategory, prevSpendingByCateg
 
   // 3. Cash flow at risk or deficit
   if (dayOfMonth >= 2) {
-    const monthSpend = thisMonthExp
-      .filter(t => t.category_name !== 'Transfer' && t.category_name !== 'Transfers')
-      .reduce((s, t) => s + Number(t.amount), 0);
+    const monthSpend = sumAmounts(
+      thisMonthExp.filter(t => t.category_name !== 'Transfer' && t.category_name !== 'Transfers')
+    );
     const dailyRate = monthSpend / Math.max(dayOfMonth - 1, 1);
     const upcomingTotal = (upcomingCharges || []).reduce((s, c) => s + Number(c.amount), 0);
     const projected = balance - dailyRate * (daysInMonth - dayOfMonth) - upcomingTotal;
@@ -893,7 +893,15 @@ export default function App() {
         const guessed = guessCategory(tx.description, tx.type);
         if (guessed) { tx = { ...tx, category_name: guessed }; }
       }
-      const { data } = await supabase.from("transactions").insert({ user_id: user.id, ...tx }).select().single();
+      const { data, error } = await supabase.from("transactions").insert({ user_id: user.id, ...tx }).select().single();
+      if (error) {
+        logger.error("[addTransaction] insert failed:", error);
+        showAlertRef.current(
+          error.code === "22003" ? "Amount is too large — max $99,999,999.99" : "Couldn't save transaction. Try again.",
+          "danger", "alert-circle",
+        );
+        return; // keep the modal open (no finally-close) so the user's input isn't lost
+      }
       if (data) {
         // Update state first (pure — no side effects inside the updater)
         setTransactions(prev => [data, ...prev]);
@@ -905,13 +913,13 @@ export default function App() {
           const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
           // Use current transactions + newly saved one for accurate totals
           const allTx = [data, ...transactions];
-          const monthlyExpenses = allTx
-            .filter(t => {
+          const monthlyExpenses = sumAmounts(
+            allTx.filter(t => {
               if (t.type !== "expense" || new Date(t.date) < monthStart) return false;
               const cat = resolveCategory(t);
               return cat !== "Transfer" && cat !== "Transfers";
             })
-            .reduce((s, t) => s + Number(t.amount), 0);
+          );
           const budget = profile?.monthly_budget || 3000;
           const remaining = budget - monthlyExpenses;
 
@@ -954,12 +962,12 @@ export default function App() {
             const now = new Date();
             const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
             const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(),     0, 23, 59, 59, 999);
-            const prevTotal = transactions
-              .filter(t => t.type === "expense" && t.category_name === cat && new Date(t.date) >= prevMonthStart && new Date(t.date) <= prevMonthEnd)
-              .reduce((s, t) => s + Number(t.amount), 0);
-            const thisTotal = allTx
-              .filter(t => t.type === "expense" && t.category_name === cat && new Date(t.date) >= monthStart)
-              .reduce((s, t) => s + Number(t.amount), 0);
+            const prevTotal = sumAmounts(
+              transactions.filter(t => t.type === "expense" && t.category_name === cat && new Date(t.date) >= prevMonthStart && new Date(t.date) <= prevMonthEnd)
+            );
+            const thisTotal = sumAmounts(
+              allTx.filter(t => t.type === "expense" && t.category_name === cat && new Date(t.date) >= monthStart)
+            );
             if (prevTotal >= 50 && thisTotal >= prevTotal * 1.25) {
               const pct = Math.round((thisTotal / prevTotal - 1) * 100);
               showAlertRef.current(`${cat} spending is up ${pct}% vs last month`, "warning", "trending-up", true);
@@ -975,11 +983,11 @@ export default function App() {
         // Update upcoming charges based on new transaction set
         setUpcomingCharges(getUpcomingChargesForCarousel([data, ...transactions], merchantAliasMap));
         posthog?.capture('transaction_added', { type: tx.type });
+        setShowAddTx(false); // only close on confirmed success
       }
     } catch (err) {
       logger.error("[addTransaction] failed:", err);
-    } finally {
-      setShowAddTx(false);
+      showAlertRef.current("Couldn't save transaction. Try again.", "danger", "alert-circle");
     }
   }
 
@@ -1137,11 +1145,11 @@ export default function App() {
     const cat = resolveCategory(t);
     return cat !== "Transfer" && cat !== "Transfers";
   };
-  const totalSpent = thisMonth.filter(isRealExpense).reduce((s, t) => s + Number(t.amount), 0);
-  const totalIncome = thisMonth.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
-  const totalTransfers = thisMonth.filter(t => t.category_name === "Transfer").reduce((s, t) => s + Number(t.amount), 0);
-  const lastSpent = lastMonth.filter(isRealExpense).reduce((s, t) => s + Number(t.amount), 0);
-  const lastIncome = lastMonth.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
+  const totalSpent = sumAmounts(thisMonth.filter(isRealExpense));
+  const totalIncome = sumAmounts(thisMonth.filter(t => t.type === "income"));
+  const totalTransfers = sumAmounts(thisMonth.filter(t => t.category_name === "Transfer"));
+  const lastSpent = sumAmounts(lastMonth.filter(isRealExpense));
+  const lastIncome = sumAmounts(lastMonth.filter(t => t.type === "income"));
 
   // FIX: sum ALL income from the most recent month, not just the single most
   // recent transaction — same bug already fixed in get-insights/buildFinancialInput
@@ -1152,13 +1160,13 @@ export default function App() {
     if (incomeTxs.length === 0) return 0;
     const mostRecent = [...incomeTxs].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
     const mostRecentDate = parseDate(mostRecent.date);
-    return incomeTxs
-      .filter(t => { const d = parseDate(t.date); return d.getMonth() === mostRecentDate.getMonth() && d.getFullYear() === mostRecentDate.getFullYear(); })
-      .reduce((s, t) => s + Number(t.amount), 0);
+    return sumAmounts(
+      incomeTxs.filter(t => { const d = parseDate(t.date); return d.getMonth() === mostRecentDate.getMonth() && d.getFullYear() === mostRecentDate.getFullYear(); })
+    );
   })();
 
   const spendingByCategory = {};
-  thisMonth.filter(isRealExpense).forEach(t => { const k = resolveCategory(t); spendingByCategory[k] = (spendingByCategory[k] || 0) + Number(t.amount); });
+  thisMonth.filter(isRealExpense).forEach(t => { const k = resolveCategory(t); spendingByCategory[k] = (spendingByCategory[k] || 0) + Math.abs(Number(t.amount) || 0); });
   const prevSpendingByCategory = {};
   lastMonth.filter(isRealExpense).forEach(t => { const k = resolveCategory(t); prevSpendingByCategory[k] = (prevSpendingByCategory[k] || 0) + Number(t.amount); });
 
@@ -1423,9 +1431,9 @@ export default function App() {
       .filter(a => a.type === "credit")
       .map(a => ({ name: a.name, balance: a.balance_current ?? a.balance_available ?? null }));
 
-    const interestThisMonth = transactions
-      .filter(t => t.type === "expense" && resolveCategory(t) === "Cost of Debt" && (() => { const d = new Date(t.date + "T00:00:00"); return d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear(); })())
-      .reduce((s, t) => s + Number(t.amount), 0);
+    const interestThisMonth = sumAmounts(
+      transactions.filter(t => t.type === "expense" && resolveCategory(t) === "Cost of Debt" && (() => { const d = new Date(t.date + "T00:00:00"); return d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear(); })())
+    );
 
     const { subscriptions, regularPayments, subTotal, regularTotal } = computeRecurringSummary(transactions, new Date(), merchantAliasMap);
     const duplicates = findDuplicateSubscriptions(subscriptions);

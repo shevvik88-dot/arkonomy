@@ -5,7 +5,7 @@ import { C, FONT } from "../utils/colors";
 import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
 import { fmtMoney } from "./Transactions";
-import { parseDate } from "../utils/helpers";
+import { parseDate, sumAmounts } from "../utils/helpers";
 import { logger } from "../utils/logger";
 import { getCachedAccounts, setCachedAccounts } from "../utils/accountsCache";
 import { IS_IOS_NATIVE } from "../lib/platform";
@@ -139,7 +139,7 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
       const d = new Date(t.date);
       return t.account_id === sv.plaid_account_id && t.type === "income" && d >= monthStart;
     });
-    return goalTransfers.reduce((s, t) => s + Number(t.amount), 0);
+    return sumAmounts(goalTransfers);
   }, [transactions, sv.plaid_account_id]);
 
   const projectedDate = useMemo(() => {

@@ -116,6 +116,18 @@ export function fmtPct(pct) {
   return (v >= 0 ? "+" : "") + v.toFixed(2) + "%";
 }
 
+// Sign-safe transaction sum — always non-negative. A transaction's
+// income/expense direction is determined by its `type` field, not by
+// trusting the stored sign of `amount`; a stray negative-amount expense has
+// previously flipped Net/Budget math inconsistently across screens, since
+// each screen independently summed raw `amount` with its own .reduce().
+// Callers filter the array first (by type, category exclusions, date
+// range, etc.) — this only fixes the summation primitive, not what gets
+// included.
+export function sumAmounts(txs) {
+  return (txs || []).reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0);
+}
+
 export function cleanMerchantName(raw) {
   if (!raw) return '';
   let s = raw.trim();

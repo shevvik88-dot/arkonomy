@@ -73,6 +73,12 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   if (event.request.url.includes('supabase.co')) return;
   if (event.request.url.includes('finnhub.io')) return;
+  // Plaid Link's script (cdn.plaid.com/link/v2/stable/link-initialize.js) was
+  // getting intercepted and failing here — confirmed live: every new user's
+  // first "Connect Your Bank" attempt got stuck on a synthetic 504 from the
+  // catch() below instead of the real script. Matches any plaid.com
+  // subdomain, not just cdn., in case Link's own runtime fetches others.
+  if (event.request.url.includes('plaid.com')) return;
 
   event.respondWith(
     fetch(event.request)
