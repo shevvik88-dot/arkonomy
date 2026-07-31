@@ -431,6 +431,57 @@ functions, или и прямые Supabase-запросы с фронта; ру�
 
 ---
 
+## Pre-release audit (2026-07-30) — закрыто
+
+Критичные находки и фиксы:
+- Column-level RLS gap: любой authenticated юзер мог обновить свой
+  profiles.plan напрямую (self-upgrade to Pro) и читать чужой
+  alpaca_access_token. Фикс: column-level GRANT/REVOKE.
+  Подтверждено 4/4 cross-user атак заблокированы (self-upgrade,
+  чтение чужого Alpaca token, чтение чужих transactions/savings,
+  edge function с чужим user_id).
+- Alpaca OAuth: Supabase JWT передавался как OAuth `state` параметр,
+  утекал в логи/Referer третьей стороны. Фикс: заменён на
+  short-lived nonce.
+- GlassCard не прокидывал onClick — любой клик внутри модалки
+  Savings закрывал её через backdrop handler. Фикс: {...rest}
+  forwarding, подтверждено визуально на проде.
+- Service worker блокировал cdn.plaid.com — подключение банка
+  зависало на "Loading..." для каждого нового юзера. Фикс: добавлен
+  в исключения SW.
+- Транзакция на крупную сумму тихо не сохранялась (error из
+  Supabase insert не деструктурировался), отрицательная сумма
+  ломала расчёт net/surplus в разных компонентах по-разному.
+  Фикс: error handling + min/max валидация + унификация расчёта.
+- CLAUDE.md заявлял, что Firebase App Check "live" и защищает
+  ai-chat/get-insights/etc — фактически отключено с 66ea690
+  (04.07). Документация приведена в соответствие с реальностью.
+- "+Goal" кнопка была видна только при savings.length === 0 —
+  юзер с существующими целями не мог добавить новую через UI.
+  Фикс: постоянная кнопка в хедере секции.
+
+Известные, не блокирующие релиз (SHOULD FIX):
+- #8-13 из аудита — Dashboard empty-state UX, онбординг reload
+  resilience, offline handling, идемпотентность double-click,
+  дублирующиеся helpers в App.jsx, необработанный promise rejection
+  в useInsights
+
+Известные, отложенные (CAN DEFER):
+- supabase/config.toml verify_jwt флаги не задокументированы для
+  6 функций — нужна ручная проверка в dashboard
+- Деньги считаются через JS Number на фронте (~50 мест) — БД uses
+  numeric корректно, но нужно заложить integer cents до добавления
+  реальных денежных мутаций (auto-roundup и т.п.)
+- Мелочи: сырой console.log в проде, service-role сравнение не
+  constant-time, генерик error messages от Supabase/Plaid могут
+  давать upstream disclosure
+
+Test coverage gap (найдено, не закрыто):
+- 0% e2e-покрытие: отмена Pro-подписки, удаление аккаунта, Plaid
+  reconnect, смена пароля, savings CRUD, merchant-alias confirm/reject
+
+---
+
 ## ✅ СДЕЛАНО 13 июля (для истории)
 
 ### Sentry-мониторинг ошибок (BACKLOG #12) — backend ЗАКРЫТ, frontend ЧАСТИЧНО
