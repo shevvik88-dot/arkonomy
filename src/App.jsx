@@ -98,13 +98,16 @@ function isSyncStale(lastSyncedAt) {
 // exchanges the code for tokens and then redirects back to https://app.arkonomy.com
 const ALPACA_CLIENT_ID    = import.meta.env.VITE_ALPACA_CLIENT_ID ?? "";
 const ALPACA_REDIRECT_URI = `${SUPABASE_URL}/functions/v1/alpaca-oauth-callback`;
-function alpacaOAuthUrl(userJwt) {
+function alpacaOAuthUrl(nonce) {
   const params = new URLSearchParams({
     response_type: "code",
     client_id:     ALPACA_CLIENT_ID,
     redirect_uri:  ALPACA_REDIRECT_URI,
     scope:         "account:write trading",
-    state:         userJwt, // echoed back so the callback can identify the user
+    // Opaque, single-use, short-TTL nonce from alpaca-oauth-start — not the
+    // user's JWT, which would otherwise travel through Alpaca's access logs,
+    // browser history, and Referer headers as a live bearer credential.
+    state:         nonce,
   });
   return `https://app.alpaca.markets/oauth/authorize?${params}`;
 }
@@ -1318,8 +1321,14 @@ export default function App() {
   async function connectAlpaca() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
-    const url = alpacaOAuthUrl(session.access_token);
-    setAlpacaDisclosureUrl(url);
+    try {
+      const result = await callEdgeFunction("alpaca-oauth-start", {});
+      if (!result?.nonce) { logger.error("[connectAlpaca] no nonce returned:", result); return; }
+      const url = alpacaOAuthUrl(result.nonce);
+      setAlpacaDisclosureUrl(url);
+    } catch (err) {
+      logger.error("[connectAlpaca] failed:", err);
+    }
   }
 
   async function investAlpaca(data) {

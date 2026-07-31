@@ -49,5 +49,8 @@ verify_jwt = false
 [functions.alpaca-oauth-callback]
 verify_jwt = false
 
+[functions.alpaca-oauth-start]
+verify_jwt = false
+
 [functions.alpaca-portfolio]
 verify_jwt = false

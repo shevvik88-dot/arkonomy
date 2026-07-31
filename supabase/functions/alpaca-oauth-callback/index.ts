@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const code  = url.searchParams.get('code');
-    const state = url.searchParams.get('state'); // Supabase JWT passed as state
+    const state = url.searchParams.get('state'); // opaque nonce from alpaca-oauth-start, resolved to a user below
     const error = url.searchParams.get('error');
 
     // Alpaca OAuth errors
@@ -85,18 +85,36 @@ Deno.serve(async (req) => {
       // Non-fatal — account ID is nice-to-have
     }
 
-    // ── 3. Authenticate the Arkonomy user from state (JWT) ────────
+    // ── 3. Resolve the Arkonomy user from the nonce ────────────────
+    // `state` is an opaque nonce issued by alpaca-oauth-start, not a JWT —
+    // it never leaves our own DB, unlike a bearer token, which would have
+    // been readable from Alpaca's access logs, browser history, and Referer
+    // headers on any subsequent navigation.
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    const { data: { user }, error: authErr } = await supabase.auth.getUser(state);
-    if (authErr || !user) {
-      console.error('[alpaca-oauth-callback] Could not resolve user from state:', authErr?.message);
+    const { data: nonceRow, error: nonceErr } = await supabase
+      .from('oauth_nonces')
+      .select('user_id, expires_at')
+      .eq('nonce', state)
+      .maybeSingle();
+
+    // Single-use: delete immediately on lookup, valid or not, so a captured
+    // callback URL can't be replayed even within the TTL window.
+    await supabase.from('oauth_nonces').delete().eq('nonce', state);
+    // Opportunistic cleanup of any other expired nonces — no cron needed
+    // for a table this small and short-lived.
+    await supabase.from('oauth_nonces').delete().lt('expires_at', new Date().toISOString());
+
+    if (nonceErr || !nonceRow || new Date(nonceRow.expires_at) < new Date()) {
+      console.error('[alpaca-oauth-callback] Could not resolve user from state:', nonceErr?.message ?? 'nonce missing/expired');
       await captureAndFlush(new Error('Could not resolve user from state'), { function_name: 'alpaca-oauth-callback' });
       return Response.redirect(`${APP_URL}?alpaca_error=auth_failed`, 302);
     }
+
+    const userId = nonceRow.user_id;
 
     // ── 4. Store tokens in profiles ──────────────────────────────
     const { error: dbErr } = await supabase
@@ -107,7 +125,7 @@ Deno.serve(async (req) => {
         alpaca_account_id:    alpacaAccountId,
         alpaca_connected_at:  new Date().toISOString(),
       })
-      .eq('id', user.id);
+      .eq('id', userId);
 
     if (dbErr) {
       console.error('[alpaca-oauth-callback] DB update failed:', dbErr.message);
