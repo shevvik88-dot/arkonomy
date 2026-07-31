@@ -164,9 +164,13 @@ Deno.serve(async (req) => {
     const clientId  = Deno.env.get('PLAID_CLIENT_ID')!;
     const secret    = Deno.env.get('PLAID_SECRET')!;
 
+    // production only — a non-production item (e.g. the demo account's
+    // Plaid Sandbox connection) can't be synced with PLAID_ENV=production
+    // credentials; Plaid rejects with "wrong Plaid environment".
     const { data: items, error } = await supabase
       .from('plaid_items')
-      .select('id, access_token, plaid_cursor, user_id');
+      .select('id, access_token, plaid_cursor, user_id')
+      .eq('plaid_environment', 'production');
 
     if (error) throw error;
 

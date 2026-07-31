@@ -420,9 +420,13 @@ Deno.serve(async (req) => {
         if (cursorErr) throw new Error(`Failed to reset cursors: ${cursorErr.message}`);
 
         // 3. Re-sync every connected bank item across all users
+        // (production only — see plaid_environment on plaid_items; a
+        // non-production item like the demo account's Plaid Sandbox
+        // connection can't be synced with PLAID_ENV=production credentials)
         const { data: allItems, error: itemsErr } = await supabase
           .from('plaid_items')
-          .select('id, access_token, plaid_cursor, user_id');
+          .select('id, access_token, plaid_cursor, user_id')
+          .eq('plaid_environment', 'production');
         if (itemsErr) throw itemsErr;
 
         let totalAdded = 0, totalModified = 0, totalRemoved = 0;
@@ -460,10 +464,17 @@ Deno.serve(async (req) => {
         }
         const { data: item, error: itemErr } = await supabase
           .from('plaid_items')
-          .select('id, access_token, plaid_cursor, user_id')
+          .select('id, access_token, plaid_cursor, user_id, plaid_environment')
           .eq('item_id', body.item_id as string)
           .single();
         if (itemErr || !item) return json({ error: 'Item not found' }, 404, corsHeaders);
+        // Non-production items (e.g. the demo account's Plaid Sandbox
+        // connection) can't be synced with PLAID_ENV=production credentials —
+        // Plaid rejects with "wrong Plaid environment" rather than a normal
+        // sync error. Skip instead of letting that throw.
+        if (item.plaid_environment !== 'production') {
+          return json({ action: 'sync_item', skipped: true, reason: 'non-production item' }, 200, corsHeaders);
+        }
         const counts = await syncItemTransactions(supabase, plaidBase, clientId, secret, item);
         await syncItemAccounts(supabase, plaidBase, clientId, secret, item);
         await supabase.from('plaid_items').update({ error_code: null }).eq('id', item.id);
@@ -477,7 +488,7 @@ Deno.serve(async (req) => {
 
     const { data: items, error: itemsErr } = await supabase
       .from('plaid_items')
-      .select('id, access_token, plaid_cursor, user_id')
+      .select('id, access_token, plaid_cursor, user_id, plaid_environment')
       .eq('user_id', user.id);
 
     if (itemsErr) throw itemsErr;
@@ -489,6 +500,11 @@ Deno.serve(async (req) => {
     const seenKeys = new Set<string>();
 
     for (const item of items) {
+      // Non-production item (e.g. demo account's Plaid Sandbox connection) —
+      // can't sync with PLAID_ENV=production credentials, skip silently
+      // instead of throwing "wrong Plaid environment" if the user manually
+      // triggers a sync.
+      if (item.plaid_environment !== 'production') continue;
       const counts = await syncItemTransactions(
         supabase, plaidBase, clientId, secret,
         { ...item, user_id: user.id },
