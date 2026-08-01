@@ -50,7 +50,8 @@ Deno.serve(async (req) => {
 
     // ── Parse request ────────────────────────────────────────────
     const { amount, symbol = 'SPY' } = await req.json();
-    if (!amount || Number(amount) < 1) {
+    const numAmount = Number(amount);
+    if (!Number.isFinite(numAmount) || numAmount < 1) {
       return new Response(JSON.stringify({ error: 'Minimum amount is $1' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
