@@ -1,6 +1,7 @@
 import Stripe from 'npm:stripe@14';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+import { findActiveSubscription } from '../_shared/stripeSubscription.ts';
 
 initSentry('stripe-checkout');
 
@@ -50,10 +51,45 @@ Deno.serve(async (req) => {
 
     const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' });
 
+    // Block a second subscription outright. Searches by email against
+    // Stripe directly (not just profiles.stripe_customer_id) — that link
+    // can be stale or wrong, which is exactly how a user can end up
+    // double-billed: a prior checkout created customer A with an active
+    // subscription, a later checkout created customer B and overwrote
+    // stripe_customer_id with B, leaving A active, paying, and invisible
+    // to the app forever.
+    if (!user.email) {
+      return new Response(JSON.stringify({ error: 'Account has no email on file' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const existing = await findActiveSubscription(stripe, user.email);
+    if (existing) {
+      return new Response(JSON.stringify({
+        error: 'You already have an active subscription.',
+        status: existing.status,
+      }), {
+        status: 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('stripe_customer_id')
+      .eq('id', user.id)
+      .single();
+
     const session = await stripe.checkout.sessions.create({
       mode:                'subscription',
       client_reference_id: user.id,
-      customer_email:      user.email,
+      // Reuse the known customer if we have one (e.g. a prior cancelled
+      // subscription) instead of letting Stripe mint yet another duplicate
+      // customer object for the same person.
+      ...(profile?.stripe_customer_id
+        ? { customer: profile.stripe_customer_id }
+        : { customer_email: user.email }),
       line_items: [
         { price: STRIPE_PRICE_ID, quantity: 1 },
       ],
