@@ -64,6 +64,32 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Reject a duplicate submitted in the last 60s ──────────────
+    // Checks real elapsed time against the most recent matching order,
+    // not a fixed calendar-minute bucket — a bucket key (floor(now/60s))
+    // has a boundary gap where two submits 1-2s apart can land in
+    // different buckets if they straddle a minute edge (e.g. :59.9 and
+    // :00.1), letting a duplicate through. This has no such edge: any
+    // matching order in the last 60 real seconds blocks the retry.
+    const { data: recentDuplicate } = await supabase
+      .from('investments')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('symbol', sym)
+      .eq('amount', Number(amount))
+      .gte('created_at', new Date(Date.now() - 60_000).toISOString())
+      .limit(1)
+      .maybeSingle();
+
+    if (recentDuplicate) {
+      return new Response(JSON.stringify({
+        error: 'This order was already submitted. Please wait a moment before retrying.',
+      }), {
+        status: 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // ── Load user's Alpaca access token from profiles ────────────
     const { data: profile, error: profileErr } = await supabase
       .from('profiles')
@@ -125,6 +151,14 @@ Deno.serve(async (req) => {
     }
 
     // ── Place fractional order ───────────────────────────────────
+    // client_order_id is a secondary backstop for the narrow race where
+    // two requests both pass the recentDuplicate check above before
+    // either's investments row is inserted (the DB check above is the
+    // primary defense and has no boundary gap; this one still has the
+    // calendar-minute edge case, but only matters for that sub-second
+    // race window now).
+    const clientOrderId = `ark-${user.id.slice(0, 8)}-${sym}-${Number(amount).toFixed(2)}-${Math.floor(Date.now() / 60_000)}`;
+
     const orderRes = await fetch(`${BASE_URL}/v2/orders`, {
       method: 'POST',
       headers: {
@@ -132,11 +166,12 @@ Deno.serve(async (req) => {
         'Content-Type':  'application/json',
       },
       body: JSON.stringify({
-        symbol:        sym,
-        notional:      String(Number(amount).toFixed(2)),
-        side:          'buy',
-        type:          'market',
-        time_in_force: 'day',
+        symbol:          sym,
+        notional:        String(Number(amount).toFixed(2)),
+        side:            'buy',
+        type:            'market',
+        time_in_force:   'day',
+        client_order_id: clientOrderId,
       }),
     });
 
@@ -144,6 +179,17 @@ Deno.serve(async (req) => {
 
     if (!orderRes.ok) {
       console.error('Alpaca order error:', JSON.stringify(order));
+      const isDuplicate = orderRes.status === 422
+        && typeof order?.message === 'string'
+        && order.message.toLowerCase().includes('client order id');
+      if (isDuplicate) {
+        return new Response(JSON.stringify({
+          error: 'This order was already submitted. Please wait a moment before retrying.',
+        }), {
+          status: 409,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       return new Response(JSON.stringify({ error: 'Order failed', details: order }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
