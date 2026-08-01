@@ -126,6 +126,18 @@ Deno.serve(async (req) => {
           results.push({ userId: user.id, status: 'skipped', error: 'no_sections_enabled' }); continue;
         }
 
+        // Same check as generate-monthly-report — without it, a user with no
+        // transactions at all (e.g. never connected a bank) silently gets a
+        // content-less digest ($0 everywhere, a meaningless health score)
+        // instead of an explicitly logged skip.
+        const { count: txCount } = await supabase
+          .from('transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id);
+        if (!txCount) {
+          results.push({ userId: user.id, status: 'skipped', error: 'No transactions found' }); continue;
+        }
+
         const report = await buildReport(supabase, user.id);
         const html   = buildEmailHtml(user.full_name || user.email || 'User', report, prefs, marketSnapshot);
 
