@@ -47,6 +47,19 @@ function finnhubSym(sym: string): string {
   return CRYPTO_MAP[sym] ?? sym;
 }
 
+// Thrown by parseJsonSafe when an upstream API returns a non-JSON body (HTML
+// error/gateway-timeout page, outage, consent wall). This is an expected
+// failure mode of a third-party dependency, not a bug in our code — kept as
+// a distinct type so the request handler can return a clear, specific error
+// to the client and tag the Sentry event as an upstream issue instead of it
+// looking identical to an actual unhandled crash.
+class UpstreamUnavailableError extends Error {
+  constructor(message: string, public readonly source: string, public readonly status: number) {
+    super(message);
+    this.name = 'UpstreamUnavailableError';
+  }
+}
+
 // Upstream market-data APIs (Finnhub/Yahoo/Kraken) occasionally return an HTML
 // error/interstitial page (rate-limit, outage, consent wall) instead of JSON,
 // sometimes even with a 200 status — res.json() then throws an opaque native
@@ -57,7 +70,11 @@ async function parseJsonSafe(res: Response, source: string): Promise<any> {
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`${source} returned non-JSON response (status ${res.status}): ${text.slice(0, 100)}`);
+    throw new UpstreamUnavailableError(
+      `${source} returned non-JSON response (status ${res.status}): ${text.slice(0, 100)}`,
+      source,
+      res.status,
+    );
   }
 }
 
@@ -300,6 +317,17 @@ Deno.serve(async (req) => {
     });
 
   } catch (err) {
+    if (err instanceof UpstreamUnavailableError) {
+      console.error(`market-data: upstream ${err.source} unavailable (status ${err.status}):`, err.message);
+      await captureAndFlush(err, {
+        function_name: 'market-data', type: reqType, symbol: reqSymbol,
+        upstream_source: err.source, upstream_status: err.status, expected: true,
+      });
+      return new Response(JSON.stringify({ error: 'Market data temporarily unavailable. Please try again shortly.' }), {
+        status: 503, headers: { ...CORS, 'Content-Type': 'application/json' },
+      });
+    }
+
     console.error('market-data error:', err);
     await captureAndFlush(err, { function_name: 'market-data', type: reqType, symbol: reqSymbol });
     return new Response(JSON.stringify({ error: "Internal Server Error" }), {
