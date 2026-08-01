@@ -64,7 +64,13 @@ Deno.serve(async (req) => {
       });
     }
     const sym = String(symbol).toUpperCase();
-    if (!/^[A-Z]{1,5}$/.test(sym)) {
+    // Wider than alpaca-invest's /^[A-Z]{1,5}$/ — that one only needs to
+    // cover Alpaca's plain-ticker fractional-trading universe. This endpoint
+    // renders analysis for anything the user can view in Markets/StockDetail,
+    // including raw Finnhub search results (market-data/index.ts's `search`
+    // passes r.symbol through unfiltered) — real tickers like "BRK.B" use a
+    // dot suffix and would be wrongly rejected by the tighter pattern.
+    if (!/^[A-Z0-9.-]{1,10}$/.test(sym)) {
       return new Response(JSON.stringify({ error: 'Invalid symbol' }), {
         status: 400, headers: { ...CORS, 'Content-Type': 'application/json' },
       });
