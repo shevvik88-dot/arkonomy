@@ -16,6 +16,7 @@
 //   { type: "search", query:  "apple" }
 
 import { getMarketSnapshot } from '../_shared/marketSnapshot.ts';
+import { enforceRateLimit } from '../_shared/rateLimit.ts';
 
 const CORS = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
@@ -156,6 +157,9 @@ Deno.serve(async (req) => {
       status: 401, headers: { ...CORS, 'Content-Type': 'application/json' },
     });
   }
+
+  const rateLimitResponse = await enforceRateLimit(user.id, 'market-data');
+  if (rateLimitResponse) return rateLimitResponse;
 
   // Key is only needed for Finnhub endpoints (not chart)
   const key = Deno.env.get('FINNHUB_API_KEY');

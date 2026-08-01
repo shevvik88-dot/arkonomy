@@ -4,6 +4,12 @@ const RATE_LIMITS: Record<string, number> = {
   'ai-chat':           20,
   'stock-ai-analysis': 10,
   'get-insights':      30,
+  // market-data proxies a single shared FINNHUB_API_KEY (60 req/min app-wide,
+  // no batch endpoint — one Finnhub call per ticker). A full Markets home
+  // load alone is ~28 calls; this caps one user's hourly total well above
+  // realistic heavy browsing (~200/hr) while still bounding how much of the
+  // shared quota a single runaway/scripted client can burn.
+  'market-data':       300,
 };
 
 // Returns a 429 Response if the user has exceeded their hourly limit, otherwise null.
