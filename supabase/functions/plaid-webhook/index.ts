@@ -52,6 +52,14 @@ async function verifyPlaidWebhook(
     );
     if (!valid) return false;
 
+    // Reject stale/replayed webhooks — Plaid's own recommendation. A
+    // signature-valid JWT captured once (network log, proxy, etc.) would
+    // otherwise stay acceptable forever.
+    if (typeof payload.iat !== 'number' || (Date.now() / 1000 - payload.iat) > 300) {
+      console.error('plaid-webhook: JWT too old (iat stale or missing)', payload.iat);
+      return false;
+    }
+
     const bodyHashBuf = await crypto.subtle.digest(
       'SHA-256', new TextEncoder().encode(rawBody),
     );
