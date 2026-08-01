@@ -63,19 +63,38 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...CORS, 'Content-Type': 'application/json' },
       });
     }
+    const sym = String(symbol).toUpperCase();
+    if (!/^[A-Z]{1,5}$/.test(sym)) {
+      return new Response(JSON.stringify({ error: 'Invalid symbol' }), {
+        status: 400, headers: { ...CORS, 'Content-Type': 'application/json' },
+      });
+    }
+    if (typeof name !== 'string' || !name.trim()) {
+      return new Response(JSON.stringify({ error: 'name required' }), {
+        status: 400, headers: { ...CORS, 'Content-Type': 'application/json' },
+      });
+    }
+    const safeName = name.replace(/[\r\n\t]/g, ' ').slice(0, 100).trim();
+
+    // Only trust fields that are actually finite numbers — a string here
+    // would silently pass through .toLocaleString() unchanged (it falls
+    // back to Object.prototype.toLocaleString, which ignores the
+    // formatting args and just returns the string), landing raw in the
+    // prompt despite looking like safe numeric formatting.
+    const isNum = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
 
     const assetType  = isCrypto ? 'cryptocurrency' : 'stock';
     const statsLines = [
-      price     != null ? `Current price: $${price.toLocaleString('en-US', { maximumFractionDigits: 2 })}` : null,
-      changePct != null ? `Today's change: ${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%` : null,
-      !isCrypto && pe != null ? `P/E ratio: ${pe.toFixed(1)}` : null,
-      high52w   != null ? `52-week high: $${high52w.toLocaleString('en-US', { maximumFractionDigits: 2 })}` : null,
-      low52w    != null ? `52-week low: $${low52w.toLocaleString('en-US', { maximumFractionDigits: 2 })}` : null,
+      isNum(price)     ? `Current price: $${price.toLocaleString('en-US', { maximumFractionDigits: 2 })}` : null,
+      isNum(changePct) ? `Today's change: ${changePct > 0 ? '+' : ''}${changePct.toFixed(2)}%` : null,
+      !isCrypto && isNum(pe) ? `P/E ratio: ${pe.toFixed(1)}` : null,
+      isNum(high52w)   ? `52-week high: $${high52w.toLocaleString('en-US', { maximumFractionDigits: 2 })}` : null,
+      isNum(low52w)    ? `52-week low: $${low52w.toLocaleString('en-US', { maximumFractionDigits: 2 })}` : null,
     ].filter(Boolean).join('\n');
 
     const prompt = `You are a financial information assistant providing informational context about a ${assetType} for a retail investor using a personal finance app.
 
-Asset: ${name} (${symbol})
+Asset: ${safeName} (${sym})
 ${statsLines}
 
 Provide a BRIEF, FACTUAL, INFORMATIONAL analysis in JSON format with these exact fields:
@@ -125,7 +144,7 @@ Respond in ${responseLang}. Respond with ONLY valid JSON, no markdown, no extra 
     }
 
     return new Response(JSON.stringify({
-      symbol,
+      symbol:      sym,
       trend:       parsed.trend       ?? '',
       risks:       Array.isArray(parsed.risks) ? parsed.risks.slice(0, 3) : [],
       analystView: parsed.analystView ?? '',
