@@ -89,6 +89,15 @@ interface MerchantGroup {
   lastDate: Date;
 }
 
+// Exported so callers that need to classify a single transaction (e.g.
+// large-transaction-alert checking "is this specific transaction part of a
+// recurring pattern?") can compute the same grouping key groupTransactionsByMerchant
+// uses internally, instead of re-deriving the normalization logic themselves.
+export function merchantKeyFor(t: any, aliasMap: Map<string, string> = new Map()): string {
+  const raw = (t.description || t.category_name || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40);
+  return resolveAlias(raw, aliasMap);
+}
+
 // Groups transactions by normalized merchant description. aliasMap (raw key
 // -> canonical raw key, from user-confirmed merchant_aliases) is applied
 // before bucketing, so confirmed aliases merge into one group. The bucket's
@@ -106,7 +115,7 @@ function groupTransactionsByMerchant(transactions: any[], aliasMap: Map<string, 
     .forEach(t => {
       const raw = (t.description || t.category_name || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40);
       if (!raw || raw.length < 3) return;
-      const groupKey = resolveAlias(raw, aliasMap);
+      const groupKey = merchantKeyFor(t, aliasMap);
       // Parse "YYYY-MM-DD" as LOCAL midnight, not UTC — a plain `new Date(dateStr)`
       // can roll back to the previous calendar day in negative-UTC-offset timezones.
       // Mirrors src/utils/helpers.js's parseDate().
@@ -126,6 +135,7 @@ function groupTransactionsByMerchant(transactions: any[], aliasMap: Map<string, 
 }
 
 interface RecurringCandidate {
+  key: string;
   name: string;
   category: string;
   months: number;
@@ -151,6 +161,7 @@ export function computeRecurringSummary(transactions: any[], referenceDate: Date
       const daysSinceLast = Math.round((referenceDate.getTime() - m.lastDate.getTime()) / MS_PER_DAY);
       const staleThreshold = Math.max(MIN_STALE_DAYS, typicalIntervalDays * STALE_MULTIPLIER);
       return {
+        key: m.key,
         name: m.name,
         category: m.category,
         months: m.months.size,
@@ -222,4 +233,21 @@ export function getUpcomingCharges(
   }).filter(c => c.daysUntil >= 0 && c.daysUntil <= maxDays);
 
   return upcoming.sort((a, b) => a.daysUntil - b.daysUntil).slice(0, maxResults);
+}
+
+// ── Single-transaction recurring check ──────────────────────────────────────
+// Is this ONE transaction part of a merchant computeRecurringSummary already
+// classifies as recurring (subscription or regular payment)? Reuses the same
+// grouping/classification logic against the user's full transaction history —
+// large-transaction-alert needs this to skip rent/payroll/subscriptions
+// instead of re-implementing "is this recurring" independently.
+export function isRecurringTransaction(
+  tx: any,
+  allTransactions: any[],
+  aliasMap: Map<string, string> = new Map(),
+  referenceDate: Date = new Date(),
+): boolean {
+  const { subscriptions, regularPayments } = computeRecurringSummary(allTransactions, referenceDate, aliasMap);
+  const recurringKeys = new Set([...subscriptions, ...regularPayments].map(c => c.key));
+  return recurringKeys.has(merchantKeyFor(tx, aliasMap));
 }

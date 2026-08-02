@@ -632,6 +632,8 @@
     "digest_upcoming_bills": "Upcoming bills",
     "digest_ai_tip": "AI financial tip",
     "digest_market_update": "Market update",
+    "large_tx_alerts_title": "Large transaction alerts",
+    "large_tx_alerts_sub": "Email me when a one-time expense over $500 is detected",
     "excel_label": "Excel",
     "excel_report_frequency": "report frequency",
     "excel_report_sub": "Detailed spreadsheet with all transactions",

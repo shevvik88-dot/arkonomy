@@ -73,6 +73,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
     include_ai_tip: true,
     include_market_update: false,
     excel_frequency: "monthly",
+    large_transaction_alerts: true,
   });
   const [notifSaved, setNotifSaved] = useState(false);
   const [notifSaving, setNotifSaving] = useState(false);
@@ -92,6 +93,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
         include_ai_tip:         data.include_ai_tip         ?? true,
         include_market_update:  data.include_market_update  ?? false,
         excel_frequency:        data.excel_frequency        ?? "monthly",
+        large_transaction_alerts: data.large_transaction_alerts ?? true,
       });
     })();
   }, []);
@@ -481,6 +483,16 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             <div style={{ height: 1, background: C.sep, margin: "16px 0" }} />
           </>
         )}
+
+        {/* Large transaction alerts — independent of digest frequency, own email channel */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+          <div>
+            <div style={{ fontSize: 14, color: C.text }}>{t("profile.large_tx_alerts_title")}</div>
+            <div style={{ fontSize: 11, color: C.faint, marginTop: 1 }}>{t("profile.large_tx_alerts_sub")}</div>
+          </div>
+          <Toggle value={notifPrefs.large_transaction_alerts} onChange={v => setNotifPrefs(p => ({ ...p, large_transaction_alerts: v }))} />
+        </div>
+        <div style={{ height: 1, background: C.sep, margin: "16px 0" }} />
 
         {/* Excel report frequency — Pro only */}
         <div style={{ height: 1, background: C.sep, margin: "4px 0 20px" }} />

@@ -945,6 +945,12 @@ export default function App() {
           if (ap.largeTxAlerts && Number(tx.amount) > ap.largeTxThreshold) {
             showAlertRef.current(`Large transaction: ${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, "warning", "alert-circle", true);
             sendPush({ title: "Large Transaction", body: `${fmtMoney(Number(tx.amount))} added to ${tx.category_name || "Uncategorized"}`, icon: "/icon-192.png", tag: "large-tx" });
+            // Shared flag with the server-side large-transaction-alert email
+            // job — marks this transaction already-notified so that job
+            // doesn't also email about it later. Fire-and-forget: a missed
+            // update here just means the email job might also alert once,
+            // not a correctness issue worth blocking the UI for.
+            supabase.from("transactions").update({ large_tx_notified: true }).eq("id", data.id).then(() => {});
           }
           // 2. Overspending Alert
           if (ap.overspendAlerts && monthlyExpenses > budget) {

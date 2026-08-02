@@ -636,6 +636,8 @@
     "digest_upcoming_bills": "Предстоящие платежи",
     "digest_ai_tip": "Совет от ИИ",
     "digest_market_update": "Обзор рынка",
+    "large_tx_alerts_title": "Уведомления о крупных тратах",
+    "large_tx_alerts_sub": "Присылать письмо при разовой трате свыше $500",
     "excel_label": "Excel",
     "excel_report_frequency": "частота отчётов",
     "excel_report_sub": "Подробная таблица со всеми транзакциями",

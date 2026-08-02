@@ -632,6 +632,8 @@
     "digest_upcoming_bills": "Próximos pagos",
     "digest_ai_tip": "Consejo de la IA",
     "digest_market_update": "Resumen del mercado",
+    "large_tx_alerts_title": "Alertas de transacciones grandes",
+    "large_tx_alerts_sub": "Enviarme un correo cuando se detecte un gasto único superior a $500",
     "excel_label": "Excel",
     "excel_report_frequency": "frecuencia del informe",
     "excel_report_sub": "Hoja de cálculo detallada con todas las transacciones",
