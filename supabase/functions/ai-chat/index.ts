@@ -289,6 +289,13 @@ PROJECTION ILLUSTRATION — only if the user asks about growing savings/investin
 - Does not override the rules below: still no specific securities, no
   personalized investment advice, no guaranteed returns
 
+BALANCE HONESTY — NEVER VIOLATE:
+If BALANCE above says unavailable, never substitute or estimate it from any
+other number in this context (income, spending, net, or otherwise) — those
+are different figures and presenting one as the account balance is actively
+misleading, not just imprecise. Say plainly that the balance couldn't be
+loaded right now and to check back shortly.
+
 DEBT PAYOFF RULE — NEVER VIOLATE:
 When recommending a credit card payment, the amount must never exceed SAFE TO MOVE.
 Always say: "You have $X available after keeping a $1,000 buffer — put that toward [highest APR card]."
@@ -384,7 +391,7 @@ AI CONTEXT — treat as ground truth. Use these numbers in every answer:
 
 TIMING: Day ${dayOfMonth} of ${daysInMonth} (${daysLeft} days left, ${monthPhase}-month)
 STATE: ${state}
-BALANCE: $${metrics?.currentBalance ?? 0}
+BALANCE: ${metrics?.currentBalance != null ? `$${metrics.currentBalance}` : "unavailable right now — do NOT guess, estimate, or substitute another number (e.g. income minus spending) for this. Tell the user their balance couldn't be loaded and to try again in a moment."}
 SAFE TO MOVE: $${metrics?.availableSafeToMove ?? 0} (income minus spending minus $1,000 buffer — hard cap for any payment recommendation)
 SPENT THIS MONTH: $${metrics?.currentMonthSpend ?? 0} of $${metrics?.monthlyBudget ?? 0} budget (${metrics?.budgetUsedPct ?? 0}% used)
 INCOME THIS MONTH: $${metrics?.currentMonthIncome ?? 0}

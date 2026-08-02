@@ -1428,7 +1428,28 @@ export default function App() {
     setChatMessages(updated);
     setChatInput("");
 
-    const allAccounts = getCachedAccounts() || [];
+    // Real account balance is critical financial data going into an AI
+    // prompt marked "treat as ground truth" — never substitute a different
+    // number (monthly net) if it's missing. getCachedAccounts() reflects
+    // whatever the last-visited screen happened to fetch and can be null/
+    // expired (5-min TTL) if chat is opened first. Actively fetch instead
+    // of passively trusting that cross-screen cache for this specific case.
+    let freshAccounts = getCachedAccounts();
+    let currentBalance = sumDepositoryBalance(freshAccounts);
+    if (currentBalance == null && bankConnected) {
+      try {
+        const result = await callEdgeFunction("plaid-get-accounts", {});
+        if (result?.accounts) {
+          freshAccounts = result.accounts;
+          if (freshAccounts.length) setCachedAccounts(freshAccounts);
+          currentBalance = sumDepositoryBalance(freshAccounts);
+        }
+      } catch (err) {
+        logger.error("[sendChat] balance fetch failed:", err);
+      }
+    }
+
+    const allAccounts = freshAccounts || [];
     const creditCards = allAccounts
       .filter(a => a.type === "credit")
       .map(a => ({ name: a.name, balance: a.balance_current ?? a.balance_available ?? null }));
@@ -1442,12 +1463,14 @@ export default function App() {
 
     const ctx = {
       metrics: {
-        currentBalance: plaidBalance ?? (totalIncome - totalSpent),
+        // null (not a substituted number) when genuinely unavailable —
+        // ai-chat's prompt must handle this explicitly, never guess.
+        currentBalance,
         currentMonthSpend: totalSpent,
         currentMonthIncome: effectiveIncome,
         monthlyBudget: Number(profile?.monthly_budget) || 3000,
         budgetUsedPct: Math.round((totalSpent / (Number(profile?.monthly_budget) || 3000)) * 100),
-        availableSafeToMove: Math.max(0, Math.min(effectiveIncome - totalSpent - BUFFER, plaidBalance != null ? plaidBalance - BUFFER : Infinity)),
+        availableSafeToMove: Math.max(0, Math.min(effectiveIncome - totalSpent - BUFFER, currentBalance != null ? currentBalance - BUFFER : Infinity)),
       },
       engine: {
         activeSignals: aiContext?.activeSignals ?? [],
