@@ -15,6 +15,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 import { isRecurringTransaction } from '../_shared/recurringDetector.ts';
 
+type Tx = { id?: string; date: string; amount: number | string; type: string; description: string | null; category_name: string | null; created_at?: string; large_tx_notified?: boolean };
+
 initSentry('large-transaction-alert');
 
 const corsHeaders = {
@@ -22,8 +24,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Hardcoded — per-user threshold configuration is a separate future feature.
-const LARGE_TX_THRESHOLD = 500;
+// Fallback threshold for users without enough history for a statistical
+// threshold (see computeDynamicThreshold below) — new accounts, or accounts
+// with too few non-recurring transactions to compute meaningful stats.
+const FALLBACK_THRESHOLD = 500;
+
+// Never alert below this even if it's a statistical outlier for a
+// low-spending user — not meaningful for most people at this amount.
+const MIN_THRESHOLD_FLOOR = 200;
+
+// Dynamic threshold = mean + STDDEV_MULTIPLIER * stddev of the user's own
+// non-recurring expenses over the last HISTORY_DAYS days, requires at least
+// MIN_SAMPLE_SIZE data points to be considered statistically meaningful.
+const STDDEV_MULTIPLIER = 2;
+const HISTORY_DAYS = 90;
+const MIN_SAMPLE_SIZE = 20;
+
+// How long a cached per-user threshold stays valid before recomputing — the
+// aggregate stats pass is too heavy to redo on every 4-hourly scan, so it's
+// only recomputed once this cache window has elapsed (see
+// getOrRefreshThreshold), regardless of how often this function itself runs.
+const THRESHOLD_CACHE_HOURS = 24;
 
 // How far back to look for "new" large transactions on each run. Bounded so
 // a first-time historical Plaid sync (months of backfilled transactions)
@@ -63,7 +84,11 @@ Deno.serve(async (req) => {
     const isCron = token === Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     // ── Load users ─────────────────────────────────────────────────────────────
-    let profiles: { id: string; full_name: string | null; email: string | null; _alertsOn: boolean }[];
+    const PREFS_SELECT = 'large_transaction_alerts, large_tx_threshold, large_tx_threshold_computed_at';
+    let profiles: {
+      id: string; full_name: string | null; email: string | null;
+      _alertsOn: boolean; _threshold: number | null; _thresholdComputedAt: string | null;
+    }[];
 
     if (isCron) {
       const { data: profileRows, error: profileErr } = await supabase
@@ -78,15 +103,23 @@ Deno.serve(async (req) => {
       // (same pattern as weekly-report / generate-monthly-report).
       const { data: prefsRows, error: prefsErr } = await supabase
         .from('notification_preferences')
-        .select('user_id, large_transaction_alerts')
+        .select(`user_id, ${PREFS_SELECT}`)
         .in('user_id', profileRows.map(p => p.id));
       if (prefsErr) {
         return new Response(JSON.stringify({ error: 'Failed to load notification preferences', detail: prefsErr }), {
           status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      const prefsByUser = new Map((prefsRows ?? []).map((p: any) => [p.user_id, p.large_transaction_alerts]));
-      profiles = profileRows.map(p => ({ ...p, _alertsOn: prefsByUser.get(p.id) ?? true }));
+      const prefsByUser = new Map((prefsRows ?? []).map((p: any) => [p.user_id, p]));
+      profiles = profileRows.map(p => {
+        const prefs = prefsByUser.get(p.id);
+        return {
+          ...p,
+          _alertsOn: prefs?.large_transaction_alerts ?? true,
+          _threshold: prefs?.large_tx_threshold ?? null,
+          _thresholdComputedAt: prefs?.large_tx_threshold_computed_at ?? null,
+        };
+      });
     } else {
       const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
       if (authErr || !user) {
@@ -102,12 +135,17 @@ Deno.serve(async (req) => {
         });
       }
       const { data: prefsRow } = await supabase
-        .from('notification_preferences').select('large_transaction_alerts')
+        .from('notification_preferences').select(PREFS_SELECT)
         .eq('user_id', user.id).maybeSingle();
-      profiles = [{ ...p, _alertsOn: prefsRow?.large_transaction_alerts ?? true }];
+      profiles = [{
+        ...p,
+        _alertsOn: prefsRow?.large_transaction_alerts ?? true,
+        _threshold: prefsRow?.large_tx_threshold ?? null,
+        _thresholdComputedAt: prefsRow?.large_tx_threshold_computed_at ?? null,
+      }];
     }
 
-    const results: { userId: string; status: string; error?: string; count?: number }[] = [];
+    const results: { userId: string; status: string; error?: string; count?: number; threshold?: number }[] = [];
 
     for (const user of profiles) {
       if (!user.email) continue;
@@ -116,43 +154,46 @@ Deno.serve(async (req) => {
           results.push({ userId: user.id, status: 'skipped', error: 'large_transaction_alerts=off' }); continue;
         }
 
-        // ── Find candidate transactions: large, recently synced, not yet notified ──
-        const since = new Date(Date.now() - LOOKBACK_HOURS * 60 * 60 * 1000).toISOString();
-        const { data: candidates, error: candErr } = await supabase
-          .from('transactions')
-          .select('id, date, amount, description, category_name, type')
-          .eq('user_id', user.id)
-          .eq('type', 'expense')
-          .eq('large_tx_notified', false)
-          .gt('amount', LARGE_TX_THRESHOLD)
-          .gte('created_at', since)
-          .order('date', { ascending: true });
-
-        if (candErr) throw new Error(`DB error: ${candErr.message}`);
-        if (!candidates || candidates.length === 0) {
-          results.push({ userId: user.id, status: 'skipped', error: 'no_large_transactions' }); continue;
-        }
-
-        // ── Filter out recurring merchants via the shared detection engine ──
-        // Needs the user's full history — a merchant's recurring status can
-        // only be determined from its pattern across many months, not from
-        // the candidate transaction alone.
-        const [{ data: allTxns }, { data: aliasRows }] = await Promise.all([
-          supabase.from('transactions').select('date, amount, type, description, category_name').eq('user_id', user.id),
+        // Full history, fetched once — needed both for the dynamic threshold
+        // (90-day non-recurring stats) and for filtering candidates below.
+        // A merchant's recurring status can only be determined from its
+        // pattern across many months, not from a single transaction alone.
+        const [{ data: allTxns, error: txErr }, { data: aliasRows }] = await Promise.all([
+          supabase.from('transactions')
+            .select('id, date, amount, type, description, category_name, created_at, large_tx_notified')
+            .eq('user_id', user.id),
           supabase.from('merchant_aliases').select('alias_key, canonical_key, status').eq('user_id', user.id),
         ]);
+        if (txErr) throw new Error(`DB error: ${txErr.message}`);
+
         const aliasMap = new Map<string, string>();
         (aliasRows ?? []).filter((a: any) => a.status === 'confirmed')
           .forEach((a: any) => aliasMap.set(a.alias_key, a.canonical_key));
 
+        const threshold = await getOrRefreshThreshold(supabase, user, allTxns ?? [], aliasMap);
+
+        // ── Find candidate transactions: large, recently synced, not yet notified ──
+        const sinceMs = Date.now() - LOOKBACK_HOURS * 60 * 60 * 1000;
+        const candidates = (allTxns ?? []).filter((tx: Tx) =>
+          tx.type === 'expense' &&
+          !tx.large_tx_notified &&
+          Number(tx.amount) > threshold &&
+          tx.created_at != null && new Date(tx.created_at).getTime() >= sinceMs
+        );
+
+        if (candidates.length === 0) {
+          results.push({ userId: user.id, status: 'skipped', error: 'no_large_transactions', threshold }); continue;
+        }
+
+        // ── Filter out recurring merchants via the shared detection engine ──
         const nonRecurring = candidates.filter(tx => !isRecurringTransaction(tx, allTxns ?? [], aliasMap));
 
         if (nonRecurring.length === 0) {
-          results.push({ userId: user.id, status: 'skipped', error: 'all_recurring' }); continue;
+          results.push({ userId: user.id, status: 'skipped', error: 'all_recurring', threshold }); continue;
         }
 
         // ── Send one email per user per run, listing every qualifying transaction ──
-        const html = buildEmailHtml(user.full_name || user.email, nonRecurring);
+        const html = buildEmailHtml(user.full_name || user.email, nonRecurring, threshold);
         const subject = nonRecurring.length === 1
           ? `Large transaction: $${Number(nonRecurring[0].amount).toFixed(2)} at ${nonRecurring[0].description || nonRecurring[0].category_name || 'Uncategorized'}`
           : `${nonRecurring.length} large transactions on your account`;
@@ -174,7 +215,7 @@ Deno.serve(async (req) => {
           .in('id', nonRecurring.map(tx => tx.id));
         if (markErr) console.error(`large-transaction-alert: failed to mark notified for user ${user.id}:`, markErr);
 
-        results.push({ userId: user.id, status: 'sent', count: nonRecurring.length });
+        results.push({ userId: user.id, status: 'sent', count: nonRecurring.length, threshold });
       } catch (err) {
         console.error(`large-transaction-alert failed for user ${user.id}:`, err);
         results.push({ userId: user.id, status: 'failed', error: 'Internal Server Error' });
@@ -195,6 +236,75 @@ Deno.serve(async (req) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// DYNAMIC THRESHOLD
+// ══════════════════════════════════════════════════════════════════════════════
+
+// mean + STDDEV_MULTIPLIER * sample-stddev of the user's own non-recurring
+// expenses over the last HISTORY_DAYS days — falls back to FALLBACK_THRESHOLD
+// when there isn't enough history/data for the stats to be meaningful.
+function computeDynamicThreshold(allTxns: Tx[], aliasMap: Map<string, string>): number {
+  const now = Date.now();
+  const historyStartMs = now - HISTORY_DAYS * 24 * 60 * 60 * 1000;
+
+  const earliestMs = allTxns.reduce((min: number | null, t) => {
+    const d = new Date(t.date + 'T00:00:00').getTime();
+    return min === null || d < min ? d : min;
+  }, null as number | null);
+  const hasEnoughCalendarHistory = earliestMs !== null && earliestMs <= historyStartMs;
+
+  const ninetyDayExpenses = allTxns.filter(t =>
+    t.type === 'expense' && new Date(t.date + 'T00:00:00').getTime() >= historyStartMs
+  );
+  const nonRecurring = ninetyDayExpenses.filter(t => !isRecurringTransaction(t, allTxns, aliasMap));
+
+  if (!hasEnoughCalendarHistory || nonRecurring.length < MIN_SAMPLE_SIZE) {
+    return FALLBACK_THRESHOLD;
+  }
+
+  const amounts = nonRecurring.map(t => Number(t.amount));
+  const n = amounts.length;
+  const mean = amounts.reduce((s, a) => s + a, 0) / n;
+  // Sample stddev (n-1) — treating this as a sample of the user's spending
+  // distribution, not the full population of all their spending ever.
+  const variance = amounts.reduce((s, a) => s + (a - mean) ** 2, 0) / (n - 1);
+  const stddev = Math.sqrt(variance);
+
+  return Math.max(mean + STDDEV_MULTIPLIER * stddev, MIN_THRESHOLD_FLOOR);
+}
+
+// Returns the user's cached threshold if it's still fresh (within
+// THRESHOLD_CACHE_HOURS), otherwise recomputes and caches the new value.
+// Recomputation only happens roughly once a day regardless of how often this
+// function itself runs on its 4-hourly cron.
+async function getOrRefreshThreshold(
+  supabase: any,
+  user: { id: string; _threshold: number | null; _thresholdComputedAt: string | null },
+  allTxns: Tx[],
+  aliasMap: Map<string, string>,
+): Promise<number> {
+  const cacheAgeMs = user._thresholdComputedAt
+    ? Date.now() - new Date(user._thresholdComputedAt).getTime()
+    : Infinity;
+
+  if (user._threshold != null && cacheAgeMs < THRESHOLD_CACHE_HOURS * 60 * 60 * 1000) {
+    return user._threshold;
+  }
+
+  const threshold = computeDynamicThreshold(allTxns, aliasMap);
+
+  // Partial upsert — only these two columns are set/updated; Postgres's
+  // ON CONFLICT DO UPDATE only touches the columns present in the payload,
+  // so this never resets large_transaction_alerts or any other preference.
+  const { error } = await supabase.from('notification_preferences').upsert(
+    { user_id: user.id, large_tx_threshold: threshold, large_tx_threshold_computed_at: new Date().toISOString() },
+    { onConflict: 'user_id' },
+  );
+  if (error) console.error(`large-transaction-alert: failed to cache threshold for user ${user.id}:`, error);
+
+  return threshold;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // EMAIL TEMPLATE
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -202,7 +312,7 @@ const esc = (s: string) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&
 const fmtAmt = (n: number) => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-function buildEmailHtml(name: string, txns: { date: string; amount: number; description: string | null; category_name: string | null }[]): string {
+function buildEmailHtml(name: string, txns: { date: string; amount: number; description: string | null; category_name: string | null }[], threshold: number): string {
   const firstName = esc((name || '').split(' ')[0] || 'there');
 
   const rows = txns.map(tx => `
@@ -243,7 +353,7 @@ function buildEmailHtml(name: string, txns: { date: string; amount: number; desc
       </div>
 
       <div style="text-align:center;margin-bottom:28px;">
-        <a href="https://arkonomy.app" style="display:inline-block;background:#2F80FF;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:700;padding:14px 32px;border-radius:12px;letter-spacing:-0.2px;">
+        <a href="https://app.arkonomy.com" style="display:inline-block;background:#2F80FF;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:700;padding:14px 32px;border-radius:12px;letter-spacing:-0.2px;">
           Open Arkonomy →
         </a>
       </div>
@@ -251,8 +361,8 @@ function buildEmailHtml(name: string, txns: { date: string; amount: number; desc
 
     <div style="padding:20px 32px;border-top:1px solid #1E2D4A;text-align:center;">
       <div style="font-size:11px;color:#4A5E7A;line-height:1.6;">
-        You're receiving this because a transaction over $${LARGE_TX_THRESHOLD} was added to your account.<br/>
-        <a href="https://arkonomy.app" style="color:#4A5E7A;">Manage preferences</a>
+        You're receiving this because a transaction over $${fmtAmt(threshold)} was added to your account.<br/>
+        <a href="https://app.arkonomy.com" style="color:#4A5E7A;">Manage preferences</a>
       </div>
     </div>
 
