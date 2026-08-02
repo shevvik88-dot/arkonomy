@@ -11,7 +11,7 @@ import { usePostHog } from "@posthog/react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "./utils/supabase";
 import { callEdgeFunction } from "./lib/callEdgeFunction";
-import { getCachedAccounts, setCachedAccounts, clearAccountsCache } from "./utils/accountsCache";
+import { getCachedAccounts, setCachedAccounts, clearAccountsCache, sumDepositoryBalance } from "./utils/accountsCache";
 import { App as CapApp } from "@capacitor/app";
 import { usePlaidOAuth, PLAID_REDIRECT_URI } from "./hooks/usePlaidOAuth";
 import CheckInCard from "./components/CheckInCard";
@@ -1303,11 +1303,7 @@ export default function App() {
 
   const isShowingLastMonth = rawThisMonth.length === 0 && lastMonthTxs.length > 0;
   const onUpgrade = () => { posthog?.capture('upgrade_modal_viewed'); setShowUpgradeModal(true); };
-  const _plaidAccounts = getCachedAccounts();
-  const _plaidAcct = _plaidAccounts
-    ? (_plaidAccounts.find(a => a.subtype === "checking") ?? _plaidAccounts.find(a => a.type === "depository") ?? _plaidAccounts[0])
-    : null;
-  const plaidBalance = _plaidAcct ? (_plaidAcct.balance_available ?? _plaidAcct.balance_current ?? null) : null;
+  const plaidBalance = sumDepositoryBalance(getCachedAccounts());
   const shared = { transactions, categories, savings, profile, totalSpent, totalIncome: effectiveIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, totalTransfers, isShowingLastMonth, isPro, onUpgrade, plaidBalance };
 
   function openMarket(symbol) {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
-import { getCachedAccounts, setCachedAccounts } from "../utils/accountsCache";
+import { getCachedAccounts, setCachedAccounts, sumDepositoryBalance } from "../utils/accountsCache";
 import { C, FONT, CAT_COLORS, RADIUS } from "../utils/colors";
 import { fmt, fmtDate, parseDate, fmtPct, resolveCategory, tCat, sumAmounts } from "../utils/helpers";
 import Icon from "./shared/Icon";
@@ -1227,8 +1227,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           if (accounts.length) setCachedAccounts(accounts);
         }
         if (!accounts.length) return;
-        const checking = accounts.find(a => a.subtype === "checking") ?? accounts.find(a => a.type === "depository") ?? accounts[0];
-        const bal = checking?.balance_available ?? checking?.balance_current ?? null;
+        const bal = sumDepositoryBalance(accounts);
         if (bal != null && fetchId === balanceFetchIdRef.current) setAccountBalance(bal);
       } catch {}
     })();

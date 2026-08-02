@@ -11,7 +11,7 @@ import { C, FONT, CAT_COLORS } from "../utils/colors";
 import { fmt, tCat, resolveCategory, cleanMerchantName } from "../utils/helpers";
 import Icon from "./shared/Icon";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
-import { getCachedAccounts, setCachedAccounts } from "../utils/accountsCache";
+import { getCachedAccounts, setCachedAccounts, sumDepositoryBalance } from "../utils/accountsCache";
 import { computeRecurringSummary, findDuplicateSubscriptions, getUpcomingCharges, getUpcomingCardPayments } from "../utils/recurringSummary";
 
 const LARGE_PAYMENT_INCOME_PCT = 0.30;
@@ -181,8 +181,7 @@ export default function AhaMoment({ transactions, onDone }) {
           }
         }
         if (!cancelled && accounts?.length) {
-          const checking = accounts.find(a => a.subtype === "checking") ?? accounts.find(a => a.type === "depository") ?? accounts[0];
-          const bal = checking?.balance_available ?? checking?.balance_current ?? null;
+          const bal = sumDepositoryBalance(accounts);
           if (bal != null) setAccountBalance(bal);
         }
       } catch { /* balance is best-effort — cashRisk fact just won't fire */ }

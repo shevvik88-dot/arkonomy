@@ -21,3 +21,14 @@ export function clearAccountsCache() {
     localStorage.removeItem(ACCOUNTS_CACHE_KEY);
   } catch {}
 }
+
+// Sums balance_available (fallback balance_current) across all depository
+// accounts — same pattern as get-insights/index.ts:244-264. Excludes credit
+// (debt, not cash). Returns null if accounts is null/empty/no depository
+// accounts, so callers keep their existing "not loaded yet" semantics.
+export function sumDepositoryBalance(accounts) {
+  if (!accounts) return null;
+  const depository = accounts.filter(a => a.type === "depository");
+  if (depository.length === 0) return null;
+  return depository.reduce((sum, a) => sum + Number(a.balance_available ?? a.balance_current ?? 0), 0);
+}
