@@ -1570,7 +1570,7 @@ export default function App() {
             onClick={IS_IOS_NATIVE ? undefined : onUpgrade}
             style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", background: C.amber + "18", border: `1px solid ${C.amber}44`, borderRadius: RADIUS.md, marginBottom: 14, cursor: IS_IOS_NATIVE ? "default" : "pointer" }}
           >
-            <span style={{ fontSize: 16 }}>⚡</span>
+            <Icon name="zap" size={16} color={C.amber} strokeWidth={2} />
             <div style={{ flex: 1 }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: C.amber }}>
                 Your trial ends in {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""}
@@ -1657,14 +1657,16 @@ export default function App() {
       {proToast && (
         <div style={{
           position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)",
-          background: `linear-gradient(135deg, ${sharedC.proAccent}22, #38B6FF11)`,
+          background: `linear-gradient(135deg, ${sharedC.proAccent}22, #38B6FF11), ${C.card}`,
           border: `1px solid ${sharedC.proAccent}66`,
           borderRadius: RADIUS.md, padding: "16px 24px", zIndex: 10000,
           color: C.proToastText, fontFamily: FONT,
           textAlign: "center", boxShadow: `0 8px 32px ${sharedC.proAccent}4D`,
           minWidth: 260,
         }}>
-          <div style={{ fontSize: 28, marginBottom: 6 }}>⚡</div>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}>
+            <Icon name="zap" size={28} color={sharedC.proAccent} strokeWidth={2} />
+          </div>
           <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>Welcome to Pro!</div>
           <div style={{ fontSize: 13, color: C.proMuted }}>Your account has been upgraded. Enjoy all features.</div>
         </div>
@@ -1743,7 +1745,10 @@ export default function App() {
         }}>
           {alpacaToast.addFunds ? (
             <>
-              <span>💰 Your investment account needs funds. Add money first, then come back to invest.</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name="dollar" size={15} color={sharedC.alpacaAccent} strokeWidth={2} />
+                Your investment account needs funds. Add money first, then come back to invest.
+              </span>
               <a
                 href="https://app.alpaca.markets/brokerage/funding/deposit"
                 target="_blank"
