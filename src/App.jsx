@@ -1660,20 +1660,20 @@ export default function App() {
           background: `linear-gradient(135deg, ${sharedC.proAccent}22, #38B6FF11)`,
           border: `1px solid ${sharedC.proAccent}66`,
           borderRadius: RADIUS.md, padding: "16px 24px", zIndex: 10000,
-          color: "#E8EDF5", fontFamily: FONT,
+          color: C.proToastText, fontFamily: FONT,
           textAlign: "center", boxShadow: `0 8px 32px ${sharedC.proAccent}4D`,
           minWidth: 260,
         }}>
           <div style={{ fontSize: 28, marginBottom: 6 }}>⚡</div>
           <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>Welcome to Pro!</div>
-          <div style={{ fontSize: 13, color: "#7A8BA8" }}>Your account has been upgraded. Enjoy all features.</div>
+          <div style={{ fontSize: 13, color: C.proMuted }}>Your account has been upgraded. Enjoy all features.</div>
         </div>
       )}
       {showUpgradeModal && <UpgradeModal onClose={() => setShowUpgradeModal(false)} supabase={supabase} />}
       {showTrialExpiredModal && (
         <div onClick={() => setShowTrialExpiredModal(false)} style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(7,12,24,0.88)", display: "flex", alignItems: "flex-end", justifyContent: "center", backdropFilter: "blur(4px)" }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: "#131C2E", borderRadius: "24px 24px 0 0", border: "1px solid #1E2D45", borderBottom: "none", padding: "28px 20px 36px", fontFamily: FONT, color: C.text, boxShadow: "0 -8px 48px rgba(0,0,0,0.6)" }}>
-            <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: "#1E2D45", margin: "0 auto 24px" }} />
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "24px 24px 0 0", border: `1px solid ${C.border}`, borderBottom: "none", padding: "28px 20px 36px", fontFamily: FONT, color: C.text, boxShadow: "0 -8px 48px rgba(0,0,0,0.6)" }}>
+            <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: C.border, margin: "0 auto 24px" }} />
             <div style={{ textAlign: "center", marginBottom: 24 }}>
               <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 56, height: 56, borderRadius: RADIUS.lg, background: C.trialEndedAccent + "22", border: `1px solid ${C.trialEndedAccent}44`, marginBottom: 14 }}>
                 <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={C.trialEndedAccent} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -1681,7 +1681,7 @@ export default function App() {
                 </svg>
               </div>
               <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Your free trial ended</div>
-              <div style={{ fontSize: 14, color: "#7A8BA8" }}>{IS_IOS_NATIVE ? t("upgrade.pro_included") : "Upgrade to keep full access to AI insights, investment tracking, and all Pro features."}</div>
+              <div style={{ fontSize: 14, color: C.proMuted }}>{IS_IOS_NATIVE ? t("upgrade.pro_included") : "Upgrade to keep full access to AI insights, investment tracking, and all Pro features."}</div>
             </div>
             {/* No purchase button on iOS (Guideline 3.1.3 anti-steering) */}
             {!IS_IOS_NATIVE && (
@@ -1689,7 +1689,7 @@ export default function App() {
                 Upgrade to Pro — $9.99/mo
               </button>
             )}
-            <button onClick={() => setShowTrialExpiredModal(false)} style={{ width: "100%", padding: 12, background: "none", border: "1px solid #1E2D45", borderRadius: RADIUS.md, color: "#7A8BA8", fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
+            <button onClick={() => setShowTrialExpiredModal(false)} style={{ width: "100%", padding: 12, background: "none", border: `1px solid ${C.border}`, borderRadius: RADIUS.md, color: C.proMuted, fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
               {IS_IOS_NATIVE ? t("upgrade.close") : "Maybe later"}
             </button>
           </div>

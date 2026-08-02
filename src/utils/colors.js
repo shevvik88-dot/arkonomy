@@ -52,6 +52,15 @@ export const C = {
   // "Plaid/bank-connect" blue — reused across Profile.jsx, OnboardingFlow.jsx,
   // and shared/PlaidLinkButton.jsx for the bank-connection CTA/icon/badge.
   bankConnectBlue: "#1A56DB",
+  // App.jsx's "Welcome to Pro!" toast text — a deliberate soft off-white
+  // (not C.text) tuned for readability against the proAccent gradient
+  // background. Kept separate, not merged into C.text (2026-08-02 hex audit).
+  proToastText: "#E8EDF5",
+  // Secondary/description text across App.jsx's Pro/trial UI cluster (the
+  // "Welcome to Pro!" toast subtext and the trial-expired modal). Distinct
+  // from C.muted/C.faint — closer to C.faint but not a match, kept as its
+  // own token rather than forced onto an unrelated shade (2026-08-02 hex audit).
+  proMuted: "#7A8BA8",
 };
 
 export const CAT_COLORS = {
