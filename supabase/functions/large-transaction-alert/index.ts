@@ -1,7 +1,10 @@
 // supabase/functions/large-transaction-alert/index.ts
-// Emails a user when a new, non-recurring transaction over $500 is synced.
-// Recurring transactions (rent, payroll, subscriptions) are excluded via the
-// shared recurring-detection engine — this is for one-off large spend only.
+// Emails a user when a new, non-recurring transaction crosses their own
+// dynamic large-transaction threshold (95th percentile of their 90-day
+// non-recurring spend, $200 floor, $500 fallback for new/thin accounts —
+// see computeDynamicThreshold). Recurring transactions (rent, payroll,
+// subscriptions) are excluded via the shared recurring-detection engine —
+// this is for one-off large spend only.
 //
 // Trigger: Supabase pg_cron (see 20260802000001_large_transaction_alert_cron.sql)
 // Manual:  POST /large-transaction-alert  with a user JWT — sends only to that user
@@ -33,10 +36,14 @@ const FALLBACK_THRESHOLD = 500;
 // low-spending user — not meaningful for most people at this amount.
 const MIN_THRESHOLD_FLOOR = 200;
 
-// Dynamic threshold = mean + STDDEV_MULTIPLIER * stddev of the user's own
+// Dynamic threshold = the PERCENTILE-th percentile of the user's own
 // non-recurring expenses over the last HISTORY_DAYS days, requires at least
 // MIN_SAMPLE_SIZE data points to be considered statistically meaningful.
-const STDDEV_MULTIPLIER = 2;
+// Percentile, not mean + N*stddev — real spending is right-skewed (many
+// small purchases, a few large ones), so a normal-distribution assumption
+// lets a handful of outliers inflate stddev and push the threshold up;
+// percentile isn't fooled by that shape.
+const PERCENTILE = 95;
 const HISTORY_DAYS = 90;
 const MIN_SAMPLE_SIZE = 20;
 
@@ -239,9 +246,9 @@ Deno.serve(async (req) => {
 // DYNAMIC THRESHOLD
 // ══════════════════════════════════════════════════════════════════════════════
 
-// mean + STDDEV_MULTIPLIER * sample-stddev of the user's own non-recurring
-// expenses over the last HISTORY_DAYS days — falls back to FALLBACK_THRESHOLD
-// when there isn't enough history/data for the stats to be meaningful.
+// PERCENTILE-th percentile of the user's own non-recurring expenses over the
+// last HISTORY_DAYS days — falls back to FALLBACK_THRESHOLD when there
+// isn't enough history/data for the stats to be meaningful.
 function computeDynamicThreshold(allTxns: Tx[], aliasMap: Map<string, string>): number {
   const now = Date.now();
   const historyStartMs = now - HISTORY_DAYS * 24 * 60 * 60 * 1000;
@@ -261,15 +268,21 @@ function computeDynamicThreshold(allTxns: Tx[], aliasMap: Map<string, string>): 
     return FALLBACK_THRESHOLD;
   }
 
-  const amounts = nonRecurring.map(t => Number(t.amount));
-  const n = amounts.length;
-  const mean = amounts.reduce((s, a) => s + a, 0) / n;
-  // Sample stddev (n-1) — treating this as a sample of the user's spending
-  // distribution, not the full population of all their spending ever.
-  const variance = amounts.reduce((s, a) => s + (a - mean) ** 2, 0) / (n - 1);
-  const stddev = Math.sqrt(variance);
+  const amounts = nonRecurring.map(t => Number(t.amount)).sort((a, b) => a - b);
+  return Math.max(percentile(amounts, PERCENTILE), MIN_THRESHOLD_FLOOR);
+}
 
-  return Math.max(mean + STDDEV_MULTIPLIER * stddev, MIN_THRESHOLD_FLOOR);
+// Linear-interpolation percentile (matches numpy's default / Excel's
+// PERCENTILE.INC) — `sorted` must already be sorted ascending.
+function percentile(sorted: number[], p: number): number {
+  const n = sorted.length;
+  if (n === 0) return 0;
+  if (n === 1) return sorted[0];
+  const idx = (p / 100) * (n - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (idx - lo) * (sorted[hi] - sorted[lo]);
 }
 
 // Returns the user's cached threshold if it's still fresh (within
