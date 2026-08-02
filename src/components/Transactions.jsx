@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { C, FONT, CAT_COLORS } from "../utils/colors";
+import { C, FONT, CAT_COLORS, RADIUS } from "../utils/colors";
 import { fmt, fmtDate, parseDate, guessCategory, tCat, cleanMerchantName, localDateString, sumAmounts } from "../utils/helpers";
 import Icon from "./shared/Icon";
 import { ConnectBankPrompt } from "./shared/ConnectBankPrompt";
@@ -11,7 +11,7 @@ function CatIcon({ name, type, size = 18 }) {
   const color = isIncome ? (CAT_COLORS["Income"] || C.green) : (CAT_COLORS[name] || C.blue);
   const icon  = isIncome ? "dollar" : (CAT_ICONS_MAP[name] || "credit");
   return (
-    <div style={{ width: 42, height: 42, borderRadius: 13, background: color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: `0 2px 8px ${color}44` }}>
+    <div style={{ width: 42, height: 42, borderRadius: RADIUS.sm, background: color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: `0 2px 8px ${color}44` }}>
       <Icon name={icon} size={size} color="#fff" strokeWidth={2} />
     </div>
   );
@@ -130,12 +130,12 @@ export function ToastStack({ toasts, dismiss }) {
           <div key={t.id} style={{
             display: "flex", alignItems: "flex-start", gap: 10,
             background: "rgba(9,18,34,0.97)", border: `1px solid ${c.border}`,
-            borderRadius: 16, padding: "11px 12px 11px 12px",
+            borderRadius: RADIUS.md, padding: "11px 12px 11px 12px",
             animation: `${t.exiting ? "txOut" : "txIn"} 0.25s ease forwards`,
             fontFamily: FONT, boxShadow: "0 4px 24px rgba(0,0,0,0.5)",
             width: "100%", boxSizing: "border-box", pointerEvents: "auto",
           }}>
-            <div style={{ width: 24, height: 24, borderRadius: 12, background: c.color + "22", border: `1px solid ${c.color}55`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+            <div style={{ width: 24, height: 24, borderRadius: RADIUS.sm, background: c.color + "22", border: `1px solid ${c.color}55`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
               <Icon name={t.icon || c.icon} size={13} color={c.color} strokeWidth={2.2} />
             </div>
             <span className={t.mask ? "ph-mask" : undefined} style={{ fontSize: 13, fontWeight: 500, color: "#fff", flex: 1, lineHeight: 1.4, paddingTop: 3 }}>{t.msg}</span>
@@ -179,7 +179,7 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
     <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 6, marginBottom: 8 }}>
       {cards.map(card => (
         <button key={card.label} onClick={card.onClick}
-          style={{ background: card.highlight ? `${card.highlightColor}12` : C.card, border: `1px solid ${card.highlight ? `${card.highlightColor}33` : C.border}`, borderRadius: 14, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 3, cursor: "pointer", textAlign: "left", fontFamily: FONT, minHeight: 90, transition: "transform 0.12s ease" }}
+          style={{ background: card.highlight ? `${card.highlightColor}12` : C.card, border: `1px solid ${card.highlight ? `${card.highlightColor}33` : C.border}`, borderRadius: RADIUS.md, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 3, cursor: "pointer", textAlign: "left", fontFamily: FONT, minHeight: 90, transition: "transform 0.12s ease" }}
           onPointerDown={e => e.currentTarget.style.transform = "scale(0.96)"}
           onPointerUp={e => e.currentTarget.style.transform = ""}
           onPointerLeave={e => e.currentTarget.style.transform = ""}
@@ -191,7 +191,7 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
             : <span style={{ fontSize: 10, color: C.faint }}>{t("transactions.this_month")}</span>
           }
           {card.badge && (
-            <span style={{ fontSize: 9, fontWeight: 700, color: card.badgeOk === null ? "#FFB800" : card.badgeOk ? "#12D18E" : "#FF5C7A", background: card.badgeOk === null ? "rgba(255,184,0,0.12)" : card.badgeOk ? "rgba(18,209,142,0.12)" : "rgba(255,92,122,0.12)", padding: "2px 6px", borderRadius: 4, alignSelf: "flex-start", letterSpacing: 0.4, textTransform: "uppercase", marginTop: 2 }}>{card.badge}</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: card.badgeOk === null ? "#FFB800" : card.badgeOk ? "#12D18E" : "#FF5C7A", background: card.badgeOk === null ? "rgba(255,184,0,0.12)" : card.badgeOk ? "rgba(18,209,142,0.12)" : "rgba(255,92,122,0.12)", padding: "2px 6px", borderRadius: RADIUS.xs, alignSelf: "flex-start", letterSpacing: 0.4, textTransform: "uppercase", marginTop: 2 }}>{card.badge}</span>
           )}
         </button>
       ))}
@@ -209,7 +209,7 @@ function QuickActionsMenu({ tx, onClose, onEdit, onDelete, onDuplicate }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 150, display: "flex", alignItems: "flex-end", maxWidth: 430, margin: "0 auto" }} onClick={onClose}>
       <div style={{ width: "100%", background: C.card, borderRadius: "22px 22px 0 0", border: `1px solid ${C.border}`, paddingBottom: 32, fontFamily: FONT }} onClick={e => e.stopPropagation()}>
-        <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.11)", borderRadius: 2, margin: "10px auto 0" }} />
+        <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.11)", borderRadius: RADIUS.full, margin: "10px auto 0" }} />
         <div style={{ fontSize: 16, fontWeight: 600, color: C.text, padding: "14px 18px 3px", letterSpacing: -0.3 }}>{normalizeTxName(tx)}</div>
         <div style={{ height: 1, background: C.sep, margin: "10px 0 2px" }} />
         {actions.map(a => (
@@ -218,7 +218,7 @@ function QuickActionsMenu({ tx, onClose, onEdit, onDelete, onDuplicate }) {
             onPointerEnter={e => e.currentTarget.style.background = C.bgSecondary}
             onPointerLeave={e => e.currentTarget.style.background = "none"}
           >
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: a.color + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <div style={{ width: 36, height: 36, borderRadius: RADIUS.sm, background: a.color + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Icon name={a.icon} size={15} color={a.color} strokeWidth={1.8} />
             </div>
             <div>
@@ -227,7 +227,7 @@ function QuickActionsMenu({ tx, onClose, onEdit, onDelete, onDuplicate }) {
             </div>
           </button>
         ))}
-        <button onClick={onClose} style={{ display: "block", width: "calc(100% - 32px)", margin: "4px 16px 0", padding: 13, textAlign: "center", fontSize: 13, fontWeight: 500, color: C.muted, background: C.bgSecondary, border: "none", borderRadius: 10, cursor: "pointer", fontFamily: FONT, minHeight: 48 }}>
+        <button onClick={onClose} style={{ display: "block", width: "calc(100% - 32px)", margin: "4px 16px 0", padding: 13, textAlign: "center", fontSize: 13, fontWeight: 500, color: C.muted, background: C.bgSecondary, border: "none", borderRadius: RADIUS.sm, cursor: "pointer", fontFamily: FONT, minHeight: 48 }}>
           {t("transactions.cancel")}
         </button>
       </div>
@@ -239,14 +239,14 @@ function BreakdownSheet({ title, subtitle, rows, actionLabel, actionColor, onAct
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 150, display: "flex", alignItems: "flex-end", maxWidth: 430, margin: "0 auto" }} onClick={onClose}>
       <div style={{ width: "100%", background: C.card, borderRadius: "22px 22px 0 0", border: `1px solid ${C.border}`, maxHeight: "85vh", overflowY: "auto", paddingBottom: 32, fontFamily: FONT }} onClick={e => e.stopPropagation()}>
-        <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.11)", borderRadius: 2, margin: "10px auto 0" }} />
+        <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.11)", borderRadius: RADIUS.full, margin: "10px auto 0" }} />
         <div style={{ fontSize: 16, fontWeight: 600, color: C.text, padding: "14px 18px 3px", letterSpacing: -0.3 }}>{title}</div>
         <div className="ph-mask" style={{ fontSize: 12, color: C.faint, padding: "0 18px 12px" }}>{subtitle}</div>
         <div style={{ height: 1, background: C.sep, marginBottom: 2 }} />
         {rows.map((r, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 18px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 11, flex: 1, minWidth: 0 }}>
-              <div style={{ width: 32, height: 32, minWidth: 32, borderRadius: 9, background: r.color + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ width: 32, height: 32, minWidth: 32, borderRadius: RADIUS.sm, background: r.color + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Icon name={r.icon || "dollar"} size={14} color={r.color} strokeWidth={1.8} />
               </div>
               <div style={{ minWidth: 0 }}>
@@ -257,15 +257,15 @@ function BreakdownSheet({ title, subtitle, rows, actionLabel, actionColor, onAct
             <div style={{ textAlign: "right", flexShrink: 0, paddingLeft: 10 }}>
               <div className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: "nowrap" }}>{r.amount}</div>
               {r.pct !== undefined && (
-                <div style={{ height: 2, width: 60, background: "rgba(255,255,255,0.07)", borderRadius: 1, marginTop: 5, marginLeft: "auto" }}>
-                  <div style={{ height: "100%", width: Math.min(r.pct, 100) + "%", background: r.color, borderRadius: 1 }} />
+                <div style={{ height: 2, width: 60, background: "rgba(255,255,255,0.07)", borderRadius: RADIUS.full, marginTop: 5, marginLeft: "auto" }}>
+                  <div style={{ height: "100%", width: Math.min(r.pct, 100) + "%", background: r.color, borderRadius: RADIUS.full }} />
                 </div>
               )}
             </div>
           </div>
         ))}
         {actionLabel && (
-          <button onClick={() => { onAction(); onClose(); }} style={{ display: "block", width: "calc(100% - 32px)", margin: "10px 16px 0", padding: 13, textAlign: "center", fontSize: 14, fontWeight: 600, color: "#fff", background: actionColor, border: "none", borderRadius: 14, cursor: "pointer", fontFamily: FONT, minHeight: 48 }}>
+          <button onClick={() => { onAction(); onClose(); }} style={{ display: "block", width: "calc(100% - 32px)", margin: "10px 16px 0", padding: 13, textAlign: "center", fontSize: 14, fontWeight: 600, color: "#fff", background: actionColor, border: "none", borderRadius: RADIUS.md, cursor: "pointer", fontFamily: FONT, minHeight: 48 }}>
             {actionLabel}
           </button>
         )}
@@ -353,7 +353,7 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
   }
 
   return (
-    <div style={{ position: "relative", overflow: "hidden", borderRadius: 14, marginBottom: 2 }}>
+    <div style={{ position: "relative", overflow: "hidden", borderRadius: RADIUS.md, marginBottom: 2 }}>
       <div ref={bgLRef} onClick={() => { resetSwipe(); onEdit(t); }} style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 76, background: C.blue, borderRadius: "14px 0 0 14px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, opacity: 0, transition: "opacity 0.14s", cursor: "pointer" }}>
         <Icon name="edit" size={16} color="#fff" strokeWidth={1.8} />
         <span style={{ fontSize: 10, fontWeight: 600, color: "#fff", fontFamily: FONT }}>{i18t("transactions.edit")}</span>
@@ -364,19 +364,19 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
       </div>
       {confirmDelete && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }} onClick={e => { if (e.target === e.currentTarget) setConfirmDelete(false); }}>
-          <div style={{ background: "#111E33", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 18, padding: "24px 20px", width: "100%", maxWidth: 360, fontFamily: FONT }}>
+          <div style={{ background: "#111E33", border: "1px solid rgba(255,255,255,0.1)", borderRadius: RADIUS.lg, padding: "24px 20px", width: "100%", maxWidth: 360, fontFamily: FONT }}>
             <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 8 }}>{i18t("transactions.delete_confirm_title")}</div>
             <div style={{ fontSize: 13, color: C.faint, marginBottom: 24 }}>{i18t("transactions.delete_confirm_body", { name: displayName })}</div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: "12px 0", borderRadius: 12, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: C.text, fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>{i18t("transactions.cancel")}</button>
-              <button onClick={() => { setConfirmDelete(false); onDelete(t.id); }} style={{ flex: 1, padding: "12px 0", borderRadius: 12, border: "none", background: C.red, color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>{i18t("transactions.delete")}</button>
+              <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: "12px 0", borderRadius: RADIUS.sm, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: C.text, fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>{i18t("transactions.cancel")}</button>
+              <button onClick={() => { setConfirmDelete(false); onDelete(t.id); }} style={{ flex: 1, padding: "12px 0", borderRadius: RADIUS.sm, border: "none", background: C.red, color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>{i18t("transactions.delete")}</button>
             </div>
           </div>
         </div>
       )}
       <div ref={rowRef} onClick={handleClick} onPointerDown={onPD} onPointerMove={onPM} onPointerUp={onPU} onPointerLeave={e => { if (dragging.current) onPU(e); }} onPointerCancel={() => { dragging.current = false; moved.current = false; clearTimeout(lpTimer.current); resetSwipe(); }}
-        style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 13px", display: "flex", alignItems: "center", gap: 11, cursor: "pointer", userSelect: "none", willChange: "transform", position: "relative", zIndex: 1, touchAction: "pan-y", minHeight: 64 }}>
-        <div style={{ width: 40, height: 40, minWidth: 40, borderRadius: 11, background: catColor + "20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: RADIUS.md, padding: "12px 13px", display: "flex", alignItems: "center", gap: 11, cursor: "pointer", userSelect: "none", willChange: "transform", position: "relative", zIndex: 1, touchAction: "pan-y", minHeight: 64 }}>
+        <div style={{ width: 40, height: 40, minWidth: 40, borderRadius: RADIUS.sm, background: catColor + "20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Icon name={catIcon} size={16} color={catColor} strokeWidth={1.8} />
         </div>
         <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
@@ -384,12 +384,12 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
           <div style={{ fontSize: 11, color: C.faint, marginTop: 2, display: "flex", alignItems: "center", gap: 4, overflow: "hidden", fontFamily: FONT }}>
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1 }}>{tCat(t.category_name || guessCategory(t.description, t.type) || "Other", i18t)} · {fmtDate(t.date)}</span>
             {t.pending && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#F59E0B", background: "rgba(245,158,11,0.15)", padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#F59E0B", background: "rgba(245,158,11,0.15)", padding: "1px 5px", borderRadius: RADIUS.xs, flexShrink: 0 }}>
                 {i18t("transactions.pending")}
               </span>
             )}
             {signal && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: SIGNAL_STYLE[signal].color, background: SIGNAL_STYLE[signal].bg, padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: SIGNAL_STYLE[signal].color, background: SIGNAL_STYLE[signal].bg, padding: "1px 5px", borderRadius: RADIUS.xs, flexShrink: 0 }}>
                 {i18t("transactions.signal_" + signal)}
               </span>
             )}
@@ -519,7 +519,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
       {monthOffset === -1 && (() => {
         const currentMonthLabel = new Date().toLocaleString('en-US', { month: 'long' });
         return (
-          <div style={{ fontSize: 12, color: "#F59E0B", background: "#F59E0B10", border: "1px solid #F59E0B30", borderRadius: 10, padding: "8px 12px", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ fontSize: 12, color: "#F59E0B", background: "#F59E0B10", border: "1px solid #F59E0B30", borderRadius: RADIUS.sm, padding: "8px 12px", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
             <span>No transactions in {currentMonthLabel} yet — showing {monthLabel}.</span>
           </div>
         );
@@ -541,10 +541,10 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
         return (
           <div
             onClick={() => setSearch(normalizeTxName(topTx))}
-            style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 14px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
+            style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, padding: "10px 14px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, overflow: "hidden" }}>
-              <div style={{ width: 6, height: 6, borderRadius: 99, background: C.yellow, flexShrink: 0 }} />
+              <div style={{ width: 6, height: 6, borderRadius: RADIUS.full, background: C.yellow, flexShrink: 0 }} />
               <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{t("transactions.top_expense")}</span>
               <span style={{ fontSize: 12, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{normalizeTxName(topTx)}</span>
             </div>
@@ -557,8 +557,8 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
       })()}
 
       {catFilter && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: (CAT_COLORS[catFilter] || C.cyan) + "18", borderRadius: 12, border: `1px solid ${(CAT_COLORS[catFilter] || C.cyan)}33` }}>
-          <div style={{ width: 8, height: 8, borderRadius: 99, background: CAT_COLORS[catFilter] || C.cyan }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: (CAT_COLORS[catFilter] || C.cyan) + "18", borderRadius: RADIUS.sm, border: `1px solid ${(CAT_COLORS[catFilter] || C.cyan)}33` }}>
+          <div style={{ width: 8, height: 8, borderRadius: RADIUS.full, background: CAT_COLORS[catFilter] || C.cyan }} />
           <span style={{ fontSize: 13, color: CAT_COLORS[catFilter] || C.cyan, fontWeight: 600, flex: 1 }}>{tCat(catFilter, t)}</span>
           <button onClick={onClearCatFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4, minHeight: 28 }}>
             <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
@@ -567,8 +567,8 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
       )}
 
       {activeMerchantFilter && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: C.cyan + "18", borderRadius: 12, border: `1px solid ${C.cyan}33` }}>
-          <div style={{ width: 8, height: 8, borderRadius: 99, background: C.cyan }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: C.cyan + "18", borderRadius: RADIUS.sm, border: `1px solid ${C.cyan}33` }}>
+          <div style={{ width: 8, height: 8, borderRadius: RADIUS.full, background: C.cyan }} />
           <span style={{ fontSize: 13, color: C.cyan, fontWeight: 600, flex: 1 }}>{cleanMerchantName(activeMerchantFilter) || activeMerchantFilter}</span>
           <button onClick={onClearMerchantFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4, minHeight: 28 }}>
             <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
@@ -577,8 +577,8 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
       )}
 
       {activeDateFilter && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: C.cyan + "18", borderRadius: 12, border: `1px solid ${C.cyan}33` }}>
-          <div style={{ width: 8, height: 8, borderRadius: 99, background: C.cyan }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: C.cyan + "18", borderRadius: RADIUS.sm, border: `1px solid ${C.cyan}33` }}>
+          <div style={{ width: 8, height: 8, borderRadius: RADIUS.full, background: C.cyan }} />
           <span style={{ fontSize: 13, color: C.cyan, fontWeight: 600, flex: 1 }}>{fmtDate(activeDateFilter)}</span>
           <button onClick={onClearDateFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4, minHeight: 28 }}>
             <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
@@ -603,7 +603,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
             padding: "10px 36px 10px 36px",
             background: searchFocused ? "#1A2840" : C.bgTertiary,
             border: `1px solid ${searchFocused ? C.blue : search ? C.blue + "55" : "rgba(255,255,255,0.18)"}`,
-            borderRadius: 12,
+            borderRadius: RADIUS.sm,
             color: C.text,
             fontSize: 14,
             boxSizing: "border-box",
@@ -623,9 +623,9 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
           const on = filter === f.key;
           return (
             <button key={f.key} onClick={() => setFilter(f.key)}
-              style={{ padding: "7px 14px", borderRadius: 20, border: `1px solid ${on ? C.blue : C.border}`, background: on ? C.blue : "transparent", color: on ? "#fff" : C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: on ? 600 : 400, display: "flex", alignItems: "center", gap: 5, minHeight: 38, transition: "all 0.15s ease" }}>
+              style={{ padding: "7px 14px", borderRadius: RADIUS.lg, border: `1px solid ${on ? C.blue : C.border}`, background: on ? C.blue : "transparent", color: on ? "#fff" : C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: on ? 600 : 400, display: "flex", alignItems: "center", gap: 5, minHeight: 38, transition: "all 0.15s ease" }}>
               {f.label}
-              <span style={{ fontSize: 11, background: on ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.07)", borderRadius: 8, padding: "1px 6px", color: on ? "rgba(255,255,255,0.9)" : C.faint }}>{counts[f.key]}</span>
+              <span style={{ fontSize: 11, background: on ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.07)", borderRadius: RADIUS.xs, padding: "1px 6px", color: on ? "rgba(255,255,255,0.9)" : C.faint }}>{counts[f.key]}</span>
             </button>
           );
         })}
@@ -639,12 +639,12 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
               {showCatDropdown && <div onClick={() => setShowCatDropdown(false)} style={{ position: "fixed", inset: 0, zIndex: 98 }} />}
               <button
                 onClick={() => setShowCatDropdown(v => !v)}
-                style={{ padding: "7px 12px", borderRadius: 20, border: `1px solid ${active ? C.cyan : C.border}`, background: active ? C.cyan + "22" : "transparent", color: active ? C.cyan : C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: active ? 600 : 400, display: "flex", alignItems: "center", gap: 4, minHeight: 38, transition: "all 0.15s ease" }}
+                style={{ padding: "7px 12px", borderRadius: RADIUS.lg, border: `1px solid ${active ? C.cyan : C.border}`, background: active ? C.cyan + "22" : "transparent", color: active ? C.cyan : C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: active ? 600 : 400, display: "flex", alignItems: "center", gap: 4, minHeight: 38, transition: "all 0.15s ease" }}
               >
                 {active ? tCat(active, t) : t("transactions.category")} <span style={{ fontSize: 10, opacity: 0.7 }}>▾</span>
               </button>
               {showCatDropdown && (
-                <div style={{ position: "absolute", top: 44, left: 0, zIndex: 99, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "6px 0", boxShadow: "0 8px 32px rgba(0,0,0,0.55)", minWidth: 190, maxHeight: 260, overflowY: "auto" }}>
+                <div style={{ position: "absolute", top: 44, left: 0, zIndex: 99, background: C.card, border: `1px solid ${C.border}`, borderRadius: RADIUS.md, padding: "6px 0", boxShadow: "0 8px 32px rgba(0,0,0,0.55)", minWidth: 190, maxHeight: 260, overflowY: "auto" }}>
                   {active && (
                     <button onClick={() => { setLocalCatFilter(null); setShowCatDropdown(false); }} style={{ display: "flex", width: "100%", textAlign: "left", padding: "9px 14px", background: "none", border: "none", borderBottom: `1px solid ${C.sep}`, color: C.muted, fontSize: 12, cursor: "pointer", fontFamily: FONT, alignItems: "center", gap: 8 }}>
                       <Icon name="x" size={11} color={C.muted} strokeWidth={2.5} /> {t("transactions.clear_filter")}
@@ -653,7 +653,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
                   {cats.map(cat => (
                     <button key={cat} onClick={() => { setLocalCatFilter(cat); setShowCatDropdown(false); }}
                       style={{ display: "flex", width: "100%", textAlign: "left", padding: "9px 14px", background: cat === active ? C.cyan + "18" : "none", border: "none", color: cat === active ? C.cyan : C.text, fontSize: 13, cursor: "pointer", fontFamily: FONT, alignItems: "center", gap: 10 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: 99, background: CAT_COLORS[cat] || C.blue, flexShrink: 0 }} />
+                      <div style={{ width: 8, height: 8, borderRadius: RADIUS.full, background: CAT_COLORS[cat] || C.blue, flexShrink: 0 }} />
                       {tCat(cat, t)}
                     </button>
                   ))}
@@ -668,12 +668,12 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
         <ConnectBankPrompt title={t("transactions.title")} message={t("dashboard.connect_bank_transactions")} onNavigate={onNavigate} />
       ) : filtered.length === 0 ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "36px 20px", textAlign: "center" }}>
-          <div style={{ width: 56, height: 56, background: C.bgSecondary, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: 56, height: 56, background: C.bgSecondary, borderRadius: RADIUS.md, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name="credit" size={24} color={C.faint} strokeWidth={1.6} />
           </div>
           <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{search ? t("transactions.no_results_for", { query: search }) : filter === "all" ? t("transactions.no_transactions") : filter === "expense" ? t("transactions.no_expense") : t("transactions.no_income")}</div>
           <div style={{ fontSize: 13, color: C.faint, maxWidth: 220, lineHeight: 1.55 }}>{search ? t("transactions.try_different") : filter === "all" ? t("transactions.add_first_hint") : t("transactions.nothing_this_month")}</div>
-          {!search && filter === "all" && <button onClick={onAdd} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, padding: "12px 24px", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, fontFamily: FONT, minHeight: 44 }}>{t("transactions.add_first_btn")}</button>}
+          {!search && filter === "all" && <button onClick={onAdd} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.sm, padding: "12px 24px", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, fontFamily: FONT, minHeight: 44 }}>{t("transactions.add_first_btn")}</button>}
         </div>
       ) : (() => {
         const visible = filtered.slice(0, visibleCount);
@@ -725,7 +725,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
       })()}
 
       {!hintDone && filtered.length > 0 && (
-        <div style={{ marginTop: 8, padding: "8px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 10, border: `1px solid rgba(255,255,255,0.05)`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, animation: "hintFade 0.3s ease forwards", animationDelay: "1.2s", opacity: 1 }}>
+        <div style={{ marginTop: 8, padding: "8px 14px", background: "rgba(255,255,255,0.03)", borderRadius: RADIUS.sm, border: `1px solid rgba(255,255,255,0.05)`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, animation: "hintFade 0.3s ease forwards", animationDelay: "1.2s", opacity: 1 }}>
           <style>{`@keyframes hintFade{0%{opacity:1}100%{opacity:0;visibility:hidden}}`}</style>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 11, color: C.faint }}>{t("transactions.swipe_hint")}</span>
@@ -772,7 +772,7 @@ export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
   const isEdit = !!existing;
 
   const noSpinStyle = `input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}`;
-  const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT };
+  const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT };
 
   function switchType(typeName) { setType(typeName); setCatId(""); setCatName(""); setShowCats(false); }
 
@@ -786,13 +786,13 @@ export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
       <div style={{ background: C.card, width: "100%", borderRadius: "24px 24px 0 0", padding: 24, border: `1px solid ${C.border}`, maxHeight: "90vh", overflowY: "auto", fontFamily: FONT }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{isEdit ? t("transactions.edit_transaction") : t("transactions.add_transaction_modal")}</h3>
-          <button onClick={onClose} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 99, cursor: "pointer", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button onClick={onClose} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.full, cursor: "pointer", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name="x" size={14} color={C.muted} strokeWidth={2.5} />
           </button>
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           {["expense", "income"].map(typeOpt => (
-            <button key={typeOpt} onClick={() => switchType(typeOpt)} style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${type === typeOpt ? (typeOpt === "expense" ? C.red : C.green) : C.border}`, background: type === typeOpt ? (typeOpt === "expense" ? C.red + "18" : C.green + "18") : "transparent", color: type === typeOpt ? (typeOpt === "expense" ? C.red : C.green) : C.muted, cursor: "pointer", fontWeight: 600, textTransform: "capitalize", fontFamily: FONT }}>{t("transactions." + typeOpt)}</button>
+            <button key={typeOpt} onClick={() => switchType(typeOpt)} style={{ flex: 1, padding: 11, borderRadius: RADIUS.sm, border: `1px solid ${type === typeOpt ? (typeOpt === "expense" ? C.red : C.green) : C.border}`, background: type === typeOpt ? (typeOpt === "expense" ? C.red + "18" : C.green + "18") : "transparent", color: type === typeOpt ? (typeOpt === "expense" ? C.red : C.green) : C.muted, cursor: "pointer", fontWeight: 600, textTransform: "capitalize", fontFamily: FONT }}>{t("transactions." + typeOpt)}</button>
           ))}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -806,19 +806,19 @@ export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
             <button onClick={() => setShowCats(!showCats)} style={{ ...inp, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left" }}>
               {catName
                 ? type === "income"
-                  ? <><div style={{ width: 32, height: 32, borderRadius: 10, background: INCOME_CATS.find(c => c.name === catName)?.color || C.green, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name={INCOME_CATS.find(c => c.name === catName)?.icon || "dollar"} size={15} color="#fff" strokeWidth={2} /></div><span style={{ color: C.text }}>{catName}</span></>
+                  ? <><div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: INCOME_CATS.find(c => c.name === catName)?.color || C.green, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name={INCOME_CATS.find(c => c.name === catName)?.icon || "dollar"} size={15} color="#fff" strokeWidth={2} /></div><span style={{ color: C.text }}>{catName}</span></>
                   : <><CatIcon name={catName} type={type} size={15} /><span style={{ color: C.text }}>{catName}</span></>
                 : <span style={{ color: C.muted }}>{type === "income" ? t("transactions.select_income_source") : t("transactions.select_category")}</span>
               }
               <span style={{ marginLeft: "auto" }}><Icon name="chevron" size={14} color={C.faint} /></span>
             </button>
             {showCats && (
-              <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, marginTop: 4, overflow: "hidden", maxHeight: 240, overflowY: "auto" }}>
+              <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, marginTop: 4, overflow: "hidden", maxHeight: 240, overflowY: "auto" }}>
                 {displayCats.map(c => (
                   <div key={c.id || c.name} onClick={() => { setCatId(c.id || c.name); setCatName(c.name); setShowCats(false); }}
                     style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", cursor: "pointer", background: catName === c.name ? C.cyan + "10" : "transparent", borderBottom: `1px solid ${C.sep}` }}>
                     {type === "income"
-                      ? <div style={{ width: 34, height: 34, borderRadius: 10, background: c.color, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      ? <div style={{ width: 34, height: 34, borderRadius: RADIUS.sm, background: c.color, display: "flex", alignItems: "center", justifyContent: "center" }}>
                           <Icon name={c.icon} size={15} color="#fff" strokeWidth={2} />
                         </div>
                       : <CatIcon name={c.name} type={type} size={15} />
@@ -861,7 +861,7 @@ export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
               setSubmitting(false);
             }
           }}
-          style={{ width: "100%", marginTop: 18, padding: 15, background: submitting ? C.border : `linear-gradient(90deg,${type === "expense" ? C.red : C.green},${type === "expense" ? "#CC1A3A" : "#00A67E"})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: submitting ? "not-allowed" : "pointer", fontFamily: FONT, opacity: submitting ? 0.6 : 1 }}>
+          style={{ width: "100%", marginTop: 18, padding: 15, background: submitting ? C.border : `linear-gradient(90deg,${type === "expense" ? C.red : C.green},${type === "expense" ? "#CC1A3A" : "#00A67E"})`, border: "none", borderRadius: RADIUS.md, color: "#fff", fontWeight: 700, fontSize: 15, cursor: submitting ? "not-allowed" : "pointer", fontFamily: FONT, opacity: submitting ? 0.6 : 1 }}>
           {submitting ? t("transactions.saving") : isEdit ? t("transactions.save_changes") : type === "expense" ? t("transactions.add_expense") : t("transactions.add_income")}
         </button>
       </div>

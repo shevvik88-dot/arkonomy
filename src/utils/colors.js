@@ -1,5 +1,13 @@
 export const FONT = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
 
+// Derived from actual usage across all 7 screens (2026-08-02 audit) — the
+// closest round anchors to the real clusters (8/12/16/20 were already the
+// most-used discrete values), not invented from scratch. `full` is for
+// pills/circles (a value larger than any real element's half-dimension —
+// the browser clamps it automatically, same effect as 50% for a single
+// border-radius declaration, but self-documenting via the name).
+export const RADIUS = { xs: 8, sm: 12, md: 16, lg: 20, full: 999 };
+
 export const C = {
   bg: "#0B1426", bgSecondary: "#0F1A2E", bgTertiary: "#162035", bgDeep: "#0E1829",
   card: "#111E33", border: "#1E2D4A", sep: "#192840", cardBgStart: "#0E1E35",

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { usePostHog } from "@posthog/react";
-import { C, FONT } from "../utils/colors";
+import { C, FONT, RADIUS } from "../utils/colors";
 import { fmt, parseDate, tCat, cleanMerchantName, sumAmounts } from "../utils/helpers";
 import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
@@ -243,7 +243,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
       style={{
         background: bg,
         border: `1px solid ${border}22`,
-        borderRadius: 16,
+        borderRadius: RADIUS.md,
         padding: "12px 16px",
         marginBottom: 10,
         cursor: "pointer",
@@ -285,17 +285,17 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
               return d.toLocaleDateString(i18n.language || "en-US", { month: "short", year: "numeric" });
             })();
             return (
-              <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: "12px 14px", marginBottom: 14 }}>
+              <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: RADIUS.sm, padding: "12px 14px", marginBottom: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{insight.data?.goalName || t("insights.goal_fallback_name")}</span>
                   <span style={{ fontSize: 12, color: accent, fontWeight: 600 }}>{pct.toFixed(0)}%</span>
                 </div>
-                <div style={{ height: 6, background: "rgba(255,255,255,0.08)", borderRadius: 99, marginBottom: 6, overflow: "hidden", position: "relative" }}>
+                <div style={{ height: 6, background: "rgba(255,255,255,0.08)", borderRadius: RADIUS.full, marginBottom: 6, overflow: "hidden", position: "relative" }}>
                   {pct === 0 && (
-                    <div style={{ position: "absolute", inset: 0, borderRadius: 99, background: `repeating-linear-gradient(90deg, ${accent}30 0px, ${accent}30 4px, transparent 4px, transparent 8px)` }} />
+                    <div style={{ position: "absolute", inset: 0, borderRadius: RADIUS.full, background: `repeating-linear-gradient(90deg, ${accent}30 0px, ${accent}30 4px, transparent 4px, transparent 8px)` }} />
                   )}
                   {pct > 0 && (
-                    <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${accent}BB, ${accent})`, borderRadius: 99 }} />
+                    <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${accent}BB, ${accent})`, borderRadius: RADIUS.full }} />
                   )}
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.muted + "99", marginBottom: 10 }}>
@@ -318,7 +318,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
           {isSavings && breakdown && (
             <div style={{
               background: "rgba(255,255,255,0.04)",
-              borderRadius: 10,
+              borderRadius: RADIUS.sm,
               padding: "10px 12px",
               marginBottom: 14,
               display: "flex",
@@ -354,7 +354,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
               onPointerLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 4px 20px ${accent}32`; }}
               style={{
                 width: "100%", padding: "13px 16px",
-                background: accent, border: "none", borderRadius: 11,
+                background: accent, border: "none", borderRadius: RADIUS.sm,
                 color: insight.type === "savings_opportunity" ? "#061A10" : "#fff",
                 fontWeight: 800, fontSize: 15, cursor: "pointer",
                 fontFamily: FONT,
@@ -367,7 +367,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
               {isSavings && Number(breakdown?.suggestedSave) > 0
                 ? <>
                     {t("insights.add_amount_safely", { amount: Number(breakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 }) })}
-                    <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: 20, padding: "2px 8px", whiteSpace: "nowrap" }}>
+                    <span style={{ fontSize: 10, fontWeight: 600, background: "rgba(0,0,0,0.15)", borderRadius: RADIUS.lg, padding: "2px 8px", whiteSpace: "nowrap" }}>
                       {t("insights.recommended_safe")}
                     </span>
                   </>
@@ -380,7 +380,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
           {isSavings && Number(rawBreakdown?.suggestedSave) > 0 && Number(rawBreakdown.suggestedSave) > SAFE_CAP && (
             <button
               onClick={e => { e.stopPropagation(); onAction?.(action, { ...insight.data, _useMax: true }); }}
-              style={{ width: "100%", marginTop: 6, padding: "9px 16px", background: "transparent", border: `1px solid ${accent}33`, borderRadius: 10, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, opacity: 0.7 }}
+              style={{ width: "100%", marginTop: 6, padding: "9px 16px", background: "transparent", border: `1px solid ${accent}33`, borderRadius: RADIUS.sm, color: accent, fontWeight: 500, fontSize: 12, cursor: "pointer", fontFamily: FONT, opacity: 0.7 }}
             >
               {t("insights.add_amount_max", { amount: Number(rawBreakdown.suggestedSave).toLocaleString("en-US", { maximumFractionDigits: 0 }) })}
             </button>
@@ -402,7 +402,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
                 width: "100%", marginTop: 8, padding: "11px 16px",
                 background: C.roundupAccentBg,
                 border: `1px solid ${C.roundupAccentBorder}`,
-                borderRadius: 11, color: C.roundupAccent,
+                borderRadius: RADIUS.sm, color: C.roundupAccent,
                 fontWeight: 600, fontSize: 13,
                 cursor: "pointer", fontFamily: FONT,
                 letterSpacing: -0.1,
@@ -546,8 +546,8 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
                 <span style={{ fontSize: 12, color: C.muted }}>{item.label}</span>
                 <span style={{ fontSize: 12, fontWeight: 700, color: item.color }}>{item.score}/{item.max} pts · {item.desc}</span>
               </div>
-              <div style={{ height: 4, background: C.bgTertiary, borderRadius: 99 }}>
-                <div style={{ height: 4, borderRadius: 99, width: `${(item.score / item.max) * 100}%`, background: item.color, transition: "width 0.6s" }} />
+              <div style={{ height: 4, background: C.bgTertiary, borderRadius: RADIUS.full }}>
+                <div style={{ height: 4, borderRadius: RADIUS.full, width: `${(item.score / item.max) * 100}%`, background: item.color, transition: "width 0.6s" }} />
               </div>
             </div>
           ))}
@@ -566,7 +566,7 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
             { label: t("insights.recurring_label"), value: Math.min(99, Math.round(rawBreakdown.recurring.ratio * 100)), color: rawBreakdown.recurring.ratio > 0.25 ? C.red : rawBreakdown.recurring.ratio > 0.1 ? C.yellow : C.purple },
           ];
         })().map(item => (
-          <div key={item.label} style={{ flex: 1, background: C.bgTertiary, borderRadius: 12, padding: "10px 8px", textAlign: "center" }}>
+          <div key={item.label} style={{ flex: 1, background: C.bgTertiary, borderRadius: RADIUS.sm, padding: "10px 8px", textAlign: "center" }}>
             <div style={{ fontSize: item.display ? 11 : 16, fontWeight: 700, color: item.color }}>{item.display ?? (item.value === null ? "N/A" : item.value + "%")}</div>
             <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{item.label}</div>
           </div>
@@ -620,7 +620,7 @@ function WeeklySummary({ transactions }) {
   return (
     <GlassCard style={{ background: `linear-gradient(135deg,${C.blue}10,${C.card})`, border: `1px solid ${C.blue}30` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-        <div style={{ width: 32, height: 32, borderRadius: 10, background: C.blue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: C.blue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Icon name="calendar" size={15} color={C.blue} />
         </div>
         <span style={{ fontWeight: 600, fontSize: 14, color: C.blue }}>{t("insights.this_week")}</span>
@@ -795,7 +795,7 @@ function MerchantFavicon({ name, color, letter }) {
         position: 'absolute', inset: 0,
         display: (showImg && loaded) ? 'none' : 'flex',
         alignItems: 'center', justifyContent: 'center',
-        background: color, borderRadius: 8,
+        background: color, borderRadius: RADIUS.xs,
         fontSize: 13, fontWeight: 800, color: '#fff', fontFamily: FONT, letterSpacing: -0.3,
       }}>
         {letter}
@@ -824,7 +824,7 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
     return (
       <GlassCard style={{ background: `linear-gradient(135deg,${color}0D,${C.card})`, border: `1px solid ${color}30` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 10, background: color + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: color + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name={icon} size={14} color={color} />
           </div>
           <span style={{ fontWeight: 600, fontSize: 14, color }}>{title}</span>
@@ -837,7 +837,7 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
           return (
             <div key={i} style={{ padding: "7px 0", borderTop: `1px solid ${C.sep}` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: brand.color + "22", border: `1px solid ${brand.color}44`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden", position: "relative" }}>
+                <div style={{ width: 28, height: 28, borderRadius: RADIUS.xs, background: brand.color + "22", border: `1px solid ${brand.color}44`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden", position: "relative" }}>
                   <MerchantFavicon name={m.name} color={brand.color} letter={brand.letter} />
                 </div>
                 <span style={{ fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{displayName}</span>
@@ -872,7 +872,7 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
       {possiblyCancelled.length > 0 && (
         <GlassCard style={{ background: `linear-gradient(135deg,${C.yellow}0D,${C.card})`, border: `1px solid ${C.yellow}30` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 10, background: C.yellow + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: C.yellow + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Icon name="alert-circle" size={14} color={C.yellow} />
             </div>
             <span style={{ fontWeight: 600, fontSize: 14, color: C.yellow }}>{tRec("insights.possibly_cancelled")}</span>
@@ -882,7 +882,7 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
             const displayName = cleanMerchantName(m.name) || m.name;
             return (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: `1px solid ${C.sep}` }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: brand.color + "22", border: `1px solid ${brand.color}44`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden", position: "relative" }}>
+                <div style={{ width: 28, height: 28, borderRadius: RADIUS.xs, background: brand.color + "22", border: `1px solid ${brand.color}44`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden", position: "relative" }}>
                   <MerchantFavicon name={m.name} color={brand.color} letter={brand.letter} />
                 </div>
                 <span style={{ fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{displayName}</span>
@@ -895,7 +895,7 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
       {aliasCandidates.length > 0 && (
         <GlassCard style={{ background: `linear-gradient(135deg,${C.cyan}0D,${C.card})`, border: `1px solid ${C.cyan}30` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 10, background: C.cyan + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: C.cyan + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Icon name="refresh-cw" size={14} color={C.cyan} />
             </div>
             <span style={{ fontWeight: 600, fontSize: 14, color: C.cyan }}>{tRec("insights.same_payment_title")}</span>
@@ -912,14 +912,14 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
                 <div style={{ display: "flex", gap: 8 }}>
                   <button
                     onClick={() => onDecideMerchantAlias?.(c.older.key, c.newer.key, "confirmed")}
-                    style={{ display: "flex", alignItems: "center", gap: 6, background: C.green + "22", border: `1px solid ${C.green}44`, borderRadius: 8, padding: "6px 10px", color: C.green, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                    style={{ display: "flex", alignItems: "center", gap: 6, background: C.green + "22", border: `1px solid ${C.green}44`, borderRadius: RADIUS.xs, padding: "6px 10px", color: C.green, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                   >
                     <Icon name="check" size={13} color={C.green} />
                     {tRec("insights.same_payment_confirm")}
                   </button>
                   <button
                     onClick={() => onDecideMerchantAlias?.(c.older.key, c.newer.key, "rejected")}
-                    style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: `1px solid ${C.sep}`, borderRadius: 8, padding: "6px 10px", color: C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                    style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: `1px solid ${C.sep}`, borderRadius: RADIUS.xs, padding: "6px 10px", color: C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                   >
                     <Icon name="x" size={13} color={C.muted} />
                     {tRec("insights.same_payment_reject")}
@@ -1069,7 +1069,7 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
               style={{
                 marginTop: 8, padding: "18px 16px",
                 background: "linear-gradient(180deg, rgba(11,20,38,0) 0%, rgba(11,20,38,0.9) 40%)",
-                borderRadius: 14, textAlign: "center", cursor: "pointer",
+                borderRadius: RADIUS.md, textAlign: "center", cursor: "pointer",
                 border: `1px solid #1E2D45`,
                 display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
               }}
@@ -1092,10 +1092,10 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
         return (
           <GlassCard key={ins.id}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 14, background: color + "22", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 14px ${color}33` }}>
+              <div style={{ width: 44, height: 44, borderRadius: RADIUS.md, background: color + "22", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 14px ${color}33` }}>
                 <Icon name={ins.icon} size={20} color={color} />
               </div>
-              {ins.value && <span className="ph-mask" style={{ background: color + "22", color, borderRadius: 100, padding: "4px 12px", fontSize: 13, fontWeight: 700 }}>{ins.value}</span>}
+              {ins.value && <span className="ph-mask" style={{ background: color + "22", color, borderRadius: RADIUS.full, padding: "4px 12px", fontSize: 13, fontWeight: 700 }}>{ins.value}</span>}
             </div>
             <div className="ph-mask" style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>{ins.title}</div>
             <div className="ph-mask" style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 14 }}>{ins.desc}</div>
@@ -1130,17 +1130,17 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
           <GlassCard style={{ background: `linear-gradient(135deg,${C.green}10,${C.card})`, border: `1px solid ${C.green}35` }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 10, background: C.green + "22", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 10px ${C.green}33` }}>
+                <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: C.green + "22", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 10px ${C.green}33` }}>
                   <Icon name="target" size={14} color={C.green} />
                 </div>
                 <span style={{ fontWeight: 700, fontSize: 14, color: C.green }}>{t("insights.goal_progress")}</span>
               </div>
-              <div style={{ background: C.green + "22", borderRadius: 100, padding: "3px 10px" }}>
+              <div style={{ background: C.green + "22", borderRadius: RADIUS.full, padding: "3px 10px" }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: C.green }}>{overallPct.toFixed(0)}% {t("insights.pct_total")}</span>
               </div>
             </div>
-            <div style={{ height: 5, background: C.bgTertiary, borderRadius: 99, marginBottom: 14, overflow: "visible" }}>
-              <div style={{ height: '100%', width: `${overallPct}%`, background: `linear-gradient(90deg,${C.green}CC,${C.green})`, borderRadius: 99, boxShadow: overallPct > 0 ? `0 0 8px ${C.green}55, 0 0 16px ${C.green}22` : 'none', transition: "width 0.6s ease" }} />
+            <div style={{ height: 5, background: C.bgTertiary, borderRadius: RADIUS.full, marginBottom: 14, overflow: "visible" }}>
+              <div style={{ height: '100%', width: `${overallPct}%`, background: `linear-gradient(90deg,${C.green}CC,${C.green})`, borderRadius: RADIUS.full, boxShadow: overallPct > 0 ? `0 0 8px ${C.green}55, 0 0 16px ${C.green}22` : 'none', transition: "width 0.6s ease" }} />
             </div>
             {active.slice(0, 3).map((sv, i) => {
               const cur = Number(sv.current), tgt = Number(sv.target);
@@ -1152,8 +1152,8 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
                     <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{sv.name}</span>
                     <span className="ph-mask" style={{ fontSize: 11, color: C.muted }}>${fmt(cur, 0)} / ${fmt(tgt, 0)}</span>
                   </div>
-                  <div style={{ height: 6, background: C.bgTertiary, borderRadius: 99, marginBottom: 4, overflow: "visible" }}>
-                    <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg,${C.green}AA,${C.green})`, borderRadius: 99, boxShadow: pct > 0 ? `0 0 8px ${C.green}44` : 'none', transition: "width 0.6s ease" }} />
+                  <div style={{ height: 6, background: C.bgTertiary, borderRadius: RADIUS.full, marginBottom: 4, overflow: "visible" }}>
+                    <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg,${C.green}AA,${C.green})`, borderRadius: RADIUS.full, boxShadow: pct > 0 ? `0 0 8px ${C.green}44` : 'none', transition: "width 0.6s ease" }} />
                   </div>
                   {fc.type !== 'complete' && (
                     <div className="ph-mask" style={{ fontSize: 11, color: fc.type === 'on_track' ? C.green : C.yellow, lineHeight: 1.4 }}>

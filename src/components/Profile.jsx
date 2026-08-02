@@ -2,7 +2,7 @@ import { logger } from "../utils/logger";
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../utils/supabase";
-import { C, FONT } from "../utils/colors";
+import { C, FONT, RADIUS } from "../utils/colors";
 import { resolveCategory, timeAgo } from "../utils/helpers";
 import { generateExcelReport } from "../lib/exportReport";
 import GlassCard from "./shared/GlassCard";
@@ -139,7 +139,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
     setNewPw(""); setConfirmPw("");
     setTimeout(() => { setShowChangePw(false); setPwMsg(null); }, 2000);
   }
-  const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT };
+  const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT };
 
   const avgMonthlyIncome = useMemo(() => {
     const incomes = transactions.filter(t => t.type === "income");
@@ -170,8 +170,8 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
 
   function Toggle({ value, onChange }) {
     return (
-      <div onClick={() => onChange(!value)} style={{ width: 44, height: 26, borderRadius: 99, background: value ? C.cyan + "33" : C.bgTertiary, border: `1px solid ${value ? C.cyan + "66" : C.border}`, position: "relative", cursor: "pointer", transition: "all 0.2s", flexShrink: 0 }}>
-        <div style={{ position: "absolute", top: 3, left: value ? 20 : 3, width: 18, height: 18, borderRadius: 99, background: value ? C.cyan : C.faint, transition: "left 0.2s" }} />
+      <div onClick={() => onChange(!value)} style={{ width: 44, height: 26, borderRadius: RADIUS.full, background: value ? C.cyan + "33" : C.bgTertiary, border: `1px solid ${value ? C.cyan + "66" : C.border}`, position: "relative", cursor: "pointer", transition: "all 0.2s", flexShrink: 0 }}>
+        <div style={{ position: "absolute", top: 3, left: value ? 20 : 3, width: 18, height: 18, borderRadius: RADIUS.full, background: value ? C.cyan : C.faint, transition: "left 0.2s" }} />
       </div>
     );
   }
@@ -193,7 +193,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
         {onBack && (
           <button
             onClick={onBack}
-            style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+            style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
           >
             <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
@@ -206,7 +206,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
       <GlassCard>
         <div style={{ color: C.faint, fontSize: 10, letterSpacing: 1.2, fontWeight: 600, marginBottom: 8 }}>{t("profile.account_label")}</div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: showChangePw ? 14 : 0 }}>
-          <div style={{ width: 42, height: 42, borderRadius: 14, background: C.cyan + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ width: 42, height: 42, borderRadius: RADIUS.md, background: C.cyan + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Icon name="dollar" size={18} color={C.cyan} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -215,7 +215,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           </div>
           <button
             onClick={() => { setShowChangePw(v => !v); setPwMsg(null); setNewPw(""); setConfirmPw(""); }}
-            style={{ flexShrink: 0, background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "5px 10px", color: C.muted, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: FONT, whiteSpace: "nowrap" }}
+            style={{ flexShrink: 0, background: "none", border: `1px solid ${C.border}`, borderRadius: RADIUS.xs, padding: "5px 10px", color: C.muted, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: FONT, whiteSpace: "nowrap" }}
           >
             {showChangePw ? t("profile.cancel") : t("profile.change_password")}
           </button>
@@ -228,7 +228,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
               placeholder={t("profile.new_password")}
               value={newPw}
               onChange={e => setNewPw(e.target.value)}
-              style={{ width: "100%", padding: "11px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 14, boxSizing: "border-box", fontFamily: FONT }}
+              style={{ width: "100%", padding: "11px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 14, boxSizing: "border-box", fontFamily: FONT }}
             />
             <input
               type="password"
@@ -236,17 +236,17 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
               value={confirmPw}
               onChange={e => setConfirmPw(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleChangePassword()}
-              style={{ width: "100%", padding: "11px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 14, boxSizing: "border-box", fontFamily: FONT }}
+              style={{ width: "100%", padding: "11px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 14, boxSizing: "border-box", fontFamily: FONT }}
             />
             {pwMsg && (
-              <div style={{ fontSize: 12, fontWeight: 500, padding: "8px 12px", borderRadius: 8, background: pwMsg.type === "success" ? C.green + "14" : C.red + "14", color: pwMsg.type === "success" ? C.green : C.red, border: `1px solid ${pwMsg.type === "success" ? C.green + "33" : C.red + "33"}` }}>
+              <div style={{ fontSize: 12, fontWeight: 500, padding: "8px 12px", borderRadius: RADIUS.xs, background: pwMsg.type === "success" ? C.green + "14" : C.red + "14", color: pwMsg.type === "success" ? C.green : C.red, border: `1px solid ${pwMsg.type === "success" ? C.green + "33" : C.red + "33"}` }}>
                 {pwMsg.text}
               </div>
             )}
             <button
               onClick={handleChangePassword}
               disabled={pwLoading}
-              style={{ width: "100%", padding: "11px 0", background: pwLoading ? C.bgTertiary : `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 10, color: pwLoading ? C.faint : "#000", fontWeight: 700, fontSize: 14, cursor: pwLoading ? "default" : "pointer", fontFamily: FONT }}
+              style={{ width: "100%", padding: "11px 0", background: pwLoading ? C.bgTertiary : `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.sm, color: pwLoading ? C.faint : "#000", fontWeight: 700, fontSize: 14, cursor: pwLoading ? "default" : "pointer", fontFamily: FONT }}
             >
               {pwLoading ? t("profile.updating") : t("profile.update_password")}
             </button>
@@ -263,12 +263,12 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             width: "100%", textAlign: "left",
             background: `linear-gradient(135deg, ${C.proAccent}18, #38B6FF0A)`,
             border: `1px solid ${C.proAccent}33`,
-            borderRadius: 18, padding: "16px 18px",
+            borderRadius: RADIUS.lg, padding: "16px 18px",
             cursor: "pointer", fontFamily: FONT,
           }}
         >
           <div style={{
-            width: 42, height: 42, borderRadius: 13, flexShrink: 0,
+            width: 42, height: 42, borderRadius: RADIUS.sm, flexShrink: 0,
             background: `linear-gradient(135deg, ${C.proAccent}33, #38B6FF22)`,
             border: `1px solid ${C.proAccent}44`,
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -290,7 +290,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
       {/* ── PLAID BANK CONNECTION ── */}
       <GlassCard style={{ border: `1px solid ${bankConnected ? C.green + "44" : C.bankConnectBlue + "44"}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: bankConnected ? C.green + "22" : C.bankConnectBlue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: 40, height: 40, borderRadius: RADIUS.sm, background: bankConnected ? C.green + "22" : C.bankConnectBlue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name="bank" size={18} color={bankConnected ? C.green : C.bankConnectBlue} />
           </div>
           <div style={{ flex: 1 }}>
@@ -309,7 +309,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             </div>
           </div>
           {bankConnected && (
-            <div style={{ background: C.green + "22", border: `1px solid ${C.green}44`, borderRadius: 100, padding: "3px 10px" }}>
+            <div style={{ background: C.green + "22", border: `1px solid ${C.green}44`, borderRadius: RADIUS.full, padding: "3px 10px" }}>
               <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>{t("profile.active")}</span>
             </div>
           )}
@@ -320,13 +320,13 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
         ) : bankConnected ? (
           <>
             <button onClick={syncBankTransactions} disabled={syncingBank}
-              style={{ width: "100%", padding: 13, background: syncingBank ? C.bgTertiary : C.green + "22", border: `1px solid ${C.green}44`, borderRadius: 14, color: C.green, fontWeight: 600, fontSize: 14, cursor: syncingBank ? "not-allowed" : "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
+              style={{ width: "100%", padding: 13, background: syncingBank ? C.bgTertiary : C.green + "22", border: `1px solid ${C.green}44`, borderRadius: RADIUS.md, color: C.green, fontWeight: 600, fontSize: 14, cursor: syncingBank ? "not-allowed" : "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
               <Icon name="repeat" size={15} color={C.green} strokeWidth={2} />
               {syncingBank ? t("profile.syncing_btn") : t("profile.sync_transactions")}
             </button>
             {REFRESH_BALANCE_ENABLED && (
               <button onClick={onRefreshBalance} disabled={refreshingBalance || refreshCooldownActive}
-                style={{ width: "100%", padding: 13, background: (refreshingBalance || refreshCooldownActive) ? C.bgTertiary : C.cyan + "18", border: `1px solid ${C.cyan}44`, borderRadius: 14, color: (refreshingBalance || refreshCooldownActive) ? C.faint : C.cyan, fontWeight: 600, fontSize: 14, cursor: (refreshingBalance || refreshCooldownActive) ? "not-allowed" : "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
+                style={{ width: "100%", padding: 13, background: (refreshingBalance || refreshCooldownActive) ? C.bgTertiary : C.cyan + "18", border: `1px solid ${C.cyan}44`, borderRadius: RADIUS.md, color: (refreshingBalance || refreshCooldownActive) ? C.faint : C.cyan, fontWeight: 600, fontSize: 14, cursor: (refreshingBalance || refreshCooldownActive) ? "not-allowed" : "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
                 <Icon name="zap" size={15} color={(refreshingBalance || refreshCooldownActive) ? C.faint : C.cyan} strokeWidth={2} />
                 {refreshingBalance
                   ? t("profile.refreshing_balance_btn")
@@ -337,13 +337,13 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             )}
             <button
               onClick={getReconnectToken}
-              style={{ width: "100%", padding: 12, background: C.yellow + "18", border: `1px solid ${C.yellow}44`, borderRadius: 14, color: C.yellow, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 8 }}>
+              style={{ width: "100%", padding: 12, background: C.yellow + "18", border: `1px solid ${C.yellow}44`, borderRadius: RADIUS.md, color: C.yellow, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 8 }}>
               <Icon name="refresh-cw" size={13} color={C.yellow} strokeWidth={2.5} />
               {t("profile.reconnect_bank")}
             </button>
             <button
               onClick={() => { if (!isPro) { onUpgrade(); return; } getLinkToken(); }}
-              style={{ width: "100%", padding: 12, background: isPro ? C.bankConnectBlue + "22" : C.bgTertiary, border: `1px solid ${isPro ? C.bankConnectBlue + "44" : C.border}`, borderRadius: 14, color: isPro ? "#4B8EFF" : C.faint, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
+              style={{ width: "100%", padding: 12, background: isPro ? C.bankConnectBlue + "22" : C.bgTertiary, border: `1px solid ${isPro ? C.bankConnectBlue + "44" : C.border}`, borderRadius: RADIUS.md, color: isPro ? "#4B8EFF" : C.faint, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
               {isPro ? <Icon name="plus" size={13} color="#4B8EFF" strokeWidth={2.5} /> : <span>🔒</span>}
               {isPro ? t("profile.add_another_bank", { count: bankCount }) : t("profile.add_another_bank_pro")}
             </button>
@@ -352,7 +352,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           <PlaidLinkButton linkToken={linkToken} onSuccess={onPlaidSuccess} onExit={() => {}} autoOpen />
         ) : (
           <button onClick={getLinkToken}
-            style={{ width: "100%", padding: 14, background: `linear-gradient(135deg,${C.bankConnectBlue},#2F80FF)`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: `0 4px 20px ${C.bankConnectBlue}66` }}>
+            style={{ width: "100%", padding: 14, background: `linear-gradient(135deg,${C.bankConnectBlue},#2F80FF)`, border: "none", borderRadius: RADIUS.md, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: `0 4px 20px ${C.bankConnectBlue}66` }}>
             <Icon name="bank" size={17} color="#fff" strokeWidth={2} />
             {t("profile.connect_bank")}
           </button>
@@ -371,30 +371,30 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
         <div style={{ color: C.muted, fontSize: 12, fontWeight: 500, marginBottom: 6 }}>{t("profile.monthly_budget")}</div>
         <input style={{ ...inp, marginBottom: 8 }} type="number" value={budget} onChange={e => setBudget(e.target.value)} />
         {avgMonthlyIncome !== null && Number(budget) > avgMonthlyIncome && (
-          <div style={{ fontSize: 12, color: C.amber, background: C.amber + "14", border: `1px solid ${C.amber}33`, borderRadius: 10, padding: "8px 12px", marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: C.amber, background: C.amber + "14", border: `1px solid ${C.amber}33`, borderRadius: RADIUS.sm, padding: "8px 12px", marginBottom: 8 }}>
             ⚠️ {t("profile.budget_exceeds_income", { amount: avgMonthlyIncome.toLocaleString() })}
           </div>
         )}
         {budgetSuggestion !== null ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: C.cyan + "12", border: `1px solid ${C.cyan}33`, borderRadius: 10, padding: "9px 12px", marginBottom: 14, gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: C.cyan + "12", border: `1px solid ${C.cyan}33`, borderRadius: RADIUS.sm, padding: "9px 12px", marginBottom: 14, gap: 8 }}>
             <div style={{ fontSize: 12, color: C.cyan, fontWeight: 500 }}>
               {t("profile.budget_suggestion", { amount: budgetSuggestion.toLocaleString() })}
             </div>
             <button
               onClick={() => setBudget(budgetSuggestion)}
-              style={{ flexShrink: 0, padding: "5px 11px", background: C.cyan + "22", border: `1px solid ${C.cyan}55`, borderRadius: 8, color: C.cyan, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT, whiteSpace: "nowrap" }}>
+              style={{ flexShrink: 0, padding: "5px 11px", background: C.cyan + "22", border: `1px solid ${C.cyan}55`, borderRadius: RADIUS.xs, color: C.cyan, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT, whiteSpace: "nowrap" }}>
               {t("profile.use_this")}
             </button>
           </div>
         ) : (
-          <div style={{ fontSize: 11, color: C.faint, marginBottom: 14, padding: "7px 10px", background: C.bgTertiary, borderRadius: 9 }}>
+          <div style={{ fontSize: 11, color: C.faint, marginBottom: 14, padding: "7px 10px", background: C.bgTertiary, borderRadius: RADIUS.sm }}>
             {t("profile.not_enough_data")}
           </div>
         )}
         <div style={{ color: C.muted, fontSize: 12, fontWeight: 500, marginBottom: 6 }}>{t("profile.annual_savings_goal")}</div>
         <input style={{ ...inp, marginBottom: 18 }} type="number" value={goal} onChange={e => setGoal(e.target.value)} />
         <button onClick={async () => { await onSave({ monthly_budget: parseFloat(budget), savings_goal: parseFloat(goal) }); setSaved(true); setTimeout(() => setSaved(false), 2000); }}
-          style={{ width: "100%", padding: 14, background: saved ? C.green : `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: saved ? C.bg : "#fff", fontWeight: 700, cursor: "pointer", transition: "background 0.3s", fontFamily: FONT }}>
+          style={{ width: "100%", padding: 14, background: saved ? C.green : `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.sm, color: saved ? C.bg : "#fff", fontWeight: 700, cursor: "pointer", transition: "background 0.3s", fontFamily: FONT }}>
           {saved ? t("profile.saved") : t("profile.save_settings")}
         </button>
       </GlassCard>
@@ -405,8 +405,8 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             <div style={{ fontWeight: 600, fontSize: 15 }}>{t("profile.autopilot_title")}</div>
             <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{t("profile.autopilot_subtitle")}</div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, background: C.green + "18", border: `1px solid ${C.green}33`, borderRadius: 100, padding: "4px 12px" }}>
-            <div style={{ width: 6, height: 6, borderRadius: 99, background: C.green }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: C.green + "18", border: `1px solid ${C.green}33`, borderRadius: RADIUS.full, padding: "4px 12px" }}>
+            <div style={{ width: 6, height: 6, borderRadius: RADIUS.full, background: C.green }} />
             <span style={{ fontSize: 11, color: C.green, fontWeight: 600 }}>{t("profile.autopilot_active")}</span>
           </div>
         </div>
@@ -420,7 +420,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             {i > 0 && <div style={{ height: 1, background: C.sep, margin: "12px 0" }} />}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: rule.color + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <div style={{ width: 36, height: 36, borderRadius: RADIUS.sm, background: rule.color + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <Icon name={rule.icon} size={16} color={rule.color} />
                 </div>
                 <div>
@@ -437,7 +437,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
       {/* ── NOTIFICATIONS & REPORTS ── */}
       <GlassCard>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 11, background: C.cyan + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ width: 38, height: 38, borderRadius: RADIUS.sm, background: C.cyan + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Icon name="bell" size={17} color={C.cyan} />
           </div>
           <div>
@@ -454,7 +454,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             <button
               key={opt}
               onClick={() => setNotifPrefs(p => ({ ...p, frequency: opt }))}
-              style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${notifPrefs.frequency === opt ? C.cyan + "88" : C.border}`, background: notifPrefs.frequency === opt ? C.cyan + "22" : C.bgTertiary, color: notifPrefs.frequency === opt ? C.cyan : C.muted, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT, textTransform: "capitalize" }}
+              style={{ flex: 1, padding: "8px 0", borderRadius: RADIUS.sm, border: `1px solid ${notifPrefs.frequency === opt ? C.cyan + "88" : C.border}`, background: notifPrefs.frequency === opt ? C.cyan + "22" : C.bgTertiary, color: notifPrefs.frequency === opt ? C.cyan : C.muted, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT, textTransform: "capitalize" }}
             >
               {t("profile.freq_" + opt)}
             </button>
@@ -501,7 +501,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           <span style={{ fontSize: 12, fontWeight: 500, color: isPro ? C.muted : C.faint }}>
             <span style={{ color: isPro ? C.green : C.faint, fontWeight: 700 }}>{t("profile.excel_label")}</span> {t("profile.excel_report_frequency")}
           </span>
-          {!isPro && <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 700, color: C.faint, background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 99, padding: "2px 7px" }}>{t("common.pro_badge")}</span>}
+          {!isPro && <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 700, color: C.faint, background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.full, padding: "2px 7px" }}>{t("common.pro_badge")}</span>}
         </div>
         <div style={{ fontSize: 11, color: C.faint, marginBottom: 8 }}>{t("profile.excel_report_sub")}</div>
         {isPro ? (
@@ -510,7 +510,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
               <button
                 key={opt}
                 onClick={() => setNotifPrefs(p => ({ ...p, excel_frequency: opt }))}
-                style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${notifPrefs.excel_frequency === opt ? C.blue + "88" : C.border}`, background: notifPrefs.excel_frequency === opt ? C.blue + "22" : C.bgTertiary, color: notifPrefs.excel_frequency === opt ? C.blue : C.muted, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT, textTransform: "capitalize" }}
+                style={{ flex: 1, padding: "8px 0", borderRadius: RADIUS.sm, border: `1px solid ${notifPrefs.excel_frequency === opt ? C.blue + "88" : C.border}`, background: notifPrefs.excel_frequency === opt ? C.blue + "22" : C.bgTertiary, color: notifPrefs.excel_frequency === opt ? C.blue : C.muted, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT, textTransform: "capitalize" }}
               >
                 {t("profile.excel_freq_" + opt)}
               </button>
@@ -519,7 +519,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
         ) : (
           <div onClick={onUpgrade} style={{ display: "flex", gap: 6, marginBottom: 18, cursor: "pointer", opacity: 0.45, pointerEvents: "auto" }}>
             {["monthly", "quarterly", "off"].map(opt => (
-              <div key={opt} style={{ flex: 1, padding: "8px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: C.bgTertiary, color: C.faint, fontWeight: 600, fontSize: 11, textAlign: "center", textTransform: "capitalize", userSelect: "none" }}>
+              <div key={opt} style={{ flex: 1, padding: "8px 0", borderRadius: RADIUS.sm, border: `1px solid ${C.border}`, background: C.bgTertiary, color: C.faint, fontWeight: 600, fontSize: 11, textAlign: "center", textTransform: "capitalize", userSelect: "none" }}>
                 {t("profile.excel_freq_" + opt)}
               </div>
             ))}
@@ -529,7 +529,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
         <button
           onClick={saveNotifPrefs}
           disabled={notifSaving}
-          style={{ width: "100%", padding: 13, background: notifSaved ? C.green : notifSaving ? C.bgTertiary : `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: notifSaved ? C.bg : notifSaving ? C.faint : "#fff", fontWeight: 700, fontSize: 14, cursor: notifSaving ? "default" : "pointer", transition: "background 0.3s", fontFamily: FONT }}
+          style={{ width: "100%", padding: 13, background: notifSaved ? C.green : notifSaving ? C.bgTertiary : `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.sm, color: notifSaved ? C.bg : notifSaving ? C.faint : "#fff", fontWeight: 700, fontSize: 14, cursor: notifSaving ? "default" : "pointer", transition: "background 0.3s", fontFamily: FONT }}
         >
           {notifSaved ? t("profile.saved") : notifSaving ? t("profile.saving") : t("profile.save_preferences")}
         </button>
@@ -554,7 +554,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           <span style={{ fontWeight: 600, fontSize: 15 }}>{t("profile.security_title")}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "4px 0" }}>
-          <div style={{ width: 38, height: 38, borderRadius: 12, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ width: 38, height: 38, borderRadius: RADIUS.sm, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Icon name="smartphone" size={17} color={C.cyan} />
           </div>
           <div style={{ flex: 1 }}>
@@ -562,8 +562,8 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{t("profile.face_id_sub")}</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-            <div style={{ width: 44, height: 24, borderRadius: 12, background: C.sep, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 3px", cursor: "not-allowed", opacity: 0.5 }}>
-              <div style={{ width: 18, height: 18, borderRadius: 9, background: C.muted }} />
+            <div style={{ width: 44, height: 24, borderRadius: RADIUS.sm, background: C.sep, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 3px", cursor: "not-allowed", opacity: 0.5 }}>
+              <div style={{ width: 18, height: 18, borderRadius: RADIUS.full, background: C.muted }} />
             </div>
             <span style={{ fontSize: 10, color: C.faint }}>{t("profile.face_id_coming")}</span>
           </div>
@@ -578,11 +578,11 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           { label: t("profile.credit_score"),     color: "#7C3AED", icon: "award" },
         ].map((item, i, arr) => (
           <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 0", borderBottom: i < arr.length - 1 ? `1px solid ${C.sep}` : "none" }}>
-            <div style={{ width: 38, height: 38, borderRadius: 12, background: item.color + "22", border: `1px solid ${item.color}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <div style={{ width: 38, height: 38, borderRadius: RADIUS.sm, background: item.color + "22", border: `1px solid ${item.color}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Icon name={item.icon} size={17} color={item.color} />
             </div>
             <span style={{ color: C.text, fontSize: 14, flex: 1 }}>{item.label}</span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: C.cyan, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, borderRadius: 20, padding: "2px 8px", letterSpacing: 0.4, flexShrink: 0 }}>{t("profile.soon")}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: C.cyan, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, borderRadius: RADIUS.lg, padding: "2px 8px", letterSpacing: 0.4, flexShrink: 0 }}>{t("profile.soon")}</span>
           </div>
         ))}
       </GlassCard>
@@ -590,7 +590,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
       <button
         onClick={() => { if (!isPro) { onUpgrade(); return; } handleExport(); }}
         disabled={isPro && exporting}
-        style={{ width: '100%', padding: '14px', background: '#1E293B', color: isPro ? '#7C3AED' : C.faint, border: `1px solid ${isPro ? '#334155' : C.border}`, borderRadius: 12, fontSize: 15, fontWeight: 600, cursor: (isPro && exporting) ? 'not-allowed' : 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: FONT }}
+        style={{ width: '100%', padding: '14px', background: '#1E293B', color: isPro ? '#7C3AED' : C.faint, border: `1px solid ${isPro ? '#334155' : C.border}`, borderRadius: RADIUS.sm, fontSize: 15, fontWeight: 600, cursor: (isPro && exporting) ? 'not-allowed' : 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: FONT }}
       >
         {!isPro && <span>🔒</span>}
         {isPro && exporting ? t("profile.generating") : t("profile.export_report")}
@@ -598,14 +598,14 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
 
       <button
         onClick={onSignOut}
-        style={{ width: "100%", padding: "13px 0", borderRadius: 12, border: `1px solid ${C.border}`, background: "none", color: C.red, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}
+        style={{ width: "100%", padding: "13px 0", borderRadius: RADIUS.sm, border: `1px solid ${C.border}`, background: "none", color: C.red, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}
       >
         {t("profile.sign_out")}
       </button>
 
       <button
         onClick={() => { setShowDeleteConfirm(true); setDeleteInput(""); }}
-        style={{ width: "100%", padding: "11px 0", borderRadius: 12, border: `1px solid ${C.red}33`, background: "none", color: C.red, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: FONT, marginBottom: 16, opacity: 0.7 }}
+        style={{ width: "100%", padding: "11px 0", borderRadius: RADIUS.sm, border: `1px solid ${C.red}33`, background: "none", color: C.red, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: FONT, marginBottom: 16, opacity: 0.7 }}
       >
         {t("profile.delete_account")}
       </button>
@@ -619,7 +619,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             onClick={e => e.stopPropagation()}
             style={{ width: "100%", maxWidth: 430, background: "#131C2E", borderRadius: "24px 24px 0 0", border: `1px solid ${C.red}33`, borderBottom: "none", padding: "28px 20px 40px", fontFamily: FONT }}
           >
-            <div style={{ width: 36, height: 4, borderRadius: 99, background: C.border, margin: "0 auto 24px" }} />
+            <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: C.border, margin: "0 auto 24px" }} />
             <div style={{ textAlign: "center", marginBottom: 20 }}>
               <div style={{ fontSize: 32, marginBottom: 10 }}>⚠️</div>
               <div style={{ fontSize: 20, fontWeight: 800, color: C.text, marginBottom: 8 }}>{t("profile.delete_confirm_title")}</div>
@@ -633,18 +633,18 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
               value={deleteInput}
               onChange={e => setDeleteInput(e.target.value)}
               placeholder="DELETE"
-              style={{ width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${deleteInput === "DELETE" ? C.red : C.border}`, borderRadius: 12, color: C.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT, marginBottom: 14 }}
+              style={{ width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${deleteInput === "DELETE" ? C.red : C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT, marginBottom: 14 }}
             />
             <button
               onClick={handleDeleteAccount}
               disabled={deleteInput !== "DELETE" || deleting}
-              style={{ width: "100%", padding: 15, background: deleteInput === "DELETE" ? C.red : C.bgTertiary, border: "none", borderRadius: 14, color: deleteInput === "DELETE" ? "#fff" : C.faint, fontWeight: 700, fontSize: 15, cursor: deleteInput === "DELETE" ? "pointer" : "not-allowed", fontFamily: FONT, marginBottom: 10, transition: "background 0.2s" }}
+              style={{ width: "100%", padding: 15, background: deleteInput === "DELETE" ? C.red : C.bgTertiary, border: "none", borderRadius: RADIUS.md, color: deleteInput === "DELETE" ? "#fff" : C.faint, fontWeight: 700, fontSize: 15, cursor: deleteInput === "DELETE" ? "pointer" : "not-allowed", fontFamily: FONT, marginBottom: 10, transition: "background 0.2s" }}
             >
               {deleting ? t("profile.deleting") : t("profile.delete_permanently")}
             </button>
             <button
               onClick={() => setShowDeleteConfirm(false)}
-              style={{ width: "100%", padding: 13, background: "none", border: `1px solid ${C.border}`, borderRadius: 14, color: C.muted, fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}
+              style={{ width: "100%", padding: 13, background: "none", border: `1px solid ${C.border}`, borderRadius: RADIUS.md, color: C.muted, fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}
             >
               {t("profile.cancel")}
             </button>

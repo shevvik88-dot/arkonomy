@@ -5,7 +5,7 @@ import { logger } from "./utils/logger";
 // one deliberately App.jsx-local field (trialEndedAccent) — no hardcoded
 // duplicate values left here. Aliased since the file also has its own
 // local `const C` derived from it (name collision otherwise).
-import { C as sharedC } from "./utils/colors";
+import { C as sharedC, RADIUS } from "./utils/colors";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { usePostHog } from "@posthog/react";
 import { useTranslation } from "react-i18next";
@@ -1508,10 +1508,10 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ color: C.muted, fontSize: 16, fontWeight: 600 }}>{profile?.full_name || user.email?.split("@")[0]}</span>
               {isTrial
-                ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: C.amber, background: C.amber + "20", borderRadius: 20, padding: "3px 9px", cursor: "pointer" }}>Trial: {trialDaysLeft}d left</span>
+                ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: C.amber, background: C.amber + "20", borderRadius: RADIUS.lg, padding: "3px 9px", cursor: "pointer" }}>Trial: {trialDaysLeft}d left</span>
                 : trialExpired
-                ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: "#EF4444", background: "#EF444420", borderRadius: 20, padding: "3px 9px", cursor: "pointer" }}>Trial ended</span>
-                : isPro && <span style={{ fontSize: 10, fontWeight: 700, color: sharedC.proAccent, background: sharedC.proAccent + "18", border: `1px solid ${sharedC.proAccent}44`, borderRadius: 99, padding: "2px 8px", letterSpacing: 0.5 }}>PRO</span>
+                ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: "#EF4444", background: "#EF444420", borderRadius: RADIUS.lg, padding: "3px 9px", cursor: "pointer" }}>Trial ended</span>
+                : isPro && <span style={{ fontSize: 10, fontWeight: 700, color: sharedC.proAccent, background: sharedC.proAccent + "18", border: `1px solid ${sharedC.proAccent}44`, borderRadius: RADIUS.full, padding: "2px 8px", letterSpacing: 0.5 }}>PRO</span>
               }
             </div>
             {backgroundSyncing
@@ -1526,11 +1526,11 @@ export default function App() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {/* Globe / language picker */}
           <div ref={langRef} style={{ position: "relative" }}>
-            <button onClick={() => setLangOpen(v => !v)} aria-label="Change language" style={{ background: langOpen ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${langOpen ? C.cyan + "44" : C.border}`, borderRadius: 10, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <button onClick={() => setLangOpen(v => !v)} aria-label="Change language" style={{ background: langOpen ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${langOpen ? C.cyan + "44" : C.border}`, borderRadius: RADIUS.sm, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
               <Icon name="globe" size={19} color={langOpen ? C.cyan : C.muted} />
             </button>
             {langOpen && (
-              <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.5)", zIndex: 200, minWidth: 150, overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, boxShadow: "0 8px 32px rgba(0,0,0,0.5)", zIndex: 200, minWidth: 150, overflow: "hidden" }}>
                 {[
                   { code: "en", label: "English" },
                   { code: "ru", label: "Русский" },
@@ -1557,7 +1557,7 @@ export default function App() {
               </div>
             )}
           </div>
-          <button data-tutorial="settings-btn" onClick={() => setScreen("profile")} style={{ background: screen === "profile" ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${screen === "profile" ? C.cyan + "44" : C.border}`, borderRadius: 10, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <button data-tutorial="settings-btn" onClick={() => setScreen("profile")} style={{ background: screen === "profile" ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${screen === "profile" ? C.cyan + "44" : C.border}`, borderRadius: RADIUS.sm, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <Icon name="settings" size={21} color={screen === "profile" ? C.cyan : C.muted} />
           </button>
         </div>
@@ -1568,7 +1568,7 @@ export default function App() {
         {isTrial && trialDaysLeft <= 2 && (
           <div
             onClick={IS_IOS_NATIVE ? undefined : onUpgrade}
-            style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", background: C.amber + "18", border: `1px solid ${C.amber}44`, borderRadius: 14, marginBottom: 14, cursor: IS_IOS_NATIVE ? "default" : "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", background: C.amber + "18", border: `1px solid ${C.amber}44`, borderRadius: RADIUS.md, marginBottom: 14, cursor: IS_IOS_NATIVE ? "default" : "pointer" }}
           >
             <span style={{ fontSize: 16 }}>⚡</span>
             <div style={{ flex: 1 }}>
@@ -1585,16 +1585,16 @@ export default function App() {
           </div>
         )}
         {loading ? (() => {
-          const shimmerStyle = { background: `linear-gradient(90deg, ${C.bgSecondary} 0%, ${C.bgTertiary} 40%, ${C.bgSecondary} 100%)`, backgroundSize: "300% 100%", animation: "shimmer 1.6s ease-in-out infinite", borderRadius: 10 };
-          const row = (w, h = 14, extra = {}) => <div style={{ ...shimmerStyle, width: w, height: h, marginBottom: 6, borderRadius: 8, ...extra }} />;
-          const card = (children, mb = 12) => <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 18, padding: "18px 16px", marginBottom: mb, overflow: "hidden" }}>{children}</div>;
+          const shimmerStyle = { background: `linear-gradient(90deg, ${C.bgSecondary} 0%, ${C.bgTertiary} 40%, ${C.bgSecondary} 100%)`, backgroundSize: "300% 100%", animation: "shimmer 1.6s ease-in-out infinite", borderRadius: RADIUS.sm };
+          const row = (w, h = 14, extra = {}) => <div style={{ ...shimmerStyle, width: w, height: h, marginBottom: 6, borderRadius: RADIUS.xs, ...extra }} />;
+          const card = (children, mb = 12) => <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: RADIUS.lg, padding: "18px 16px", marginBottom: mb, overflow: "hidden" }}>{children}</div>;
 
           if (screen === "transactions") return (
             <div>
               <style>{`@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}`}</style>
               {[0,1,2,3,4,5].map(i => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: `1px solid ${C.sep}` }}>
-                  <div style={{ ...shimmerStyle, width: 40, height: 40, borderRadius: 12, flexShrink: 0 }} />
+                  <div style={{ ...shimmerStyle, width: 40, height: 40, borderRadius: RADIUS.sm, flexShrink: 0 }} />
                   <div style={{ flex: 1 }}>
                     {row("65%", 13)}
                     {row("40%", 10, { marginBottom: 0 })}
@@ -1608,7 +1608,7 @@ export default function App() {
           if (screen === "insights") return (
             <div>
               <style>{`@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}`}</style>
-              {card(<>{row("50%", 10, { marginBottom: 10 })}{row("100%", 60, { borderRadius: 12, marginBottom: 0 })}</>)}
+              {card(<>{row("50%", 10, { marginBottom: 10 })}{row("100%", 60, { borderRadius: RADIUS.sm, marginBottom: 0 })}</>)}
               {[0,1,2].map(i => card(<>
                 {row("30%", 10)}
                 {row("80%", 14)}
@@ -1623,19 +1623,19 @@ export default function App() {
               <style>{`@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}`}</style>
               {card(<>
                 {row("35%", 10)}
-                {row("55%", 36, { borderRadius: 8, marginBottom: 10 })}
+                {row("55%", 36, { borderRadius: RADIUS.xs, marginBottom: 10 })}
                 <div style={{ display: "flex", gap: 12 }}>
                   {[0,1,2].map(i => <div key={i} style={{ flex: 1 }}>{row("100%", 10)}{row("100%", 18, { marginBottom: 0 })}</div>)}
                 </div>
               </>)}
               {card(<>
                 {row("45%", 12)}
-                {row("100%", 22, { borderRadius: 8 })}
+                {row("100%", 22, { borderRadius: RADIUS.xs })}
                 {row("70%", 10, { marginBottom: 0 })}
               </>)}
               {card(<>
                 {row("60%", 12)}
-                {row("100%", 48, { borderRadius: 12, marginBottom: 0 })}
+                {row("100%", 48, { borderRadius: RADIUS.sm, marginBottom: 0 })}
               </>)}
             </div>
           );
@@ -1659,7 +1659,7 @@ export default function App() {
           position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)",
           background: `linear-gradient(135deg, ${sharedC.proAccent}22, #38B6FF11)`,
           border: `1px solid ${sharedC.proAccent}66`,
-          borderRadius: 16, padding: "16px 24px", zIndex: 10000,
+          borderRadius: RADIUS.md, padding: "16px 24px", zIndex: 10000,
           color: "#E8EDF5", fontFamily: FONT,
           textAlign: "center", boxShadow: `0 8px 32px ${sharedC.proAccent}4D`,
           minWidth: 260,
@@ -1673,9 +1673,9 @@ export default function App() {
       {showTrialExpiredModal && (
         <div onClick={() => setShowTrialExpiredModal(false)} style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(7,12,24,0.88)", display: "flex", alignItems: "flex-end", justifyContent: "center", backdropFilter: "blur(4px)" }}>
           <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: "#131C2E", borderRadius: "24px 24px 0 0", border: "1px solid #1E2D45", borderBottom: "none", padding: "28px 20px 36px", fontFamily: FONT, color: C.text, boxShadow: "0 -8px 48px rgba(0,0,0,0.6)" }}>
-            <div style={{ width: 36, height: 4, borderRadius: 99, background: "#1E2D45", margin: "0 auto 24px" }} />
+            <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: "#1E2D45", margin: "0 auto 24px" }} />
             <div style={{ textAlign: "center", marginBottom: 24 }}>
-              <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 56, height: 56, borderRadius: 18, background: C.trialEndedAccent + "22", border: `1px solid ${C.trialEndedAccent}44`, marginBottom: 14 }}>
+              <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 56, height: 56, borderRadius: RADIUS.lg, background: C.trialEndedAccent + "22", border: `1px solid ${C.trialEndedAccent}44`, marginBottom: 14 }}>
                 <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={C.trialEndedAccent} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
                 </svg>
@@ -1685,11 +1685,11 @@ export default function App() {
             </div>
             {/* No purchase button on iOS (Guideline 3.1.3 anti-steering) */}
             {!IS_IOS_NATIVE && (
-              <button onClick={() => { setShowTrialExpiredModal(false); setShowUpgradeModal(true); }} style={{ width: "100%", padding: 16, background: `linear-gradient(135deg,${sharedC.proAccent},#38B6FF)`, border: "none", borderRadius: 16, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 24px ${sharedC.proAccent}70`, marginBottom: 12 }}>
+              <button onClick={() => { setShowTrialExpiredModal(false); setShowUpgradeModal(true); }} style={{ width: "100%", padding: 16, background: `linear-gradient(135deg,${sharedC.proAccent},#38B6FF)`, border: "none", borderRadius: RADIUS.md, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 24px ${sharedC.proAccent}70`, marginBottom: 12 }}>
                 Upgrade to Pro — $9.99/mo
               </button>
             )}
-            <button onClick={() => setShowTrialExpiredModal(false)} style={{ width: "100%", padding: 12, background: "none", border: "1px solid #1E2D45", borderRadius: 14, color: "#7A8BA8", fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
+            <button onClick={() => setShowTrialExpiredModal(false)} style={{ width: "100%", padding: 12, background: "none", border: "1px solid #1E2D45", borderRadius: RADIUS.md, color: "#7A8BA8", fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
               {IS_IOS_NATIVE ? t("upgrade.close") : "Maybe later"}
             </button>
           </div>
@@ -1702,7 +1702,7 @@ export default function App() {
           display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
         }} onClick={() => setAlpacaDisclosureUrl(null)}>
           <div style={{
-            background: C.card, borderRadius: 18, padding: "28px 24px", maxWidth: 380, width: "100%",
+            background: C.card, borderRadius: RADIUS.lg, padding: "28px 24px", maxWidth: 380, width: "100%",
             display: "flex", flexDirection: "column", gap: 16, fontFamily: FONT,
           }} onClick={e => e.stopPropagation()}>
             <div style={{ fontSize: 17, fontWeight: 700, color: C.text }}>
@@ -1716,12 +1716,12 @@ export default function App() {
             </p>
             <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
               <button onClick={() => setAlpacaDisclosureUrl(null)} style={{
-                flex: 1, padding: "11px 0", borderRadius: 10, border: `1px solid ${C.muted}44`,
+                flex: 1, padding: "11px 0", borderRadius: RADIUS.sm, border: `1px solid ${C.muted}44`,
                 background: "transparent", color: C.muted, fontSize: 14, fontWeight: 600,
                 fontFamily: FONT, cursor: "pointer",
               }}>{t("savings.cancel")}</button>
               <button onClick={() => { window.open(alpacaDisclosureUrl, "_blank", "noopener"); setAlpacaDisclosureUrl(null); }} style={{
-                flex: 2, padding: "11px 0", borderRadius: 10, border: "none",
+                flex: 2, padding: "11px 0", borderRadius: RADIUS.sm, border: "none",
                 background: C.cyan, color: "#000", fontSize: 14, fontWeight: 700,
                 fontFamily: FONT, cursor: "pointer",
               }}>{t("savings.confirm_connect_alpaca")}</button>
@@ -1735,7 +1735,7 @@ export default function App() {
           position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)",
           background: alpacaToast.addFunds ? "#1A1A0D" : alpacaToast.error ? "#2D1515" : alpacaToast.loading ? "#0D1F2D" : "#0D2A1F",
           border: `1px solid ${alpacaToast.addFunds ? sharedC.alpacaAccent + "44" : alpacaToast.error ? "#E05C5C44" : alpacaToast.loading ? "#4B6CB744" : "#12D18E44"}`,
-          borderRadius: 14, padding: "14px 18px", zIndex: 9999,
+          borderRadius: RADIUS.md, padding: "14px 18px", zIndex: 9999,
           color: alpacaToast.addFunds ? sharedC.alpacaAccent : alpacaToast.error ? "#E05C5C" : alpacaToast.loading ? "#8BA7E8" : "#12D18E",
           fontSize: 13, fontWeight: 600, fontFamily: FONT,
           boxShadow: "0 4px 24px rgba(0,0,0,0.5)", whiteSpace: "pre-wrap", maxWidth: 340,
@@ -1749,7 +1749,7 @@ export default function App() {
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
-                  background: sharedC.alpacaAccent, color: "#000", borderRadius: 8,
+                  background: sharedC.alpacaAccent, color: "#000", borderRadius: RADIUS.xs,
                   padding: "6px 16px", fontSize: 13, fontWeight: 700,
                   textDecoration: "none", display: "inline-block",
                 }}
@@ -1810,11 +1810,11 @@ export default function App() {
             <div style={{ flexShrink: 0, userSelect: "none" }}>
               {/* Handle pill */}
               <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
-                <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.18)" }} />
+                <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: "rgba(255,255,255,0.18)" }} />
               </div>
               {/* Modal header */}
               <div style={{ padding: "6px 16px 10px", display: "flex", alignItems: "center", gap: 10, borderBottom: `1px solid ${C.sep}` }}>
-              <div style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg,${sharedC.proAccent}22,#00C2FF18)`, border: `1px solid ${sharedC.proAccent}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <div style={{ width: 34, height: 34, borderRadius: RADIUS.sm, background: `linear-gradient(135deg,${sharedC.proAccent}22,#00C2FF18)`, border: `1px solid ${sharedC.proAccent}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#00C2FF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                 </svg>
@@ -1822,14 +1822,14 @@ export default function App() {
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>AI Assistant</div>
                 <div style={{ fontSize: 11, color: C.faint, display: "flex", alignItems: "center", gap: 4 }}>
-                  <div style={{ width: 5, height: 5, borderRadius: 99, background: C.green }} />
+                  <div style={{ width: 5, height: 5, borderRadius: RADIUS.full, background: C.green }} />
                   Powered by Claude · knows your finances
                 </div>
               </div>
               <button
                 onClick={startNewChat}
                 title="New chat"
-                style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+                style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
               >
                 <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
@@ -1837,7 +1837,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => setShowChat(false)}
-                style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+                style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
               >
                 <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round">
                   <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -1873,7 +1873,7 @@ export default function App() {
           <div style={{
             background: 'linear-gradient(135deg,rgba(18,30,60,0.97),rgba(14,24,50,0.97))',
             border: '1px solid rgba(99,102,241,0.4)',
-            borderRadius: 16, padding: '10px 14px',
+            borderRadius: RADIUS.md, padding: '10px 14px',
             boxShadow: '0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(99,102,241,0.15)',
             backdropFilter: 'blur(12px)',
           }}>

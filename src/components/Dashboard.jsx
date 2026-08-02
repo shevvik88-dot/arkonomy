@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
 import { getCachedAccounts, setCachedAccounts } from "../utils/accountsCache";
-import { C, FONT, CAT_COLORS } from "../utils/colors";
+import { C, FONT, CAT_COLORS, RADIUS } from "../utils/colors";
 import { fmt, fmtDate, parseDate, fmtPct, resolveCategory, tCat, sumAmounts } from "../utils/helpers";
 import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
@@ -23,7 +23,7 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
 
   if (!hasData) {
     return (
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "10px 14px", fontFamily: FONT }}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: RADIUS.md, padding: "10px 14px", fontFamily: FONT }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.faint, flexShrink: 0 }} />
           <span style={{ fontSize: 12, fontWeight: 500, color: C.muted, flexShrink: 0 }}>{t("dashboard.health_score")}</span>
@@ -85,7 +85,7 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
       style={{
         background: C.card,
         border: `1px solid ${C.border}`,
-        borderRadius: 14,
+        borderRadius: RADIUS.md,
         padding: "10px 14px",
         cursor: "pointer",
         fontFamily: FONT,
@@ -168,9 +168,9 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
                     </span>
                   </div>
                 </div>
-                <div style={{ height: 3, background: C.border, borderRadius: 99 }}>
+                <div style={{ height: 3, background: C.border, borderRadius: RADIUS.full }}>
                   <div style={{
-                    height: 3, borderRadius: 99,
+                    height: 3, borderRadius: RADIUS.full,
                     width: `${pct}%`,
                     background: barColor,
                     transition: "width 0.5s ease",
@@ -202,7 +202,7 @@ function StatBadge({ value, suffix }) {
   const color = pos ? C.green : C.red;
   const sfx = suffix !== undefined ? suffix : t("dashboard.vs_last_month");
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: color + "22", color, borderRadius: 100, padding: "2px 8px", fontSize: 10, fontWeight: 600, fontFamily: FONT, whiteSpace: "nowrap" }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: color + "22", color, borderRadius: RADIUS.full, padding: "2px 8px", fontSize: 10, fontWeight: 600, fontFamily: FONT, whiteSpace: "nowrap" }}>
       <Icon name={pos ? "trending-up" : "trending-down"} size={9} color={color} strokeWidth={2.5} />
       {pos ? "+" : ""}{Math.abs(value).toFixed(1)}% {sfx}
     </span>
@@ -294,9 +294,9 @@ const sw = 22;
           {slices.map((s, i) => (
             <div key={s.cat}
               onClick={() => onCatClick && onCatClick(s.cat)}
-              style={{ display: "flex", alignItems: "center", gap: 10, cursor: onCatClick ? "pointer" : "default", padding: "6px 10px", borderRadius: 10, background: hovered === s.cat ? s.color + "18" : C.bgTertiary, border: `1px solid ${hovered === s.cat ? s.color + "44" : "transparent"}`, transition: "all 0.15s" }}
+              style={{ display: "flex", alignItems: "center", gap: 10, cursor: onCatClick ? "pointer" : "default", padding: "6px 10px", borderRadius: RADIUS.sm, background: hovered === s.cat ? s.color + "18" : C.bgTertiary, border: `1px solid ${hovered === s.cat ? s.color + "44" : "transparent"}`, transition: "all 0.15s" }}
               onMouseEnter={() => setHovered(s.cat)} onMouseLeave={() => setHovered(null)}>
-              <div style={{ width: 10, height: 10, borderRadius: 99, background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}88` }} />
+              <div style={{ width: 10, height: 10, borderRadius: RADIUS.full, background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}88` }} />
               <span style={{ fontSize: 13, color: i === 0 ? C.text : C.muted, fontWeight: i === 0 ? 600 : 400, flex: 1 }}>{tCat(s.cat, t)}</span>
               <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{hideAmounts ? "••••" : `$${fmt(s.val, 0)}`}</span>
               <span style={{ fontSize: 11, color: s.color, fontWeight: i === 0 ? 700 : 500, minWidth: 36, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>
@@ -306,7 +306,7 @@ const sw = 22;
         </div>
         {lockList && (
           <div onClick={onUpgrade} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, background: C.card, padding: "5px 14px", borderRadius: 20, border: `1px solid ${C.border}` }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, background: C.card, padding: "5px 14px", borderRadius: RADIUS.lg, border: `1px solid ${C.border}` }}>
               {t("dashboard.unlock_full_breakdown")}
             </span>
           </div>
@@ -380,7 +380,7 @@ function MarketOverview({ onOpenMarket }) {
     <GlassCard style={{ padding: "14px 16px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: C.blue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: 28, height: 28, borderRadius: RADIUS.xs, background: C.blue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name="bar-chart" size={14} color={C.blue} />
           </div>
           <span style={{ fontWeight: 600, fontSize: 14 }}>{t("dashboard.markets")}</span>
@@ -393,7 +393,7 @@ function MarketOverview({ onOpenMarket }) {
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           {["markets", "news"].map(tabId => (
             <button key={tabId} onClick={() => setTab(tabId)}
-              style={{ padding: "4px 10px", minHeight: 44, borderRadius: 20, border: `1px solid ${tab === tabId ? C.blue : C.border}`, background: tab === tabId ? C.blue + "18" : "transparent", color: tab === tabId ? C.blue : C.faint, cursor: "pointer", fontSize: 11, fontWeight: tab === tabId ? 600 : 400, fontFamily: FONT, textTransform: "capitalize" }}>
+              style={{ padding: "4px 10px", minHeight: 44, borderRadius: RADIUS.lg, border: `1px solid ${tab === tabId ? C.blue : C.border}`, background: tab === tabId ? C.blue + "18" : "transparent", color: tab === tabId ? C.blue : C.faint, cursor: "pointer", fontSize: 11, fontWeight: tab === tabId ? 600 : 400, fontFamily: FONT, textTransform: "capitalize" }}>
               {tabId}
             </button>
           ))}
@@ -414,13 +414,13 @@ function MarketOverview({ onOpenMarket }) {
           <div style={{ marginTop: 8, fontSize: 11 }}>{t("dashboard.loading_market_data")}</div>
         </div>
       ) : error ? (
-        <div style={{ padding: "12px 14px", background: C.red + "10", borderRadius: 12, border: `1px solid ${C.red}22` }}>
+        <div style={{ padding: "12px 14px", background: C.red + "10", borderRadius: RADIUS.sm, border: `1px solid ${C.red}22` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
             <Icon name="alert-circle" size={14} color={C.red} />
             <span style={{ fontSize: 12, color: C.red, fontWeight: 600 }}>{t("dashboard.could_not_load_market_data")}</span>
           </div>
           <div style={{ fontSize: 11, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>{error}</div>
-          <button onClick={load} style={{ marginTop: 10, padding: "7px 14px", minHeight: 44, background: C.blue + "22", border: `1px solid ${C.blue}44`, borderRadius: 8, color: C.blue, cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: FONT }}>
+          <button onClick={load} style={{ marginTop: 10, padding: "7px 14px", minHeight: 44, background: C.blue + "22", border: `1px solid ${C.blue}44`, borderRadius: RADIUS.xs, color: C.blue, cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: FONT }}>
             {t("dashboard.retry")}
           </button>
         </div>
@@ -431,9 +431,9 @@ function MarketOverview({ onOpenMarket }) {
             const pos = (m.changePct ?? 0) >= 0;
             const chColor = pos ? C.green : C.red;
             return (
-              <div key={m.symbol} onClick={() => onOpenMarket?.(m.symbol)} style={{ background: C.bgTertiary, borderRadius: 12, padding: "10px 12px", border: `1px solid ${C.border}`, cursor: "pointer" }}>
+              <div key={m.symbol} onClick={() => onOpenMarket?.(m.symbol)} style={{ background: C.bgTertiary, borderRadius: RADIUS.sm, padding: "10px 12px", border: `1px solid ${C.border}`, cursor: "pointer" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                  <div style={{ width: 24, height: 24, borderRadius: 7, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ width: 24, height: 24, borderRadius: RADIUS.xs, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Icon name={meta.icon} size={11} color={meta.color} strokeWidth={2.5} />
                   </div>
                   <span style={{ fontSize: 11, color: C.muted, fontWeight: 500 }}>{meta.label}</span>
@@ -459,7 +459,7 @@ function MarketOverview({ onOpenMarket }) {
               <a key={i} href={n.url} target="_blank" rel="noopener noreferrer"
                 style={{ display: "flex", gap: 10, textDecoration: "none", padding: "10px 0", borderBottom: i < 3 ? `1px solid ${C.sep}` : "none" }}>
                 {n.image && (
-                  <img src={n.image} alt="" style={{ width: 52, height: 40, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} onError={e => { e.target.style.display = "none"; }} />
+                  <img src={n.image} alt="" style={{ width: 52, height: 40, borderRadius: RADIUS.xs, objectFit: "cover", flexShrink: 0 }} onError={e => { e.target.style.display = "none"; }} />
                 )}
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: C.text, lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{n.headline}</div>
@@ -622,15 +622,15 @@ function CashFlowForecast({ accountBalance, transactions, balanceVisible, mercha
   // Wait for Plaid balance — fallback computed balance causes a visible flicker
   if (accountBalance === null) {
     return (
-      <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: 20, padding: '16px 18px', border: `1px solid ${C.border}` }}>
+      <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: RADIUS.lg, padding: '16px 18px', border: `1px solid ${C.border}` }}>
         <div style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>{t('dashboard.cash_flow_forecast')}</div>
-        <div style={{ height: 36, borderRadius: 8, background: C.bgTertiary, marginBottom: 10, width: '55%' }} />
-        <div style={{ height: 8, borderRadius: 99, background: C.bgTertiary, marginBottom: 14 }} />
+        <div style={{ height: 36, borderRadius: RADIUS.xs, background: C.bgTertiary, marginBottom: 10, width: '55%' }} />
+        <div style={{ height: 8, borderRadius: RADIUS.full, background: C.bgTertiary, marginBottom: 14 }} />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 0 }}>
           {[0, 1, 2].map(i => (
             <div key={i} style={{ paddingLeft: i > 0 ? 12 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : 'none' }}>
-              <div style={{ height: 8, borderRadius: 4, background: C.bgTertiary, marginBottom: 6, width: '60%' }} />
-              <div style={{ height: 12, borderRadius: 4, background: C.bgTertiary, width: '80%' }} />
+              <div style={{ height: 8, borderRadius: RADIUS.xs, background: C.bgTertiary, marginBottom: 6, width: '60%' }} />
+              <div style={{ height: 12, borderRadius: RADIUS.xs, background: C.bgTertiary, width: '80%' }} />
             </div>
           ))}
         </div>
@@ -668,14 +668,14 @@ function CashFlowForecast({ accountBalance, transactions, balanceVisible, mercha
   const mask  = n => balanceVisible ? (n < 0 ? `-$${fmt(Math.abs(n), 0)}` : `$${fmt(n, 0)}`) : '••••';
 
   return (
-    <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: 20, padding: '16px 18px', border: `1px solid ${S.border}`, position: 'relative', overflow: 'hidden' }}>
+    <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: RADIUS.lg, padding: '16px 18px', border: `1px solid ${S.border}`, position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', top: -24, right: -24, width: 90, height: 90, borderRadius: '50%', background: S.color + '09', pointerEvents: 'none' }} />
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <span style={{ fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>{t('dashboard.cash_flow_forecast')}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: S.bg, border: `1px solid ${S.border}`, borderRadius: 99, padding: '3px 9px' }}>
-          <div style={{ width: 6, height: 6, borderRadius: 99, background: S.color }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: S.bg, border: `1px solid ${S.border}`, borderRadius: RADIUS.full, padding: '3px 9px' }}>
+          <div style={{ width: 6, height: 6, borderRadius: RADIUS.full, background: S.color }} />
           <span style={{ fontSize: 11, fontWeight: 700, color: S.color, letterSpacing: 0.2 }}>{S.label}</span>
         </div>
       </div>
@@ -695,8 +695,8 @@ function CashFlowForecast({ accountBalance, transactions, balanceVisible, mercha
       </div>
 
       {/* Burn-down bar */}
-      <div style={{ height: 8, borderRadius: 99, background: C.bgTertiary, overflow: 'hidden', marginBottom: 14 }}>
-        <div style={{ height: '100%', width: `${barPct}%`, background: `linear-gradient(90deg,${S.color},${S.color}BB)`, borderRadius: 99, transition: 'width 0.6s', boxShadow: barPct > 0 ? `0 0 8px ${S.color}40` : 'none' }} />
+      <div style={{ height: 8, borderRadius: RADIUS.full, background: C.bgTertiary, overflow: 'hidden', marginBottom: 14 }}>
+        <div style={{ height: '100%', width: `${barPct}%`, background: `linear-gradient(90deg,${S.color},${S.color}BB)`, borderRadius: RADIUS.full, transition: 'width 0.6s', boxShadow: barPct > 0 ? `0 0 8px ${S.color}40` : 'none' }} />
       </div>
 
       {/* Stats */}
@@ -845,7 +845,7 @@ function CalendarDayCell({ day, isToday, isPast, color, alpha, size, emphasized,
     <div
       onClick={onClick}
       style={{
-        width: size, height: size, borderRadius: 10, flexShrink: 0,
+        width: size, height: size, borderRadius: RADIUS.sm, flexShrink: 0,
         background: color + alpha,
         border: isToday ? `2px solid ${C.text}` : emphasized ? `2px solid ${C.cyan}` : `1px solid ${color}55`,
         display: "flex", alignItems: "center", justifyContent: "center",
@@ -975,7 +975,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
               <div
                 onClick={() => setSelectedDay(day)}
                 style={{
-                  width: "100%", height: "100%", borderRadius: 10, position: "relative",
+                  width: "100%", height: "100%", borderRadius: RADIUS.sm, position: "relative",
                   background: color + alpha,
                   border: isToday ? `2px solid ${C.text}` : `1px solid ${color}55`,
                   cursor: "pointer",
@@ -993,7 +993,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
                     future day with data) — an empty day has nothing to
                     contrast against, so it stays a plain muted number. */}
                 {color !== C.sep ? (
-                  <div style={{ position: "absolute", inset: 3, borderRadius: 8, background: "rgba(0,0,0,0.55)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ position: "absolute", inset: 3, borderRadius: RADIUS.xs, background: "rgba(0,0,0,0.55)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
                     <span style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: C.text, lineHeight: 1.1 }}>{day}</span>
                     {amountInfo && (
                       <span style={{ fontSize: 8.5, fontWeight: 700, color: amountInfo.color, lineHeight: 1.1, marginTop: 3, whiteSpace: "nowrap" }}>{amountInfo.text}</span>
@@ -1014,7 +1014,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
         <div onClick={() => { setSelectedDay(null); setTooltipDay(null); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 180, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
           <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", border: `1px solid ${C.border}`, padding: "0 0 32px", maxHeight: "75vh", display: "flex", flexDirection: "column" }}>
             <div style={{ padding: "14px 0 0", display: "flex", justifyContent: "center" }}>
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.12)" }} />
+              <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: "rgba(255,255,255,0.12)" }} />
             </div>
             <div style={{ padding: "12px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${C.sep}`, flexShrink: 0 }}>
               <div>
@@ -1030,7 +1030,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
                   </button>
                 )}
               </div>
-              <button onClick={() => { setSelectedDay(null); setTooltipDay(null); }} aria-label={t("dashboard.close")} style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 8, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <button onClick={() => { setSelectedDay(null); setTooltipDay(null); }} aria-label={t("dashboard.close")} style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.xs, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                 <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
@@ -1052,7 +1052,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
                           else setSelectedDay(day);
                         }}
                         tooltip={tooltipDay === day && isFuture && (
-                          <div className="ph-mask" style={{ position: "absolute", top: "120%", left: "50%", transform: "translateX(-50%)", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", whiteSpace: "nowrap", fontSize: 12, color: C.text, zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.4)" }}>
+                          <div className="ph-mask" style={{ position: "absolute", top: "120%", left: "50%", transform: "translateX(-50%)", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.xs, padding: "6px 10px", whiteSpace: "nowrap", fontSize: 12, color: C.text, zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.4)" }}>
                             {futureByDay[day] ? `${futureByDay[day].merchant} ~$${fmt(futureByDay[day].amount)}` : t("dashboard.no_bills_expected")}
                           </div>
                         )}
@@ -1073,7 +1073,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
                         <button
                           onClick={() => onCancelScheduledPayment?.(selectedFutureInfo.scheduledPaymentId)}
                           aria-label={t("dashboard.cancel_planned_payment")}
-                          style={{ background: C.red + "18", border: `1px solid ${C.red}33`, borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+                          style={{ background: C.red + "18", border: `1px solid ${C.red}33`, borderRadius: RADIUS.xs, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
                         >
                           <Icon name="x" size={12} color={C.red} />
                         </button>
@@ -1081,7 +1081,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
                     </div>
                     <button
                       onClick={() => setShowAddPayment(true)}
-                      style={{ width: "100%", padding: "10px 14px", borderRadius: 12, border: `1px dashed ${C.border}`, background: "transparent", color: C.cyan, fontSize: 13, fontWeight: 600, fontFamily: FONT, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                      style={{ width: "100%", padding: "10px 14px", borderRadius: RADIUS.sm, border: `1px dashed ${C.border}`, background: "transparent", color: C.cyan, fontSize: 13, fontWeight: 600, fontFamily: FONT, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
                     >
                       <Icon name="plus" size={14} color={C.cyan} strokeWidth={2.5} />
                       {t("dashboard.add_planned_payment")}
@@ -1148,14 +1148,14 @@ function AddPlannedPaymentModal({ dueDate, transactions, merchantAliasMap, sched
     onClose();
   }
 
-  const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT };
+  const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT };
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 200 }}>
       <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "24px 24px 0 0", padding: 24, border: `1px solid ${C.border}`, maxHeight: "90vh", overflowY: "auto", fontFamily: FONT }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{t("dashboard.add_planned_payment")}</h3>
-          <button onClick={onClose} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 99, cursor: "pointer", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button onClick={onClose} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.full, cursor: "pointer", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name="x" size={14} color={C.muted} strokeWidth={2.5} />
           </button>
         </div>
@@ -1175,7 +1175,7 @@ function AddPlannedPaymentModal({ dueDate, transactions, merchantAliasMap, sched
         </div>
 
         {preview && (
-          <div className="ph-mask" style={{ marginTop: 14, padding: "10px 14px", borderRadius: 12, background: C.bgTertiary, fontSize: 13, color: C.muted }}>
+          <div className="ph-mask" style={{ marginTop: 14, padding: "10px 14px", borderRadius: RADIUS.sm, background: C.bgTertiary, fontSize: 13, color: C.muted }}>
             {t("dashboard.balance_after_planned_payment", { amount: `$${fmt(Math.max(0, preview.projectedRaw), 0)}` })}
           </div>
         )}
@@ -1183,7 +1183,7 @@ function AddPlannedPaymentModal({ dueDate, transactions, merchantAliasMap, sched
         <button
           onClick={handleSave}
           disabled={!(amountNum > 0) || !description.trim() || saving}
-          style={{ width: "100%", marginTop: 16, padding: 14, borderRadius: 12, border: "none", background: (amountNum > 0 && description.trim()) ? C.cyan : C.bgTertiary, color: (amountNum > 0 && description.trim()) ? "#04121F" : C.muted, fontSize: 15, fontWeight: 700, fontFamily: FONT, cursor: (amountNum > 0 && description.trim()) ? "pointer" : "default" }}
+          style={{ width: "100%", marginTop: 16, padding: 14, borderRadius: RADIUS.sm, border: "none", background: (amountNum > 0 && description.trim()) ? C.cyan : C.bgTertiary, color: (amountNum > 0 && description.trim()) ? "#04121F" : C.muted, fontSize: 15, fontWeight: 700, fontFamily: FONT, cursor: (amountNum > 0 && description.trim()) ? "pointer" : "default" }}
         >
           {saving ? t("dashboard.saving") : t("dashboard.save_planned_payment")}
         </button>
@@ -1292,7 +1292,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
 
       {/* 0a ── Onboarding welcome card (shown only when no transactions exist and no active trial toast) */}
       {transactions.length === 0 && !hideWelcomeBanner && (
-        <div style={{ background: "linear-gradient(135deg,#0D2A4A,#0B1A30)", borderRadius: 20, padding: "20px 18px", border: `1px solid ${C.cyan}33`, boxShadow: `0 4px 24px ${C.cyan}12` }}>
+        <div style={{ background: "linear-gradient(135deg,#0D2A4A,#0B1A30)", borderRadius: RADIUS.lg, padding: "20px 18px", border: `1px solid ${C.cyan}33`, boxShadow: `0 4px 24px ${C.cyan}12` }}>
           <div style={{ fontSize: 22, marginBottom: 6 }}>👋</div>
           <div style={{ fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 4 }}>{t("dashboard.welcome_title")}</div>
           <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>
@@ -1306,14 +1306,14 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
             {!bankConnected && (
               <button
                 onClick={() => onNavigate("profile")}
-                style={{ flex: 1, padding: "11px 0", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 14px ${C.cyan}44` }}
+                style={{ flex: 1, padding: "11px 0", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.sm, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 14px ${C.cyan}44` }}
               >
                 {t("dashboard.connect_bank")}
               </button>
             )}
             <button
               onClick={() => onNavigate("transactions")}
-              style={{ flex: 1, padding: "11px 0", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT }}
+              style={{ flex: 1, padding: "11px 0", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT }}
             >
               {t("dashboard.add_transaction")}
             </button>
@@ -1334,14 +1334,14 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       ) : (
         <>
           <style>{`@keyframes bal-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
-          <div data-tutorial="net-balance" style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: 20, padding: "16px 18px", border: `1px solid ${C.border}`, position: "relative", overflow: "hidden", boxShadow: "0 4px 32px rgba(0,194,255,0.08)" }}>
+          <div data-tutorial="net-balance" style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: RADIUS.lg, padding: "16px 18px", border: `1px solid ${C.border}`, position: "relative", overflow: "hidden", boxShadow: "0 4px 32px rgba(0,194,255,0.08)" }}>
             <div style={{ position: "absolute", top: -30, right: -30, width: 110, height: 110, borderRadius: "50%", background: C.cyan + "0B", pointerEvents: "none" }} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <span style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
                 {t("dashboard.account_balance")}
               </span>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {isShowingLastMonth && <span style={{ fontSize: 9, color: C.yellow, fontWeight: 600, background: C.yellow + "18", padding: "2px 7px", borderRadius: 99, letterSpacing: 0.3 }}>
+                {isShowingLastMonth && <span style={{ fontSize: 9, color: C.yellow, fontWeight: 600, background: C.yellow + "18", padding: "2px 7px", borderRadius: RADIUS.full, letterSpacing: 0.3 }}>
                   {new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleString('en-US', { month: 'short' })} data
                 </span>}
                 <button onClick={() => setBalanceVisible(v => !v)} aria-label={balanceVisible ? t("dashboard.hide_balance") : t("dashboard.show_balance")} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44 }}>
@@ -1362,8 +1362,8 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
                   </>
                 ) : (
                   <>
-                    <div style={{ width: 160, height: 42, borderRadius: 8, background: `linear-gradient(90deg,${C.bgSecondary} 0%,${C.bgTertiary} 40%,${C.bgSecondary} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite", marginBottom: 6 }} />
-                    <div style={{ width: 90, height: 10, borderRadius: 4, background: `linear-gradient(90deg,${C.bgSecondary} 0%,${C.bgTertiary} 40%,${C.bgSecondary} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
+                    <div style={{ width: 160, height: 42, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${C.bgSecondary} 0%,${C.bgTertiary} 40%,${C.bgSecondary} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite", marginBottom: 6 }} />
+                    <div style={{ width: 90, height: 10, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${C.bgSecondary} 0%,${C.bgTertiary} 40%,${C.bgSecondary} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
                   </>
                 )}
               </div>
@@ -1389,7 +1389,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       {!bankConnected ? (
         <ConnectBankPrompt title={t("dashboard.monthly_cash_flow")} message={t("dashboard.connect_bank_cashflow")} onNavigate={onNavigate} />
       ) : (
-        <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: 16, padding: "14px 18px", border: `1px solid ${C.border}` }}>
+        <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: RADIUS.md, padding: "14px 18px", border: `1px solid ${C.border}` }}>
           <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 12 }}>{t("dashboard.monthly_cash_flow")}</div>
           <div style={{ display: "flex" }}>
             {[
@@ -1399,7 +1399,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
             ].map((item, i) => (
               <div key={item.key} style={{ flex: 1, paddingLeft: i > 0 ? 10 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : "none", marginLeft: i > 0 ? 10 : 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
-                  <div style={{ width: 5, height: 5, borderRadius: 99, background: item.dot }} />
+                  <div style={{ width: 5, height: 5, borderRadius: RADIUS.full, background: item.dot }} />
                   <span style={{ fontSize: 9, color: C.muted, fontWeight: 500 }}>{item.label}</span>
                 </div>
                 <div className="ph-mask" style={{ fontSize: item.key === "net" ? 17 : 13, fontWeight: item.key === "net" ? 800 : 700, color: item.color, marginBottom: 3 }}>{item.value}</div>
@@ -1445,8 +1445,8 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
                 {Math.round(budgetPct)}%{isOver ? ` ${t("dashboard.over_budget")}` : ''}
               </span>
             </div>
-            <div style={{ height: 3, background: C.bgTertiary, borderRadius: 99 }}>
-              <div style={{ height: 3, borderRadius: 99, width: `${Math.min(budgetPct, 100)}%`, background: barColor, transition: "width 0.6s" }} />
+            <div style={{ height: 3, background: C.bgTertiary, borderRadius: RADIUS.full }}>
+              <div style={{ height: 3, borderRadius: RADIUS.full, width: `${Math.min(budgetPct, 100)}%`, background: barColor, transition: "width 0.6s" }} />
             </div>
           </GlassCard>
         );
@@ -1457,8 +1457,8 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <span style={{ fontWeight: 600, fontSize: 14 }}>{t("dashboard.spending_by_category")}</span>
           {isPro
-            ? <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: 99 }}>{t("dashboard.tap_to_filter")}</span>
-            : <span style={{ fontSize: 10, color: C.cyan + "AA", background: C.cyan + "10", padding: "3px 8px", borderRadius: 99, cursor: "pointer" }} onClick={onUpgrade}>Pro</span>
+            ? <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: RADIUS.full }}>{t("dashboard.tap_to_filter")}</span>
+            : <span style={{ fontSize: 10, color: C.cyan + "AA", background: C.cyan + "10", padding: "3px 8px", borderRadius: RADIUS.full, cursor: "pointer" }} onClick={onUpgrade}>Pro</span>
           }
         </div>
         {Object.keys(spendingByCategory).length === 0 ? (
@@ -1503,7 +1503,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
             <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: C.card, borderRadius: '20px 20px 0 0', border: `1px solid ${C.border}`, padding: '0 0 32px', maxHeight: '75vh', display: 'flex', flexDirection: 'column' }}>
               {/* Handle */}
               <div style={{ padding: '14px 0 0', display: 'flex', justifyContent: 'center' }}>
-                <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.12)' }} />
+                <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: 'rgba(255,255,255,0.12)' }} />
               </div>
               {/* Header */}
               <div style={{ padding: '12px 20px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.sep}`, flexShrink: 0 }}>
@@ -1511,7 +1511,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
                   <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{t("dashboard.whats_in_other")}</div>
                   <div className="ph-mask" style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>${fmt(otherTotal, 0)} {t("dashboard.this_month")} · {t("dashboard.transaction", { count: otherTxs.length })}</div>
                 </div>
-                <button onClick={() => setOtherBreakdown(false)} aria-label={t("dashboard.close")} style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 8, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <button onClick={() => setOtherBreakdown(false)} aria-label={t("dashboard.close")} style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.xs, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                   <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>
@@ -1523,14 +1523,14 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
                     const pct = otherTotal > 0 ? (row.total / otherTotal) * 100 : 0;
                     return (
                       <div key={row.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', borderBottom: i < rows.length - 1 ? `1px solid ${C.sep}` : 'none' }}>
-                        <div style={{ width: 34, height: 34, borderRadius: 10, background: CAT_COLORS.Other + '22', border: `1px solid ${CAT_COLORS.Other}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: RADIUS.sm, background: CAT_COLORS.Other + '22', border: `1px solid ${CAT_COLORS.Other}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={CAT_COLORS.Other} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.name}</div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                            <div style={{ height: 3, borderRadius: 99, background: CAT_COLORS.Other + '40', flex: 1, overflow: 'hidden' }}>
-                              <div style={{ height: '100%', width: `${pct}%`, background: CAT_COLORS.Other, borderRadius: 99 }} />
+                            <div style={{ height: 3, borderRadius: RADIUS.full, background: CAT_COLORS.Other + '40', flex: 1, overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${pct}%`, background: CAT_COLORS.Other, borderRadius: RADIUS.full }} />
                             </div>
                             <span style={{ fontSize: 10, color: C.faint, flexShrink: 0 }}>{Math.round(pct)}%</span>
                           </div>
@@ -1546,7 +1546,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
               </div>
               {/* Footer CTA */}
               <div style={{ padding: '12px 20px 0', flexShrink: 0 }}>
-                <button onClick={() => { setOtherBreakdown(false); onCatClick?.('Other'); }} style={{ width: '100%', padding: '12px 0', background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 12, color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}>
+                <button onClick={() => { setOtherBreakdown(false); onCatClick?.('Other'); }} style={{ width: '100%', padding: '12px 0', background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.muted, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: FONT }}>
                   {t("dashboard.view_all_transactions")}
                 </button>
               </div>

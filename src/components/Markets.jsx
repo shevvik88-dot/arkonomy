@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import { supabase } from "../utils/supabase";
 import { SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
-import { C, FONT } from "../utils/colors";
+import { C, FONT, RADIUS } from "../utils/colors";
 import { fmtPct } from "../utils/helpers";
 import GlassCard from "./shared/GlassCard";
 import Icon from "./shared/Icon";
@@ -196,7 +196,7 @@ function PriceChart({ candles = [], color, height = 130 }) {
           transform: "translateX(-50%)",
           background: C.card,
           border: `1px solid ${lineColor}55`,
-          borderRadius: 8,
+          borderRadius: RADIUS.xs,
           padding: "4px 8px",
           fontSize: 12,
           fontWeight: 700,
@@ -216,7 +216,7 @@ function PriceChart({ candles = [], color, height = 130 }) {
           position: "absolute", top: 4, right: 6,
           background: C.card,
           border: `1px solid ${lineColor}33`,
-          borderRadius: 8,
+          borderRadius: RADIUS.xs,
           padding: "3px 8px",
           fontSize: 12,
           fontWeight: 700,
@@ -398,7 +398,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-        <button onClick={onBack} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+        <button onClick={onBack} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
           <Icon name="arrow-left" size={16} color={C.text} />
         </button>
         <StockLogo symbol={symbol} color={meta.color} icon={meta.icon} size={38} borderRadius={12} />
@@ -406,7 +406,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
           <div style={{ fontWeight: 700, fontSize: 16 }}>{cleanCompanyName(meta.label) || symbol}</div>
           <div style={{ fontSize: 12, color: C.muted }}>{symbol}</div>
         </div>
-        <button onClick={toggleWatchlist} aria-label={t("markets.watchlist")} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+        <button onClick={toggleWatchlist} aria-label={t("markets.watchlist")} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
           <Icon name="star" size={16} color={inWatchlist ? C.yellow : C.muted} fill={inWatchlist ? C.yellow : "none"} />
         </button>
         {stats && (
@@ -418,10 +418,10 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 16, background: C.bgSecondary, borderRadius: 12, padding: 4 }}>
+      <div style={{ display: "flex", gap: 4, marginBottom: 16, background: C.bgSecondary, borderRadius: RADIUS.sm, padding: 4 }}>
         {TABS.map(tabId => (
           <button key={tabId} onClick={() => setTab(tabId)}
-            style={{ flex: 1, padding: "7px 0", borderRadius: 9, border: "none", background: tab === tabId ? C.card : "transparent", color: tab === tabId ? C.text : C.faint, fontWeight: tab === tabId ? 700 : 400, fontSize: 12, cursor: "pointer", fontFamily: FONT, textTransform: "capitalize" }}>
+            style={{ flex: 1, padding: "7px 0", borderRadius: RADIUS.sm, border: "none", background: tab === tabId ? C.card : "transparent", color: tab === tabId ? C.text : C.faint, fontWeight: tab === tabId ? 700 : 400, fontSize: 12, cursor: "pointer", fontFamily: FONT, textTransform: "capitalize" }}>
             {t("markets.tab_" + tabId)}
           </button>
         ))}
@@ -444,7 +444,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
                   !meta.isCrypto && { label: t("markets.beta"),       value: stats?.beta != null ? Number(stats.beta).toFixed(2) : "—" },
                   !meta.isCrypto && { label: t("markets.div_yield"), value: stats?.dividendYield != null ? Number(stats.dividendYield).toFixed(2) + "%" : "—" },
                 ].filter(Boolean).map((s) => (
-                  <div key={s.label} style={{ background: C.bgSecondary, borderRadius: 10, padding: "10px 12px" }}>
+                  <div key={s.label} style={{ background: C.bgSecondary, borderRadius: RADIUS.sm, padding: "10px 12px" }}>
                     <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</div>
                     <div style={{ fontSize: 15, fontWeight: 700, color: s.color ?? C.text }}>{s.value}</div>
                   </div>
@@ -458,15 +458,15 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
                 const dayPct  = (dh != null && dl != null && dh > dl) ? Math.round((p - dl) / (dh - dl) * 100) : null;
                 const w52Pct  = (wh != null && wl != null && wh > wl) ? Math.round((p - wl) / (wh - wl) * 100) : null;
                 const RangeBar = ({ label, lo, hi, pct, isCrypto: ic }) => (
-                  <div style={{ background: C.bgSecondary, borderRadius: 10, padding: "10px 12px" }}>
+                  <div style={{ background: C.bgSecondary, borderRadius: RADIUS.sm, padding: "10px 12px" }}>
                     <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>{label}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
                       <span style={{ fontSize: 11, color: C.muted }}>{fmtPrice(lo, ic)}</span>
-                      <div style={{ flex: 1, height: 4, background: C.border, borderRadius: 2, position: "relative" }}>
+                      <div style={{ flex: 1, height: 4, background: C.border, borderRadius: RADIUS.full, position: "relative" }}>
                         {pct != null && (
                           <div style={{ position: "absolute", left: `${Math.max(1, Math.min(97, pct))}%`, top: "50%", transform: "translate(-50%, -50%)", width: 8, height: 8, borderRadius: "50%", background: meta.color }} />
                         )}
-                        <div style={{ height: "100%", width: pct != null ? `${pct}%` : "0%", background: meta.color + "44", borderRadius: 2 }} />
+                        <div style={{ height: "100%", width: pct != null ? `${pct}%` : "0%", background: meta.color + "44", borderRadius: RADIUS.full }} />
                       </div>
                       <span style={{ fontSize: 11, color: C.muted }}>{fmtPrice(hi, ic)}</span>
                     </div>
@@ -491,7 +491,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
                       { label: t("markets.day_low"),    value: fmtPrice(stats?.dayLow,     meta.isCrypto), color: C.red },
                       { label: t("markets.prev_close"), value: fmtPrice(stats?.prevClose,  meta.isCrypto) },
                     ].map(s => (
-                      <div key={s.label} style={{ background: C.bgSecondary, borderRadius: 10, padding: "10px 12px" }}>
+                      <div key={s.label} style={{ background: C.bgSecondary, borderRadius: RADIUS.sm, padding: "10px 12px" }}>
                         <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: s.color ?? C.text }}>{s.value}</div>
                       </div>
@@ -510,7 +510,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
           <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
             {PERIODS.map(p => (
               <button key={p} onClick={() => setPeriod(p)}
-                style={{ flex: 1, padding: "5px 0", borderRadius: 8, border: `1px solid ${period === p ? meta.color + "66" : C.border}`, background: period === p ? meta.color + "18" : "transparent", color: period === p ? meta.color : C.faint, fontWeight: period === p ? 700 : 400, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
+                style={{ flex: 1, padding: "5px 0", borderRadius: RADIUS.xs, border: `1px solid ${period === p ? meta.color + "66" : C.border}`, background: period === p ? meta.color + "18" : "transparent", color: period === p ? meta.color : C.faint, fontWeight: period === p ? 700 : 400, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
                 {p}
               </button>
             ))}
@@ -518,7 +518,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
           {loadingChart ? (
             <div style={{ height: 130, display: "flex", alignItems: "center", justifyContent: "center", color: C.faint, fontSize: 12 }}>{t("markets.loading_chart")}</div>
           ) : chartError ? (
-            <div style={{ background: C.red + "12", border: `1px solid ${C.red}33`, borderRadius: 10, padding: "12px 14px", margin: "4px 0" }}>
+            <div style={{ background: C.red + "12", border: `1px solid ${C.red}33`, borderRadius: RADIUS.sm, padding: "12px 14px", margin: "4px 0" }}>
               <div style={{ fontSize: 13, color: C.red, fontWeight: 600, marginBottom: 4 }}>{t("markets.chart_unavailable")}</div>
               <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
                 {chartError}
@@ -552,7 +552,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
         <GlassCard style={{ border: `1px solid ${C.cyan}22` }}>
           <style>{`@keyframes aiDot{0%,80%,100%{transform:translateY(0);opacity:0.4}40%{transform:translateY(-5px);opacity:1}}`}</style>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-            <div style={{ width: 30, height: 30, borderRadius: 8, background: C.cyan + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 30, height: 30, borderRadius: RADIUS.xs, background: C.cyan + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Icon name="activity" size={14} color={C.cyan} />
             </div>
             <div style={{ flex: 1 }}>
@@ -561,7 +561,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
             </div>
             {aiError && !aiLoading && (
               <button onClick={() => { aiCalledRef.current = false; setAi(null); setAiError(null); runAiAnalysis(); }}
-                style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 10px", color: C.muted, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
+                style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.xs, padding: "4px 10px", color: C.muted, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
                 {t("common.retry")}
               </button>
             )}
@@ -577,7 +577,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
               <div style={{ fontSize: 13, color: C.muted }}>{t("markets.analyzing", { symbol })}</div>
             </div>
           ) : aiError ? (
-            <div style={{ background: C.red + "12", border: `1px solid ${C.red}33`, borderRadius: 10, padding: "12px 14px" }}>
+            <div style={{ background: C.red + "12", border: `1px solid ${C.red}33`, borderRadius: RADIUS.sm, padding: "12px 14px" }}>
               <div style={{ fontSize: 13, color: C.red, fontWeight: 600, marginBottom: 4 }}>{t("markets.analysis_unavailable")}</div>
               <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
                 {t("markets.analysis_unavailable_body")}
@@ -609,7 +609,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
                 </div>
               ) : null}
               {ai.disclaimer ? (
-                <div style={{ background: C.bgSecondary, borderRadius: 10, padding: "10px 12px", border: `1px solid ${C.border}` }}>
+                <div style={{ background: C.bgSecondary, borderRadius: RADIUS.sm, padding: "10px 12px", border: `1px solid ${C.border}` }}>
                   <div style={{ fontSize: 11, color: C.faint, lineHeight: 1.6 }}>{ai.disclaimer}</div>
                 </div>
               ) : null}
@@ -619,7 +619,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
               {t("markets.retry_analysis")}
               <div style={{ marginTop: 12 }}>
                 <button onClick={() => { aiCalledRef.current = false; runAiAnalysis(); }}
-                  style={{ background: C.cyan + "18", border: `1px solid ${C.cyan}44`, borderRadius: 10, padding: "8px 20px", color: C.cyan, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+                  style={{ background: C.cyan + "18", border: `1px solid ${C.cyan}44`, borderRadius: RADIUS.sm, padding: "8px 20px", color: C.cyan, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
                   {t("markets.analyze", { symbol })}
                 </button>
               </div>
@@ -633,7 +633,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
         <>
           {!alpacaConnected ? (
             <GlassCard style={{ marginBottom: 12, textAlign: "center", padding: "28px 20px" }}>
-              <div style={{ width: 52, height: 52, borderRadius: 16, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+              <div style={{ width: 52, height: 52, borderRadius: RADIUS.md, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
                 <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" />
                 </svg>
@@ -642,7 +642,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
               <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 20 }}>
                 {t("markets.connect_alpaca_body")}
               </div>
-              <div style={{ background: C.alpacaAccent + "12", border: `1px solid ${C.alpacaAccent}59`, borderRadius: 12, padding: "14px 16px", marginBottom: 16, textAlign: "left" }}>
+              <div style={{ background: C.alpacaAccent + "12", border: `1px solid ${C.alpacaAccent}59`, borderRadius: RADIUS.sm, padding: "14px 16px", marginBottom: 16, textAlign: "left" }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.alpacaAccent, marginBottom: 8, letterSpacing: 0.3 }}>{t("markets.authorize_alpaca")}</div>
                 <div style={{ fontSize: 12, color: C.alpacaWarningMuted, lineHeight: 1.65 }}>
                   {t("markets.alpaca_disclaimer1")}
@@ -653,7 +653,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
               </div>
               <button
                 onClick={onConnectAlpaca}
-                style={{ width: "100%", padding: "14px 0", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#000", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, marginBottom: 10 }}
+                style={{ width: "100%", padding: "14px 0", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.sm, color: "#000", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, marginBottom: 10 }}
               >
                 {t("markets.connect_alpaca_btn")}
               </button>
@@ -665,11 +665,11 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
           <GlassCard style={{ marginBottom: 12 }}>
             <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16 }}>{t("markets.buy_title", { label: meta.label || symbol })}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
-              <div style={{ background: C.bgSecondary, borderRadius: 10, padding: "10px 12px" }}>
+              <div style={{ background: C.bgSecondary, borderRadius: RADIUS.sm, padding: "10px 12px" }}>
                 <div style={{ fontSize: 10, color: C.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.current_price")}</div>
                 <div style={{ fontSize: 15, fontWeight: 700 }}>{fmtPrice(stats?.price, meta.isCrypto)}</div>
               </div>
-              <div style={{ background: C.bgSecondary, borderRadius: 10, padding: "10px 12px" }}>
+              <div style={{ background: C.bgSecondary, borderRadius: RADIUS.sm, padding: "10px 12px" }}>
                 <div style={{ fontSize: 10, color: C.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.est_shares")}</div>
                 <div style={{ fontSize: 15, fontWeight: 700 }}>
                   {stats?.price && buyAmt ? (Number(buyAmt) / stats.price).toFixed(4) : "—"}
@@ -682,13 +682,13 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
               <input
                 type="number" value={buyAmt}
                 onChange={e => setBuyAmt(e.target.value)}
-                style={{ flex: 1, padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 16, fontFamily: FONT }}
+                style={{ flex: 1, padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 16, fontFamily: FONT }}
                 placeholder="100"
               />
             </div>
             {["25","50","100","250"].map(amt => (
               <button key={amt} onClick={() => setBuyAmt(amt)}
-                style={{ marginRight: 8, marginBottom: 14, padding: "5px 12px", background: buyAmt === amt ? meta.color + "22" : C.bgSecondary, border: `1px solid ${buyAmt === amt ? meta.color + "55" : C.border}`, borderRadius: 99, color: buyAmt === amt ? meta.color : C.muted, fontSize: 12, fontWeight: buyAmt === amt ? 700 : 400, cursor: "pointer", fontFamily: FONT }}>
+                style={{ marginRight: 8, marginBottom: 14, padding: "5px 12px", background: buyAmt === amt ? meta.color + "22" : C.bgSecondary, border: `1px solid ${buyAmt === amt ? meta.color + "55" : C.border}`, borderRadius: RADIUS.full, color: buyAmt === amt ? meta.color : C.muted, fontSize: 12, fontWeight: buyAmt === amt ? 700 : 400, cursor: "pointer", fontFamily: FONT }}>
                 ${amt}
               </button>
             ))}
@@ -696,7 +696,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
             <button
               onClick={(!isPro || isTrial) ? onUpgrade : handleBuy}
               disabled={buying}
-              style={{ width: "100%", padding: 15, border: "none", borderRadius: 13, fontWeight: 700, fontSize: 15, fontFamily: FONT, cursor: buying ? "not-allowed" : "pointer",
+              style={{ width: "100%", padding: 15, border: "none", borderRadius: RADIUS.sm, fontWeight: 700, fontSize: 15, fontFamily: FONT, cursor: buying ? "not-allowed" : "pointer",
                 background: buying ? C.bgTertiary : (!isPro || isTrial) ? `linear-gradient(135deg,${C.proAccent},#38B6FF)` : `linear-gradient(90deg,${meta.color},${meta.color}BB)`,
                 color: buying ? C.faint : "#fff" }}>
               {buying ? t("markets.placing_order") : (!isPro || isTrial) ? (IS_IOS_NATIVE ? t("markets.pro_feature") : t("markets.upgrade_pro")) : t("markets.buy_btn", { amount: buyAmt || "—", symbol })}
@@ -704,8 +704,8 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
 
             {buyResult && (
               (buyResult.notConnected || buyResult.noFunds) ? (
-                <div style={{ marginTop: 14, padding: "18px 16px", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 14, textAlign: "center" }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 12, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
+                <div style={{ marginTop: 14, padding: "18px 16px", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.md, textAlign: "center" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: RADIUS.sm, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
                     <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" />
                     </svg>
@@ -716,14 +716,14 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
                     href="https://app.alpaca.markets"
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ display: "inline-block", padding: "11px 28px", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, borderRadius: 10, color: "#000", fontWeight: 700, fontSize: 14, textDecoration: "none", fontFamily: FONT }}
+                    style={{ display: "inline-block", padding: "11px 28px", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, borderRadius: RADIUS.sm, color: "#000", fontWeight: 700, fontSize: 14, textDecoration: "none", fontFamily: FONT }}
                   >
                     {t("markets.open_alpaca")}
                   </a>
                   <div style={{ fontSize: 11, color: C.faint, marginTop: 10 }}>{t("markets.after_alpaca")}</div>
                 </div>
               ) : (
-                <div style={{ marginTop: 12, padding: "10px 14px", background: buyResult.success ? C.green + "12" : C.red + "12", border: `1px solid ${buyResult.success ? C.green : C.red}33`, borderRadius: 10 }}>
+                <div style={{ marginTop: 12, padding: "10px 14px", background: buyResult.success ? C.green + "12" : C.red + "12", border: `1px solid ${buyResult.success ? C.green : C.red}33`, borderRadius: RADIUS.sm }}>
                   <div style={{ fontSize: 13, color: buyResult.success ? C.green : C.red, fontWeight: 600 }}>
                     {buyResult.success ? "✓ " + buyResult.message : "✗ " + t("markets.order_failed")}
                   </div>
@@ -928,7 +928,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>{t("markets.title")}</h2>
         <button onClick={() => { setEditMode(e => !e); setDragList([...watchlist]); }}
-          style={{ padding: "6px 14px", background: editMode ? C.cyan + "22" : C.bgSecondary, border: `1px solid ${editMode ? C.cyan + "55" : C.border}`, borderRadius: 10, color: editMode ? C.cyan : C.muted, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+          style={{ padding: "6px 14px", background: editMode ? C.cyan + "22" : C.bgSecondary, border: `1px solid ${editMode ? C.cyan + "55" : C.border}`, borderRadius: RADIUS.sm, color: editMode ? C.cyan : C.muted, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
           {editMode ? t("markets.done") : t("markets.edit")}
         </button>
       </div>
@@ -956,7 +956,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
                       onMouseDown={e => onDragStart(e, idx)}
                       onTouchStart={e => onDragStart(e, idx)}
                       style={{ cursor: "grab", padding: "4px 6px", color: C.faint, fontSize: 14 }}>⋮⋮</div>
-                    <div style={{ width: 32, height: 32, borderRadius: 9, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       <Icon name={meta.icon} size={13} color={meta.color} />
                     </div>
                     <div style={{ flex: 1 }}>
@@ -964,7 +964,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
                       <div style={{ fontSize: 11, color: C.faint }}>{sym}</div>
                     </div>
                     <button onClick={() => removeFromWatchlist(sym)}
-                      style={{ background: C.red + "18", border: `1px solid ${C.red}33`, borderRadius: 8, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                      style={{ background: C.red + "18", border: `1px solid ${C.red}33`, borderRadius: RADIUS.xs, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                       <Icon name="x" size={12} color={C.red} />
                     </button>
                   </div>
@@ -980,7 +980,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
                     value={addQuery}
                     onChange={e => onAddQueryChange(e.target.value)}
                     placeholder={t("markets.search_ticker")}
-                    style={{ width: "100%", padding: "10px 12px 10px 34px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, boxSizing: "border-box", fontFamily: FONT }}
+                    style={{ width: "100%", padding: "10px 12px 10px 34px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 13, boxSizing: "border-box", fontFamily: FONT }}
                   />
                 </div>
                 {searchingAdd && <div style={{ color: C.faint, fontSize: 12, marginTop: 8 }}>{t("markets.searching")}</div>}
@@ -991,7 +991,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
                       <div style={{ fontWeight: 600, fontSize: 13 }}>{r.symbol}</div>
                       <div style={{ fontSize: 11, color: C.faint }}>{r.description}</div>
                     </div>
-                    <div style={{ background: C.green + "18", border: `1px solid ${C.green}33`, borderRadius: 8, padding: "3px 10px", fontSize: 12, color: C.green, fontWeight: 600 }}>
+                    <div style={{ background: C.green + "18", border: `1px solid ${C.green}33`, borderRadius: RADIUS.xs, padding: "3px 10px", fontSize: 12, color: C.green, fontWeight: 600 }}>
                       {watchlist.includes(r.symbol) ? t("markets.added") : t("markets.add")}
                     </div>
                   </div>
@@ -1014,7 +1014,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
                     <div style={{ fontSize: 11, color: C.faint }}>{meta.label || sym}</div>
                   </div>
                   {loadingQuotes ? (
-                    <div style={{ height: 20, width: 70, background: C.border, borderRadius: 4 }} />
+                    <div style={{ height: 20, width: 70, background: C.border, borderRadius: RADIUS.xs }} />
                   ) : (
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmtPrice(q?.price, meta.isCrypto)}</div>
@@ -1040,11 +1040,11 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
           ) : portfolio ? (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-                <div style={{ background: C.bgSecondary, borderRadius: 10, padding: "12px 14px" }}>
+                <div style={{ background: C.bgSecondary, borderRadius: RADIUS.sm, padding: "12px 14px" }}>
                   <div style={{ fontSize: 10, color: C.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.portfolio_value")}</div>
                   <div className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: C.text }}>{fmtPrice(portfolio.portfolio_value)}</div>
                 </div>
-                <div style={{ background: C.bgSecondary, borderRadius: 10, padding: "12px 14px" }}>
+                <div style={{ background: C.bgSecondary, borderRadius: RADIUS.sm, padding: "12px 14px" }}>
                   <div style={{ fontSize: 10, color: C.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.buying_power")}</div>
                   <div className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: C.cyan }}>{fmtPrice(portfolio.buying_power)}</div>
                 </div>
@@ -1080,12 +1080,12 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
         </GlassCard>
       ) : (
         <GlassCard style={{ textAlign: "center", padding: "24px 20px" }}>
-          <div style={{ width: 44, height: 44, borderRadius: 14, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+          <div style={{ width: 44, height: 44, borderRadius: RADIUS.md, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
             <Icon name="trending-up" size={18} color={C.cyan} />
           </div>
           <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>{t("markets.connect_alpaca_title")}</div>
           <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>{t("markets.connect_alpaca_body")}</div>
-          <button onClick={onConnectAlpaca} style={{ width: "100%", padding: "12px 0", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#000", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
+          <button onClick={onConnectAlpaca} style={{ width: "100%", padding: "12px 0", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.sm, color: "#000", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
             {t("markets.connect_alpaca_btn")}
           </button>
         </GlassCard>
@@ -1102,12 +1102,12 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
             value={exploreQuery}
             onChange={e => onExploreChange(e.target.value)}
             placeholder={t("markets.search_stock")}
-            style={{ width: "100%", padding: "11px 12px 11px 34px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, boxSizing: "border-box", fontFamily: FONT }}
+            style={{ width: "100%", padding: "11px 12px 11px 34px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 14, boxSizing: "border-box", fontFamily: FONT }}
           />
         </div>
         {searchingExplore && <div style={{ color: C.faint, fontSize: 12, textAlign: "center", padding: "8px 0" }}>{t("markets.searching")}</div>}
         {!searchingExplore && exploreNonUS && (
-          <div style={{ fontSize: 12, color: C.nonUsTickerWarning, padding: "8px 12px", background: C.nonUsTickerWarning + "14", border: `1px solid ${C.nonUsTickerWarning}40`, borderRadius: 10, marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: C.nonUsTickerWarning, padding: "8px 12px", background: C.nonUsTickerWarning + "14", border: `1px solid ${C.nonUsTickerWarning}40`, borderRadius: RADIUS.sm, marginBottom: 8 }}>
             {t("markets.us_only")}
           </div>
         )}
@@ -1121,7 +1121,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
                   <div style={{ fontSize: 12, color: C.faint, marginTop: 1 }}>{r.description}</div>
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <span style={{ fontSize: 11, color: C.faint, background: C.bgSecondary, borderRadius: 6, padding: "2px 7px" }}>{r.type}</span>
+                  <span style={{ fontSize: 11, color: C.faint, background: C.bgSecondary, borderRadius: RADIUS.xs, padding: "2px 7px" }}>{r.type}</span>
                   <Icon name="chevron" size={14} color={C.faint} />
                 </div>
               </div>
@@ -1144,7 +1144,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
                       {loadingExtra
-                        ? <div style={{ width: 48, height: 12, background: C.border, borderRadius: 4 }} />
+                        ? <div style={{ width: 48, height: 12, background: C.border, borderRadius: RADIUS.xs }} />
                         : <>
                             <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmtPrice(q?.price)}</div>
                             <div style={{ fontSize: 11, fontWeight: 600, color: pos ? C.green : C.red }}>{fmtPct(q?.changePct)}</div>
@@ -1166,7 +1166,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
                   const active = activeSector?.name === sector.name;
                   return (
                     <button key={sector.name} onClick={() => toggleSector(sector)} style={{
-                      flexShrink: 0, minWidth: 80, padding: "8px 12px", borderRadius: 12, textAlign: "left",
+                      flexShrink: 0, minWidth: 80, padding: "8px 12px", borderRadius: RADIUS.sm, textAlign: "left",
                       background: active ? sector.color + "18" : C.bgTertiary,
                       border: `1px solid ${active ? sector.color + "55" : C.border}`,
                       cursor: "pointer", fontFamily: FONT,
@@ -1181,7 +1181,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
               </div>
 
               {activeSector && (
-                <div style={{ marginTop: 10, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+                <div style={{ marginTop: 10, borderRadius: RADIUS.sm, border: `1px solid ${C.border}`, overflow: "hidden" }}>
                   {loadingSectorStocks
                     ? <div style={{ padding: "12px 14px", color: C.faint, fontSize: 12 }}>{t("markets.loading")}</div>
                     : activeSector.stocks.map((sym, i) => {

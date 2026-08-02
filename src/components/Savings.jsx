@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../utils/supabase";
-import { C, FONT } from "../utils/colors";
+import { C, FONT, RADIUS } from "../utils/colors";
 import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
 import { fmtMoney } from "./Transactions";
@@ -160,20 +160,20 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
             <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{sv.name}</h3>
-            {linkedAccount && <div style={{ fontSize: 10, fontWeight: 700, color: C.green, background: C.green + "18", border: `1px solid ${C.green}33`, borderRadius: 20, padding: "2px 7px", letterSpacing: 0.5 }}>{t("savings.live").toUpperCase()}</div>}
+            {linkedAccount && <div style={{ fontSize: 10, fontWeight: 700, color: C.green, background: C.green + "18", border: `1px solid ${C.green}33`, borderRadius: RADIUS.lg, padding: "2px 7px", letterSpacing: 0.5 }}>{t("savings.live").toUpperCase()}</div>}
           </div>
           <div className="ph-mask" style={{ fontSize: 13, color: C.muted }}>
             {linkedAccount ? `Linked: ${linkedAccount.name} ••••${linkedAccount.mask}` : t("savings.tracking_manually")}
           </div>
         </div>
         <div style={{ display: "flex", gap: 4 }}>
-          <button onClick={openMoveMoney} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <button onClick={openMoveMoney} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <Icon name="arrow-up-right" size={16} color={C.cyan} />
           </button>
-          <button onClick={openReminderDirectly} style={{ background: reminder ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${reminder ? C.cyan + "44" : C.border}`, borderRadius: 10, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <button onClick={openReminderDirectly} style={{ background: reminder ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${reminder ? C.cyan + "44" : C.border}`, borderRadius: RADIUS.sm, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <Icon name="bell" size={15} color={reminder ? C.cyan : C.muted} />
           </button>
-          <button onClick={() => setShowEdit(true)} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <button onClick={() => setShowEdit(true)} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <Icon name="edit-3" size={15} color={C.muted} />
           </button>
         </div>
@@ -187,8 +187,8 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
         <div style={{ fontSize: 14, fontWeight: 700, color: progress >= 1 ? C.green : C.cyan }}>{pct}%</div>
       </div>
 
-      <div style={{ height: 8, background: C.bgSecondary, borderRadius: 4, overflow: "hidden", marginBottom: 12 }}>
-        <div style={{ height: "100%", background: `linear-gradient(90deg, ${C.cyan}, ${C.blue})`, width: `${pct}%`, borderRadius: 4, transition: "width 0.6s cubic-bezier(0.22, 1, 0.36, 1)" }} />
+      <div style={{ height: 8, background: C.bgSecondary, borderRadius: RADIUS.xs, overflow: "hidden", marginBottom: 12 }}>
+        <div style={{ height: "100%", background: `linear-gradient(90deg, ${C.cyan}, ${C.blue})`, width: `${pct}%`, borderRadius: RADIUS.xs, transition: "width 0.6s cubic-bezier(0.22, 1, 0.36, 1)" }} />
       </div>
 
       {projectedDate ? (
@@ -212,18 +212,18 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
                 <label style={{ display: "block", fontSize: 12, color: C.muted, marginBottom: 6, fontWeight: 600 }}>{t("savings.goal_name").toUpperCase()}</label>
-                <input style={{ width: "100%", padding: 14, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15 }} value={editName} onChange={e => setEditName(e.target.value)} />
+                <input style={{ width: "100%", padding: 14, background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 15 }} value={editName} onChange={e => setEditName(e.target.value)} />
               </div>
               <div>
                 <label style={{ display: "block", fontSize: 12, color: C.muted, marginBottom: 6, fontWeight: 600 }}>{t("savings.target_amount").toUpperCase()}</label>
-                <input style={{ width: "100%", padding: 14, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15 }} type="number" value={editTarget} onChange={e => setEditTarget(e.target.value)} />
+                <input style={{ width: "100%", padding: 14, background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 15 }} type="number" value={editTarget} onChange={e => setEditTarget(e.target.value)} />
               </div>
 
               {plaidAccounts.length > 0 && (
                 <div>
                   <label style={{ display: "block", fontSize: 12, color: C.muted, marginBottom: 6, fontWeight: 600 }}>{t("savings.savings_account_optional").toUpperCase()}</label>
                   <select
-                    style={{ width: "100%", padding: 14, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15 }}
+                    style={{ width: "100%", padding: 14, background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 15 }}
                     value={editAccountId}
                     onChange={e => {
                       const id = e.target.value;
@@ -248,13 +248,13 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
                     onEdit(sv.id, { name: editName, target: parseFloat(editTarget), plaid_account_id: editAccountId || null, plaid_account_name: editAccountName || null });
                     setShowEdit(false);
                   }}
-                  style={{ flex: 1, padding: 14, background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, cursor: "pointer" }}
+                  style={{ flex: 1, padding: 14, background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.sm, color: "#fff", fontWeight: 700, cursor: "pointer" }}
                 >
                   {t("savings.save")}
                 </button>
                 <button
                   onClick={() => { onDelete(sv.id); setShowEdit(false); }}
-                  style={{ padding: "0 14px", background: "none", border: `1px solid ${C.red}44`, borderRadius: 12, color: C.red, fontWeight: 600, cursor: "pointer" }}
+                  style={{ padding: "0 14px", background: "none", border: `1px solid ${C.red}44`, borderRadius: RADIUS.sm, color: C.red, fontWeight: 600, cursor: "pointer" }}
                 >
                   {t("savings.delete")}
                 </button>
@@ -269,17 +269,17 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
       {showMoveMoney && (
         <div onClick={() => setShowMoveMoney(false)} style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(7,12,24,0.88)", display: "flex", alignItems: "flex-end", justifyContent: "center", backdropFilter: "blur(6px)" }}>
           <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.bgSecondary, borderRadius: "24px 24px 0 0", border: `1px solid ${C.border}`, borderBottom: "none", padding: "28px 20px 36px", fontFamily: FONT, color: C.text, boxShadow: "0 -8px 48px rgba(0,0,0,0.6)" }}>
-            <div style={{ width: 36, height: 4, borderRadius: 99, background: C.border, margin: "0 auto 24px" }} />
+            <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: C.border, margin: "0 auto 24px" }} />
 
             <div style={{ textAlign: "center", marginBottom: 28 }}>
-              <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 56, height: 56, borderRadius: 18, background: C.cyan + "18", border: `1px solid ${C.cyan}44`, marginBottom: 14 }}>
+              <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 56, height: 56, borderRadius: RADIUS.lg, background: C.cyan + "18", border: `1px solid ${C.cyan}44`, marginBottom: 14 }}>
                 <Icon name="arrow-up-right" size={24} color={C.cyan} strokeWidth={2.5} />
               </div>
               <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{t("savings.move_money_title")}</div>
               <div className="ph-mask" style={{ fontSize: 14, color: C.muted }}>{t("savings.transfer_in_app", { bank: linkedAccount?.institution_name || t("savings.your_bank_fallback") })}</div>
             </div>
 
-            <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 16, padding: "18px 20px", marginBottom: 24 }}>
+            <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.md, padding: "18px 20px", marginBottom: 24 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: 0.8 }}>{t("savings.linked_account")}</span>
                 <span style={{ fontSize: 11, fontWeight: 700, color: C.green }}>{t("savings.live").toUpperCase()}</span>
@@ -294,7 +294,7 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <button onClick={() => { setShowMoveMoney(false); setShowReminderModal(true); }} style={{ width: "100%", padding: 16, background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 16, color: "#fff", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+              <button onClick={() => { setShowMoveMoney(false); setShowReminderModal(true); }} style={{ width: "100%", padding: 16, background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.md, color: "#fff", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
                 <Icon name="bell" size={18} color="#fff" />
                 {t("savings.set_weekly_reminder")}
               </button>
@@ -322,15 +322,15 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 {reminder && !editingReminder ? (
-                  <div style={{ background: C.bgSecondary, border: `1px solid ${C.cyan}33`, borderRadius: 14, padding: 18 }}>
+                  <div style={{ background: C.bgSecondary, border: `1px solid ${C.cyan}33`, borderRadius: RADIUS.md, padding: 18 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: C.cyan, letterSpacing: 0.8, marginBottom: 12 }}>{t("savings.active_reminder")}</div>
                     <div className="ph-mask" style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
                       {fmtMoney(reminder.amount)} {reminder.day_of_week.length === 7 ? t("savings.every_day") : reminder.day_of_week.map(d => DAY_NAMES[d]).join(", ")}
                     </div>
                     <div style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>{t("savings.reminding_transfer", { name: sv.name })}</div>
                     <div style={{ display: "flex", gap: 10 }}>
-                      <button onClick={() => setEditingReminder(true)} style={{ flex: 1, padding: "10px 0", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{t("savings.edit")}</button>
-                      <button onClick={cancelReminder} style={{ flex: 1, padding: "10px 0", background: "none", border: `1px solid ${C.red}33`, borderRadius: 10, color: C.red, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{t("savings.cancel_reminder")}</button>
+                      <button onClick={() => setEditingReminder(true)} style={{ flex: 1, padding: "10px 0", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{t("savings.edit")}</button>
+                      <button onClick={cancelReminder} style={{ flex: 1, padding: "10px 0", background: "none", border: `1px solid ${C.red}33`, borderRadius: RADIUS.sm, color: C.red, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{t("savings.cancel_reminder")}</button>
                     </div>
                   </div>
                 ) : (
@@ -344,7 +344,7 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
                             <button
                               key={day.dow}
                               onClick={() => setReminderDays(prev => active ? prev.filter(d => d !== day.dow) : [...prev, day.dow])}
-                              style={{ padding: "8px 12px", borderRadius: 10, background: active ? C.cyan : C.bgSecondary, border: `1px solid ${active ? C.cyan : C.border}`, color: active ? "#000" : C.text, fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}
+                              style={{ padding: "8px 12px", borderRadius: RADIUS.sm, background: active ? C.cyan : C.bgSecondary, border: `1px solid ${active ? C.cyan : C.border}`, color: active ? "#000" : C.text, fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.2s" }}
                             >
                               {t("day." + day.dayKey)}
                             </button>
@@ -358,7 +358,7 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
                       <div style={{ position: "relative" }}>
                         <span style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", fontSize: 16, color: C.muted }}>$</span>
                         <input
-                          style={{ width: "100%", padding: "14px 16px 14px 30px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 18, fontWeight: 700, boxSizing: "border-box" }}
+                          style={{ width: "100%", padding: "14px 16px 14px 30px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 18, fontWeight: 700, boxSizing: "border-box" }}
                           type="number"
                           placeholder="0.00"
                           value={reminderAmt}
@@ -370,7 +370,7 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
                     <button
                       onClick={saveReminder}
                       disabled={savingReminder || !reminderAmt || reminderDays.length === 0}
-                      style={{ width: "100%", padding: 16, background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 16, cursor: "pointer", opacity: (savingReminder || !reminderAmt || reminderDays.length === 0) ? 0.6 : 1 }}
+                      style={{ width: "100%", padding: 16, background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.md, color: "#fff", fontWeight: 800, fontSize: 16, cursor: "pointer", opacity: (savingReminder || !reminderAmt || reminderDays.length === 0) ? 0.6 : 1 }}
                     >
                       {savingReminder ? t("savings.saving") : t("savings.save")}
                     </button>
@@ -464,7 +464,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
 
   const roundupMonth  = parseFloat((roundupBase * roundupMultiplier).toFixed(2));
 
-  const inp = { width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 14, boxSizing: "border-box", marginBottom: 10, fontFamily: FONT };
+  const inp = { width: "100%", padding: "12px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 14, boxSizing: "border-box", marginBottom: 10, fontFamily: FONT };
 
   const totalSaved     = savings.reduce((s, sv) => s + Number(sv.current), 0);
   const monthlySurplus = totalIncome - totalSpent;
@@ -507,7 +507,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 200, gap: 16 }}>
         <div style={{ fontSize: 14, color: C.red, textAlign: "center" }}>{loadError}</div>
-        <button onClick={() => { setLoadError(null); if (bankConnected) fetchPlaidAccounts(); }} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "10px 20px", color: C.text, cursor: "pointer", fontFamily: FONT, fontSize: 14 }}>
+        <button onClick={() => { setLoadError(null); if (bankConnected) fetchPlaidAccounts(); }} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, padding: "10px 20px", color: C.text, cursor: "pointer", fontFamily: FONT, fontSize: 14 }}>
           {t("common.retry") || "Retry"}
         </button>
       </div>
@@ -536,7 +536,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
           <div style={{ fontSize: 12, color: C.muted, marginBottom: 18 }}>{t("savings.net_worth")}</div>
 
           {/* Segmented bar */}
-          <div style={{ height: 8, borderRadius: 99, overflow: "hidden", display: "flex", gap: 2, marginBottom: 20 }}>
+          <div style={{ height: 8, borderRadius: RADIUS.full, overflow: "hidden", display: "flex", gap: 2, marginBottom: 20 }}>
             {ASSET_TILES.filter(r => r.amount > 0).map(r => {
               const pct = Math.round((r.amount / totalAssets) * 100);
               return <div key={r.key} style={{ flex: pct, background: r.color, height: "100%" }} />;
@@ -548,11 +548,11 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
             {ASSET_TILES.map(r => {
               const pct = totalAssets > 0 ? Math.round((r.amount / totalAssets) * 100) : 0;
               return (
-                <div key={r.key} style={{ background: C.bg, border: `1px solid ${C.sep}`, borderRadius: 12, padding: "9px 11px", display: "flex", alignItems: "center", gap: 7 }}>
-                  <div style={{ width: 7, height: 7, borderRadius: 99, background: r.color, flexShrink: 0 }} />
+                <div key={r.key} style={{ background: C.bg, border: `1px solid ${C.sep}`, borderRadius: RADIUS.sm, padding: "9px 11px", display: "flex", alignItems: "center", gap: 7 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: RADIUS.full, background: r.color, flexShrink: 0 }} />
                   <span style={{ fontSize: 12, color: C.muted, fontWeight: 600, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
                   <span className="ph-mask" style={{ fontSize: r.amount > 0 ? 13 : 11, fontWeight: 700, color: r.amount > 0 ? C.text : C.faint, whiteSpace: "nowrap" }}>{fmtMoney(r.amount)}</span>
-                  <div style={{ background: pct > 0 ? C.green + "25" : C.faint + "30", borderRadius: 20, padding: "2px 6px", flexShrink: 0 }}>
+                  <div style={{ background: pct > 0 ? C.green + "25" : C.faint + "30", borderRadius: RADIUS.lg, padding: "2px 6px", flexShrink: 0 }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: pct > 0 ? C.green : C.faint }}>{pct}%</span>
                   </div>
                 </div>
@@ -583,7 +583,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
               when savings.length === 0, so without this, adding a second (or
               later) goal had no way to reach setShowAdd(true) at all. */}
           {savings.length > 0 && (
-            <button onClick={() => setShowAdd(true)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 10, color: C.cyan, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
+            <button onClick={() => setShowAdd(true)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.cyan, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
               <Icon name="plus" size={13} color={C.cyan} strokeWidth={2.5} />
               {t("savings.add_goal")}
             </button>
@@ -591,12 +591,12 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
         </div>
         {savings.length === 0 ? (
           <GlassCard style={{ padding: "40px 20px", textAlign: "center" }}>
-            <div style={{ width: 60, height: 60, borderRadius: 20, background: C.bgSecondary, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+            <div style={{ width: 60, height: 60, borderRadius: RADIUS.lg, background: C.bgSecondary, display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
               <Icon name="target" size={28} color={C.faint} />
             </div>
             <h3 style={{ margin: "0 0 8px", fontSize: 18 }}>{t("savings.start_first_goal")}</h3>
             <p style={{ margin: "0 0 24px", fontSize: 14, color: C.muted, lineHeight: 1.5 }}>{t("savings.build_first")}</p>
-            <button onClick={() => setShowAdd(true)} style={{ padding: "12px 24px", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t("savings.add_goal")}</button>
+            <button onClick={() => setShowAdd(true)} style={{ padding: "12px 24px", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.sm, color: "#fff", fontWeight: 700, cursor: "pointer" }}>{t("savings.add_goal")}</button>
           </GlassCard>
         ) : (
           savings.map(sv => (
@@ -636,7 +636,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
             {showRoundupTooltip && (
               <>
                 <div onClick={() => setShowRoundupTooltip(false)} style={{ position: "fixed", inset: 0, zIndex: 999 }} />
-                <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, zIndex: 1000, background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", width: 240, boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
+                <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, zIndex: 1000, background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, padding: "12px 14px", width: 240, boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>
                   <div style={{ fontSize: 12, color: C.text, lineHeight: 1.65, marginBottom: 10 }}>{t("savings.roundup_tooltip")}</div>
                   <button
                     onClick={() => { setShowRoundupTooltip(false); setShowRoundupModal(true); }}
@@ -646,13 +646,13 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
               </>
             )}
           </div>
-          <div style={{ width: 44, height: 44, borderRadius: 14, background: C.green + "18", border: `1px solid ${C.green}33`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ width: 44, height: 44, borderRadius: RADIUS.md, background: C.green + "18", border: `1px solid ${C.green}33`, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name="trending-up" size={20} color={C.green} />
           </div>
         </div>
 
         <div style={{ marginBottom: 24 }}>
-          <div style={{ background: C.bg, border: `1px solid ${C.sep}`, borderRadius: 14, padding: "14px 16px" }}>
+          <div style={{ background: C.bg, border: `1px solid ${C.sep}`, borderRadius: RADIUS.md, padding: "14px 16px" }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: C.muted, letterSpacing: 0.8, marginBottom: 6 }}>{t("savings.this_month")}</div>
             <div className="ph-mask" style={{ fontSize: 20, fontWeight: 800, color: roundupEnabled ? C.text : C.faint }}>{roundupEnabled ? fmtMoney(roundupMonth) : "—"}</div>
             <div style={{ fontSize: 10, color: C.faint, marginTop: 4 }}>{t("savings.based_on_purchases")}</div>
@@ -662,14 +662,14 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
         <div style={{ marginBottom: 18, padding: "0 4px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div onClick={() => onToggleRoundup?.(!roundupEnabled)} style={{ width: 42, height: 24, borderRadius: 20, background: roundupEnabled ? C.cyan : C.bgTertiary, position: "relative", cursor: "pointer", transition: "background 0.2s" }}>
-                <div style={{ position: "absolute", top: 3, left: roundupEnabled ? 21 : 3, width: 18, height: 18, borderRadius: 99, background: roundupEnabled ? "#fff" : C.faint, transition: "left 0.2s" }} />
+              <div onClick={() => onToggleRoundup?.(!roundupEnabled)} style={{ width: 42, height: 24, borderRadius: RADIUS.lg, background: roundupEnabled ? C.cyan : C.bgTertiary, position: "relative", cursor: "pointer", transition: "background 0.2s" }}>
+                <div style={{ position: "absolute", top: 3, left: roundupEnabled ? 21 : 3, width: 18, height: 18, borderRadius: RADIUS.full, background: roundupEnabled ? "#fff" : C.faint, transition: "left 0.2s" }} />
               </div>
               <span style={{ fontSize: 14, fontWeight: 600, color: roundupEnabled ? C.text : C.muted }}>{roundupEnabled ? t("savings.roundups_on") : t("savings.roundups_off")}</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 12, color: C.muted }}>{t("savings.multiplier")}</span>
-              <select value={roundupMultiplier} onChange={e => setRoundupMultiplier(Number(e.target.value))} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.cyan, fontSize: 13, fontWeight: 700, padding: "4px 8px" }}>
+              <select value={roundupMultiplier} onChange={e => setRoundupMultiplier(Number(e.target.value))} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.xs, color: C.cyan, fontSize: 13, fontWeight: 700, padding: "4px 8px" }}>
                 <option value="1">1x</option>
                 <option value="2">2x</option>
                 <option value="5">5x</option>
@@ -687,19 +687,19 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
             {t("savings.tracking_off_invest")}
           </div>
         ) : !alpacaConnected ? (
-          <button onClick={onConnectAlpaca} style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.bg}, ${C.bgSecondary})`, border: `1px solid ${C.blue}66`, borderRadius: 14, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+          <button onClick={onConnectAlpaca} style={{ width: "100%", padding: 16, background: `linear-gradient(135deg, ${C.bg}, ${C.bgSecondary})`, border: `1px solid ${C.blue}66`, borderRadius: RADIUS.md, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
             <Icon name="trending-up" size={18} color={C.cyan} />
             {t("savings.connect_alpaca")}
           </button>
         ) : (!isPro || isTrial) ? (
-          <div style={{ background: C.proAccent + "12", border: `1px solid ${C.proAccent}33`, borderRadius: 14, padding: 16, textAlign: "center" }}>
+          <div style={{ background: C.proAccent + "12", border: `1px solid ${C.proAccent}33`, borderRadius: RADIUS.md, padding: 16, textAlign: "center" }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.purple, marginBottom: 12 }}>{t("savings.invest_alpaca_pro")}</div>
-            <button onClick={onUpgrade} style={{ background: C.proAccent, border: "none", borderRadius: 10, padding: "10px 20px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{IS_IOS_NATIVE ? "Pro" : t("savings.upgrade_pro")}</button>
+            <button onClick={onUpgrade} style={{ background: C.proAccent, border: "none", borderRadius: RADIUS.sm, padding: "10px 20px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{IS_IOS_NATIVE ? "Pro" : t("savings.upgrade_pro")}</button>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <button onClick={() => setShowAlpacaSheet(true)} className="ph-mask"
-              style={{ width: "100%", padding: 16, background: `linear-gradient(90deg, ${C.green}, ${C.cyan})`, border: "none", borderRadius: 14, color: "#000", fontSize: 15, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 20px ${C.green}33` }}>
+              style={{ width: "100%", padding: 16, background: `linear-gradient(90deg, ${C.green}, ${C.cyan})`, border: "none", borderRadius: RADIUS.md, color: "#000", fontSize: 15, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 20px ${C.green}33` }}>
               {t("savings.invest_amount", { amount: fmtMoney(roundupMonth) })}
             </button>
             <p style={{ fontSize: 11, color: C.faint, textAlign: "center", margin: 0 }}>{t("savings.small_amounts")}</p>
@@ -716,8 +716,8 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
             {!selectedPreset ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {PRESETS.map(p => (
-                  <button key={p.name} onClick={() => { setSelectedPreset(p); setNewName(p.name); setNewTarget(String(p.target)); }} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: 16, background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: 14, color: C.text, textAlign: "left", cursor: "pointer" }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 12, background: C.bgTertiary, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <button key={p.name} onClick={() => { setSelectedPreset(p); setNewName(p.name); setNewTarget(String(p.target)); }} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: 16, background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.md, color: C.text, textAlign: "left", cursor: "pointer" }}>
+                    <div style={{ width: 40, height: 40, borderRadius: RADIUS.sm, background: C.bgTertiary, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <Icon name={p.icon} size={20} color={C.cyan} />
                     </div>
                     <div>
@@ -741,9 +741,9 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
                 <div style={{ marginTop: 4 }}>
                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                      <label style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{t("savings.savings_account_label").toUpperCase()}</label>
-                     <div style={{ display: "flex", background: C.bgSecondary, borderRadius: 8, padding: 2 }}>
-                        <button onClick={() => setAccountLinkMode("auto")} style={{ border: "none", background: accountLinkMode === "auto" ? C.bgTertiary : "none", color: accountLinkMode === "auto" ? C.cyan : C.muted, padding: "4px 10px", fontSize: 10, fontWeight: 700, borderRadius: 6, cursor: "pointer" }}>AUTO</button>
-                        <button onClick={() => setAccountLinkMode("manual")} style={{ border: "none", background: accountLinkMode === "manual" ? C.bgTertiary : "none", color: accountLinkMode === "manual" ? C.cyan : C.muted, padding: "4px 10px", fontSize: 10, fontWeight: 700, borderRadius: 6, cursor: "pointer" }}>MANUAL</button>
+                     <div style={{ display: "flex", background: C.bgSecondary, borderRadius: RADIUS.xs, padding: 2 }}>
+                        <button onClick={() => setAccountLinkMode("auto")} style={{ border: "none", background: accountLinkMode === "auto" ? C.bgTertiary : "none", color: accountLinkMode === "auto" ? C.cyan : C.muted, padding: "4px 10px", fontSize: 10, fontWeight: 700, borderRadius: RADIUS.xs, cursor: "pointer" }}>AUTO</button>
+                        <button onClick={() => setAccountLinkMode("manual")} style={{ border: "none", background: accountLinkMode === "manual" ? C.bgTertiary : "none", color: accountLinkMode === "manual" ? C.cyan : C.muted, padding: "4px 10px", fontSize: 10, fontWeight: 700, borderRadius: RADIUS.xs, cursor: "pointer" }}>MANUAL</button>
                      </div>
                    </div>
 
@@ -753,7 +753,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
                         accountsError ? (
                           <div style={{ padding: 14, textAlign: "center" }}>
                             <div style={{ fontSize: 12, color: C.red, marginBottom: 8 }}>{t("savings.could_not_load_accounts", { error: accountsError })}</div>
-                            <button onClick={fetchPlaidAccounts} style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 8, color: C.cyan, fontSize: 11, padding: "5px 12px", cursor: "pointer" }}>{t("savings.retry")}</button>
+                            <button onClick={fetchPlaidAccounts} style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: RADIUS.xs, color: C.cyan, fontSize: 11, padding: "5px 12px", cursor: "pointer" }}>{t("savings.retry")}</button>
                           </div>
                         ) : (
                           <select
@@ -782,9 +782,9 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
                           </select>
                         )
                      ) : (
-                       <div style={{ padding: 16, background: C.bgSecondary, borderRadius: 12, textAlign: "center" }}>
+                       <div style={{ padding: 16, background: C.bgSecondary, borderRadius: RADIUS.sm, textAlign: "center" }}>
                          <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>{t("transactions.connect_bank_hint")}</div>
-                         <button onClick={() => { setShowAdd(false); onInsightAction('review_spending'); }} style={{ background: "none", border: `1px solid ${C.cyan}44`, color: C.cyan, borderRadius: 10, padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{t("dashboard.connect_bank")}</button>
+                         <button onClick={() => { setShowAdd(false); onInsightAction('review_spending'); }} style={{ background: "none", border: `1px solid ${C.cyan}44`, color: C.cyan, borderRadius: RADIUS.sm, padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{t("dashboard.connect_bank")}</button>
                        </div>
                      )
                    ) : (
@@ -796,8 +796,8 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
                 </div>
 
                 <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-                  <button onClick={handleAdd} style={{ flex: 1, padding: 14, background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>{t("savings.create_goal", { name: newName || "Goal" })}</button>
-                  <button onClick={() => setSelectedPreset(null)} style={{ padding: "0 14px", background: "none", border: `1px solid ${C.border}`, borderRadius: 12, color: C.muted, fontWeight: 600, cursor: "pointer" }}><Icon name="arrow-left" size={18} /></button>
+                  <button onClick={handleAdd} style={{ flex: 1, padding: 14, background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.sm, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>{t("savings.create_goal", { name: newName || "Goal" })}</button>
+                  <button onClick={() => setSelectedPreset(null)} style={{ padding: "0 14px", background: "none", border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.muted, fontWeight: 600, cursor: "pointer" }}><Icon name="arrow-left" size={18} /></button>
                 </div>
               </div>
             )}
@@ -810,15 +810,15 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
       {showRoundupModal && (
         <div onClick={() => setShowRoundupModal(false)} style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(7,12,24,0.88)", display: "flex", alignItems: "flex-end", justifyContent: "center", backdropFilter: "blur(6px)" }}>
           <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.bgSecondary, borderRadius: "24px 24px 0 0", border: `1px solid ${C.border}`, borderBottom: "none", padding: "28px 20px 36px", fontFamily: FONT, color: C.text, boxShadow: "0 -8px 48px rgba(0,0,0,0.6)", maxHeight: "80vh", overflowY: "auto" }}>
-            <div style={{ width: 36, height: 4, borderRadius: 99, background: C.border, margin: "0 auto 24px" }} />
+            <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: C.border, margin: "0 auto 24px" }} />
             <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 16 }}>{t("savings.roundup_explainer_intro")}</div>
             <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.7, margin: "0 0 14px" }}>{t("savings.roundup_explainer_how")}</p>
-            <div style={{ background: C.bg, border: `1px solid ${C.cyan}33`, borderRadius: 12, padding: "12px 16px", marginBottom: 14 }}>
+            <div style={{ background: C.bg, border: `1px solid ${C.cyan}33`, borderRadius: RADIUS.sm, padding: "12px 16px", marginBottom: 14 }}>
               <div style={{ fontSize: 13, color: C.cyan, fontWeight: 600 }}>{t("savings.roundup_explainer_example")}</div>
             </div>
             <p style={{ fontSize: 14, color: C.muted, lineHeight: 1.7, margin: "0 0 14px" }}>{t("savings.roundup_explainer_invest")}</p>
             <p style={{ fontSize: 13, color: C.faint, lineHeight: 1.7, margin: "0 0 24px" }}>{t("savings.roundup_explainer_toggle")}</p>
-            <button onClick={() => setShowRoundupModal(false)} style={{ width: "100%", padding: 14, background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+            <button onClick={() => setShowRoundupModal(false)} style={{ width: "100%", padding: 14, background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
               {t("savings.got_it")}
             </button>
           </div>
@@ -828,23 +828,23 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
       {showAlpacaSheet && (
         <div onClick={() => setShowAlpacaSheet(false)} style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(7,12,24,0.88)", display: "flex", alignItems: "flex-end", justifyContent: "center", backdropFilter: "blur(6px)" }}>
           <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.bgSecondary, borderRadius: "24px 24px 0 0", border: `1px solid ${C.border}`, borderBottom: "none", padding: "28px 20px 36px", fontFamily: FONT, color: C.text, boxShadow: "0 -8px 48px rgba(0,0,0,0.6)" }}>
-             <div style={{ width: 36, height: 4, borderRadius: 99, background: C.border, margin: "0 auto 24px" }} />
+             <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: C.border, margin: "0 auto 24px" }} />
              <div style={{ textAlign: "center", marginBottom: 28 }}>
-                <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 56, height: 56, borderRadius: 18, background: C.green + "18", border: `1px solid ${C.green}44`, marginBottom: 14 }}>
+                <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 56, height: 56, borderRadius: RADIUS.lg, background: C.green + "18", border: `1px solid ${C.green}44`, marginBottom: 14 }}>
                   <Icon name="trending-up" size={24} color={C.green} strokeWidth={2.5} />
                 </div>
                 <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{t("savings.confirm_investment")}</div>
                 <div style={{ fontSize: 14, color: C.muted }}>{t("savings.to_invest")}</div>
              </div>
-             <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20, marginBottom: 24, textAlign: "center" }}>
+             <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.md, padding: 20, marginBottom: 24, textAlign: "center" }}>
                 <div className="ph-mask" style={{ fontSize: 42, fontWeight: 800, color: C.text, marginBottom: 4 }}>{fmtMoney(roundupMonth)}</div>
                 <div style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>SPDR S&P 500 ETF (SPY)</div>
              </div>
              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <button onClick={() => { onInvestAlpaca({ roundUpMonthly: roundupMonth }); setShowAlpacaSheet(false); }} style={{ width: "100%", padding: 18, background: `linear-gradient(90deg, ${C.green}, ${C.cyan})`, border: "none", borderRadius: 16, color: "#000", fontSize: 16, fontWeight: 800, cursor: "pointer" }}>
+                <button onClick={() => { onInvestAlpaca({ roundUpMonthly: roundupMonth }); setShowAlpacaSheet(false); }} style={{ width: "100%", padding: 18, background: `linear-gradient(90deg, ${C.green}, ${C.cyan})`, border: "none", borderRadius: RADIUS.md, color: "#000", fontSize: 16, fontWeight: 800, cursor: "pointer" }}>
                    {t("savings.confirm_place_order")}
                 </button>
-                <button onClick={() => setShowAlpacaSheet(false)} style={{ width: "100%", padding: 14, background: "none", border: `1px solid ${C.border}`, borderRadius: 16, color: C.muted, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                <button onClick={() => setShowAlpacaSheet(false)} style={{ width: "100%", padding: 14, background: "none", border: `1px solid ${C.border}`, borderRadius: RADIUS.md, color: C.muted, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
                    {t("common.cancel")}
                 </button>
              </div>
