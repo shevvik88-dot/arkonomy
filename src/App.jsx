@@ -1660,7 +1660,7 @@ export default function App() {
           background: `linear-gradient(135deg, ${sharedC.proAccent}22, #38B6FF11)`,
           border: `1px solid ${sharedC.proAccent}66`,
           borderRadius: 16, padding: "16px 24px", zIndex: 10000,
-          color: "#E8EDF5", fontFamily: "'DM Sans', sans-serif",
+          color: "#E8EDF5", fontFamily: FONT,
           textAlign: "center", boxShadow: `0 8px 32px ${sharedC.proAccent}4D`,
           minWidth: 260,
         }}>
