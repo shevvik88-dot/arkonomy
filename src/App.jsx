@@ -1,9 +1,10 @@
 ﻿// arkonomy v1
 import { logger } from "./utils/logger";
-// Scoped import of one shared constant, not a merge of App.jsx's own local C
-// (below) with utils/colors.js's C — that consolidation is separate, riskier
-// tech debt (hundreds of usages, already documented, deliberately untouched).
-// Aliased to avoid colliding with the local C object's own name.
+// Single source of truth for colors — src/utils/colors.js, same as the
+// other 6 screens. Local C (below) is now built by spreading this, plus
+// one deliberately App.jsx-local field (trialEndedAccent) — no hardcoded
+// duplicate values left here. Aliased since the file also has its own
+// local `const C` derived from it (name collision otherwise).
 import { C as sharedC } from "./utils/colors";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { usePostHog } from "@posthog/react";
@@ -113,17 +114,16 @@ function alpacaOAuthUrl(nonce) {
 }
 
 
+// bg/card/border/text/etc. now come from the shared palette (colors.js) —
+// faint changes value here as a result: was #4A5E7A locally, shared value
+// is #8BA1B7 (the only field that actually drifted; everything else was
+// already byte-identical to the shared object).
 const C = {
-  bg: "#0B1426", bgSecondary: "#0F1A2E", bgTertiary: "#162035",
-  card: "#111E33", border: "#1E2D4A", sep: "#192840",
-  blue: "#2F80FF", cyan: "#00C2FF", green: "#12D18E",
-  red: "#FF5C7A", yellow: "#FFB800", purple: "#A78BFA",
-  text: "#FFFFFF", muted: "#9AA4B2", faint: "#4A5E7A",
+  ...sharedC,
   // Trial-ended icon accent — local, one-off value, nothing else in this
   // file (or elsewhere) needs to stay in sync with it, unlike proAccent/
-  // alpacaAccent above (imported via sharedC). Same hex coincidentally
-  // appears in Markets.jsx as C.nonUsTickerWarning — unrelated feature,
-  // not merged.
+  // alpacaAccent (also from sharedC). Same hex coincidentally appears in
+  // Markets.jsx as C.nonUsTickerWarning — unrelated feature, not merged.
   trialEndedAccent: "#F5A623",
 };
 
@@ -838,7 +838,7 @@ export default function App() {
     const defaults = [
       { name: "Food & Dining", icon: "food", color: "#FF6B6B", budget: 600 },
       { name: "Transport", icon: "car", color: "#4ECDC4", budget: 300 },
-      { name: "Shopping", icon: "shopping", color: "#F59E0B", budget: 400 },
+      { name: "Shopping", icon: "shopping", color: C.amber, budget: 400 },
       { name: "Entertainment", icon: "film", color: "#A78BFA", budget: 200 },
       { name: "Health", icon: "heart", color: "#F472B6", budget: 150 },
       { name: "Bills", icon: "file", color: "#60A5FA", budget: 800 },
@@ -1508,7 +1508,7 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ color: C.muted, fontSize: 16, fontWeight: 600 }}>{profile?.full_name || user.email?.split("@")[0]}</span>
               {isTrial
-                ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: "#F59E0B", background: "#F59E0B20", borderRadius: 20, padding: "3px 9px", cursor: "pointer" }}>Trial: {trialDaysLeft}d left</span>
+                ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: C.amber, background: C.amber + "20", borderRadius: 20, padding: "3px 9px", cursor: "pointer" }}>Trial: {trialDaysLeft}d left</span>
                 : trialExpired
                 ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: "#EF4444", background: "#EF444420", borderRadius: 20, padding: "3px 9px", cursor: "pointer" }}>Trial ended</span>
                 : isPro && <span style={{ fontSize: 10, fontWeight: 700, color: sharedC.proAccent, background: sharedC.proAccent + "18", border: `1px solid ${sharedC.proAccent}44`, borderRadius: 99, padding: "2px 8px", letterSpacing: 0.5 }}>PRO</span>
@@ -1568,16 +1568,16 @@ export default function App() {
         {isTrial && trialDaysLeft <= 2 && (
           <div
             onClick={IS_IOS_NATIVE ? undefined : onUpgrade}
-            style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", background: "#F59E0B18", border: "1px solid #F59E0B44", borderRadius: 14, marginBottom: 14, cursor: IS_IOS_NATIVE ? "default" : "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", background: C.amber + "18", border: `1px solid ${C.amber}44`, borderRadius: 14, marginBottom: 14, cursor: IS_IOS_NATIVE ? "default" : "pointer" }}
           >
             <span style={{ fontSize: 16 }}>⚡</span>
             <div style={{ flex: 1 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#F59E0B" }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: C.amber }}>
                 Your trial ends in {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""}
                 {!IS_IOS_NATIVE && " —"}
               </span>
               {!IS_IOS_NATIVE && (
-                <span style={{ fontSize: 13, color: "#F59E0B", textDecoration: "underline", textUnderlineOffset: 2 }}>
+                <span style={{ fontSize: 13, color: C.amber, textDecoration: "underline", textUnderlineOffset: 2 }}>
                   {" "}Upgrade to keep Pro
                 </span>
               )}
