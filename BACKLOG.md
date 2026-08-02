@@ -484,6 +484,49 @@ Test coverage gap (найдено, не закрыто):
 
 ---
 
+## Второй раунд pre-release аудита — закрыто
+
+- Двойная подписка через Stripe: email-based lookup + reuse existing
+  customer_id + UNIQUE constraint на stripe_customer_id. Подтверждено
+  0 затронутых реальных юзеров на момент фикса.
+- rate_limits orphan row при удалении аккаунта: ON DELETE CASCADE FK,
+  живая сиротская строка от прошлого удаления очищена.
+- Alpaca-invest idempotency: первая версия (time-bucket floor(now/60s))
+  провалила реальный тест на живых деньгах ($2 потрачено на 2 реальных
+  ордера SPY из-за границы бакета). Вторая версия (real elapsed-time
+  query против investments table) подтверждена автоматизированным
+  скриптом с точным 5-сек таймингом — 200 → 409 как задумано.
+- alpaca-invest NaN-валидация суммы — подтверждено live regression-тестом.
+- stock-ai-analysis prompt injection: symbol/name allowlist +
+  numeric-field guards (включая тонкую toLocaleString-инъекцию, где
+  нечисловая строка проходила форматирование без ошибки). Подтверждено
+  live, включая edge case BRK.B (тикер с точкой).
+- market-data rate limiting (300/hr per user) добавлен — единственный
+  AI/API-эндпоинт без него. Подтверждено live.
+- failClosed opt-in параметр добавлен в enforceRateLimit — инфраструктура
+  на будущее для денежных эндпоинтов, ничего не переключено (текущие
+  ai-chat/get-insights/stock-ai-analysis остаются fail-open, это
+  осознанное решение — cost-guard, не access-control).
+- plaid-webhook iat-freshness check (5 мин) — задеплоено, отклоняет
+  webhook старше 5 минут. Replay-защита будет подтверждена живым
+  webhook (лог-буфер забивается market-data трафиком, мешая
+  верификации через логи).
+
+## Известное, не блокирующее (техдолг)
+
+- Android/Google Play IAP-гейт — не актуально сейчас (Android нигде
+  не публикуется), решить если/когда появится план публикации.
+- get_logs MCP tool не поддерживает фильтр по имени функции —
+  высокочастотные функции (market-data) топят буфер, мешая проверке
+  редких (plaid-webhook, alpaca-invest). Стоит найти способ смотреть
+  логи по функции напрямую через Supabase dashboard.
+- Error Boundary — один глобальный (main.jsx), не per-section.
+  Падение любого компонента требует полного Refresh. Не критично,
+  но стоит рассмотреть гранулярные boundary вокруг крупных
+  секций/роутов при следующей возможности.
+
+---
+
 ## ✅ СДЕЛАНО 13 июля (для истории)
 
 ### Sentry-мониторинг ошибок (BACKLOG #12) — backend ЗАКРЫТ, frontend ЧАСТИЧНО
