@@ -38,14 +38,20 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
     if (authErr || !user) return json({ error: 'Unauthorized' }, 401);
 
-    const plaidEnv  = Deno.env.get('PLAID_ENV') ?? 'production';
-    const plaidBase = `https://${plaidEnv}.plaid.com`;
-    const clientId  = Deno.env.get('PLAID_CLIENT_ID')!;
-    const secret    = Deno.env.get('PLAID_SECRET')!;
+    // Production and Sandbox are separate Plaid environments — different
+    // hosts AND different `secret` (client_id is shared). demo@arkonomy.com's
+    // item is deliberately Sandbox (plaid_environment column, see
+    // 20260731000000_plaid_items_environment_marker.sql) — resolved per-item
+    // below instead of one plaidBase for the whole request, so its real
+    // balances actually load instead of silently returning nothing.
+    const prodClientId    = Deno.env.get('PLAID_CLIENT_ID')!;
+    const prodSecret      = Deno.env.get('PLAID_SECRET')!;
+    const sandboxClientId = Deno.env.get('PLAID_SANDBOX_CLIENT_ID')!;
+    const sandboxSecret   = Deno.env.get('PLAID_SANDBOX_SECRET')!;
 
     const { data: items, error: itemsErr } = await supabase
       .from('plaid_items')
-      .select('id, access_token, institution_name')
+      .select('id, access_token, institution_name, plaid_environment')
       .eq('user_id', user.id);
 
     if (itemsErr) throw itemsErr;
@@ -54,12 +60,17 @@ Deno.serve(async (req) => {
     const allAccounts: object[] = [];
 
     for (const item of items) {
+      const isProduction = item.plaid_environment === 'production';
+      const itemPlaidBase = `https://${isProduction ? 'production' : 'sandbox'}.plaid.com`;
+      const clientId       = isProduction ? prodClientId : sandboxClientId;
+      const secret         = isProduction ? prodSecret   : sandboxSecret;
+
       let data: any;
 
       // /accounts/get returns balance_current + balance_available without
       // requiring the Balance product — avoids 400 INVALID_PRODUCT errors.
       try {
-        const res = await fetch(`${plaidBase}/accounts/get`, {
+        const res = await fetch(`${itemPlaidBase}/accounts/get`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({ client_id: clientId, secret, access_token: item.access_token }),
