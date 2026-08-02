@@ -690,7 +690,7 @@ function buildEmailHtml(name: string, reportLabel: string): string {
     </div>
 
     <div style="text-align:center;margin-bottom:28px;">
-      <a href="https://arkonomy.app"
+      <a href="https://app.arkonomy.com"
          style="display:inline-block;background:#2F80FF;color:#fff;text-decoration:none;font-size:14px;font-weight:700;padding:14px 32px;border-radius:12px;">
         Open Arkonomy →
       </a>
@@ -702,7 +702,7 @@ function buildEmailHtml(name: string, reportLabel: string): string {
   <div style="padding:20px 32px;border-top:1px solid #1E2D4A;text-align:center;">
     <div style="font-size:11px;color:#4A5E7A;line-height:1.6;">
       You're receiving this because you have an Arkonomy account.<br/>
-      <a href="https://arkonomy.app" style="color:#4A5E7A;">Manage preferences</a>
+      <a href="https://app.arkonomy.com" style="color:#4A5E7A;">Manage preferences</a>
     </div>
   </div>
 

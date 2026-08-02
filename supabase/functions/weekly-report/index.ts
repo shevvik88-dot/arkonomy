@@ -479,7 +479,7 @@ function buildEmailHtml(name: string, r: WeekReport, prefs = DEFAULT_PREFS, mark
 
       <!-- CTA -->
       <div style="text-align:center;margin-bottom:28px;">
-        <a href="https://arkonomy.app" style="display:inline-block;background:#2F80FF;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:700;padding:14px 32px;border-radius:12px;letter-spacing:-0.2px;">
+        <a href="https://app.arkonomy.com" style="display:inline-block;background:#2F80FF;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:700;padding:14px 32px;border-radius:12px;letter-spacing:-0.2px;">
           Open Arkonomy →
         </a>
       </div>
@@ -490,7 +490,7 @@ function buildEmailHtml(name: string, r: WeekReport, prefs = DEFAULT_PREFS, mark
     <div style="padding:20px 32px;border-top:1px solid #1E2D4A;text-align:center;">
       <div style="font-size:11px;color:#4A5E7A;line-height:1.6;">
         You're receiving this because you have an Arkonomy account.<br/>
-        <a href="https://arkonomy.app" style="color:#4A5E7A;">Manage preferences</a>
+        <a href="https://app.arkonomy.com" style="color:#4A5E7A;">Manage preferences</a>
       </div>
     </div>
 
