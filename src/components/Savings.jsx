@@ -692,6 +692,11 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
             {t("savings.connect_alpaca")}
           </button>
         ) : (!isPro || isTrial) ? (
+          // Deliberate: excludes isTrial, not just Free — same reasoning as
+          // App.jsx's investAlpaca() and Markets.jsx's Buy tab gate. Round-up
+          // investing moves real money via Alpaca; a trial user who doesn't
+          // convert would be left holding a position with no clean way to
+          // unwind it. Paid Pro only.
           <div style={{ background: C.proAccent + "12", border: `1px solid ${C.proAccent}33`, borderRadius: RADIUS.md, padding: 16, textAlign: "center" }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.purple, marginBottom: 12 }}>{t("savings.invest_alpaca_pro")}</div>
             <button onClick={onUpgrade} style={{ background: C.proAccent, border: "none", borderRadius: RADIUS.sm, padding: "10px 20px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{IS_IOS_NATIVE ? "Pro" : t("savings.upgrade_pro")}</button>

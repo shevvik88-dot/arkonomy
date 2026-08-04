@@ -693,6 +693,11 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
               </button>
             ))}
 
+            {/* Deliberate: excludes isTrial, not just Free — same reasoning
+                as App.jsx's investAlpaca() and Savings.jsx's invest gate.
+                Buying real shares via Alpaca during a trial that might not
+                convert would leave the user holding a position with no
+                clean way to unwind it. */}
             <button
               onClick={(!isPro || isTrial) ? onUpgrade : handleBuy}
               disabled={buying}

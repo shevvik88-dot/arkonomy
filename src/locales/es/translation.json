@@ -60,6 +60,8 @@
     "tap_to_filter": "Toca para filtrar",
     "no_spending_data": "Sin datos de gastos. Conecta tu banco para empezar.",
     "unlock_full_breakdown": "Desbloquear desglose completo →",
+    "unlock_more_categories_one": "+{{count}} más — Desbloquear desglose completo →",
+    "unlock_more_categories_other": "+{{count}} más — Desbloquear desglose completo →",
     "budget": "Presupuesto",
     "over_budget": "Excedido",
     "markets": "Mercados",

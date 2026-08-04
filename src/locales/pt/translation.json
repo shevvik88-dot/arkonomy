@@ -60,6 +60,8 @@
     "tap_to_filter": "Toque para filtrar",
     "no_spending_data": "Sem dados de gastos. Conecte seu banco para começar.",
     "unlock_full_breakdown": "Ver detalhamento completo →",
+    "unlock_more_categories_one": "+{{count}} mais — Ver detalhamento completo →",
+    "unlock_more_categories_other": "+{{count}} mais — Ver detalhamento completo →",
     "budget": "Orçamento",
     "over_budget": "Acima",
     "markets": "Mercados",

@@ -1342,6 +1342,11 @@ export default function App() {
   }
 
   async function investAlpaca(data) {
+    // Deliberate: excludes isTrial, not just Free — investing moves real
+    // money via Alpaca, and a trial user who doesn't convert would be left
+    // holding a position with no clean way to unwind it. Paid Pro only,
+    // same reasoning as the Buy tab gate in Markets.jsx and the invest
+    // button gate in Savings.jsx. Not a forgotten edge case.
     if (!isPro || isTrial) { posthog?.capture('upgrade_modal_viewed', { trigger: 'invest' }); setShowUpgradeModal(true); return; }
     if (!alpacaConnected) { connectAlpaca(); return; }
     const amount = data?.roundUpMonthly;

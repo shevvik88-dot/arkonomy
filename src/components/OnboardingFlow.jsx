@@ -468,11 +468,16 @@ export default function OnboardingFlow({ user, profile, linkToken, getLinkToken,
     window.location.reload();
   }
 
+  // Only list perks that are actually gated by isPro (see usePlan.js
+  // consumers) — Health Score has no isPro check anywhere and is free
+  // from day one, so it doesn't belong here. AI Chat and AI Stock
+  // Analysis are also ungated (rate-limited only, same limit for every
+  // plan) — "AI spending insights" is specifically the Insights-tab
+  // cards, where only the first 2 are free and the rest lock (Insights.jsx).
   const TRIAL_PERKS = [
-    "AI spending insights",
+    "Unlimited AI insights (Insights tab)",
     "Unlimited bank accounts",
     "Monthly Excel reports",
-    "Health Score tracking",
     "Investment tracking",
   ];
 

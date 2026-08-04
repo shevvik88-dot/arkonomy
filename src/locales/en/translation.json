@@ -60,6 +60,8 @@
     "tap_to_filter": "Tap to filter",
     "no_spending_data": "No spending data yet. Connect your bank to get started.",
     "unlock_full_breakdown": "Unlock full breakdown →",
+    "unlock_more_categories_one": "+{{count}} more — Unlock full breakdown →",
+    "unlock_more_categories_other": "+{{count}} more — Unlock full breakdown →",
     "budget": "Budget",
     "over_budget": "Over",
     "markets": "Markets",

@@ -289,29 +289,47 @@ const sw = 22;
         </div>
       </div>
 
-      <div style={{ position: "relative", width: "100%" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, filter: lockList ? "blur(3px)" : "none", userSelect: lockList ? "none" : "auto", pointerEvents: lockList ? "none" : "auto" }}>
-          {slices.map((s, i) => (
-            <div key={s.cat}
-              onClick={() => onCatClick && onCatClick(s.cat)}
-              style={{ display: "flex", alignItems: "center", gap: 10, cursor: onCatClick ? "pointer" : "default", padding: "6px 10px", borderRadius: RADIUS.sm, background: hovered === s.cat ? s.color + "18" : C.bgTertiary, border: `1px solid ${hovered === s.cat ? s.color + "44" : "transparent"}`, transition: "all 0.15s" }}
-              onMouseEnter={() => setHovered(s.cat)} onMouseLeave={() => setHovered(null)}>
-              <div style={{ width: 10, height: 10, borderRadius: RADIUS.full, background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}88` }} />
-              <span style={{ fontSize: 13, color: i === 0 ? C.text : C.muted, fontWeight: i === 0 ? 600 : 400, flex: 1 }}>{tCat(s.cat, t)}</span>
-              <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{hideAmounts ? "••••" : `$${fmt(s.val, 0)}`}</span>
-              <span style={{ fontSize: 11, color: s.color, fontWeight: i === 0 ? 700 : 500, minWidth: 36, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>
-              {onCatClick && <Icon name="chevron" size={12} color={C.faint} />}
-            </div>
-          ))}
-        </div>
-        {lockList && (
-          <div onClick={onUpgrade} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, background: C.card, padding: "5px 14px", borderRadius: RADIUS.lg, border: `1px solid ${C.border}` }}>
-              {t("dashboard.unlock_full_breakdown")}
-            </span>
+      {(() => {
+        // Free users see the top 3 categories in full (real value, no
+        // teaser blur on the whole list) — only categories beyond that are
+        // locked. Pro sees everything; lockList=false skips this split
+        // entirely. If there are 3 or fewer categories total, there's
+        // nothing to lock — show them all plainly, same as Pro.
+        const lockedCount = lockList ? Math.max(0, slices.length - 3) : 0;
+        const visibleSlices = lockedCount > 0 ? slices.slice(0, 3) : slices;
+        const hiddenSlices  = lockedCount > 0 ? slices.slice(3) : [];
+
+        const row = (s, i) => (
+          <div key={s.cat}
+            onClick={() => onCatClick && onCatClick(s.cat)}
+            style={{ display: "flex", alignItems: "center", gap: 10, cursor: onCatClick ? "pointer" : "default", padding: "6px 10px", borderRadius: RADIUS.sm, background: hovered === s.cat ? s.color + "18" : C.bgTertiary, border: `1px solid ${hovered === s.cat ? s.color + "44" : "transparent"}`, transition: "all 0.15s" }}
+            onMouseEnter={() => setHovered(s.cat)} onMouseLeave={() => setHovered(null)}>
+            <div style={{ width: 10, height: 10, borderRadius: RADIUS.full, background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}88` }} />
+            <span style={{ fontSize: 13, color: i === 0 ? C.text : C.muted, fontWeight: i === 0 ? 600 : 400, flex: 1 }}>{tCat(s.cat, t)}</span>
+            <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{hideAmounts ? "••••" : `$${fmt(s.val, 0)}`}</span>
+            <span style={{ fontSize: 11, color: s.color, fontWeight: i === 0 ? 700 : 500, minWidth: 36, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>
+            {onCatClick && <Icon name="chevron" size={12} color={C.faint} />}
           </div>
-        )}
-      </div>
+        );
+
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {visibleSlices.map(row)}
+            {hiddenSlices.length > 0 && (
+              <div style={{ position: "relative" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, filter: "blur(3px)", userSelect: "none", pointerEvents: "none" }}>
+                  {hiddenSlices.map(row)}
+                </div>
+                <div onClick={onUpgrade} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, background: C.card, padding: "5px 14px", borderRadius: RADIUS.lg, border: `1px solid ${C.border}` }}>
+                    {t("dashboard.unlock_more_categories", { count: lockedCount })}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
