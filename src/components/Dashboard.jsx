@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
-import { getCachedAccounts, setCachedAccounts, sumDepositoryBalance } from "../utils/accountsCache";
+import { getCachedAccounts, setCachedAccounts, sumDepositoryBalance, getCreditAccounts, sumCreditDebt, creditUtilization } from "../utils/accountsCache";
 import { C, FONT, CAT_COLORS, RADIUS } from "../utils/colors";
 import { fmt, fmtDate, parseDate, fmtPct, resolveCategory, tCat, sumAmounts } from "../utils/helpers";
 import Icon from "./shared/Icon";
@@ -1215,6 +1215,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   const { t } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
+  const [creditAccounts, setCreditAccounts] = useState([]); // credit-card accounts from the same fetch
   const [otherBreakdown, setOtherBreakdown] = useState(false);
   const balanceFetchIdRef = useRef(0);
   const m = (n, dec = 0) => balanceVisible ? `$${fmt(n, dec)}` : "••••";
@@ -1247,6 +1248,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         if (!accounts.length) return;
         const bal = sumDepositoryBalance(accounts);
         if (bal != null && fetchId === balanceFetchIdRef.current) setAccountBalance(bal);
+        if (fetchId === balanceFetchIdRef.current) setCreditAccounts(getCreditAccounts(accounts));
       } catch {}
     })();
   }, [bankConnected, userId, lastSyncedAt]);
@@ -1400,6 +1402,41 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         onNavigate={onNavigate}
         scheduledPayments={scheduledPayments}
       />
+
+      {/* 2b ── Credit Cards */}
+      {creditAccounts.length > 0 && (() => {
+        const totalDebt = sumCreditDebt(creditAccounts);
+        const netWorth = accountBalance != null ? accountBalance - totalDebt : null;
+        const utilColor = (pct) => pct == null ? C.faint : pct >= 0.70 ? C.red : pct >= 0.30 ? C.yellow : C.green;
+        return (
+          <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: RADIUS.md, padding: "14px 18px", border: `1px solid ${C.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+              <span style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
+                {t("dashboard.credit_cards_title")}
+              </span>
+              <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: C.red }}>{m(totalDebt)}</span>
+            </div>
+            {netWorth != null && (
+              <div className="ph-mask" style={{ fontSize: 11, color: C.faint, marginBottom: 12 }}>
+                {t("dashboard.credit_cards_net_worth")}: {balanceVisible ? (netWorth < 0 ? `-$${fmt(Math.abs(netWorth))}` : `$${fmt(netWorth)}`) : "••••"}
+              </div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: netWorth != null ? 0 : 8 }}>
+              {creditAccounts.map((a, i) => {
+                const pct = creditUtilization(a);
+                const color = utilColor(pct);
+                return (
+                  <div key={a.account_id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 13, color: C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name || a.official_name || t("dashboard.credit_cards_title")}</span>
+                    <span className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{m(Number(a.balance_current ?? 0))}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 34, textAlign: "right" }}>{pct != null ? `${Math.round(pct * 100)}%` : "—"}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
 
       {/* 3 ── Monthly Cash Flow */}

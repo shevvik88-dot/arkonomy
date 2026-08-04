@@ -32,3 +32,25 @@ export function sumDepositoryBalance(accounts) {
   if (depository.length === 0) return null;
   return depository.reduce((sum, a) => sum + Number(a.balance_available ?? a.balance_current ?? 0), 0);
 }
+
+export function getCreditAccounts(accounts) {
+  if (!accounts) return [];
+  return accounts.filter(a => a.type === "credit");
+}
+
+// balance_current = debt, balance_available = remaining credit (Plaid's
+// convention for credit accounts) — current+available approximates the
+// limit without needing the Liabilities product. Returns null when there's
+// nothing to divide by (no available field from this institution).
+export function creditUtilization(account) {
+  const current = Number(account.balance_current ?? 0);
+  const available = Number(account.balance_available ?? 0);
+  const total = current + available;
+  return total > 0 ? current / total : null;
+}
+
+export function sumCreditDebt(accounts) {
+  const credit = getCreditAccounts(accounts);
+  if (credit.length === 0) return null;
+  return credit.reduce((sum, a) => sum + Number(a.balance_current ?? 0), 0);
+}

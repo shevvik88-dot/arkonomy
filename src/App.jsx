@@ -11,7 +11,7 @@ import { usePostHog } from "@posthog/react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "./utils/supabase";
 import { callEdgeFunction } from "./lib/callEdgeFunction";
-import { getCachedAccounts, setCachedAccounts, clearAccountsCache, sumDepositoryBalance } from "./utils/accountsCache";
+import { getCachedAccounts, setCachedAccounts, clearAccountsCache, sumDepositoryBalance, getCreditAccounts } from "./utils/accountsCache";
 import { App as CapApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
 import { usePlaidOAuth, PLAID_REDIRECT_URI } from "./hooks/usePlaidOAuth";
@@ -1337,6 +1337,8 @@ export default function App() {
       setScreen("savings");
     } else if (action === "view_progress") {
       setScreen("insights");
+    } else if (action === "view_debt") {
+      setScreen("dashboard");
     } else if (action === "invest_alpaca") {
       investAlpaca(data); setScreen("savings");
     } else {
@@ -1471,8 +1473,7 @@ export default function App() {
     }
 
     const allAccounts = freshAccounts || [];
-    const creditCards = allAccounts
-      .filter(a => a.type === "credit")
+    const creditCards = getCreditAccounts(allAccounts)
       .map(a => ({ name: a.name, balance: a.balance_current ?? a.balance_available ?? null }));
 
     const interestThisMonth = sumAmounts(

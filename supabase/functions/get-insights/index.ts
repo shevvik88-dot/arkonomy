@@ -268,6 +268,36 @@ async function buildFinancialInput(supabase: any, userId: string) {
   // plaid_accounts migration — table empty for them).
   const currentBalance = realBalance ?? (allIncome - allExpenses);
 
+  // ── Credit card debt / utilization ──────────────────────────────────────
+  // Worst single-card utilization, not a blended average across cards — a
+  // maxed-out card hurts credit health even if another card is empty, and
+  // averaging would hide that. balance_current/balance_available approximate
+  // the limit (Plaid's Liabilities product would give the exact limit, but
+  // isn't connected — see BACKLOG.md).
+  const { data: creditAccounts } = await supabase
+    .from('plaid_accounts')
+    .select('name, official_name, balance_current, balance_available')
+    .eq('user_id', userId)
+    .eq('type', 'credit');
+
+  let creditUtilizationPct: number | null = null;
+  let totalCreditDebt: number | null = null;
+  let worstCreditCardName: string | null = null;
+  if (creditAccounts && creditAccounts.length > 0) {
+    totalCreditDebt = creditAccounts.reduce((sum: number, a: any) => sum + Number(a.balance_current ?? 0), 0);
+    for (const a of creditAccounts) {
+      const current = Number(a.balance_current ?? 0);
+      const available = Number(a.balance_available ?? 0);
+      const total = current + available;
+      if (total <= 0) continue;
+      const pct = current / total;
+      if (creditUtilizationPct === null || pct > creditUtilizationPct) {
+        creditUtilizationPct = pct;
+        worstCreditCardName = a.name || a.official_name || null;
+      }
+    }
+  }
+
   const incomeBasedSafe = effectiveMonthlyIncome - currentMonthSpend - BUFFER;
   const availableSafe   = Math.max(0, Math.min(incomeBasedSafe, currentBalance - BUFFER));
 
@@ -336,6 +366,9 @@ async function buildFinancialInput(supabase: any, userId: string) {
     historicalTransactions: historical,
     dayOfMonth,
     daysLeft,
+    creditUtilizationPct,
+    totalCreditDebt,
+    worstCreditCardName,
   };
 }
 
@@ -402,6 +435,9 @@ function computeMetrics(input: any, ctx: RenderContext) {
     hasEnoughHistory:       input.monthsOfHistory >= 2,
     dataIsStale:            input.dataFreshnessHours > 72,
     lastMonthTotalSpend:    input.lastMonthTotalSpend || 0,
+    creditUtilizationPct:   input.creditUtilizationPct,
+    totalCreditDebt:        input.totalCreditDebt,
+    worstCreditCardName:    input.worstCreditCardName,
   };
 }
 
@@ -482,22 +518,24 @@ const PRIORITY: Record<string, number> = {
   cash_risk:           100,
   category_spike:       75,
   overspending:         70,
+  debt_utilization:     68,
   goal_off_track:       65,
   savings_opportunity:  60,
   positive_progress:    40,
 };
 
-const WARNING_TYPES = ['cash_risk', 'category_spike', 'overspending', 'goal_off_track'];
+const WARNING_TYPES = ['cash_risk', 'category_spike', 'overspending', 'debt_utilization', 'goal_off_track'];
 
 function detectSignals(metrics: any) {
   if (metrics.dataIsStale) return [];
   if (!metrics.hasEnoughHistory) {
-    return [...detectCashRisk(metrics), ...detectSavingsOpportunity(metrics)];
+    return [...detectCashRisk(metrics), ...detectDebtUtilization(metrics), ...detectSavingsOpportunity(metrics)];
   }
   return [
     ...detectCashRisk(metrics),
     ...detectCategorySpike(metrics),
     ...detectOverspending(metrics),
+    ...detectDebtUtilization(metrics),
     ...detectSavingsOpportunity(metrics),
     ...detectGoalOffTrack(metrics),
     ...detectPositiveProgress(metrics),
@@ -614,6 +652,15 @@ function detectOverspending(m: any) {
   return [];
 }
 
+function detectDebtUtilization(m: any) {
+  if (m.creditUtilizationPct == null || m.creditUtilizationPct < 0.30) return [];
+  return [{ type: 'debt_utilization', priority: PRIORITY.debt_utilization, data: {
+    utilizationPct: m.creditUtilizationPct,
+    totalDebt:      m.totalCreditDebt,
+    cardName:       m.worstCreditCardName,
+  }}];
+}
+
 function detectSavingsOpportunity(m: any) {
   const recommended = computeRecommendedAmount(m.availableSafe);
   if (recommended < 50) return [];
@@ -672,6 +719,7 @@ function shouldAutoExpand(signal: any, topSignal: any): boolean {
   if (signal.type === 'cash_risk') return true;
   if (signal.type === 'category_spike' && signal.priority >= 75) return true;
   if (signal.type === 'overspending'   && signal.priority >= 70) return true;
+  if (signal.type === 'debt_utilization') return true;
   if (signal.type === 'goal_off_track' && signal.priority >= 65) return true;
   if (signal.type === 'savings_opportunity') {
     return (signal.data?.recommendedAmount ?? 0) >= 200;
@@ -688,7 +736,7 @@ function prioritize(signals: any[], ctx: RenderContext, lang: 'en' | 'ru' | 'es'
   const suppressed = new Set<string>();
   const types      = new Set(signals.map((s: any) => s.type));
 
-  if (types.has('cash_risk'))     { suppressed.add('savings_opportunity'); suppressed.add('positive_progress'); }
+  if (types.has('cash_risk') || types.has('debt_utilization')) { suppressed.add('savings_opportunity'); suppressed.add('positive_progress'); }
   if (types.has('category_spike') && types.has('overspending')) { suppressed.add('overspending'); }
   if (signals.some((s: any) => WARNING_TYPES.includes(s.type))) { suppressed.add('positive_progress'); }
 
@@ -716,7 +764,7 @@ function prioritizeTop(signals: any[], n: number, ctx: RenderContext, lang: 'en'
   const suppressed = new Set<string>();
   const types      = new Set(signals.map((s: any) => s.type));
 
-  if (types.has('cash_risk'))     { suppressed.add('savings_opportunity'); suppressed.add('positive_progress'); }
+  if (types.has('cash_risk') || types.has('debt_utilization')) { suppressed.add('savings_opportunity'); suppressed.add('positive_progress'); }
   if (types.has('category_spike') && types.has('overspending')) { suppressed.add('overspending'); }
   if (signals.some((s: any) => WARNING_TYPES.includes(s.type))) { suppressed.add('positive_progress'); }
 
@@ -848,6 +896,33 @@ function renderInsight(signal: any, ctx: RenderContext, lang: 'en' | 'ru' | 'es'
       };
     }
 
+    case 'debt_utilization': {
+      const pct = Math.round(d.utilizationPct * 100);
+      const card = d.cardName || (ru ? 'Ваша карта' : es ? 'Tu tarjeta' : 'Your card');
+      const severe = d.utilizationPct >= 0.70;
+      const severityNote = ru
+        ? (severe ? ' Такой уровень использования лимита особенно сильно влияет на кредитный рейтинг.' : '')
+        : es
+        ? (severe ? ' Este nivel de uso afecta especialmente tu puntaje crediticio.' : '')
+        : (severe ? ' That level of utilization hits your credit score especially hard.' : '');
+      return ru ? {
+        headline: `${card} использована на ${pct}% лимита`,
+        body:     `У вас $${fmt(d.totalDebt)} долга по кредитным картам.${severityNote} Высокая загрузка лимита обычно обходится дороже в процентах, чем приносят любые накопления.\n\n→ Сейчас погашение долга — более выгодное решение, чем откладывать в сбережения.`,
+        cta:      'Посмотреть кредитные карты',
+        range:    null, action: 'view_debt',
+      } : es ? {
+        headline: `${card} está al ${pct}% de su límite`,
+        body:     `Tienes $${fmt(d.totalDebt)} en deuda de tarjetas de crédito.${severityNote} Un uso alto del límite suele costar más en intereses de lo que rendiría cualquier ahorro.\n\n→ Pagar esta deuda ahora es mejor uso del dinero extra que ahorrarlo.`,
+        cta:      'Ver tarjetas de crédito',
+        range:    null, action: 'view_debt',
+      } : {
+        headline: `${card} is at ${pct}% of its limit`,
+        body:     `You're carrying $${fmt(d.totalDebt)} in credit card debt.${severityNote} High utilization usually costs more in interest than any savings goal earns.\n\n→ Paying this down is a better use of extra cash than saving right now.`,
+        cta:      'Review Credit Cards',
+        range:    null, action: 'view_debt',
+      };
+    }
+
     case 'savings_opportunity': {
       const rec = d.recommendedAmount ?? computeRecommendedAmount(d.availableSafe);
       const recHigh = Math.min(rec + 100, Math.round(d.availableSafe));
@@ -963,7 +1038,7 @@ function renderInsight(signal: any, ctx: RenderContext, lang: 'en' | 'ru' | 'es'
 // ══════════════════════════════════════════════════════════════════════════════
 
 const SCREEN_PREFERENCES: Record<string, string[]> = {
-  home:         ['cash_risk', 'category_spike', 'overspending', 'goal_off_track', 'savings_opportunity', 'positive_progress'],
+  home:         ['cash_risk', 'debt_utilization', 'category_spike', 'overspending', 'goal_off_track', 'savings_opportunity', 'positive_progress'],
   transactions: ['category_spike', 'overspending', 'cash_risk'],
   savings:      ['goal_off_track', 'savings_opportunity', 'positive_progress'],
 };

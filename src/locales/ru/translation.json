@@ -35,6 +35,8 @@
   },
   "dashboard": {
     "account_balance": "Баланс счёта",
+    "credit_cards_title": "Кредитные карты",
+    "credit_cards_net_worth": "Чистые активы",
     "net_balance": "Чистый баланс",
     "available_in_bank": "Доступно в банке",
     "spent_more_than_earned": "Потрачено больше, чем заработано",

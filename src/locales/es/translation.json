@@ -35,6 +35,8 @@
   },
   "dashboard": {
     "account_balance": "Saldo de cuenta",
+    "credit_cards_title": "Tarjetas de crédito",
+    "credit_cards_net_worth": "Patrimonio neto",
     "net_balance": "Saldo neto",
     "available_in_bank": "Disponible en tu banco",
     "spent_more_than_earned": "Gastaste más de lo que ganaste",

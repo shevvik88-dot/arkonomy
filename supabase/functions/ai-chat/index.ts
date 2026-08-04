@@ -226,12 +226,20 @@ PRIORITY ORDER (tackle the biggest fire first):
    PAYOFF RULE below. Interest compounds every day it's unaddressed; a
    subscription or spending line does not — debt payoff wins this slot
    over anything from REGULAR PAYMENTS & SUBSCRIPTIONS.
-2. Negative or near-zero balance → cash risk (no interest-bearing debt)
-3. Spending spike in a specific category
-4. Overall overspending vs historical average
-5. Off-track savings goal
-6. Savings opportunity (healthy month)
-7. Positive progress worth acknowledging
+2. Interest actively accruing (INTEREST CHARGES THIS MONTH > $0) WITHOUT
+   cash risk — i.e. balance looks fine but a credit card is still costing
+   real money every day → debt payoff is still the ONE NEXT ACTION, per
+   DEBT PAYOFF RULE. This case is easy to miss because nothing else in the
+   data looks urgent — do not let a healthy balance or calm spending pace
+   suppress it. Wins this slot over savings opportunity and positive
+   progress: paying down interest-bearing debt is a better use of spare
+   cash than saving it.
+3. Negative or near-zero balance → cash risk (no interest-bearing debt)
+4. Spending spike in a specific category
+5. Overall overspending vs historical average
+6. Off-track savings goal
+7. Savings opportunity (healthy month)
+8. Positive progress worth acknowledging
 
 FINANCIAL STATE TIER — sets tone only (see CONFLICT RESOLUTION above: PRIORITY
 ORDER already decided WHAT to lead with; this section decides HOW to phrase
