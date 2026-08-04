@@ -155,7 +155,11 @@ push_subscription). Дайджест вида "на этой неделе пот
 
 **Кнопка скрыта до подтверждения доступа** — `REFRESH_BALANCE_ENABLED = false` в `Profile.jsx` (одна строка, комментарий с деталями), весь остальной код нетронут и готов — просто флип в `true`, когда Plaid подтвердит продукт. Коммит `f2229ba`. НЕ включать в проде до подтверждения.
 
-### 3. Кредитные карты — отображение и контроль (план)
+### 3. Кредитные карты — отображение и контроль — Уровни 1-3 ЗАКРЫТЫ 2026-08-03 (коммит `4698df8`), уровень 4 отдельная задача
+
+**Уровни 1-3 сделаны**: новая карточка "Credit Cards" на Dashboard (после Cash Flow Forecast) — суммарный долг, per-card utilization % (green/yellow/red на 30%/70%), Net Worth строка (только если есть credit-счёт, семантика Account Balance/availableSafe не тронута). `get-insights`: новый сигнал `debt_utilization` (>30% utilization по худшей отдельной карте, не усреднённо), PRIORITY 68, гасит `savings_opportunity`/`positive_progress` в обоих местах, где это уже делает `cash_risk` (`prioritize()` и `prioritizeTop()` — были две независимые копии этой логики). ai-chat PRIORITY ORDER получил отдельный тир (см. закрытие соответствующего пункта техдолга ниже).
+
+**Уровень 4 (Plaid Liabilities — реальный APR, due date, точный limit) сознательно НЕ сделан** — отдельная задача, ждёт закрытия Plaid Production approval review (добавление нового продукта в Link token во время активного ревью нужно координировать, не делать по ходу).
 
 ```
 Спланируй (только план, не код) фичу отображения и контроля кредитных карт.
@@ -220,7 +224,9 @@ detection, push pipeline (VAPID, pg_cron, Supabase triggers).
    Покажи результат проверки до UI-части.
 ```
 
-### 7. Аудит Free → Pro воронки
+### 7. Аудит Free → Pro воронки — ЗАКРЫТ 2026-08-03, все 5 рекомендаций применены (коммит `a9aab53`)
+
+Рекомендации: убран false-claim "Health Score tracking" из `TRIAL_PERKS`; category-donut paywall — partial blur (топ-3 открыты) вместо full blur; поправлен маркетинг-текст под реальное поведение AI Chat/Stock Analysis (безлимитны на Free по дизайну, не забытый gap); комментарии добавлены на все 3 Alpaca `!isPro || isTrial` гейта, документируя это как осознанное решение; задача #11 (email-кампания) поднята в приоритете с обоснованием.
 
 ```
 Аудит монетизационной воронки Free → Pro перед submission. Не менять код —
@@ -435,7 +441,8 @@ functions, или и прямые Supabase-запросы с фронта; ру�
 - [ ] WINS MATTER ("acknowledge streaks before pivoting") не имеет явного слота в RESPONSE FORMULA (3 шага, 2-4 предложения) — бюджетная теснота, не логическое противоречие. Уточнить: win = insight (шаг 1), или отдельный необязательный кейс.
 - [ ] FINANCIAL STATE TIER positive велит проактивно предлагать investing-идею, но PROJECTION ILLUSTRATION (compound growth formula) разрешена только "if user asks about growth over time" — неясно, можно ли иллюстрировать проактивное предложение цифрами.
 - [ ] TIME AWARENESS ("day 1-10 → conservative framing") vs FINANCIAL STATE TIER positive ("speak with confidence") — мягкое тональное напряжение в начале месяца при позитивном STATE, решается TONE-секцией ("confident but not absolute"), фикса не требует.
-- [ ] **Credit card debt отсутствует в PRIORITY ORDER** (найдено на том же аудите 11 июля, не исправлено). DEBT PAYOFF RULE существует отдельно как "NEVER VIOLATE", но сам PRIORITY ORDER (6 тиров) не содержит явного тира для credit card debt — только общий debt payoff при `INTEREST CHARGES THIS MONTH > $0` (добавлено 12 июля при хардненинге промпта). Реальный кейс на тесте: баланс ~$408 на Customized Cash Rewards Visa — неясно, закрывает ли текущая формулировка именно credit-card-специфичный случай (дефицит по счетам vs погашение долга под высокий APR) или только проценты этого месяца. Задача: добавить debt payoff как явный, отдельно поименованный тир в PRIORITY ORDER с явным правилом приоритизации credit card debt конкретно, не только "есть проценты в этом месяце".
+- [ ] **Отслеживание платных сервисов.** Создан внешний трекер (`arkonomy-billing-tracker.md`, не в репозитории) — таблица по всем сторонним сервисам (PostHog, Sentry, Vercel, Supabase, Resend, Plaid, Alpaca, Stripe, Finnhub) с бесплатными лимитами и ссылками на billing dashboard каждого. Проверять раз в месяц или после заметного роста пользователей (App Store фичеринг и т.п.). Открыто: не подтверждён точный текущий план (Free/Pro) для Sentry, Supabase, Resend — нужно проверить руками в dashboard каждого сервиса. `FINNHUB_API_KEY` — общий ключ 60 req/min на всё приложение, уже известный риск масштабирования (см. также Known issues в CLAUDE.md), нужен план перехода на platform-level ключ до роста аудитории.
+- [x] **Закрыто 2026-08-03 (коммит `4698df8`): Credit card debt теперь явный, отдельно поименованный тир в PRIORITY ORDER.** PRIORITY ORDER's старый tier 1 ("cash risk AND interest accruing") разделён на два явных тира — новый tier 2 покрывает именно кейс "проценты капают, но cash risk нет" (баланс выглядит нормально, но карта под высоким APR всё ещё стоит реальных денег каждый день) — ровно та ситуация, что раньше могла провалиться в общий "savings opportunity" совет. Плюс параллельный фикс на стороне `get-insights` (не только ai-chat) — см. закрытую задачу #3 ниже.
 
 ---
 
@@ -532,6 +539,30 @@ Test coverage gap (найдено, не закрыто):
   секций/роутов при следующей возможности.
 
 ---
+
+## ✅ СДЕЛАНО 3 августа (для истории)
+
+### Free→Pro воронка — аудит и фиксы
+- `TRIAL_PERKS`: убран "Health Score tracking" (реально бесплатно всем, вводило в заблуждение)
+- Dashboard блёр категорий: топ-3 открыты, остальное под "+N more" вместо полного blur
+- Маркетинг-текст поправлен под реальное поведение AI Chat/Stock Analysis (безлимитны на Free по дизайну, не забытый gap)
+- Alpaca `!isPro || isTrial` исключение — задокументировано как осознанное решение в коде (комментарий добавлен на всех 3 гейтах)
+- Коммит `a9aab53`. Закрывает задачу #7 выше.
+
+### iOS Upgrade-кнопка через StoreKit storefront
+- Возвращена реальная Upgrade-кнопка на iOS для US App Store storefront (Guideline 3.1.1(a)/3.1.3(a) — юзер подтвердил актуальный текст на developer.apple.com, июнь 2026: комиссия Apple 0%, entitlement не требуется после решения суда апрель 2025 по Epic v. Apple)
+- Новый нативный Swift-плагин `StorefrontPlugin.swift` — первый нативный плагин в проекте, детектит реальный App Store storefront через StoreKit 2 (не device locale — юридически значимое отличие, device region и Apple ID billing storefront могут не совпадать)
+- `@capacitor/browser` добавлен — открывает upgrade-ссылку в SFSafariViewController, не WebView
+- security-auditor подтвердил: `countryCode` нигде не логируется/не отправляется (только локальный React state для условного рендеринга), серверная авторизация Pro не зависит от client-side storefront-проверки (spoofing на джейлбрейкнутом устройстве не даёт реального доступа — `profiles.plan` service-role-only)
+- Коммиты `cd281c4`, `3c7b615`
+
+**Известное, не блокирует**:
+- Xcode-интеграция `StorefrontPlugin.swift` требует Mac (не сделано в этой сессии — инструкции добавления файла через Xcode UI подготовлены, `npx cap sync ios` и компиляция ещё не запускались)
+- Firebase App Check остаётся отключённым (см. CLAUDE.md Current status) — не тронуто в рамках этой задачи
+- Push для нативного iOS (FCM/APNs) — не реализовано, требует Mac, отдельная задача #10
+
+### Кредитные карты — отображение + debt-aware приоритизация (уровни 1-3)
+См. закрытие задачи #3 выше. Коммит `4698df8`.
 
 ## ✅ СДЕЛАНО 13 июля (для истории)
 
