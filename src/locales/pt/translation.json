@@ -37,6 +37,8 @@
     "account_balance": "Saldo da Conta",
     "credit_cards_title": "Cartões de crédito",
     "credit_cards_net_worth": "Patrimônio líquido",
+    "credit_cards_more_one": "+{{count}} mais →",
+    "credit_cards_more_other": "+{{count}} mais →",
     "net_balance": "Saldo Líquido",
     "available_in_bank": "Disponível no seu banco",
     "spent_more_than_earned": "Gastou mais do que ganhou",

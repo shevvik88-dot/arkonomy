@@ -37,6 +37,8 @@
     "account_balance": "Account Balance",
     "credit_cards_title": "Credit Cards",
     "credit_cards_net_worth": "Net Worth",
+    "credit_cards_more_one": "+{{count}} more →",
+    "credit_cards_more_other": "+{{count}} more →",
     "net_balance": "Net Balance",
     "available_in_bank": "Available in your bank",
     "spent_more_than_earned": "Spent more than earned",

@@ -37,6 +37,8 @@
     "account_balance": "Saldo de cuenta",
     "credit_cards_title": "Tarjetas de crédito",
     "credit_cards_net_worth": "Patrimonio neto",
+    "credit_cards_more_one": "+{{count}} más →",
+    "credit_cards_more_other": "+{{count}} más →",
     "net_balance": "Saldo neto",
     "available_in_bank": "Disponible en tu banco",
     "spent_more_than_earned": "Gastaste más de lo que ganaste",

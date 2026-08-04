@@ -1217,6 +1217,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
   const [creditAccounts, setCreditAccounts] = useState([]); // credit-card accounts from the same fetch
   const [otherBreakdown, setOtherBreakdown] = useState(false);
+  const [allCreditCards, setAllCreditCards] = useState(false);
   const balanceFetchIdRef = useRef(0);
   const m = (n, dec = 0) => balanceVisible ? `$${fmt(n, dec)}` : "••••";
 
@@ -1252,6 +1253,17 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       } catch {}
     })();
   }, [bankConnected, userId, lastSyncedAt]);
+  // Hottest cards first (highest utilization) — cards with no computable
+  // utilization (institution didn't return balance_available) sort last.
+  // Shared by the compact Dashboard card and the "+N more" sheet below.
+  const sortedCreditAccounts = [...creditAccounts].sort((a, b) => {
+    const pa = creditUtilization(a), pb = creditUtilization(b);
+    if (pa == null && pb == null) return 0;
+    if (pa == null) return 1;
+    if (pb == null) return -1;
+    return pb - pa;
+  });
+  const creditUtilColor = (pct) => pct == null ? C.faint : pct >= 0.70 ? C.red : pct >= 0.30 ? C.yellow : C.green;
   const budget = Number(profile?.monthly_budget) || 3000;
   const balance = totalIncome - totalSpent;
   const pct = budget > 0 ? (totalSpent / budget) * 100 : 0;
@@ -1407,7 +1419,8 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       {creditAccounts.length > 0 && (() => {
         const totalDebt = sumCreditDebt(creditAccounts);
         const netWorth = accountBalance != null ? accountBalance - totalDebt : null;
-        const utilColor = (pct) => pct == null ? C.faint : pct >= 0.70 ? C.red : pct >= 0.30 ? C.yellow : C.green;
+        const topCards = sortedCreditAccounts.slice(0, 3);
+        const remaining = sortedCreditAccounts.length - topCards.length;
         return (
           <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: RADIUS.md, padding: "14px 18px", border: `1px solid ${C.border}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
@@ -1422,9 +1435,9 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
               </div>
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: netWorth != null ? 0 : 8 }}>
-              {creditAccounts.map((a, i) => {
+              {topCards.map((a, i) => {
                 const pct = creditUtilization(a);
-                const color = utilColor(pct);
+                const color = creditUtilColor(pct);
                 return (
                   <div key={a.account_id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                     <span style={{ fontSize: 13, color: C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name || a.official_name || t("dashboard.credit_cards_title")}</span>
@@ -1434,6 +1447,11 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
                 );
               })}
             </div>
+            {remaining > 0 && (
+              <button onClick={() => setAllCreditCards(true)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: C.cyan }}>
+                {t("dashboard.credit_cards_more", { count: remaining })}
+              </button>
+            )}
           </div>
         );
       })()}
@@ -1608,6 +1626,38 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           </div>
         );
       })()}
+
+      {allCreditCards && (
+        <div onClick={() => setAllCreditCards(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 180, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: C.card, borderRadius: '20px 20px 0 0', border: `1px solid ${C.border}`, padding: '0 0 32px', maxHeight: '75vh', display: 'flex', flexDirection: 'column' }}>
+            {/* Handle */}
+            <div style={{ padding: '14px 0 0', display: 'flex', justifyContent: 'center' }}>
+              <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: 'rgba(255,255,255,0.12)' }} />
+            </div>
+            {/* Header */}
+            <div style={{ padding: '12px 20px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.sep}`, flexShrink: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{t("dashboard.credit_cards_title")}</div>
+              <button onClick={() => setAllCreditCards(false)} aria-label={t("dashboard.close")} style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.xs, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            {/* List */}
+            <div style={{ overflowY: 'auto', flex: 1, padding: '8px 0' }}>
+              {sortedCreditAccounts.map((a, i) => {
+                const pct = creditUtilization(a);
+                const color = creditUtilColor(pct);
+                return (
+                  <div key={a.account_id || i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', borderBottom: i < sortedCreditAccounts.length - 1 ? `1px solid ${C.sep}` : 'none' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: C.text, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name || a.official_name || t("dashboard.credit_cards_title")}</span>
+                    <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{m(Number(a.balance_current ?? 0))}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 34, textAlign: 'right' }}>{pct != null ? `${Math.round(pct * 100)}%` : '—'}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
