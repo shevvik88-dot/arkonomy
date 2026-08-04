@@ -9,6 +9,7 @@ import GlassCard from "./shared/GlassCard";
 import Icon from "./shared/Icon";
 import PlaidLinkButton from "./shared/PlaidLinkButton";
 import { IS_IOS_NATIVE } from "../lib/platform";
+import { useUSStorefront } from "../lib/storefront";
 
 function maskEmail(email) {
   if (!email) return '';
@@ -36,6 +37,8 @@ function pwError(pw, t) {
 
 export default function Profile({ profile, user, onSave, onSignOut, onDeleteAccount, onBack, autopilot, setAutopilot, bankConnected, bankName, bankCount, linkToken, getLinkToken, getReconnectToken, onPlaidSuccess, syncBankTransactions, syncingBank, lastSyncedAt, backgroundSyncing, onRefreshBalance, refreshingBalance, lastBalanceRefreshAt, isPro, onUpgrade, transactions = [] }) {
   const { t } = useTranslation();
+  const isUSStorefront = useUSStorefront();
+  const showRealUpgrade = !IS_IOS_NATIVE || isUSStorefront;
 
   // Client-side mirror of the server's 5-minute cooldown (see
   // check_and_set_balance_refresh RPC) — this is only for immediate button
@@ -278,8 +281,8 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             </svg>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 2 }}>{IS_IOS_NATIVE ? "Pro" : t("profile.upgrade_title")}</div>
-            <div style={{ fontSize: 12, color: C.muted }}>{IS_IOS_NATIVE ? t("profile.pro_features_ios") : t("profile.upgrade_subtitle")}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 2 }}>{showRealUpgrade ? t("profile.upgrade_title") : "Pro"}</div>
+            <div style={{ fontSize: 12, color: C.muted }}>{showRealUpgrade ? t("profile.upgrade_subtitle") : t("profile.pro_features_ios")}</div>
           </div>
           <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <polyline points="9 18 15 12 9 6" />

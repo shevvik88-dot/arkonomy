@@ -9,6 +9,7 @@ import { fmtPct } from "../utils/helpers";
 import GlassCard from "./shared/GlassCard";
 import Icon from "./shared/Icon";
 import { IS_IOS_NATIVE } from "../lib/platform";
+import { useUSStorefront } from "../lib/storefront";
 
 // ─── Constants ────────────────────────────────────────────────
 
@@ -704,7 +705,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
               style={{ width: "100%", padding: 15, border: "none", borderRadius: RADIUS.sm, fontWeight: 700, fontSize: 15, fontFamily: FONT, cursor: buying ? "not-allowed" : "pointer",
                 background: buying ? C.bgTertiary : (!isPro || isTrial) ? `linear-gradient(135deg,${C.proAccent},#38B6FF)` : `linear-gradient(90deg,${meta.color},${meta.color}BB)`,
                 color: buying ? C.faint : "#fff" }}>
-              {buying ? t("markets.placing_order") : (!isPro || isTrial) ? (IS_IOS_NATIVE ? t("markets.pro_feature") : t("markets.upgrade_pro")) : t("markets.buy_btn", { amount: buyAmt || "—", symbol })}
+              {buying ? t("markets.placing_order") : (!isPro || isTrial) ? (showRealUpgrade ? t("markets.upgrade_pro") : t("markets.pro_feature")) : t("markets.buy_btn", { amount: buyAmt || "—", symbol })}
             </button>
 
             {buyResult && (
@@ -755,6 +756,8 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
 
 export default function Markets({ profile, user, onSaveProfile, initialSymbol, onClearInit, alpacaConnected, onConnectAlpaca, isPro, isTrial, onUpgrade, onToast }) {
   const { t } = useTranslation();
+  const isUSStorefront = useUSStorefront();
+  const showRealUpgrade = !IS_IOS_NATIVE || isUSStorefront;
   const defaultWatchlist = profile?.watchlist ?? DEFAULT_WATCHLIST;
 
   const [watchlist, setWatchlist]       = useState(defaultWatchlist);

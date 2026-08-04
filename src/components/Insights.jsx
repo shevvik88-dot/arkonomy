@@ -8,6 +8,7 @@ import GlassCard from "./shared/GlassCard";
 import { ConnectBankPrompt } from "./shared/ConnectBankPrompt";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "../healthScore";
 import { IS_IOS_NATIVE } from "../lib/platform";
+import { useUSStorefront } from "../lib/storefront";
 import { computeRecurringSummary, findDuplicateSubscriptions, findMerchantAliasCandidates } from "../utils/recurringSummary";
 import { isFeatureEnabled } from "../lib/featureFlags";
 
@@ -936,6 +937,8 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
 
 export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, onOpenChat, transactions, savings, profile, allInsights, onInsightAction, isPro, onUpgrade, plaidBalance, merchantAliasMap, merchantAliases, onDecideMerchantAlias, bankConnected, onNavigate }) {
   const { t } = useTranslation();
+  const isUSStorefront = useUSStorefront();
+  const showRealUpgrade = !IS_IOS_NATIVE || isUSStorefront;
   const hasNoData = totalIncome === 0 && totalSpent === 0;
 
   if (hasNoData) {
@@ -1076,7 +1079,7 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
             >
               <span style={{ fontSize: 20 }}>🔒</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: "#E8EDF5" }}>{t("insights.insights_locked", { count: allInsights.length - 2 })}</span>
-              <span style={{ fontSize: 12, color: "#7A8BA8" }}>{IS_IOS_NATIVE ? t("insights.included_with_pro") : t("insights.upgrade_to_pro")}</span>
+              <span style={{ fontSize: 12, color: "#7A8BA8" }}>{showRealUpgrade ? t("insights.upgrade_to_pro") : t("insights.included_with_pro")}</span>
             </div>
           )}
         </div>

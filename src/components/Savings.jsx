@@ -9,6 +9,7 @@ import { parseDate, sumAmounts } from "../utils/helpers";
 import { logger } from "../utils/logger";
 import { getCachedAccounts, setCachedAccounts } from "../utils/accountsCache";
 import { IS_IOS_NATIVE } from "../lib/platform";
+import { useUSStorefront } from "../lib/storefront";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -389,6 +390,8 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
 // ─── Main Savings Screen ──────────────────────────────────────
 export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelete, totalIncome = 0, totalSpent = 0, transactions, insight, onInsightAction, onInvestAlpaca, isPro, isTrial, onUpgrade, alpacaConnected, onConnectAlpaca, bankConnected, userId, InsightCard, roundupEnabled = false, onToggleRoundup }) {
   const { t } = useTranslation();
+  const isUSStorefront = useUSStorefront();
+  const showRealUpgrade = !IS_IOS_NATIVE || isUSStorefront;
   const [loadError, setLoadError]           = useState(null);
   const [showAdd, setShowAdd]               = useState(false);
   const goalFormRef = useRef(null);
@@ -699,7 +702,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
           // unwind it. Paid Pro only.
           <div style={{ background: C.proAccent + "12", border: `1px solid ${C.proAccent}33`, borderRadius: RADIUS.md, padding: 16, textAlign: "center" }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.purple, marginBottom: 12 }}>{t("savings.invest_alpaca_pro")}</div>
-            <button onClick={onUpgrade} style={{ background: C.proAccent, border: "none", borderRadius: RADIUS.sm, padding: "10px 20px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{IS_IOS_NATIVE ? "Pro" : t("savings.upgrade_pro")}</button>
+            <button onClick={onUpgrade} style={{ background: C.proAccent, border: "none", borderRadius: RADIUS.sm, padding: "10px 20px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{showRealUpgrade ? t("savings.upgrade_pro") : "Pro"}</button>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

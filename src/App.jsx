@@ -13,6 +13,7 @@ import { supabase, SUPABASE_URL, SUPABASE_KEY } from "./utils/supabase";
 import { callEdgeFunction } from "./lib/callEdgeFunction";
 import { getCachedAccounts, setCachedAccounts, clearAccountsCache, sumDepositoryBalance } from "./utils/accountsCache";
 import { App as CapApp } from "@capacitor/app";
+import { Browser } from "@capacitor/browser";
 import { usePlaidOAuth, PLAID_REDIRECT_URI } from "./hooks/usePlaidOAuth";
 import CheckInCard from "./components/CheckInCard";
 import UpgradeModal from "./components/UpgradeModal";
@@ -22,6 +23,7 @@ import { usePushNotifications } from "./hooks/usePushNotifications";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "./healthScore";
 import { BUFFER } from "./shared/financialConstants";
 import { IS_IOS_NATIVE } from "./lib/platform";
+import { useUSStorefront } from "./lib/storefront";
 import { computeRecurringSummary, findDuplicateSubscriptions, getUpcomingCharges, getUpcomingCardPayments } from "./utils/recurringSummary";
 import GlassCard from "./components/shared/GlassCard";
 import AuthScreen from "./components/AuthScreen";
@@ -407,6 +409,7 @@ export default function App() {
   const [roundupEnabled, setRoundupEnabled]   = useState(false);
   const [alpacaDisclosureUrl, setAlpacaDisclosureUrl] = useState(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showLeavingAppSheet, setShowLeavingAppSheet] = useState(false);
   const [showTrialExpiredModal, setShowTrialExpiredModal] = useState(false);
   const [proToast, setProToast] = useState(false);
   const [showChat, setShowChat]     = useState(false);
@@ -459,6 +462,11 @@ export default function App() {
   const alpacaToastTimerRef = useRef(null);
 
   const { isPro, isTrial, trialDaysLeft, trialExpired } = usePlan(profile);
+  // Real Upgrade UI/flow on iOS only for US App Store storefront users (per
+  // the April 2025 Epic v. Apple ruling on Guideline 3.1.3 anti-steering);
+  // every other iOS storefront keeps the fully-suppressed behavior.
+  const isUSStorefront = useUSStorefront();
+  const showRealUpgrade = !IS_IOS_NATIVE || isUSStorefront;
   useEffect(() => { if (trialExpired) setShowTrialExpiredModal(true); }, [trialExpired]);
 
   useEffect(() => {
@@ -1302,7 +1310,15 @@ export default function App() {
   );
 
   const isShowingLastMonth = rawThisMonth.length === 0 && lastMonthTxs.length > 0;
-  const onUpgrade = () => { posthog?.capture('upgrade_modal_viewed'); setShowUpgradeModal(true); };
+  const onUpgrade = () => {
+    posthog?.capture('upgrade_modal_viewed');
+    if (IS_IOS_NATIVE && isUSStorefront) { setShowLeavingAppSheet(true); return; }
+    setShowUpgradeModal(true);
+  };
+  const openExternalUpgrade = async () => {
+    setShowLeavingAppSheet(false);
+    await Browser.open({ url: "https://app.arkonomy.com/upgrade" });
+  };
   const plaidBalance = sumDepositoryBalance(getCachedAccounts());
   const shared = { transactions, categories, savings, profile, totalSpent, totalIncome: effectiveIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, totalTransfers, isShowingLastMonth, isPro, onUpgrade, plaidBalance };
 
@@ -1591,16 +1607,16 @@ export default function App() {
       <div style={{ paddingTop: `${headerHeight + 8}px`, paddingRight: "14px", paddingBottom: "160px", paddingLeft: "14px" }}>
         {isTrial && trialDaysLeft <= 2 && (
           <div
-            onClick={IS_IOS_NATIVE ? undefined : onUpgrade}
-            style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", background: C.amber + "18", border: `1px solid ${C.amber}44`, borderRadius: RADIUS.md, marginBottom: 14, cursor: IS_IOS_NATIVE ? "default" : "pointer" }}
+            onClick={showRealUpgrade ? onUpgrade : undefined}
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", background: C.amber + "18", border: `1px solid ${C.amber}44`, borderRadius: RADIUS.md, marginBottom: 14, cursor: showRealUpgrade ? "pointer" : "default" }}
           >
             <Icon name="zap" size={16} color={C.amber} strokeWidth={2} />
             <div style={{ flex: 1 }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: C.amber }}>
                 Your trial ends in {trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""}
-                {!IS_IOS_NATIVE && " —"}
+                {showRealUpgrade && " —"}
               </span>
-              {!IS_IOS_NATIVE && (
+              {showRealUpgrade && (
                 <span style={{ fontSize: 13, color: C.amber, textDecoration: "underline", textUnderlineOffset: 2 }}>
                   {" "}Upgrade to keep Pro
                 </span>
@@ -1707,16 +1723,33 @@ export default function App() {
                 </svg>
               </div>
               <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Your free trial ended</div>
-              <div style={{ fontSize: 14, color: C.proMuted }}>{IS_IOS_NATIVE ? t("upgrade.pro_included") : "Upgrade to keep full access to AI insights, investment tracking, and all Pro features."}</div>
+              <div style={{ fontSize: 14, color: C.proMuted }}>{showRealUpgrade ? "Upgrade to keep full access to AI insights, investment tracking, and all Pro features." : t("upgrade.pro_included")}</div>
             </div>
-            {/* No purchase button on iOS (Guideline 3.1.3 anti-steering) */}
-            {!IS_IOS_NATIVE && (
-              <button onClick={() => { setShowTrialExpiredModal(false); setShowUpgradeModal(true); }} style={{ width: "100%", padding: 16, background: `linear-gradient(135deg,${sharedC.proAccent},#38B6FF)`, border: "none", borderRadius: RADIUS.md, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 24px ${sharedC.proAccent}70`, marginBottom: 12 }}>
+            {/* No purchase UI for non-US iOS storefronts (Guideline 3.1.3 anti-steering) */}
+            {showRealUpgrade && (
+              <button onClick={() => { setShowTrialExpiredModal(false); onUpgrade(); }} style={{ width: "100%", padding: 16, background: `linear-gradient(135deg,${sharedC.proAccent},#38B6FF)`, border: "none", borderRadius: RADIUS.md, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 24px ${sharedC.proAccent}70`, marginBottom: 12 }}>
                 Upgrade to Pro — $9.99/mo
               </button>
             )}
             <button onClick={() => setShowTrialExpiredModal(false)} style={{ width: "100%", padding: 12, background: "none", border: `1px solid ${C.border}`, borderRadius: RADIUS.md, color: C.proMuted, fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
-              {IS_IOS_NATIVE ? t("upgrade.close") : "Maybe later"}
+              {showRealUpgrade ? "Maybe later" : t("upgrade.close")}
+            </button>
+          </div>
+        </div>
+      )}
+      {showLeavingAppSheet && (
+        <div onClick={() => setShowLeavingAppSheet(false)} style={{ position: "fixed", inset: 0, zIndex: 10001, background: "rgba(7,12,24,0.88)", display: "flex", alignItems: "flex-end", justifyContent: "center", backdropFilter: "blur(4px)" }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "24px 24px 0 0", border: `1px solid ${C.border}`, borderBottom: "none", padding: "28px 20px 36px", fontFamily: FONT, color: C.text, boxShadow: "0 -8px 48px rgba(0,0,0,0.6)" }}>
+            <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: C.border, margin: "0 auto 24px" }} />
+            <div style={{ textAlign: "center", marginBottom: 24 }}>
+              <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 6 }}>Leaving the app</div>
+              <div style={{ fontSize: 14, color: C.proMuted }}>You're leaving the app to complete your purchase on our website.</div>
+            </div>
+            <button onClick={openExternalUpgrade} style={{ width: "100%", padding: 16, background: `linear-gradient(135deg,${sharedC.proAccent},#38B6FF)`, border: "none", borderRadius: RADIUS.md, color: "#000", fontWeight: 800, fontSize: 16, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 24px ${sharedC.proAccent}70`, marginBottom: 12 }}>
+              Continue
+            </button>
+            <button onClick={() => setShowLeavingAppSheet(false)} style={{ width: "100%", padding: 12, background: "none", border: `1px solid ${C.border}`, borderRadius: RADIUS.md, color: C.proMuted, fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
+              Cancel
             </button>
           </div>
         </div>
