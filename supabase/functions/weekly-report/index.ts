@@ -323,8 +323,10 @@ const esc = (s: string) => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&
 const MARKET_LABELS: Record<string, string> = { SPY: 'S&P 500', QQQ: 'Nasdaq 100', BTC: 'Bitcoin', ETH: 'Ethereum' };
 
 function buildEmailHtml(name: string, r: WeekReport, prefs = DEFAULT_PREFS, marketSnapshot: MarketQuote[] | null = null): string {
-  const deltaColor  = r.weekDelta <= 0 ? '#12D18E' : '#FF5C7A';
-  const deltaSign   = r.weekDelta > 0 ? '+' : '';
+  const deltaColor   = r.weekDelta <= 0 ? '#12D18E' : '#FF5C7A';
+  const deltaCaption = r.weekDelta === 0
+    ? 'No change from last week'
+    : `${r.weekDelta < 0 ? '↓' : '↑'} $${fmtAmt(Math.abs(r.weekDelta))} ${r.weekDelta < 0 ? 'less' : 'more'} than last week`;
   const scoreColor  = r.scoreColor;
   const scoreLabel  = r.healthScore <= 40 ? 'Needs Attention' : r.healthScore <= 70 ? 'Fair' : 'Great';
 
@@ -349,12 +351,13 @@ function buildEmailHtml(name: string, r: WeekReport, prefs = DEFAULT_PREFS, mark
             <div style="background:#111E33;border:1px solid #1E2D4A;border-radius:14px;padding:16px;">
               <div style="font-size:10px;font-weight:600;color:#9AA4B2;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px;">This Week</div>
               <div style="font-size:26px;font-weight:800;color:#FFFFFF;letter-spacing:-0.5px;">$${fmtAmt(r.thisWeekTotal)}</div>
+              <div style="font-size:11px;font-weight:600;color:${deltaColor};margin-top:4px;">${deltaCaption}</div>
             </div>
           </td>
           <td width="50%" style="padding-left:8px;">
             <div style="background:#111E33;border:1px solid #1E2D4A;border-radius:14px;padding:16px;">
-              <div style="font-size:10px;font-weight:600;color:#9AA4B2;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px;">vs Last Week</div>
-              <div style="font-size:26px;font-weight:800;color:${deltaColor};letter-spacing:-0.5px;">${deltaSign}$${fmtAmt(Math.abs(r.weekDelta))}</div>
+              <div style="font-size:10px;font-weight:600;color:#9AA4B2;letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px;">Last Week</div>
+              <div style="font-size:26px;font-weight:800;color:#FFFFFF;letter-spacing:-0.5px;">$${fmtAmt(r.lastWeekTotal)}</div>
             </div>
           </td>
         </tr>
