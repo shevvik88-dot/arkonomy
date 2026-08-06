@@ -195,19 +195,6 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
   );
 }
 
-function StatBadge({ value, suffix }) {
-  const { t } = useTranslation();
-  const pos = value >= 0;
-  const color = pos ? C.green : C.red;
-  const sfx = suffix !== undefined ? suffix : t("dashboard.vs_last_month");
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: color + "22", color, borderRadius: RADIUS.full, padding: "2px 8px", fontSize: 10, fontWeight: 600, fontFamily: FONT, whiteSpace: "nowrap" }}>
-      <Icon name={pos ? "trending-up" : "trending-down"} size={9} color={color} strokeWidth={2.5} />
-      {pos ? "+" : ""}{Math.abs(value).toFixed(1)}% {sfx}
-    </span>
-  );
-}
-
 function DonutChart({ data, size = 196, onCatClick, hideAmounts = false, lockList = false, onUpgrade, sideLegend = false }) {
   const { t } = useTranslation();
   const cx = size / 2, cy = size / 2;
@@ -251,8 +238,8 @@ const sw = 22;
         <svg width={size} height={size} style={{ display: "block" }}>
           <defs>
             <radialGradient id="cg" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor={C.cyan} stopOpacity="0.10" />
-              <stop offset="100%" stopColor={C.cyan} stopOpacity="0" />
+              <stop offset="0%" stopColor={DC.gold} stopOpacity="0.10" />
+              <stop offset="100%" stopColor={DC.gold} stopOpacity="0" />
             </radialGradient>
           </defs>
           <circle cx={cx} cy={cy} r={mid} fill="none" stroke={C.bgTertiary} strokeWidth={sw} />
@@ -335,170 +322,6 @@ const sw = 22;
   );
 }
 
-// ─── Market Overview Card ─────────────────────────────��───────
-function MarketOverview({ onOpenMarket }) {
-  const { t } = useTranslation();
-  const [markets, setMarkets] = useState([]);
-  const [news, setNews] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("markets");
-  const [error, setError] = useState(null);
-  const [lastUpdated, setLastUpdated] = useState(null);
-
-  async function load() {
-    setLoading(true);
-    setError(null);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const headers = {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${session?.access_token ?? ""}`,
-        "apikey": SUPABASE_KEY,
-      };
-
-      const [mRes, nRes] = await Promise.all([
-        fetch(`${SUPABASE_URL}/functions/v1/market-data`, {
-          method: "POST", headers, body: JSON.stringify({ type: "overview" }),
-        }),
-        fetch(`${SUPABASE_URL}/functions/v1/market-data`, {
-          method: "POST", headers, body: JSON.stringify({ type: "news" }),
-        }),
-      ]);
-
-      if (!mRes.ok) {
-        const err = await mRes.json().catch(() => ({}));
-        throw new Error(err.error || `HTTP ${mRes.status}`);
-      }
-
-      const mData = await mRes.json();
-      const nData = nRes.ok ? await nRes.json().catch(() => ({})) : {};
-
-      if (mData?.markets) setMarkets(mData.markets);
-      if (nData?.news) setNews(nData.news);
-      setLastUpdated(new Date());
-    } catch (e) {
-      setError(e.message || "Could not load market data");
-    }
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    load();
-    const timer = setInterval(load, 60000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const MARKET_META = {
-    SPY:  { label: "S&P 500",  icon: "bar-chart", color: C.blue },
-    QQQ:  { label: "NASDAQ",   icon: "activity",  color: C.purple },
-    BTC:  { label: "Bitcoin",  icon: "zap",        color: C.amber },
-    ETH:  { label: "Ethereum", icon: "zap",        color: C.emerald },
-  };
-
-  return (
-    <GlassCard style={{ padding: "14px 16px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <div style={{ width: 28, height: 28, borderRadius: RADIUS.xs, background: C.blue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name="bar-chart" size={14} color={C.blue} />
-          </div>
-          <span style={{ fontWeight: 600, fontSize: 14 }}>{t("dashboard.markets")}</span>
-          {lastUpdated && !loading && (
-            <span style={{ fontSize: 10, color: C.faint }}>
-              {lastUpdated.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-            </span>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          {["markets", "news"].map(tabId => (
-            <button key={tabId} onClick={() => setTab(tabId)}
-              style={{ padding: "4px 10px", minHeight: 44, borderRadius: RADIUS.lg, border: `1px solid ${tab === tabId ? C.blue : C.border}`, background: tab === tabId ? C.blue + "18" : "transparent", color: tab === tabId ? C.blue : C.faint, cursor: "pointer", fontSize: 11, fontWeight: tab === tabId ? 600 : 400, fontFamily: FONT, textTransform: "capitalize" }}>
-              {tabId}
-            </button>
-          ))}
-          <button onClick={load} aria-label={t("dashboard.refresh")} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, opacity: loading ? 0.4 : 0.7 }}>
-            <Icon name="repeat" size={13} color={C.muted} strokeWidth={2} />
-          </button>
-        </div>
-      </div>
-
-      {loading ? (
-        <div style={{ textAlign: "center", padding: "20px 0", color: C.faint, fontSize: 13 }}>
-          <div style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
-            {[0,1,2].map(i => (
-              <span key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: C.blue, display: "inline-block", animation: `bop 1.2s ease ${i*0.2}s infinite` }} />
-            ))}
-            <style>{`@keyframes bop{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}`}</style>
-          </div>
-          <div style={{ marginTop: 8, fontSize: 11 }}>{t("dashboard.loading_market_data")}</div>
-        </div>
-      ) : error ? (
-        <div style={{ padding: "12px 14px", background: C.red + "10", borderRadius: RADIUS.sm, border: `1px solid ${C.red}22` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-            <Icon name="alert-circle" size={14} color={C.red} />
-            <span style={{ fontSize: 12, color: C.red, fontWeight: 600 }}>{t("dashboard.could_not_load_market_data")}</span>
-          </div>
-          <div style={{ fontSize: 11, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>{error}</div>
-          <button onClick={load} style={{ marginTop: 10, padding: "7px 14px", minHeight: 44, background: C.blue + "22", border: `1px solid ${C.blue}44`, borderRadius: RADIUS.xs, color: C.blue, cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: FONT }}>
-            {t("dashboard.retry")}
-          </button>
-        </div>
-      ) : tab === "markets" ? (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {markets.map(m => {
-            const meta = MARKET_META[m.symbol] || { label: m.symbol, icon: "activity", color: C.cyan };
-            const pos = (m.changePct ?? 0) >= 0;
-            const chColor = pos ? C.green : C.red;
-            return (
-              <div key={m.symbol} onClick={() => onOpenMarket?.(m.symbol)} style={{ background: C.bgTertiary, borderRadius: RADIUS.sm, padding: "10px 12px", border: `1px solid ${C.border}`, cursor: "pointer" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                  <div style={{ width: 24, height: 24, borderRadius: RADIUS.xs, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Icon name={meta.icon} size={11} color={meta.color} strokeWidth={2.5} />
-                  </div>
-                  <span style={{ fontSize: 11, color: C.muted, fontWeight: 500 }}>{meta.label}</span>
-                </div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: C.text, letterSpacing: -0.3 }}>
-                  ${m.price != null ? Number(m.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
-                  <Icon name={pos ? "trending-up" : "trending-down"} size={10} color={chColor} strokeWidth={2.5} />
-                  <span style={{ fontSize: 11, color: chColor, fontWeight: 600 }}>
-                    {m.changePct != null ? `${pos ? "+" : ""}${Number(m.changePct).toFixed(2)}%` : "—"}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-          {news.length === 0
-            ? <div style={{ color: C.faint, fontSize: 12, textAlign: "center", padding: "16px 0" }}>{t("dashboard.no_news")}</div>
-            : news.slice(0, 4).map((n, i) => (
-              <a key={i} href={n.url} target="_blank" rel="noopener noreferrer"
-                style={{ display: "flex", gap: 10, textDecoration: "none", padding: "10px 0", borderBottom: i < 3 ? `1px solid ${C.sep}` : "none" }}>
-                {n.image && (
-                  <img src={n.image} alt="" style={{ width: 52, height: 40, borderRadius: RADIUS.xs, objectFit: "cover", flexShrink: 0 }} onError={e => { e.target.style.display = "none"; }} />
-                )}
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: C.text, lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{n.headline}</div>
-                  <div style={{ fontSize: 10, color: C.faint, marginTop: 3 }}>{n.source} · {new Date(n.datetime * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
-                </div>
-              </a>
-            ))
-          }
-        </div>
-      )}
-
-      {!loading && !error && tab === "markets" && markets.length > 0 && (
-        <div style={{ fontSize: 10, color: C.faint, marginTop: 10, textAlign: "right" }}>
-          {t("dashboard.powered_by_finnhub")}
-        </div>
-      )}
-    </GlassCard>
-  );
-}
-
 // ─── Cash Flow Forecast ──────────────────────────────────────
 function Sparkline({ transactions, width = 62, height = 30 }) {
   const points = useMemo(() => {
@@ -530,7 +353,7 @@ function Sparkline({ transactions, width = 62, height = 30 }) {
   const up = points[points.length - 1] >= points[0];
   return (
     <svg width={width} height={height} style={{ display: 'block', flexShrink: 0, opacity: 0.9 }}>
-      <polyline points={pts} fill="none" stroke={up ? C.green : C.red} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points={pts} fill="none" stroke={up ? DC.emerald : DC.ruby} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -1309,6 +1132,60 @@ function TodaysLessonRow() {
   );
 }
 
+// Compact 2-value Markets row for Dashboard (S&P 500 + Bitcoin only) — the
+// full Markets experience (search/watchlist/buy/chart/news) already lives
+// entirely independently on the Markets nav tab (Markets.jsx, a separate
+// file/implementation, not shared with MarketOverview above), so trimming
+// this down risks no functionality loss.
+function MiniMarkets({ onOpenMarket }) {
+  const { t } = useTranslation();
+  const [markets, setMarkets] = useState([]);
+
+  useEffect(() => {
+    let alive = true;
+    async function load() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/market-data`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token ?? ""}`, "apikey": SUPABASE_KEY },
+          body: JSON.stringify({ type: "overview" }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (alive && data?.markets) setMarkets(data.markets);
+      } catch {}
+    }
+    load();
+    const timer = setInterval(load, 60000);
+    return () => { alive = false; clearInterval(timer); };
+  }, []);
+
+  const META = { SPY: { label: "S&P 500", symbol: "SPY" }, BTC: { label: "Bitcoin", symbol: "BTC" } };
+  const rows = ["SPY", "BTC"].map(sym => ({ ...META[sym], data: markets.find(m => m.symbol === sym) }));
+
+  return (
+    <div style={{ display: "flex", gap: 8 }}>
+      {rows.map(row => {
+        const pos = (row.data?.changePct ?? 0) >= 0;
+        return (
+          <button key={row.symbol} onClick={() => onOpenMarket?.(row.symbol)} style={{ flex: 1, textAlign: "left", background: DC.card, borderRadius: RADIUS.md, padding: "14px 16px", border: "none", cursor: "pointer", fontFamily: FONT }}>
+            <div style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>{row.label}</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: DC.text }}>
+              {row.data?.price != null ? `$${Number(row.data.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+            </div>
+            {row.data?.changePct != null && (
+              <div style={{ fontSize: 11, fontWeight: 600, color: pos ? DC.emerald : DC.ruby, marginTop: 2 }}>
+                {pos ? "+" : ""}{Number(row.data.changePct).toFixed(2)}%
+              </div>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, onOpenChat }) {
   const { t } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
@@ -1317,6 +1194,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   const [otherBreakdown, setOtherBreakdown] = useState(false);
   const [allCreditCards, setAllCreditCards] = useState(false);
   const [showCashFlowSheet, setShowCashFlowSheet] = useState(false);
+  const [showUpcomingSheet, setShowUpcomingSheet] = useState(false);
   const balanceFetchIdRef = useRef(0);
   const m = (n, dec = 0) => balanceVisible ? `$${fmt(n, dec)}` : "••••";
 
@@ -1365,13 +1243,9 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   const creditUtilColor = (pct) => pct == null ? C.faint : pct >= 0.70 ? C.red : pct >= 0.30 ? C.yellow : C.green;
   const budget = Number(profile?.monthly_budget) || 3000;
   const balance = totalIncome - totalSpent;
-  const pct = budget > 0 ? (totalSpent / budget) * 100 : 0;
   // Same formula as Insights.jsx.availableSafe — for cashPositionLow parity between screens.
   const availableSafe = Math.max(0, Math.min(totalIncome - totalSpent - BUFFER, accountBalance != null ? accountBalance - BUFFER : Infinity));
   const cashPositionLow = availableSafe <= 0 && accountBalance != null;
-  const incomeChange = lastIncome > 0 ? ((totalIncome - lastIncome) / lastIncome) * 100 : 0;
-  const expenseChange = lastSpent > 0 ? ((totalSpent - lastSpent) / lastSpent) * 100 : 0;
-  const balColor = balance >= 0 ? C.green : C.red;
 
   // ── Health Score ──────────────────────────────────────────────────────────
   const SUB_CATS = ['Subscriptions', 'Bills', 'Utilities', 'Phone', 'Internet', 'Insurance'];
@@ -1426,10 +1300,10 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
 
       {/* 0a ── Onboarding welcome card (shown only when no transactions exist and no active trial toast) */}
       {transactions.length === 0 && !hideWelcomeBanner && (
-        <div style={{ background: "linear-gradient(135deg,#0D2A4A,#0B1A30)", borderRadius: RADIUS.lg, padding: "20px 18px", border: `1px solid ${C.cyan}33`, boxShadow: `0 4px 24px ${C.cyan}12` }}>
+        <div style={{ background: DC.card, borderRadius: RADIUS.lg, padding: "20px 18px" }}>
           <div style={{ fontSize: 22, marginBottom: 6 }}>👋</div>
-          <div style={{ fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 4 }}>{t("dashboard.welcome_title")}</div>
-          <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 17, color: DC.text, marginBottom: 4 }}>{t("dashboard.welcome_title")}</div>
+          <div style={{ fontSize: 13, color: DC.muted, lineHeight: 1.6, marginBottom: 16 }}>
             {t("dashboard.welcome_body")}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -1440,14 +1314,14 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
             {!bankConnected && (
               <button
                 onClick={() => onNavigate("profile")}
-                style={{ flex: 1, padding: "11px 0", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.sm, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 14px ${C.cyan}44` }}
+                style={{ flex: 1, padding: "11px 0", background: DC.gold, border: "none", borderRadius: RADIUS.sm, color: DC.bg, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: FONT }}
               >
                 {t("dashboard.connect_bank")}
               </button>
             )}
             <button
               onClick={() => onNavigate("transactions")}
-              style={{ flex: 1, padding: "11px 0", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT }}
+              style={{ flex: 1, padding: "11px 0", background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, color: DC.text, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT }}
             >
               {t("dashboard.add_transaction")}
             </button>
@@ -1510,59 +1384,18 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         );
       })()}
 
-      {/* 5 ── Next up: upcoming recurring charges */}
-      {upcomingCharges.length > 0 && (
-        <UpcomingChargesCard charges={upcomingCharges} />
-      )}
-
-      {/* 6 ── Monthly Cash Flow */}
-      {!bankConnected ? (
-        <ConnectBankPrompt title={t("dashboard.monthly_cash_flow")} message={t("dashboard.connect_bank_cashflow")} onNavigate={onNavigate} />
-      ) : (
-        <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-            <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.monthly_cash_flow")}</span>
-            {balance < 0 && <div style={{ width: 6, height: 6, borderRadius: RADIUS.full, background: DC.ruby }} />}
-          </div>
-          <div style={{ display: "flex" }}>
-            {[
-              { key: "income",   label: t("dashboard.income"),   value: m(totalIncome), color: DC.emerald, dot: DC.emerald, change: incomeChange },
-              { key: "expenses", label: t("dashboard.expenses"), value: m(totalSpent),  color: DC.text,     dot: DC.faint,   change: expenseChange, flip: true },
-              { key: "net",      label: t("dashboard.net"),      value: balanceVisible ? (balance < 0 ? `-$${fmt(Math.abs(balance))}` : `$${fmt(balance)}`) : "••••", color: balance >= 0 ? DC.emerald : DC.ruby, dot: balance >= 0 ? DC.emerald : DC.ruby },
-            ].map((item, i) => (
-              <div key={item.key} style={{ flex: 1, paddingLeft: i > 0 ? 10 : 0, borderLeft: i > 0 ? `1px solid ${DC.bg}` : "none", marginLeft: i > 0 ? 10 : 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
-                  <div style={{ width: 5, height: 5, borderRadius: RADIUS.full, background: item.dot }} />
-                  <span style={{ fontSize: 9, color: DC.muted, fontWeight: 500 }}>{item.label}</span>
-                </div>
-                <div className="ph-mask" style={{ fontSize: item.key === "net" ? 17 : 13, fontWeight: item.key === "net" ? 800 : 700, color: item.color, marginBottom: 3 }}>{item.value}</div>
-                {item.change !== undefined && <StatBadge value={item.flip ? -item.change : item.change} suffix="" />}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 6b ── Monthly Budget (compact) */}
-      {(() => {
-        const isOver = totalSpent > budget;
-        const budgetPct = budget > 0 ? (totalSpent / budget) * 100 : 0;
-        const barColor = isOver ? DC.ruby : budgetPct > 70 ? DC.gold : DC.emerald;
+      {/* 5 ── Next up: soonest upcoming charge, compact row. Full list (the
+          previous always-visible carousel) is one tap away in a sheet —
+          same UpcomingChargesCard component, unchanged, not lost. */}
+      {upcomingCharges.length > 0 && (() => {
+        const next = [...upcomingCharges].sort((a, b) => a.daysUntil - b.daysUntil)[0];
         return (
-          <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "10px 16px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 13, color: DC.muted }}>
-                <span style={{ fontWeight: 600, color: DC.text }}>{t("dashboard.budget")}</span>
-                {'  '}{m(totalSpent)} / {m(budget)}
-              </span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: barColor }}>
-                {Math.round(budgetPct)}%{isOver ? ` ${t("dashboard.over_budget")}` : ''}
-              </span>
-            </div>
-            <div style={{ height: 3, background: DC.bg, borderRadius: RADIUS.full }}>
-              <div style={{ height: 3, borderRadius: RADIUS.full, width: `${Math.min(budgetPct, 100)}%`, background: barColor, transition: "width 0.6s" }} />
-            </div>
-          </div>
+          <button onClick={() => setShowUpcomingSheet(true)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", cursor: "pointer", fontFamily: FONT, textAlign: "left" }}>
+            <span style={{ fontSize: 13, color: DC.muted }}>
+              {t("dashboard.next")} <span style={{ color: DC.text, fontWeight: 600 }}>{next.merchant}</span>
+            </span>
+            <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>${fmt(next.amount, 2)}</span>
+          </button>
         );
       })()}
 
@@ -1639,7 +1472,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       </div>
 
       {/* 10 ── Markets */}
-      <MarketOverview onOpenMarket={onOpenMarket} />
+      <MiniMarkets onOpenMarket={onOpenMarket} />
 
       {/* 11 ── Ask your coach anything */}
       <button onClick={() => onOpenChat?.()} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.full, padding: "14px 20px", cursor: "pointer", fontFamily: FONT, marginTop: 4 }}>
@@ -1670,6 +1503,25 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
                 onNavigate={onNavigate}
                 scheduledPayments={scheduledPayments}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUpcomingSheet && (
+        <div onClick={() => setShowUpcomingSheet(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 180, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", border: `1px solid ${C.border}`, padding: "0 0 32px", maxHeight: "75vh", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "14px 0 0", display: "flex", justifyContent: "center" }}>
+              <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: "rgba(255,255,255,0.12)" }} />
+            </div>
+            <div style={{ padding: "12px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${C.sep}`, flexShrink: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{t("dashboard.upcoming_charges")}</div>
+              <button onClick={() => setShowUpcomingSheet(false)} aria-label={t("dashboard.close")} style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.xs, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div style={{ overflowY: "auto", padding: "16px 20px" }}>
+              <UpcomingChargesCard charges={upcomingCharges} />
             </div>
           </div>
         </div>

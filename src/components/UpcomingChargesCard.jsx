@@ -1,9 +1,7 @@
 import { useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import Icon from "./shared/Icon";
-import { C } from "../utils/colors";
-
-const FONT = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
+import { FONT, DASHBOARD_C as DC } from "../utils/colors";
 
 const CAT_ICON = {
   housing: "home", rent: "home", mortgage: "home",
@@ -23,10 +21,12 @@ function catIcon(cat) {
   return CAT_ICON[(cat || "").toLowerCase()] ?? "repeat";
 }
 
+// Collapsed to the fixed 3-color palette (ruby/gold/emerald) — "due very
+// soon" is the only tier that reads as genuinely urgent, so it's the only
+// one that gets ruby; everything else is a calmer, informational gold.
 function accentColor(daysUntil) {
-  if (daysUntil <= 1) return C.red;
-  if (daysUntil <= 3) return C.yellow;
-  return C.urgentOrange;
+  if (daysUntil <= 1) return DC.ruby;
+  return DC.gold;
 }
 
 function urgencyLabel(daysUntil, t) {
@@ -62,12 +62,12 @@ export default function UpcomingChargesCarousel({ charges }) {
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, padding: "0 2px" }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: C.urgentOrange, letterSpacing: 0.5, textTransform: "uppercase" }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: DC.gold, letterSpacing: 0.5, textTransform: "uppercase" }}>
           {t("dashboard.upcoming_charges")}
         </span>
         <span style={{
-          fontSize: 10, color: C.faint, background: C.urgentOrange + "18",
-          border: `1px solid ${C.urgentOrange}33`, borderRadius: 4,
+          fontSize: 10, color: DC.muted, background: DC.gold + "18",
+          border: `1px solid ${DC.gold}33`, borderRadius: 4,
           padding: "1px 6px", fontWeight: 600,
         }}>
           {sorted.length}
@@ -133,12 +133,12 @@ export default function UpcomingChargesCarousel({ charges }) {
               {/* Merchant + date */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{
-                  fontWeight: 700, fontSize: 14, color: C.chargeCardText,
+                  fontWeight: 700, fontSize: 14, color: DC.text,
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                 }}>
                   {charge.merchant}
                 </div>
-                <div style={{ fontSize: 11, color: C.chargeCardDate, marginTop: 3 }}>
+                <div style={{ fontSize: 11, color: DC.muted, marginTop: 3 }}>
                   {charge.expectedDate}
                 </div>
               </div>
@@ -172,7 +172,7 @@ export default function UpcomingChargesCarousel({ charges }) {
               width: i === active ? 16 : 5,
               height: 5,
               borderRadius: 99,
-              background: i === active ? C.urgentOrange : C.border,
+              background: i === active ? DC.gold : DC.faint + "44",
               transition: "width 0.2s ease, background 0.2s ease",
             }} />
           ))}

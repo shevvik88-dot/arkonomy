@@ -1056,6 +1056,55 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
         <div style={{ fontSize: 13, color: C.muted }}>{t("insights.subtitle")}</div>
       </div>
 
+      {/* Monthly Cash Flow + Budget — moved here from Dashboard's compact
+          redesign (not duplicated: Dashboard no longer shows these at all).
+          Insights.jsx hasn't been migrated to the new DASHBOARD_C palette
+          yet (staged rollout, one screen at a time), so this stays on the
+          existing C tokens to match the rest of this screen, not the
+          palette it moved away from. */}
+      {bankConnected && (() => {
+        const monthlyBudget = Number(profile?.monthly_budget) || 3000;
+        const netFlow = totalIncome - totalSpent;
+        const incomeChangePct = lastIncome > 0 ? ((totalIncome - lastIncome) / lastIncome) * 100 : 0;
+        const expenseChangePct = lastSpent > 0 ? ((totalSpent - lastSpent) / lastSpent) * 100 : 0;
+        const isOverBudget = totalSpent > monthlyBudget;
+        const budgetPct = monthlyBudget > 0 ? (totalSpent / monthlyBudget) * 100 : 0;
+        const barColor = isOverBudget ? C.red : budgetPct > 70 ? C.yellow : C.cyan;
+        return (
+          <>
+            <GlassCard style={{ padding: "16px" }}>
+              <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 12 }}>{t("dashboard.monthly_cash_flow")}</div>
+              <div style={{ display: "flex" }}>
+                {[
+                  { key: "income",   label: t("dashboard.income"),   value: `$${fmt(totalIncome, 0)}`, color: C.green, change: incomeChangePct },
+                  { key: "expenses", label: t("dashboard.expenses"), value: `$${fmt(totalSpent, 0)}`,   color: C.text,  change: expenseChangePct, flip: true },
+                  { key: "net",      label: t("dashboard.net"),      value: netFlow < 0 ? `-$${fmt(Math.abs(netFlow), 0)}` : `$${fmt(netFlow, 0)}`, color: netFlow >= 0 ? C.green : C.red },
+                ].map((item, i) => (
+                  <div key={item.key} style={{ flex: 1, paddingLeft: i > 0 ? 10 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : "none", marginLeft: i > 0 ? 10 : 0 }}>
+                    <div style={{ fontSize: 9, color: C.muted, fontWeight: 500, marginBottom: 2 }}>{item.label}</div>
+                    <div style={{ fontSize: item.key === "net" ? 17 : 13, fontWeight: item.key === "net" ? 800 : 700, color: item.color }}>{item.value}</div>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+            <GlassCard style={{ padding: "10px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontSize: 13, color: C.muted }}>
+                  <span style={{ fontWeight: 600, color: C.text }}>{t("dashboard.budget")}</span>
+                  {'  '}${fmt(totalSpent, 0)} / ${fmt(monthlyBudget, 0)}
+                </span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: barColor }}>
+                  {Math.round(budgetPct)}%{isOverBudget ? ` ${t("dashboard.over_budget")}` : ''}
+                </span>
+              </div>
+              <div style={{ height: 3, background: C.bgTertiary, borderRadius: RADIUS.full }}>
+                <div style={{ height: 3, borderRadius: RADIUS.full, width: `${Math.min(budgetPct, 100)}%`, background: barColor, transition: "width 0.6s" }} />
+              </div>
+            </GlassCard>
+          </>
+        );
+      })()}
+
       {allInsights && allInsights.length > 0 && (
         <div>
           <InsightCardGroup insights={(isPro ? allInsights : allInsights.slice(0, 2)).filter(i => {

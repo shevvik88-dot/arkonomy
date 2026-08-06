@@ -75,11 +75,13 @@ export const DASHBOARD_C = {
   ruby:       "#D64F5E", // danger/negative — solid fills, borders, badges
   rubyBright: "#E4677A", // lighter ruby — inline emphasized numbers in coach text
   emerald:    "#2FB37D", // positive — income, market gains, sparkline-up
-  // Not in the approved hex list — derived, not exact-mockup values. Card
-  // fill one step lighter than bg (mockup cards have no hard border, just a
-  // faint lift off the page) and a muted/faint pair kept close to the
-  // existing C.muted/C.faint tone so text hierarchy reads the same way.
-  card:  "#181D29",
+  // Not in the approved hex list — derived, not exact-mockup values.
+  // Elevation-principle card fill: noticeably lighter than bg (not a subtle
+  // +6/+7/+10 per channel step, which read too close to bg without a
+  // border) so cards stay legible with no border at all. Muted/faint kept
+  // close to the existing C.muted/C.faint tone so text hierarchy reads the
+  // same way as the rest of the app.
+  card:  "#1D2433",
   muted: "#9AA4B2",
   faint: "#6B7688",
 };
