@@ -933,14 +933,6 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
   const showCompact = compactWeek && !expanded;
   const visibleDays = showCompact ? weekDays : days;
   const visibleLeadingBlanks = showCompact ? 0 : leadingBlanks;
-  // "Hottest" day in the visible week — the single biggest upcoming charge,
-  // used for the ruby danger-day outline in compact mode.
-  const dangerDay = showCompact
-    ? weekDays.reduce((worst, d) => {
-        const amt = futureByDay[d]?.amount ?? 0;
-        return amt > (futureByDay[worst]?.amount ?? 0) ? d : worst;
-      }, null)
-    : null;
 
   function dayColorAlpha(day) {
     const isToday = day === todayDate;
@@ -1001,17 +993,48 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
   return (
     <GlassCard style={compactWeek ? { padding: "14px 16px", background: DC.card, border: "none" } : { padding: "14px 16px" }}>
       <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10, color: compactWeek ? DC.text : C.text }}>{t("dashboard.month_calendar_title")}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
+      <div style={showCompact ? { display: "flex", justifyContent: "space-between", marginBottom: 6 } : { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
         {WEEKDAY_KEYS.map(key => (
-          <div key={key} style={{ textAlign: "center", fontSize: 10, color: compactWeek ? DC.muted : C.muted, fontWeight: 600 }}>{t(`dashboard.${key}`)}</div>
+          <div key={key} style={showCompact ? { width: 30, textAlign: "center", fontSize: 10, color: DC.muted, fontWeight: 600 } : { textAlign: "center", fontSize: 10, color: C.muted, fontWeight: 600 }}>{t(`dashboard.${key}`)}</div>
         ))}
       </div>
+      {showCompact ? (
+        // Compact week — separate, deliberately minimal rendering from the
+        // full grid below: no per-category fill, no amount line. Past days:
+        // plain number, colored by that day's net (ruby=spent more, emerald=
+        // earned more). Future days with a known upcoming charge: red ring,
+        // not a fill — "something is due here," independent of size. Today
+        // keeps the existing white-fill treatment, unchanged.
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          {weekDays.map(day => {
+            const isToday = day === todayDate;
+            const isPast = day < todayDate;
+            const net = (isPast || isToday) ? dailyNet[day] : null;
+            const hasFutureCharge = !isPast && !isToday && !!futureByDay[day];
+            const textColor = isToday ? DC.bg : net == null ? DC.muted : net < 0 ? DC.ruby : net > 0 ? DC.emerald : DC.muted;
+            return (
+              <div
+                key={day}
+                onClick={() => setSelectedDay(day)}
+                style={{
+                  width: 30, height: 30, borderRadius: "50%",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: isToday ? DC.text : "transparent",
+                  border: hasFutureCharge ? `1.5px solid ${DC.ruby}` : "none",
+                  cursor: "pointer",
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 600, color: textColor }}>{day}</span>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
         {Array.from({ length: visibleLeadingBlanks }, (_, i) => <div key={`blank-${i}`} />)}
         {visibleDays.map(day => {
           const { color, alpha, isToday, isPast } = dayColorAlpha(day);
           const amountInfo = dayAmountInfo(day);
-          const isDanger = day === dangerDay;
           return (
             <div key={day} style={{ aspectRatio: "1" }}>
               <div
@@ -1019,7 +1042,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
                 style={{
                   width: "100%", height: "100%", borderRadius: RADIUS.sm, position: "relative",
                   background: color + alpha,
-                  border: isDanger ? `2px solid ${DC.ruby}` : isToday ? `2px solid ${C.text}` : `1px solid ${color}55`,
+                  border: isToday ? `2px solid ${C.text}` : `1px solid ${color}55`,
                   cursor: "pointer",
                 }}
               >
@@ -1051,6 +1074,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
           );
         })}
       </div>
+      )}
 
       {compactWeek && (
         <button onClick={() => setExpanded(v => !v)} style={{ display: "block", background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold }}>
@@ -1254,12 +1278,12 @@ function CoachBlock({ insight, onAction }) {
   const accent = COACH_WARNING_TYPES.includes(insight.type) ? DC.ruby : DC.gold;
   const { headline, cta, action } = insight.rendered;
   return (
-    <div style={{ background: DC.card, borderLeft: `3px solid ${accent}`, borderRadius: RADIUS.md, padding: "14px 16px 12px", fontFamily: FONT }}>
-      <div style={{ fontSize: 11, color: DC.muted, fontWeight: 600, letterSpacing: 0.5, marginBottom: 6 }}>{t("dashboard.your_coach")}</div>
-      <div className="ph-mask" style={{ fontSize: 15, fontWeight: 700, color: DC.text, lineHeight: 1.4 }}>
+    <div style={{ background: DC.card, borderLeft: `3px solid ${accent}`, borderRadius: RADIUS.lg, padding: "20px", fontFamily: FONT }}>
+      <div style={{ fontSize: 13, color: DC.muted, fontWeight: 600, letterSpacing: 0.5, marginBottom: 6 }}>{t("dashboard.your_coach")}</div>
+      <div className="ph-mask" style={{ fontSize: 18, fontWeight: 700, color: DC.text, lineHeight: 1.4 }}>
         {highlightNumbers(headline, accent)}
       </div>
-      <button onClick={() => onAction?.(action, insight.data)} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 13, fontWeight: 700, color: accent }}>
+      <button onClick={() => onAction?.(action, insight.data)} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 14, fontWeight: 700, color: accent }}>
         {cta || t("dashboard.fix_this")}
         <Icon name="chevron" size={13} color={accent} />
       </button>
@@ -1456,7 +1480,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         const eomColor = projectedBalance == null ? DC.text : projectedRaw <= 0 ? DC.ruby : DC.text;
         return (
           <div data-tutorial="net-balance" style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setShowCashFlowSheet(true)} style={{ flex: 1, textAlign: "left", background: DC.card, borderRadius: RADIUS.lg, padding: "14px 16px", border: "none", cursor: "pointer", fontFamily: FONT }}>
+            <button onClick={() => setShowCashFlowSheet(true)} style={{ flex: 1, textAlign: "left", background: DC.card, borderRadius: RADIUS.md, padding: "14px 16px", border: "none", cursor: "pointer", fontFamily: FONT }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.balance_short")}</span>
                 <span onClick={e => { e.stopPropagation(); setBalanceVisible(v => !v); }} role="button" aria-label={balanceVisible ? t("dashboard.hide_balance") : t("dashboard.show_balance")} style={{ display: "flex", padding: 4 }}>
@@ -1465,21 +1489,21 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
               </div>
               {accountBalance != null ? (
                 <>
-                  <div className="ph-mask" style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, color: DC.text }}>
+                  <div className="ph-mask" style={{ fontSize: 19, fontWeight: 800, letterSpacing: -0.5, color: DC.text }}>
                     {balanceVisible ? `$${fmt(accountBalance)}` : "••••"}
                   </div>
                   <div style={{ marginTop: 4 }}><Sparkline transactions={transactions} /></div>
                 </>
               ) : (
-                <div style={{ width: 100, height: 26, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${DC.card} 0%,#20263380 40%,${DC.card} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
+                <div style={{ width: 100, height: 19, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${DC.card} 0%,#20263380 40%,${DC.card} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
               )}
             </button>
-            <button onClick={() => setShowCashFlowSheet(true)} style={{ flex: 1, textAlign: "left", background: DC.card, borderRadius: RADIUS.lg, padding: "14px 16px", border: "none", cursor: "pointer", fontFamily: FONT }}>
+            <button onClick={() => setShowCashFlowSheet(true)} style={{ flex: 1, textAlign: "left", background: DC.card, borderRadius: RADIUS.md, padding: "14px 16px", border: "none", cursor: "pointer", fontFamily: FONT }}>
               <div style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 8 }}>{t("dashboard.end_of_month_short")}</div>
               {projectedBalance != null ? (
-                <div className="ph-mask" style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, color: eomColor }}>{balanceVisible ? `$${fmt(projectedBalance)}` : "••••"}</div>
+                <div className="ph-mask" style={{ fontSize: 19, fontWeight: 800, letterSpacing: -0.5, color: eomColor }}>{balanceVisible ? `$${fmt(projectedBalance)}` : "••••"}</div>
               ) : (
-                <div style={{ width: 60, height: 26, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${DC.card} 0%,#20263380 40%,${DC.card} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
+                <div style={{ width: 60, height: 19, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${DC.card} 0%,#20263380 40%,${DC.card} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
               )}
             </button>
           </div>
@@ -1495,7 +1519,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       {!bankConnected ? (
         <ConnectBankPrompt title={t("dashboard.monthly_cash_flow")} message={t("dashboard.connect_bank_cashflow")} onNavigate={onNavigate} />
       ) : (
-        <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "14px 18px", border: "none" }}>
+        <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
             <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.monthly_cash_flow")}</span>
             {balance < 0 && <div style={{ width: 6, height: 6, borderRadius: RADIUS.full, background: DC.ruby }} />}
@@ -1550,7 +1574,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         const remaining = sortedCreditAccounts.length - topCards.length;
         const utilColorDC = (pct) => pct == null ? DC.faint : pct >= 0.70 ? DC.ruby : pct >= 0.30 ? DC.gold : DC.emerald;
         return (
-          <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "14px 18px", border: "none" }}>
+          <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
               <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
                 {t("dashboard.credit_cards_title")}
