@@ -2,13 +2,13 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
 import { getCachedAccounts, setCachedAccounts, sumDepositoryBalance, getCreditAccounts, sumCreditDebt, creditUtilization } from "../utils/accountsCache";
-import { C, FONT, CAT_COLORS, RADIUS } from "../utils/colors";
+import { C, FONT, CAT_COLORS, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmt, fmtDate, parseDate, fmtPct, resolveCategory, tCat, sumAmounts } from "../utils/helpers";
 import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
 import { ConnectBankPrompt } from "./shared/ConnectBankPrompt";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "../healthScore";
-import { InsightCard } from "./Insights";
+import { highlightNumbers } from "./Insights";
 import UpcomingChargesCard from "./UpcomingChargesCard";
 import { getUpcomingCharges, getUpcomingCardPayments } from '../utils/recurringSummary';
 import { BUFFER } from "../shared/financialConstants";
@@ -23,11 +23,11 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
 
   if (!hasData) {
     return (
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: RADIUS.md, padding: "10px 14px", fontFamily: FONT }}>
+      <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "10px 14px", fontFamily: FONT }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.faint, flexShrink: 0 }} />
-          <span style={{ fontSize: 12, fontWeight: 500, color: C.muted, flexShrink: 0 }}>{t("dashboard.health_score")}</span>
-          <span style={{ fontSize: 12, color: C.faint }}>{t("dashboard.connect_bank_score")}</span>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: DC.faint, flexShrink: 0 }} />
+          <span style={{ fontSize: 12, fontWeight: 500, color: DC.muted, flexShrink: 0 }}>{t("dashboard.health_score")}</span>
+          <span style={{ fontSize: 12, color: DC.faint }}>{t("dashboard.connect_bank_score")}</span>
         </div>
       </div>
     );
@@ -83,8 +83,7 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
     <div
       onClick={() => setOpen(o => !o)}
       style={{
-        background: C.card,
-        border: `1px solid ${C.border}`,
+        background: DC.card,
         borderRadius: RADIUS.md,
         padding: "10px 14px",
         cursor: "pointer",
@@ -103,7 +102,7 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
         }} />
 
         {/* Label */}
-        <span style={{ fontSize: 12, fontWeight: 500, color: C.muted, flexShrink: 0 }}>
+        <span style={{ fontSize: 12, fontWeight: 500, color: DC.muted, flexShrink: 0 }}>
           {t("dashboard.health_score")}
         </span>
 
@@ -114,17 +113,17 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
 
         {/* MoM delta */}
         {prevScore != null && prevScore !== score && (
-          <span style={{ fontSize: 11, fontWeight: 700, color: score > prevScore ? C.green : C.red, flexShrink: 0 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: score > prevScore ? DC.emerald : DC.ruby, flexShrink: 0 }}>
             {score > prevScore ? `↑${score - prevScore}` : `↓${prevScore - score}`}
           </span>
         )}
 
         {/* Divider */}
-        <span style={{ fontSize: 12, color: C.faint, flexShrink: 0 }}>·</span>
+        <span style={{ fontSize: 12, color: DC.faint, flexShrink: 0 }}>·</span>
 
         {/* Comment — truncated, muted */}
         <span style={{
-          fontSize: 12, color: C.faint,
+          fontSize: 12, color: DC.faint,
           overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
           flex: 1, minWidth: 0,
         }}>
@@ -133,7 +132,7 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
 
         {/* Chevron */}
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
-          stroke={C.faint} strokeWidth="2.5" strokeLinecap="round"
+          stroke={DC.faint} strokeWidth="2.5" strokeLinecap="round"
           style={{ flexShrink: 0, transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "none" }}
         >
           <polyline points="6 9 12 15 18 9" />
@@ -141,7 +140,7 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
       </div>
 
       {cashPositionLow && (
-        <div style={{ fontSize: 11, color: C.yellow, fontWeight: 600, marginTop: 4, marginLeft: 16 }}>
+        <div style={{ fontSize: 11, color: DC.gold, fontWeight: 600, marginTop: 4, marginLeft: 16 }}>
           {t("health.cash_position_low")}
         </div>
       )}
@@ -150,25 +149,25 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
       {open && (
         <div
           onClick={e => e.stopPropagation()}
-          style={{ marginTop: 12, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}
+          style={{ marginTop: 12, borderTop: `1px solid ${DC.bg}`, paddingTop: 12 }}
         >
           {rows.map(row => {
             const pct = Math.round((row.pts / row.max) * 100);
-            const barColor = pct >= 75 ? C.green : pct >= 40 ? C.yellow : C.red;
+            const barColor = pct >= 75 ? DC.emerald : pct >= 40 ? DC.gold : DC.ruby;
             return (
               <div key={row.key} style={{ marginBottom: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, color: C.muted }}>{row.label}</span>
+                  <span style={{ fontSize: 11, color: DC.muted }}>{row.label}</span>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
                     {row.detail && (
-                      <span style={{ fontSize: 10, color: C.faint }}>{row.detail}</span>
+                      <span style={{ fontSize: 10, color: DC.faint }}>{row.detail}</span>
                     )}
                     <span style={{ fontSize: 11, fontWeight: 700, color: barColor }}>
-                      {row.pts}<span style={{ fontWeight: 400, color: C.faint }}>/{row.max}</span>
+                      {row.pts}<span style={{ fontWeight: 400, color: DC.faint }}>/{row.max}</span>
                     </span>
                   </div>
                 </div>
-                <div style={{ height: 3, background: C.border, borderRadius: RADIUS.full }}>
+                <div style={{ height: 3, background: DC.bg, borderRadius: RADIUS.full }}>
                   <div style={{
                     height: 3, borderRadius: RADIUS.full,
                     width: `${pct}%`,
@@ -183,11 +182,11 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
           {/* Total */}
           <div style={{
             display: "flex", justifyContent: "space-between", alignItems: "center",
-            marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.border}`,
+            marginTop: 8, paddingTop: 8, borderTop: `1px solid ${DC.bg}`,
           }}>
-            <span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>{t("dashboard.total_score")}</span>
+            <span style={{ fontSize: 11, color: DC.muted, fontWeight: 600 }}>{t("dashboard.total_score")}</span>
             <span style={{ fontSize: 13, fontWeight: 800, color }}>
-              {score}<span style={{ fontSize: 11, fontWeight: 400, color: C.faint }}>/100</span>
+              {score}<span style={{ fontSize: 11, fontWeight: 400, color: DC.faint }}>/100</span>
             </span>
           </div>
         </div>
@@ -209,7 +208,7 @@ function StatBadge({ value, suffix }) {
   );
 }
 
-function DonutChart({ data, size = 196, onCatClick, hideAmounts = false, lockList = false, onUpgrade }) {
+function DonutChart({ data, size = 196, onCatClick, hideAmounts = false, lockList = false, onUpgrade, sideLegend = false }) {
   const { t } = useTranslation();
   const cx = size / 2, cy = size / 2;
   const outerR = size / 2 - 8;
@@ -222,7 +221,7 @@ const sw = 22;
   const total = entries.reduce((s, [, v]) => s + v, 0);
 
   if (total <= 0) return (
-    <div style={{ height: size, display: "flex", alignItems: "center", justifyContent: "center", color: C.faint, fontSize: 13, fontFamily: FONT }}>
+    <div style={{ height: size, display: "flex", alignItems: "center", justifyContent: "center", color: DC.faint, fontSize: 13, fontFamily: FONT }}>
       {t("dashboard.no_spending_data_short")}
     </div>
   );
@@ -247,8 +246,8 @@ const sw = 22;
   });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, fontFamily: FONT }}>
-      <div style={{ position: "relative", width: size, height: size }}>
+    <div style={{ display: "flex", flexDirection: sideLegend ? "row" : "column", alignItems: "center", gap: sideLegend ? 20 : 16, fontFamily: FONT }}>
+      <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
         <svg width={size} height={size} style={{ display: "block" }}>
           <defs>
             <radialGradient id="cg" cx="50%" cy="50%" r="50%">
@@ -273,17 +272,17 @@ const sw = 22;
           })}
           <circle cx={cx} cy={cy} r={outerR} fill="url(#cg)" />
         </svg>
-        <div style={{ position: "absolute", left: cx - innerR, top: cy - innerR, width: innerR * 2, height: innerR * 2, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: C.bgDeep, pointerEvents: "none" }}>
+        <div style={{ position: "absolute", left: cx - innerR, top: cy - innerR, width: innerR * 2, height: innerR * 2, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: sideLegend ? DC.bg : C.bgDeep, pointerEvents: "none" }}>
           {hovered ? (
             <>
-              <div style={{ fontSize: 10, color: C.text, fontWeight: 600, letterSpacing: 0.5, marginBottom: 2, textAlign: "center", padding: "0 4px" }}>{tCat(hovered, t)}</div>
-              <div className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: CAT_COLORS[hovered] || C.cyan }}>{hideAmounts ? "••••" : `$${fmt((data[hovered] || 0), 0)}`}</div>
-              <div style={{ fontSize: 11, color: C.text, fontWeight: 600 }}>{Math.round(((data[hovered] || 0) / total) * 100)}%</div>
+              <div style={{ fontSize: 10, color: DC.text, fontWeight: 600, letterSpacing: 0.5, marginBottom: 2, textAlign: "center", padding: "0 4px" }}>{tCat(hovered, t)}</div>
+              <div className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: CAT_COLORS[hovered] || DC.gold }}>{hideAmounts ? "••••" : `$${fmt((data[hovered] || 0), 0)}`}</div>
+              <div style={{ fontSize: 11, color: DC.text, fontWeight: 600 }}>{Math.round(((data[hovered] || 0) / total) * 100)}%</div>
             </>
           ) : (
             <>
-             <div className="ph-mask" style={{ fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: -0.5, marginBottom: 2 }}>{hideAmounts ? "••••" : `$${fmt(total, 0)}`}</div>
-           <div style={{ fontSize: 10, color: C.muted, letterSpacing: 0.5, fontWeight: 600 }}>{t("dashboard.total_spent")}</div>
+             <div className="ph-mask" style={{ fontSize: 20, fontWeight: 800, color: DC.text, letterSpacing: -0.5, marginBottom: 2 }}>{hideAmounts ? "••••" : `$${fmt(total, 0)}`}</div>
+           <div style={{ fontSize: 10, color: DC.muted, letterSpacing: 0.5, fontWeight: 600 }}>{t("dashboard.total_spent")}</div>
             </>
           )}
         </div>
@@ -302,18 +301,20 @@ const sw = 22;
         const row = (s, i) => (
           <div key={s.cat}
             onClick={() => onCatClick && onCatClick(s.cat)}
-            style={{ display: "flex", alignItems: "center", gap: 10, cursor: onCatClick ? "pointer" : "default", padding: "6px 10px", borderRadius: RADIUS.sm, background: hovered === s.cat ? s.color + "18" : C.bgTertiary, border: `1px solid ${hovered === s.cat ? s.color + "44" : "transparent"}`, transition: "all 0.15s" }}
+            style={sideLegend
+              ? { display: "flex", alignItems: "center", gap: 8, cursor: onCatClick ? "pointer" : "default", padding: "3px 0" }
+              : { display: "flex", alignItems: "center", gap: 10, cursor: onCatClick ? "pointer" : "default", padding: "6px 10px", borderRadius: RADIUS.sm, background: hovered === s.cat ? s.color + "18" : C.bgTertiary, border: `1px solid ${hovered === s.cat ? s.color + "44" : "transparent"}`, transition: "all 0.15s" }}
             onMouseEnter={() => setHovered(s.cat)} onMouseLeave={() => setHovered(null)}>
-            <div style={{ width: 10, height: 10, borderRadius: RADIUS.full, background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}88` }} />
-            <span style={{ fontSize: 13, color: i === 0 ? C.text : C.muted, fontWeight: i === 0 ? 600 : 400, flex: 1 }}>{tCat(s.cat, t)}</span>
-            <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{hideAmounts ? "••••" : `$${fmt(s.val, 0)}`}</span>
-            <span style={{ fontSize: 11, color: s.color, fontWeight: i === 0 ? 700 : 500, minWidth: 36, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>
-            {onCatClick && <Icon name="chevron" size={12} color={C.faint} />}
+            <div style={{ width: 8, height: 8, borderRadius: RADIUS.full, background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}88` }} />
+            <span style={{ fontSize: 13, color: i === 0 ? DC.text : DC.muted, fontWeight: i === 0 ? 600 : 400, flex: 1 }}>{tCat(s.cat, t)}</span>
+            <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{hideAmounts ? "••••" : `$${fmt(s.val, 0)}`}</span>
+            {!sideLegend && <span style={{ fontSize: 11, color: s.color, fontWeight: i === 0 ? 700 : 500, minWidth: 36, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>}
+            {!sideLegend && onCatClick && <Icon name="chevron" size={12} color={C.faint} />}
           </div>
         );
 
         return (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: sideLegend ? 8 : 6, flex: sideLegend ? 1 : "unset", minWidth: 0 }}>
             {visibleSlices.map(row)}
             {hiddenSlices.length > 0 && (
               <div style={{ position: "relative" }}>
@@ -321,7 +322,7 @@ const sw = 22;
                   {hiddenSlices.map(row)}
                 </div>
                 <div onClick={onUpgrade} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, background: C.card, padding: "5px 14px", borderRadius: RADIUS.lg, border: `1px solid ${C.border}` }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: DC.muted, background: DC.card, padding: "5px 14px", borderRadius: RADIUS.lg, border: `1px solid ${DC.faint}33` }}>
                     {t("dashboard.unlock_more_categories", { count: lockedCount })}
                   </span>
                 </div>
@@ -888,11 +889,12 @@ function CalendarDayCell({ day, isToday, isPast, color, alpha, size, emphasized,
 // past/today day in the strip navigates to Transactions filtered by that
 // date; tapping a future day shows a tooltip — same rules as before, just
 // scoped to the strip instead of the whole grid.
-function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCategoryClick, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, accountBalance, bankConnected, onNavigate }) {
+function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCategoryClick, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, accountBalance, bankConnected, onNavigate, compactWeek = false }) {
   const { t } = useTranslation();
   const [selectedDay, setSelectedDay] = useState(null);
   const [tooltipDay, setTooltipDay] = useState(null);
   const [showAddPayment, setShowAddPayment] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const now = new Date();
   const year = now.getFullYear();
@@ -918,6 +920,27 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
   }
 
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  // Compact mode: just the current Mon-Sun week, clamped to this month (a
+  // week straddling a month boundary shows fewer than 7 cells at the edge —
+  // pastByDay/futureByDay are scoped to this month only, so cross-month
+  // days have no data to show anyway). "View full month" below reveals the
+  // full grid unchanged — this never replaces or loses that functionality.
+  const todayDow = (now.getDay() + 6) % 7; // Monday-first
+  const weekStart = Math.max(1, todayDate - todayDow);
+  const weekEnd = Math.min(daysInMonth, todayDate - todayDow + 6);
+  const weekDays = Array.from({ length: weekEnd - weekStart + 1 }, (_, i) => weekStart + i);
+  const showCompact = compactWeek && !expanded;
+  const visibleDays = showCompact ? weekDays : days;
+  const visibleLeadingBlanks = showCompact ? 0 : leadingBlanks;
+  // "Hottest" day in the visible week — the single biggest upcoming charge,
+  // used for the ruby danger-day outline in compact mode.
+  const dangerDay = showCompact
+    ? weekDays.reduce((worst, d) => {
+        const amt = futureByDay[d]?.amount ?? 0;
+        return amt > (futureByDay[worst]?.amount ?? 0) ? d : worst;
+      }, null)
+    : null;
 
   function dayColorAlpha(day) {
     const isToday = day === todayDate;
@@ -976,18 +999,19 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
   const selectedFutureInfo = selectedDay ? futureByDay[selectedDay] : null;
 
   return (
-    <GlassCard style={{ padding: "14px 16px" }}>
-      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10 }}>{t("dashboard.month_calendar_title")}</div>
+    <GlassCard style={compactWeek ? { padding: "14px 16px", background: DC.card, border: "none" } : { padding: "14px 16px" }}>
+      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10, color: compactWeek ? DC.text : C.text }}>{t("dashboard.month_calendar_title")}</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
         {WEEKDAY_KEYS.map(key => (
-          <div key={key} style={{ textAlign: "center", fontSize: 10, color: C.muted, fontWeight: 600 }}>{t(`dashboard.${key}`)}</div>
+          <div key={key} style={{ textAlign: "center", fontSize: 10, color: compactWeek ? DC.muted : C.muted, fontWeight: 600 }}>{t(`dashboard.${key}`)}</div>
         ))}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
-        {Array.from({ length: leadingBlanks }, (_, i) => <div key={`blank-${i}`} />)}
-        {days.map(day => {
+        {Array.from({ length: visibleLeadingBlanks }, (_, i) => <div key={`blank-${i}`} />)}
+        {visibleDays.map(day => {
           const { color, alpha, isToday, isPast } = dayColorAlpha(day);
           const amountInfo = dayAmountInfo(day);
+          const isDanger = day === dangerDay;
           return (
             <div key={day} style={{ aspectRatio: "1" }}>
               <div
@@ -995,7 +1019,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
                 style={{
                   width: "100%", height: "100%", borderRadius: RADIUS.sm, position: "relative",
                   background: color + alpha,
-                  border: isToday ? `2px solid ${C.text}` : `1px solid ${color}55`,
+                  border: isDanger ? `2px solid ${DC.ruby}` : isToday ? `2px solid ${C.text}` : `1px solid ${color}55`,
                   cursor: "pointer",
                 }}
               >
@@ -1027,6 +1051,12 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
           );
         })}
       </div>
+
+      {compactWeek && (
+        <button onClick={() => setExpanded(v => !v)} style={{ display: "block", background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold }}>
+          {expanded ? t("dashboard.show_less") : t("dashboard.view_full_month")}
+        </button>
+      )}
 
       {selectedDay && (
         <div onClick={() => { setSelectedDay(null); setTooltipDay(null); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 180, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
@@ -1211,13 +1241,58 @@ function AddPlannedPaymentModal({ dueDate, transactions, merchantAliasMap, sched
 }
 
 // ─── Dashboard ────────────────────────────────────────────────
-export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment }) {
+// Compact "coach" block — top of Dashboard, the highest-priority insight
+// with inline-highlighted dollar amounts (ruby for warning-tier insights,
+// gold for positive/neutral ones). Deliberately NOT a change to the shared
+// InsightCard (used by Insights.jsx too) — a separate component so this
+// pass stays scoped to Dashboard.jsx's own visual language.
+const COACH_WARNING_TYPES = ['cash_risk', 'category_spike', 'overspending', 'debt_utilization', 'goal_off_track'];
+
+function CoachBlock({ insight, onAction }) {
+  const { t } = useTranslation();
+  if (!insight?.rendered?.headline) return null;
+  const accent = COACH_WARNING_TYPES.includes(insight.type) ? DC.ruby : DC.gold;
+  const { headline, cta, action } = insight.rendered;
+  return (
+    <div style={{ background: DC.card, borderLeft: `3px solid ${accent}`, borderRadius: RADIUS.md, padding: "14px 16px 12px", fontFamily: FONT }}>
+      <div style={{ fontSize: 11, color: DC.muted, fontWeight: 600, letterSpacing: 0.5, marginBottom: 6 }}>{t("dashboard.your_coach")}</div>
+      <div className="ph-mask" style={{ fontSize: 15, fontWeight: 700, color: DC.text, lineHeight: 1.4 }}>
+        {highlightNumbers(headline, accent)}
+      </div>
+      <button onClick={() => onAction?.(action, insight.data)} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 13, fontWeight: 700, color: accent }}>
+        {cta || t("dashboard.fix_this")}
+        <Icon name="chevron" size={13} color={accent} />
+      </button>
+    </div>
+  );
+}
+
+// Non-interactive placeholder — real Lessons functionality (streak logic,
+// content generation, backend) is a separate follow-up, not this pass. No
+// fabricated streak count or lesson title here on purpose (see CLAUDE.md:
+// never invent a plausible-looking placeholder number for an empty state).
+function TodaysLessonRow() {
+  const { t } = useTranslation();
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 4px" }}>
+      <Icon name="zap" size={16} color={DC.gold} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{t("dashboard.todays_lesson")}</div>
+        <div style={{ fontSize: 11, color: DC.muted, marginTop: 1 }}>{t("dashboard.todays_lesson_subtitle")}</div>
+      </div>
+      <Icon name="chevron" size={13} color={DC.faint} />
+    </div>
+  );
+}
+
+export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, onOpenChat }) {
   const { t } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
   const [creditAccounts, setCreditAccounts] = useState([]); // credit-card accounts from the same fetch
   const [otherBreakdown, setOtherBreakdown] = useState(false);
   const [allCreditCards, setAllCreditCards] = useState(false);
+  const [showCashFlowSheet, setShowCashFlowSheet] = useState(false);
   const balanceFetchIdRef = useRef(0);
   const m = (n, dec = 0) => balanceVisible ? `$${fmt(n, dec)}` : "••••";
 
@@ -1285,6 +1360,10 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
     budget,
     subscriptionSpend,
   });
+  // healthScore.js is shared (weekly-report duplicates its formula too) —
+  // not touching its returned hex directly, just mapping to the new
+  // palette for display here.
+  const dcScoreColor = scoreColor === '#FF5C7A' ? DC.ruby : scoreColor === '#FFB800' ? DC.gold : scoreColor === '#12D18E' ? DC.emerald : scoreColor;
   const healthComment = generateHealthComment({
     score: healthScore,
     breakdown: scoreBreakdown,
@@ -1352,127 +1431,85 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         </div>
       )}
 
-      {/* 0b ── Upcoming Recurring Charges — horizontal carousel */}
-      {upcomingCharges.length > 0 && (
-        <UpcomingChargesCard charges={upcomingCharges} />
-      )}
+      {/* 1 ── Coach block (highest-priority insight, moved to top) */}
+      <CoachBlock insight={insight?.type === 'savings_opportunity' && balance <= 0 ? null : insight} onAction={onInsightAction} />
 
-      {/* 1 ── Account Balance */}
+      {/* 2 ── Calendar week (compact by default, "View full month" reveals the unchanged full grid + Level 2 sheet) */}
+      <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} scheduledPayments={scheduledPayments} onAddScheduledPayment={onAddScheduledPayment} onCancelScheduledPayment={onCancelScheduledPayment} accountBalance={accountBalance} bankConnected={bankConnected} onNavigate={onNavigate} compactWeek />
+
+      {/* 3 ── Today's lesson (placeholder — real Lessons functionality is a separate follow-up) */}
+      <TodaysLessonRow />
+
+      {/* 4 ── Balance / End of month — compact boxes, tap either to open the full Cash Flow Forecast (burn-down bar + 3-stat grid) in a sheet, nothing lost or duplicated on-page */}
       {!bankConnected ? (
         <div data-tutorial="net-balance">
           <ConnectBankPrompt title={t("dashboard.account_balance")} message={t("dashboard.connect_bank_balance")} onNavigate={onNavigate} />
         </div>
-      ) : (
-        <>
-          <style>{`@keyframes bal-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
-          <div data-tutorial="net-balance" style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: RADIUS.lg, padding: "16px 18px", border: `1px solid ${C.border}`, position: "relative", overflow: "hidden", boxShadow: "0 4px 32px rgba(0,194,255,0.08)" }}>
-            <div style={{ position: "absolute", top: -30, right: -30, width: 110, height: 110, borderRadius: "50%", background: C.cyan + "0B", pointerEvents: "none" }} />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
-                {t("dashboard.account_balance")}
-              </span>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {isShowingLastMonth && <span style={{ fontSize: 9, color: C.yellow, fontWeight: 600, background: C.yellow + "18", padding: "2px 7px", borderRadius: RADIUS.full, letterSpacing: 0.3 }}>
-                  {new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleString('en-US', { month: 'short' })} data
-                </span>}
-                <button onClick={() => setBalanceVisible(v => !v)} aria-label={balanceVisible ? t("dashboard.hide_balance") : t("dashboard.show_balance")} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44 }}>
-                  <Icon name={balanceVisible ? "eye" : "eye-off"} size={15} color={C.faint} />
-                </button>
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8 }}>
-              <div>
-                {accountBalance != null ? (
-                  <>
-                    <div className="ph-mask" style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? C.cyan : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${C.cyan}44` : "none" }}>
-                      {balanceVisible ? `$${fmt(accountBalance)}` : "••••"}
-                    </div>
-                    <div style={{ fontSize: 9, color: C.faint, marginTop: 2, letterSpacing: 0.5 }}>
-                      {t("dashboard.available_in_bank")}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ width: 160, height: 42, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${C.bgSecondary} 0%,${C.bgTertiary} 40%,${C.bgSecondary} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite", marginBottom: 6 }} />
-                    <div style={{ width: 90, height: 10, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${C.bgSecondary} 0%,${C.bgTertiary} 40%,${C.bgSecondary} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
-                  </>
-                )}
-              </div>
-              <Sparkline transactions={transactions} />
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* 2 ── Cash Flow Forecast */}
-      <CashFlowForecast
-        accountBalance={accountBalance}
-        transactions={transactions}
-        balanceVisible={balanceVisible}
-        merchantAliasMap={merchantAliasMap}
-        bankConnected={bankConnected}
-        onNavigate={onNavigate}
-        scheduledPayments={scheduledPayments}
-      />
-
-      {/* 2b ── Credit Cards */}
-      {creditAccounts.length > 0 && (() => {
-        const totalDebt = sumCreditDebt(creditAccounts);
-        const netWorth = accountBalance != null ? accountBalance - totalDebt : null;
-        const topCards = sortedCreditAccounts.slice(0, 3);
-        const remaining = sortedCreditAccounts.length - topCards.length;
+      ) : (() => {
+        const today = new Date();
+        const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+        const endOfMonthDate = new Date(today.getFullYear(), today.getMonth(), daysInMonth);
+        const { projectedRaw } = accountBalance != null
+          ? projectBalanceAt(transactions, accountBalance, endOfMonthDate, merchantAliasMap, scheduledPayments, today)
+          : { projectedRaw: null };
+        const projectedBalance = projectedRaw != null ? Math.max(0, projectedRaw) : null;
+        const eomColor = projectedBalance == null ? DC.text : projectedRaw <= 0 ? DC.ruby : DC.text;
         return (
-          <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: RADIUS.md, padding: "14px 18px", border: `1px solid ${C.border}` }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-              <span style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
-                {t("dashboard.credit_cards_title")}
-              </span>
-              <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: C.red }}>{m(totalDebt)}</span>
-            </div>
-            {netWorth != null && (
-              <div className="ph-mask" style={{ fontSize: 11, color: C.faint, marginBottom: 12 }}>
-                {t("dashboard.credit_cards_net_worth")}: {balanceVisible ? (netWorth < 0 ? `-$${fmt(Math.abs(netWorth))}` : `$${fmt(netWorth)}`) : "••••"}
+          <div data-tutorial="net-balance" style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setShowCashFlowSheet(true)} style={{ flex: 1, textAlign: "left", background: DC.card, borderRadius: RADIUS.lg, padding: "14px 16px", border: "none", cursor: "pointer", fontFamily: FONT }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.balance_short")}</span>
+                <span onClick={e => { e.stopPropagation(); setBalanceVisible(v => !v); }} role="button" aria-label={balanceVisible ? t("dashboard.hide_balance") : t("dashboard.show_balance")} style={{ display: "flex", padding: 4 }}>
+                  <Icon name={balanceVisible ? "eye" : "eye-off"} size={13} color={DC.faint} />
+                </span>
               </div>
-            )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: netWorth != null ? 0 : 8 }}>
-              {topCards.map((a, i) => {
-                const pct = creditUtilization(a);
-                const color = creditUtilColor(pct);
-                return (
-                  <div key={a.account_id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 13, color: C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name || a.official_name || t("dashboard.credit_cards_title")}</span>
-                    <span className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{m(Number(a.balance_current ?? 0))}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 34, textAlign: "right" }}>{pct != null ? `${Math.round(pct * 100)}%` : "—"}</span>
+              {accountBalance != null ? (
+                <>
+                  <div className="ph-mask" style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, color: DC.text }}>
+                    {balanceVisible ? `$${fmt(accountBalance)}` : "••••"}
                   </div>
-                );
-              })}
-            </div>
-            {remaining > 0 && (
-              <button onClick={() => setAllCreditCards(true)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: C.cyan }}>
-                {t("dashboard.credit_cards_more", { count: remaining })}
-              </button>
-            )}
+                  <div style={{ marginTop: 4 }}><Sparkline transactions={transactions} /></div>
+                </>
+              ) : (
+                <div style={{ width: 100, height: 26, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${DC.card} 0%,#20263380 40%,${DC.card} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
+              )}
+            </button>
+            <button onClick={() => setShowCashFlowSheet(true)} style={{ flex: 1, textAlign: "left", background: DC.card, borderRadius: RADIUS.lg, padding: "14px 16px", border: "none", cursor: "pointer", fontFamily: FONT }}>
+              <div style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 8 }}>{t("dashboard.end_of_month_short")}</div>
+              {projectedBalance != null ? (
+                <div className="ph-mask" style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, color: eomColor }}>{balanceVisible ? `$${fmt(projectedBalance)}` : "••••"}</div>
+              ) : (
+                <div style={{ width: 60, height: 26, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${DC.card} 0%,#20263380 40%,${DC.card} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
+              )}
+            </button>
           </div>
         );
       })()}
 
+      {/* 5 ── Next up: upcoming recurring charges */}
+      {upcomingCharges.length > 0 && (
+        <UpcomingChargesCard charges={upcomingCharges} />
+      )}
 
-      {/* 3 ── Monthly Cash Flow */}
+      {/* 6 ── Monthly Cash Flow */}
       {!bankConnected ? (
         <ConnectBankPrompt title={t("dashboard.monthly_cash_flow")} message={t("dashboard.connect_bank_cashflow")} onNavigate={onNavigate} />
       ) : (
-        <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: RADIUS.md, padding: "14px 18px", border: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 12 }}>{t("dashboard.monthly_cash_flow")}</div>
+        <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "14px 18px", border: "none" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+            <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.monthly_cash_flow")}</span>
+            {balance < 0 && <div style={{ width: 6, height: 6, borderRadius: RADIUS.full, background: DC.ruby }} />}
+          </div>
           <div style={{ display: "flex" }}>
             {[
-              { key: "income",   label: t("dashboard.income"),   value: m(totalIncome), color: C.green, dot: C.green, change: incomeChange },
-              { key: "expenses", label: t("dashboard.expenses"), value: m(totalSpent),  color: C.red,   dot: C.red,   change: expenseChange, flip: true },
-              { key: "net",      label: t("dashboard.net"),      value: balanceVisible ? (balance < 0 ? `-$${fmt(Math.abs(balance))}` : `$${fmt(balance)}`) : "••••", color: balance >= 0 ? C.green : C.red, dot: balance >= 0 ? C.green : C.red },
+              { key: "income",   label: t("dashboard.income"),   value: m(totalIncome), color: DC.emerald, dot: DC.emerald, change: incomeChange },
+              { key: "expenses", label: t("dashboard.expenses"), value: m(totalSpent),  color: DC.text,     dot: DC.faint,   change: expenseChange, flip: true },
+              { key: "net",      label: t("dashboard.net"),      value: balanceVisible ? (balance < 0 ? `-$${fmt(Math.abs(balance))}` : `$${fmt(balance)}`) : "••••", color: balance >= 0 ? DC.emerald : DC.ruby, dot: balance >= 0 ? DC.emerald : DC.ruby },
             ].map((item, i) => (
-              <div key={item.key} style={{ flex: 1, paddingLeft: i > 0 ? 10 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : "none", marginLeft: i > 0 ? 10 : 0 }}>
+              <div key={item.key} style={{ flex: 1, paddingLeft: i > 0 ? 10 : 0, borderLeft: i > 0 ? `1px solid ${DC.bg}` : "none", marginLeft: i > 0 ? 10 : 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
                   <div style={{ width: 5, height: 5, borderRadius: RADIUS.full, background: item.dot }} />
-                  <span style={{ fontSize: 9, color: C.muted, fontWeight: 500 }}>{item.label}</span>
+                  <span style={{ fontSize: 9, color: DC.muted, fontWeight: 500 }}>{item.label}</span>
                 </div>
                 <div className="ph-mask" style={{ fontSize: item.key === "net" ? 17 : 13, fontWeight: item.key === "net" ? 800 : 700, color: item.color, marginBottom: 3 }}>{item.value}</div>
                 {item.change !== undefined && <StatBadge value={item.flip ? -item.change : item.change} suffix="" />}
@@ -1482,71 +1519,137 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         </div>
       )}
 
-      {/* 2 ── Financial Health Score */}
-      <div data-tutorial="health-score">
-        <HealthScoreBar score={healthScore} color={scoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} prevScore={prevHealthScore} cashPositionLow={cashPositionLow} />
-        <button
-          onClick={() => onNavigate("insights")}
-          style={{ display: "flex", alignItems: "center", gap: 4, margin: "6px 0 0 2px", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: FONT }}
-        >
-          <span style={{ fontSize: 13, fontWeight: 600, color: C.cyan }}>{t("dashboard.view_insights")}</span>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}>
-            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-          </svg>
-        </button>
-      </div>
-
-      {/* 2b ── AI Brain Insight */}
-      <div data-tutorial="ai-insight">
-        <InsightCard insight={insight?.type === 'savings_opportunity' && balance <= 0 ? null : insight} onAction={onInsightAction} />
-      </div>
-
-      {/* 7 ── Monthly Budget (compact) */}
+      {/* 6b ── Monthly Budget (compact) */}
       {(() => {
         const isOver = totalSpent > budget;
         const budgetPct = budget > 0 ? (totalSpent / budget) * 100 : 0;
-        const barColor = isOver ? C.red : budgetPct > 70 ? C.yellow : C.cyan;
+        const barColor = isOver ? DC.ruby : budgetPct > 70 ? DC.gold : DC.emerald;
         return (
-          <GlassCard style={{ padding: "10px 16px" }}>
+          <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "10px 16px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 13, color: C.muted }}>
-                <span style={{ fontWeight: 600, color: C.text }}>{t("dashboard.budget")}</span>
+              <span style={{ fontSize: 13, color: DC.muted }}>
+                <span style={{ fontWeight: 600, color: DC.text }}>{t("dashboard.budget")}</span>
                 {'  '}{m(totalSpent)} / {m(budget)}
               </span>
               <span style={{ fontSize: 12, fontWeight: 700, color: barColor }}>
                 {Math.round(budgetPct)}%{isOver ? ` ${t("dashboard.over_budget")}` : ''}
               </span>
             </div>
-            <div style={{ height: 3, background: C.bgTertiary, borderRadius: RADIUS.full }}>
+            <div style={{ height: 3, background: DC.bg, borderRadius: RADIUS.full }}>
               <div style={{ height: 3, borderRadius: RADIUS.full, width: `${Math.min(budgetPct, 100)}%`, background: barColor, transition: "width 0.6s" }} />
             </div>
-          </GlassCard>
+          </div>
         );
       })()}
 
-      {/* 3 ── Spending by Category */}
-      <GlassCard style={{ padding: "14px 16px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}>
+      {/* 7 ── Credit Cards */}
+      {creditAccounts.length > 0 && (() => {
+        const totalDebt = sumCreditDebt(creditAccounts);
+        const netWorth = accountBalance != null ? accountBalance - totalDebt : null;
+        const topCards = sortedCreditAccounts.slice(0, 3);
+        const remaining = sortedCreditAccounts.length - topCards.length;
+        const utilColorDC = (pct) => pct == null ? DC.faint : pct >= 0.70 ? DC.ruby : pct >= 0.30 ? DC.gold : DC.emerald;
+        return (
+          <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "14px 18px", border: "none" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+              <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
+                {t("dashboard.credit_cards_title")}
+              </span>
+              <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.ruby }}>{m(totalDebt)}</span>
+            </div>
+            {netWorth != null && (
+              <div className="ph-mask" style={{ fontSize: 11, color: DC.faint, marginBottom: 12 }}>
+                {t("dashboard.credit_cards_net_worth")}: {balanceVisible ? (netWorth < 0 ? `-$${fmt(Math.abs(netWorth))}` : `$${fmt(netWorth)}`) : "••••"}
+              </div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: netWorth != null ? 0 : 8 }}>
+              {topCards.map((a, i) => {
+                const pct = creditUtilization(a);
+                const color = utilColorDC(pct);
+                return (
+                  <div key={a.account_id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 13, color: DC.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name || a.official_name || t("dashboard.credit_cards_title")}</span>
+                    <span className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: DC.text }}>{m(Number(a.balance_current ?? 0))}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 34, textAlign: "right" }}>{pct != null ? `${Math.round(pct * 100)}%` : "—"}</span>
+                  </div>
+                );
+              })}
+            </div>
+            {remaining > 0 && (
+              <button onClick={() => setAllCreditCards(true)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold }}>
+                {t("dashboard.credit_cards_more", { count: remaining })}
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* 8 ── Spending by Category (donut + side legend) */}
+      <div style={{ background: DC.card, borderRadius: RADIUS.lg, padding: "14px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <span style={{ fontWeight: 600, fontSize: 14 }}>{t("dashboard.spending_by_category")}</span>
+          <span style={{ fontWeight: 600, fontSize: 14, color: DC.text }}>{t("dashboard.spending_by_category")}</span>
           {isPro
-            ? <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: RADIUS.full }}>{t("dashboard.tap_to_filter")}</span>
-            : <span style={{ fontSize: 10, color: C.cyan + "AA", background: C.cyan + "10", padding: "3px 8px", borderRadius: RADIUS.full, cursor: "pointer" }} onClick={onUpgrade}>Pro</span>
+            ? <span style={{ fontSize: 10, color: DC.faint, background: DC.bg, padding: "3px 8px", borderRadius: RADIUS.full }}>{t("dashboard.tap_to_filter")}</span>
+            : <span style={{ fontSize: 10, color: DC.gold, background: DC.gold + "18", padding: "3px 8px", borderRadius: RADIUS.full, cursor: "pointer" }} onClick={onUpgrade}>Pro</span>
           }
         </div>
         {Object.keys(spendingByCategory).length === 0 ? (
-          <div style={{ textAlign: "center", padding: "24px 0", color: C.faint, fontSize: 13 }}>
+          <div style={{ textAlign: "center", padding: "24px 0", color: DC.faint, fontSize: 13 }}>
             {t("dashboard.no_spending_data")}
           </div>
         ) : (
-          <DonutChart data={spendingByCategory} size={196} onCatClick={isPro ? handleCatClick : null} hideAmounts={!balanceVisible} lockList={!isPro} onUpgrade={onUpgrade} />
+          <DonutChart data={spendingByCategory} size={120} sideLegend onCatClick={isPro ? handleCatClick : null} hideAmounts={!balanceVisible} lockList={!isPro} onUpgrade={onUpgrade} />
         )}
-      </GlassCard>
+      </div>
 
-      {/* 6 ── Month Calendar (replaces Recent Transactions) */}
-      <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} scheduledPayments={scheduledPayments} onAddScheduledPayment={onAddScheduledPayment} onCancelScheduledPayment={onCancelScheduledPayment} accountBalance={accountBalance} bankConnected={bankConnected} onNavigate={onNavigate} />
+      {/* 9 ── Financial Health Score — same HealthScoreBar component as before (collapsed row + expand-on-tap breakdown), restyled to the new palette internally, not replaced */}
+      <div data-tutorial="health-score">
+        <HealthScoreBar score={healthScore} color={dcScoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} prevScore={prevHealthScore} cashPositionLow={cashPositionLow} />
+        <button
+          onClick={() => onNavigate("insights")}
+          style={{ display: "flex", alignItems: "center", gap: 4, margin: "6px 0 0 2px", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: FONT }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 600, color: DC.gold }}>{t("dashboard.view_insights")}</span>
+          <Icon name="chevron" size={13} color={DC.gold} />
+        </button>
+      </div>
 
-      {/* 5 ── Market Overview */}
+      {/* 10 ── Markets */}
       <MarketOverview onOpenMarket={onOpenMarket} />
+
+      {/* 11 ── Ask your coach anything */}
+      <button onClick={() => onOpenChat?.()} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.full, padding: "14px 20px", cursor: "pointer", fontFamily: FONT, marginTop: 4 }}>
+        <span style={{ fontSize: 13, color: DC.muted }}>{t("dashboard.ask_coach_placeholder")}</span>
+        <Icon name="chevron" size={14} color={DC.faint} />
+      </button>
+
+      {/* ── Cash Flow Forecast sheet (full burn-down bar + 3-stat grid, tapped from the compact Balance/End-of-month boxes) ── */}
+      {showCashFlowSheet && (
+        <div onClick={() => setShowCashFlowSheet(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 180, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", border: `1px solid ${C.border}`, padding: "0 0 32px", maxHeight: "75vh", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "14px 0 0", display: "flex", justifyContent: "center" }}>
+              <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: "rgba(255,255,255,0.12)" }} />
+            </div>
+            <div style={{ padding: "12px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${C.sep}`, flexShrink: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{t("dashboard.cash_flow_forecast")}</div>
+              <button onClick={() => setShowCashFlowSheet(false)} aria-label={t("dashboard.close")} style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.xs, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div style={{ overflowY: "auto", padding: "16px 20px" }}>
+              <CashFlowForecast
+                accountBalance={accountBalance}
+                transactions={transactions}
+                balanceVisible={balanceVisible}
+                merchantAliasMap={merchantAliasMap}
+                bankConnected={bankConnected}
+                onNavigate={onNavigate}
+                scheduledPayments={scheduledPayments}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── "Other" breakdown sheet ── */}
       {otherBreakdown && (() => {

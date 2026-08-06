@@ -63,6 +63,27 @@ export const C = {
   proMuted: "#7A8BA8",
 };
 
+// Premium-dark redesign palette — approved mockup, 2026-08-04. Dashboard.jsx
+// only for now; other screens migrate to this in later, separate passes
+// (staged rollout — see BACKLOG.md). Kept in its own namespace rather than
+// merged into C: C.emerald already exists at a different hex (#34D399), and
+// merging would repaint every screen that imports C, not just Dashboard.
+export const DASHBOARD_C = {
+  bg:         "#12161F",
+  text:       "#F5F6F8",
+  gold:       "#E8C97D", // neutral/informational accent
+  ruby:       "#D64F5E", // danger/negative — solid fills, borders, badges
+  rubyBright: "#E4677A", // lighter ruby — inline emphasized numbers in coach text
+  emerald:    "#2FB37D", // positive — income, market gains, sparkline-up
+  // Not in the approved hex list — derived, not exact-mockup values. Card
+  // fill one step lighter than bg (mockup cards have no hard border, just a
+  // faint lift off the page) and a muted/faint pair kept close to the
+  // existing C.muted/C.faint tone so text hierarchy reads the same way.
+  card:  "#181D29",
+  muted: "#9AA4B2",
+  faint: "#6B7688",
+};
+
 export const CAT_COLORS = {
   "Housing":          "#60A5FA",
   "Bills":            "#A78BFA",

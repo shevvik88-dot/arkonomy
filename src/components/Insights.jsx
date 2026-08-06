@@ -44,7 +44,7 @@ function computeGoalForecast(remaining, monthlySurplus, numGoals) {
 // Splits a string on $amounts and X% percentages and wraps them in bold
 // colored spans: explicit negative (−$X / −X%) → red, positive → green,
 // unsigned → accent color passed in (falls back to white).
-function highlightNumbers(text, accentColor = "#FFFFFF") {
+export function highlightNumbers(text, accentColor = "#FFFFFF") {
   if (!text) return text;
   const parts = String(text).split(/([-+]?\$[\d,]+(?:\.\d+)?|[-+]?\d+(?:\.\d+)?%)/g);
   return parts.map((part, i) => {
