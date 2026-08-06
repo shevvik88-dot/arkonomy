@@ -3,19 +3,37 @@ import { initSentry, captureAndFlush } from "../_shared/sentry.ts";
 
 initSentry("auth-login");
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": Deno.env.get("APP_URL") ?? "https://app.arkonomy.com",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// Preview deployments get a fresh random subdomain hash on every push
+// (arkonomy-<hash>-shevvik88-dots-projects.vercel.app) — a single static
+// origin can't cover that, so this is an allow-list/pattern match instead.
+// Never echoes back an arbitrary origin: only prod or a Vercel preview URL
+// under this exact project match; anything else falls back to prod.
+const PROD_ORIGIN = Deno.env.get("APP_URL") ?? "https://app.arkonomy.com";
+const ALLOWED_ORIGINS: (string | RegExp)[] = [
+  PROD_ORIGIN,
+  /^https:\/\/arkonomy-[a-z0-9]+-shevvik88-dots-projects\.vercel\.app$/,
+];
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+function resolveCorsHeaders(req: Request) {
+  const origin = req.headers.get("origin") ?? "";
+  const allowedOrigin = ALLOWED_ORIGINS.some(o => typeof o === "string" ? o === origin : o.test(origin))
+    ? origin
+    : PROD_ORIGIN;
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  };
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = resolveCorsHeaders(req);
+  function json(body: unknown, status = 200) {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
