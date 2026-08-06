@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { C, FONT } from "../utils/colors";
+import { C, FONT, DASHBOARD_C as DC } from "../utils/colors";
 import Icon from "./shared/Icon";
 
 export default function BottomNav({ screen, setScreen, onOpenChat, insightCount = 0 }) {
@@ -151,9 +151,9 @@ export default function BottomNav({ screen, setScreen, onOpenChat, insightCount 
           return (
             <button key={tab.id} data-tutorial={`nav-${tab.id}`} aria-label={tab.label} onClick={() => { navigator.vibrate?.(10); setScreen(tab.id); }}
               style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: "4px 0", minHeight: 44, position: "relative" }}>
-              <Icon name={tab.icon} size={22} color={active ? C.blue : C.faint} strokeWidth={active ? 2.2 : 1.8} />
-              <span style={{ fontSize: 10, color: active ? C.blue : C.faint, fontWeight: active ? 700 : 400, fontFamily: FONT }}>{tab.label}</span>
-              {active && <div style={{ width: 4, height: 4, borderRadius: 99, background: C.blue, boxShadow: `0 0 6px ${C.blue}` }} />}
+              <Icon name={tab.icon} size={22} color={active ? DC.gold : C.faint} strokeWidth={active ? 2.2 : 1.8} />
+              <span style={{ fontSize: 10, color: active ? DC.gold : C.faint, fontWeight: active ? 700 : 400, fontFamily: FONT }}>{tab.label}</span>
+              {active && <div style={{ width: 4, height: 4, borderRadius: 99, background: DC.gold, boxShadow: `0 0 6px ${DC.gold}` }} />}
             </button>
           );
         })}

@@ -199,9 +199,13 @@ function DonutChart({ data, size = 196, onCatClick, hideAmounts = false, lockLis
   const { t } = useTranslation();
   const cx = size / 2, cy = size / 2;
   const outerR = size / 2 - 8;
-const innerR = outerR - 22;
-const mid = (outerR + innerR) / 2;
-const sw = 22;
+  // Thinner ring (was 22px, nearly a solid disc) with a wide center hole for
+  // the total-spent text, matching the mockup. innerR derives from sw
+  // directly now instead of an independent duplicate literal, so they can't
+  // drift apart again.
+  const sw = 10;
+  const innerR = outerR - sw;
+  const mid = (outerR + innerR) / 2;
   const [hovered, setHovered] = useState(null);
 
   const entries = Object.entries(data || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
@@ -1406,13 +1410,18 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         const topCards = sortedCreditAccounts.slice(0, 3);
         const remaining = sortedCreditAccounts.length - topCards.length;
         const utilColorDC = (pct) => pct == null ? DC.faint : pct >= 0.70 ? DC.ruby : pct >= 0.30 ? DC.gold : DC.emerald;
+        // With exactly one card, totalDebt is by definition that card's own
+        // balance_current — showing both here reads as the same number
+        // twice. Only show the header total once there's an actual sum to
+        // show (2+ cards).
+        const hasMultipleCards = creditAccounts.length > 1;
         return (
           <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
               <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
                 {t("dashboard.credit_cards_title")}
               </span>
-              <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.ruby }}>{m(totalDebt)}</span>
+              {hasMultipleCards && <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.ruby }}>{m(totalDebt)}</span>}
             </div>
             {netWorth != null && (
               <div className="ph-mask" style={{ fontSize: 11, color: DC.faint, marginBottom: 12 }}>
