@@ -199,11 +199,11 @@ function DonutChart({ data, size = 196, onCatClick, hideAmounts = false, lockLis
   const { t } = useTranslation();
   const cx = size / 2, cy = size / 2;
   const outerR = size / 2 - 8;
-  // Thinner ring (was 22px, nearly a solid disc) with a wide center hole for
-  // the total-spent text, matching the mockup. innerR derives from sw
+  // Thinner ring (was 22px, then 10px, still heavier than the mockup) with a
+  // wide center hole for the total-spent text. innerR derives from sw
   // directly now instead of an independent duplicate literal, so they can't
-  // drift apart again.
-  const sw = 10;
+  // drift apart again — shrinking sw also grows the center hole for free.
+  const sw = 7;
   const innerR = outerR - sw;
   const mid = (outerR + innerR) / 2;
   const [hovered, setHovered] = useState(null);
@@ -1439,10 +1439,13 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
                 <span style={{ fontSize: 14, fontWeight: 700, color: DC.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{only.name || only.official_name || t("dashboard.credit_cards_title")}</span>
                 <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.text }}>{m(Number(only.balance_current ?? 0))}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
-                <span className="ph-mask" style={{ fontSize: 11, color: DC.faint }}>{netWorthLabel}</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color }}>{pct != null ? `${Math.round(pct * 100)}%` : "—"}</span>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+                <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 0.5, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.credit_cards_utilization")}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color }}>{pct != null ? `${Math.round(pct * 100)}%` : "—"}</span>
               </div>
+              {netWorthLabel && (
+                <div className="ph-mask" style={{ fontSize: 11, color: DC.faint, marginTop: 6 }}>{netWorthLabel}</div>
+              )}
             </div>
           );
         }
