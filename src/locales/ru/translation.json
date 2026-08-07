@@ -4,7 +4,7 @@
     "transactions": "Операции",
     "markets": "Рынки",
     "savings": "Накопления",
-    "insights": "Аналитика"
+    "insights": "Коуч"
   },
   "auth": {
     "welcome_back": "С возвращением",
@@ -67,6 +67,7 @@
     "due_today": "Сегодня",
     "due_tomorrow": "Завтра",
     "due_in_days": "{{days}}д",
+    "due_on": "Срок {{date}}",
     "next": "Следующее:",
     "days_left_one": "{{count}} день",
     "days_left_few": "{{count}} дня",

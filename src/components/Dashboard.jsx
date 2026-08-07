@@ -1169,7 +1169,9 @@ function MiniMarkets({ onOpenMarket }) {
   const rows = ["SPY", "BTC"].map(sym => ({ ...META[sym], data: markets.find(m => m.symbol === sym) }));
 
   return (
-    <div style={{ display: "flex", gap: 8 }}>
+    <div>
+      <div style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 8 }}>{t("dashboard.markets")}</div>
+      <div style={{ display: "flex", gap: 8 }}>
       {rows.map(row => {
         const pos = (row.data?.changePct ?? 0) >= 0;
         return (
@@ -1186,6 +1188,7 @@ function MiniMarkets({ onOpenMarket }) {
           </button>
         );
       })}
+      </div>
     </div>
   );
 }
@@ -1393,12 +1396,19 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           same UpcomingChargesCard component, unchanged, not lost. */}
       {upcomingCharges.length > 0 && (() => {
         const next = [...upcomingCharges].sort((a, b) => a.daysUntil - b.daysUntil)[0];
+        const dueDate = new Date(next.expectedDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
         return (
-          <button onClick={() => setShowUpcomingSheet(true)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", cursor: "pointer", fontFamily: FONT, textAlign: "left" }}>
-            <span style={{ fontSize: 13, color: DC.muted }}>
-              {t("dashboard.next")} <span style={{ color: DC.text, fontWeight: 600 }}>{next.merchant}</span>
-            </span>
-            <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>${fmt(next.amount, 2)}</span>
+          <button onClick={() => setShowUpcomingSheet(true)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", cursor: "pointer", fontFamily: FONT, textAlign: "left" }}>
+            <div style={{ width: 36, height: 36, borderRadius: RADIUS.sm, background: DC.gold + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Icon name="file" size={16} color={DC.gold} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: DC.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {t("dashboard.next")} <span style={{ color: DC.text, fontWeight: 600 }}>{next.merchant}</span>
+              </div>
+              <div style={{ fontSize: 11, color: DC.faint, marginTop: 2 }}>{t("dashboard.due_on", { date: dueDate })}</div>
+            </div>
+            <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.text, flexShrink: 0 }}>${fmt(next.amount, 2)}</span>
           </button>
         );
       })()}
@@ -1410,25 +1420,45 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         const topCards = sortedCreditAccounts.slice(0, 3);
         const remaining = sortedCreditAccounts.length - topCards.length;
         const utilColorDC = (pct) => pct == null ? DC.faint : pct >= 0.70 ? DC.ruby : pct >= 0.30 ? DC.gold : DC.emerald;
-        // With exactly one card, totalDebt is by definition that card's own
-        // balance_current — showing both here reads as the same number
-        // twice. Only show the header total once there's an actual sum to
-        // show (2+ cards).
-        const hasMultipleCards = creditAccounts.length > 1;
+        const netWorthLabel = netWorth != null
+          ? `${t("dashboard.credit_cards_net_worth")}: ${balanceVisible ? (netWorth < 0 ? `-$${fmt(Math.abs(netWorth))}` : `$${fmt(netWorth)}`) : "••••"}`
+          : null;
+
+        // Exactly one card: the generic "Credit Cards" label + total-debt
+        // header duplicated the single card's own name/balance below it.
+        // Use the card's real name as the header instead, and fold Net
+        // Worth into a small line next to utilization% rather than its own
+        // prominent row — one card doesn't need two header lines.
+        if (creditAccounts.length === 1) {
+          const only = topCards[0];
+          const pct = creditUtilization(only);
+          const color = utilColorDC(pct);
+          return (
+            <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: DC.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{only.name || only.official_name || t("dashboard.credit_cards_title")}</span>
+                <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.text }}>{m(Number(only.balance_current ?? 0))}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+                <span className="ph-mask" style={{ fontSize: 11, color: DC.faint }}>{netWorthLabel}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color }}>{pct != null ? `${Math.round(pct * 100)}%` : "—"}</span>
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
               <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
                 {t("dashboard.credit_cards_title")}
               </span>
-              {hasMultipleCards && <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.ruby }}>{m(totalDebt)}</span>}
+              <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.ruby }}>{m(totalDebt)}</span>
             </div>
-            {netWorth != null && (
-              <div className="ph-mask" style={{ fontSize: 11, color: DC.faint, marginBottom: 12 }}>
-                {t("dashboard.credit_cards_net_worth")}: {balanceVisible ? (netWorth < 0 ? `-$${fmt(Math.abs(netWorth))}` : `$${fmt(netWorth)}`) : "••••"}
-              </div>
+            {netWorthLabel && (
+              <div className="ph-mask" style={{ fontSize: 11, color: DC.faint, marginBottom: 12 }}>{netWorthLabel}</div>
             )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: netWorth != null ? 0 : 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: netWorthLabel ? 0 : 8 }}>
               {topCards.map((a, i) => {
                 const pct = creditUtilization(a);
                 const color = utilColorDC(pct);

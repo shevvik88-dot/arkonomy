@@ -4,7 +4,7 @@
     "transactions": "Txns",
     "markets": "Markets",
     "savings": "Savings",
-    "insights": "Insights"
+    "insights": "Coach"
   },
   "auth": {
     "welcome_back": "Welcome back",
@@ -66,6 +66,7 @@
     "due_today": "Today",
     "due_tomorrow": "Tomorrow",
     "due_in_days": "{{days}}d",
+    "due_on": "Due {{date}}",
     "next": "Next:",
     "days_left_one": "{{count}} day left",
     "days_left_other": "{{count}} days left",

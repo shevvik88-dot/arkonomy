@@ -28,9 +28,9 @@ export default function BottomNav({ screen, setScreen, onOpenChat, insightCount 
   const tabs = [
     { id: "dashboard",    label: t("nav.home"),         icon: "home"      },
     { id: "transactions", label: t("nav.transactions"), icon: "credit"    },
+    { id: "insights",     label: t("nav.insights"),     icon: "message"   },
     { id: "markets",      label: t("nav.markets"),      icon: "bar-chart" },
     { id: "savings",      label: t("nav.savings"),      icon: "target"    },
-    { id: "insights",     label: t("nav.insights"),     icon: "activity"  },
   ];
 
   return (
