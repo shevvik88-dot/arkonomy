@@ -18,7 +18,7 @@ initSentry('plaid-get-accounts');
 const PROD_ORIGIN = Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com';
 const ALLOWED_ORIGINS: (string | RegExp)[] = [
   PROD_ORIGIN,
-  /^https:\/\/arkonomy-[a-z0-9]+-shevvik88-dots-projects\.vercel\.app$/,
+  /^https:\/\/arkonomy-[a-z0-9-]+-shevvik88-dots-projects\.vercel\.app$/,
 ];
 
 function resolveCorsHeaders(req: Request) {

@@ -2,13 +2,13 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
 import { getCachedAccounts, setCachedAccounts, sumDepositoryBalance, getCreditAccounts, sumCreditDebt, creditUtilization } from "../utils/accountsCache";
-import { C, FONT, CAT_COLORS, RADIUS } from "../utils/colors";
+import { C, FONT, CAT_COLORS, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmt, fmtDate, parseDate, fmtPct, resolveCategory, tCat, sumAmounts } from "../utils/helpers";
 import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
 import { ConnectBankPrompt } from "./shared/ConnectBankPrompt";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "../healthScore";
-import { InsightCard } from "./Insights";
+import { highlightNumbers } from "./Insights";
 import UpcomingChargesCard from "./UpcomingChargesCard";
 import { getUpcomingCharges, getUpcomingCardPayments } from '../utils/recurringSummary';
 import { BUFFER } from "../shared/financialConstants";
@@ -23,11 +23,11 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
 
   if (!hasData) {
     return (
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: RADIUS.md, padding: "10px 14px", fontFamily: FONT }}>
+      <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "10px 14px", fontFamily: FONT }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.faint, flexShrink: 0 }} />
-          <span style={{ fontSize: 12, fontWeight: 500, color: C.muted, flexShrink: 0 }}>{t("dashboard.health_score")}</span>
-          <span style={{ fontSize: 12, color: C.faint }}>{t("dashboard.connect_bank_score")}</span>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: DC.faint, flexShrink: 0 }} />
+          <span style={{ fontSize: 12, fontWeight: 500, color: DC.muted, flexShrink: 0 }}>{t("dashboard.health_score")}</span>
+          <span style={{ fontSize: 12, color: DC.faint }}>{t("dashboard.connect_bank_score")}</span>
         </div>
       </div>
     );
@@ -83,8 +83,7 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
     <div
       onClick={() => setOpen(o => !o)}
       style={{
-        background: C.card,
-        border: `1px solid ${C.border}`,
+        background: DC.card,
         borderRadius: RADIUS.md,
         padding: "10px 14px",
         cursor: "pointer",
@@ -103,7 +102,7 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
         }} />
 
         {/* Label */}
-        <span style={{ fontSize: 12, fontWeight: 500, color: C.muted, flexShrink: 0 }}>
+        <span style={{ fontSize: 12, fontWeight: 500, color: DC.muted, flexShrink: 0 }}>
           {t("dashboard.health_score")}
         </span>
 
@@ -114,17 +113,17 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
 
         {/* MoM delta */}
         {prevScore != null && prevScore !== score && (
-          <span style={{ fontSize: 11, fontWeight: 700, color: score > prevScore ? C.green : C.red, flexShrink: 0 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: score > prevScore ? DC.emerald : DC.ruby, flexShrink: 0 }}>
             {score > prevScore ? `↑${score - prevScore}` : `↓${prevScore - score}`}
           </span>
         )}
 
         {/* Divider */}
-        <span style={{ fontSize: 12, color: C.faint, flexShrink: 0 }}>·</span>
+        <span style={{ fontSize: 12, color: DC.faint, flexShrink: 0 }}>·</span>
 
         {/* Comment — truncated, muted */}
         <span style={{
-          fontSize: 12, color: C.faint,
+          fontSize: 12, color: DC.faint,
           overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
           flex: 1, minWidth: 0,
         }}>
@@ -133,7 +132,7 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
 
         {/* Chevron */}
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
-          stroke={C.faint} strokeWidth="2.5" strokeLinecap="round"
+          stroke={DC.faint} strokeWidth="2.5" strokeLinecap="round"
           style={{ flexShrink: 0, transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "none" }}
         >
           <polyline points="6 9 12 15 18 9" />
@@ -141,7 +140,7 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
       </div>
 
       {cashPositionLow && (
-        <div style={{ fontSize: 11, color: C.yellow, fontWeight: 600, marginTop: 4, marginLeft: 16 }}>
+        <div style={{ fontSize: 11, color: DC.gold, fontWeight: 600, marginTop: 4, marginLeft: 16 }}>
           {t("health.cash_position_low")}
         </div>
       )}
@@ -150,25 +149,25 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
       {open && (
         <div
           onClick={e => e.stopPropagation()}
-          style={{ marginTop: 12, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}
+          style={{ marginTop: 12, borderTop: `1px solid ${DC.bg}`, paddingTop: 12 }}
         >
           {rows.map(row => {
             const pct = Math.round((row.pts / row.max) * 100);
-            const barColor = pct >= 75 ? C.green : pct >= 40 ? C.yellow : C.red;
+            const barColor = pct >= 75 ? DC.emerald : pct >= 40 ? DC.gold : DC.ruby;
             return (
               <div key={row.key} style={{ marginBottom: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, color: C.muted }}>{row.label}</span>
+                  <span style={{ fontSize: 11, color: DC.muted }}>{row.label}</span>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
                     {row.detail && (
-                      <span style={{ fontSize: 10, color: C.faint }}>{row.detail}</span>
+                      <span style={{ fontSize: 10, color: DC.faint }}>{row.detail}</span>
                     )}
                     <span style={{ fontSize: 11, fontWeight: 700, color: barColor }}>
-                      {row.pts}<span style={{ fontWeight: 400, color: C.faint }}>/{row.max}</span>
+                      {row.pts}<span style={{ fontWeight: 400, color: DC.faint }}>/{row.max}</span>
                     </span>
                   </div>
                 </div>
-                <div style={{ height: 3, background: C.border, borderRadius: RADIUS.full }}>
+                <div style={{ height: 3, background: DC.bg, borderRadius: RADIUS.full }}>
                   <div style={{
                     height: 3, borderRadius: RADIUS.full,
                     width: `${pct}%`,
@@ -183,11 +182,11 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
           {/* Total */}
           <div style={{
             display: "flex", justifyContent: "space-between", alignItems: "center",
-            marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.border}`,
+            marginTop: 8, paddingTop: 8, borderTop: `1px solid ${DC.bg}`,
           }}>
-            <span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>{t("dashboard.total_score")}</span>
+            <span style={{ fontSize: 11, color: DC.muted, fontWeight: 600 }}>{t("dashboard.total_score")}</span>
             <span style={{ fontSize: 13, fontWeight: 800, color }}>
-              {score}<span style={{ fontSize: 11, fontWeight: 400, color: C.faint }}>/100</span>
+              {score}<span style={{ fontSize: 11, fontWeight: 400, color: DC.faint }}>/100</span>
             </span>
           </div>
         </div>
@@ -196,33 +195,24 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
   );
 }
 
-function StatBadge({ value, suffix }) {
-  const { t } = useTranslation();
-  const pos = value >= 0;
-  const color = pos ? C.green : C.red;
-  const sfx = suffix !== undefined ? suffix : t("dashboard.vs_last_month");
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: color + "22", color, borderRadius: RADIUS.full, padding: "2px 8px", fontSize: 10, fontWeight: 600, fontFamily: FONT, whiteSpace: "nowrap" }}>
-      <Icon name={pos ? "trending-up" : "trending-down"} size={9} color={color} strokeWidth={2.5} />
-      {pos ? "+" : ""}{Math.abs(value).toFixed(1)}% {sfx}
-    </span>
-  );
-}
-
-function DonutChart({ data, size = 196, onCatClick, hideAmounts = false, lockList = false, onUpgrade }) {
+function DonutChart({ data, size = 196, onCatClick, hideAmounts = false, lockList = false, onUpgrade, sideLegend = false }) {
   const { t } = useTranslation();
   const cx = size / 2, cy = size / 2;
   const outerR = size / 2 - 8;
-const innerR = outerR - 22;
-const mid = (outerR + innerR) / 2;
-const sw = 22;
+  // Thinner ring (was 22px, then 10px, still heavier than the mockup) with a
+  // wide center hole for the total-spent text. innerR derives from sw
+  // directly now instead of an independent duplicate literal, so they can't
+  // drift apart again — shrinking sw also grows the center hole for free.
+  const sw = 7;
+  const innerR = outerR - sw;
+  const mid = (outerR + innerR) / 2;
   const [hovered, setHovered] = useState(null);
 
   const entries = Object.entries(data || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   const total = entries.reduce((s, [, v]) => s + v, 0);
 
   if (total <= 0) return (
-    <div style={{ height: size, display: "flex", alignItems: "center", justifyContent: "center", color: C.faint, fontSize: 13, fontFamily: FONT }}>
+    <div style={{ height: size, display: "flex", alignItems: "center", justifyContent: "center", color: DC.faint, fontSize: 13, fontFamily: FONT }}>
       {t("dashboard.no_spending_data_short")}
     </div>
   );
@@ -247,13 +237,13 @@ const sw = 22;
   });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, fontFamily: FONT }}>
-      <div style={{ position: "relative", width: size, height: size }}>
+    <div style={{ display: "flex", flexDirection: sideLegend ? "row" : "column", alignItems: "center", gap: sideLegend ? 20 : 16, fontFamily: FONT }}>
+      <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
         <svg width={size} height={size} style={{ display: "block" }}>
           <defs>
             <radialGradient id="cg" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor={C.cyan} stopOpacity="0.10" />
-              <stop offset="100%" stopColor={C.cyan} stopOpacity="0" />
+              <stop offset="0%" stopColor={DC.gold} stopOpacity="0.10" />
+              <stop offset="100%" stopColor={DC.gold} stopOpacity="0" />
             </radialGradient>
           </defs>
           <circle cx={cx} cy={cy} r={mid} fill="none" stroke={C.bgTertiary} strokeWidth={sw} />
@@ -273,17 +263,17 @@ const sw = 22;
           })}
           <circle cx={cx} cy={cy} r={outerR} fill="url(#cg)" />
         </svg>
-        <div style={{ position: "absolute", left: cx - innerR, top: cy - innerR, width: innerR * 2, height: innerR * 2, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: C.bgDeep, pointerEvents: "none" }}>
+        <div style={{ position: "absolute", left: cx - innerR, top: cy - innerR, width: innerR * 2, height: innerR * 2, borderRadius: "50%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: sideLegend ? DC.bg : C.bgDeep, pointerEvents: "none" }}>
           {hovered ? (
             <>
-              <div style={{ fontSize: 10, color: C.text, fontWeight: 600, letterSpacing: 0.5, marginBottom: 2, textAlign: "center", padding: "0 4px" }}>{tCat(hovered, t)}</div>
-              <div className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: CAT_COLORS[hovered] || C.cyan }}>{hideAmounts ? "••••" : `$${fmt((data[hovered] || 0), 0)}`}</div>
-              <div style={{ fontSize: 11, color: C.text, fontWeight: 600 }}>{Math.round(((data[hovered] || 0) / total) * 100)}%</div>
+              <div style={{ fontSize: 10, color: DC.text, fontWeight: 600, letterSpacing: 0.5, marginBottom: 2, textAlign: "center", padding: "0 4px" }}>{tCat(hovered, t)}</div>
+              <div className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: CAT_COLORS[hovered] || DC.gold }}>{hideAmounts ? "••••" : `$${fmt((data[hovered] || 0), 0)}`}</div>
+              <div style={{ fontSize: 11, color: DC.text, fontWeight: 600 }}>{Math.round(((data[hovered] || 0) / total) * 100)}%</div>
             </>
           ) : (
             <>
-             <div className="ph-mask" style={{ fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: -0.5, marginBottom: 2 }}>{hideAmounts ? "••••" : `$${fmt(total, 0)}`}</div>
-           <div style={{ fontSize: 10, color: C.muted, letterSpacing: 0.5, fontWeight: 600 }}>{t("dashboard.total_spent")}</div>
+             <div className="ph-mask" style={{ fontSize: 20, fontWeight: 800, color: DC.text, letterSpacing: -0.5, marginBottom: 2 }}>{hideAmounts ? "••••" : `$${fmt(total, 0)}`}</div>
+           <div style={{ fontSize: 10, color: DC.muted, letterSpacing: 0.5, fontWeight: 600 }}>{t("dashboard.total_spent")}</div>
             </>
           )}
         </div>
@@ -302,18 +292,20 @@ const sw = 22;
         const row = (s, i) => (
           <div key={s.cat}
             onClick={() => onCatClick && onCatClick(s.cat)}
-            style={{ display: "flex", alignItems: "center", gap: 10, cursor: onCatClick ? "pointer" : "default", padding: "6px 10px", borderRadius: RADIUS.sm, background: hovered === s.cat ? s.color + "18" : C.bgTertiary, border: `1px solid ${hovered === s.cat ? s.color + "44" : "transparent"}`, transition: "all 0.15s" }}
+            style={sideLegend
+              ? { display: "flex", alignItems: "center", gap: 8, cursor: onCatClick ? "pointer" : "default", padding: "3px 0" }
+              : { display: "flex", alignItems: "center", gap: 10, cursor: onCatClick ? "pointer" : "default", padding: "6px 10px", borderRadius: RADIUS.sm, background: hovered === s.cat ? s.color + "18" : C.bgTertiary, border: `1px solid ${hovered === s.cat ? s.color + "44" : "transparent"}`, transition: "all 0.15s" }}
             onMouseEnter={() => setHovered(s.cat)} onMouseLeave={() => setHovered(null)}>
-            <div style={{ width: 10, height: 10, borderRadius: RADIUS.full, background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}88` }} />
-            <span style={{ fontSize: 13, color: i === 0 ? C.text : C.muted, fontWeight: i === 0 ? 600 : 400, flex: 1 }}>{tCat(s.cat, t)}</span>
-            <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{hideAmounts ? "••••" : `$${fmt(s.val, 0)}`}</span>
-            <span style={{ fontSize: 11, color: s.color, fontWeight: i === 0 ? 700 : 500, minWidth: 36, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>
-            {onCatClick && <Icon name="chevron" size={12} color={C.faint} />}
+            <div style={{ width: 8, height: 8, borderRadius: RADIUS.full, background: s.color, flexShrink: 0, boxShadow: `0 0 6px ${s.color}88` }} />
+            <span style={{ fontSize: 13, color: i === 0 ? DC.text : DC.muted, fontWeight: i === 0 ? 600 : 400, flex: 1 }}>{tCat(s.cat, t)}</span>
+            <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{hideAmounts ? "••••" : `$${fmt(s.val, 0)}`}</span>
+            {!sideLegend && <span style={{ fontSize: 11, color: s.color, fontWeight: i === 0 ? 700 : 500, minWidth: 36, textAlign: "right" }}>{Math.round((s.val / total) * 100)}%</span>}
+            {!sideLegend && onCatClick && <Icon name="chevron" size={12} color={C.faint} />}
           </div>
         );
 
         return (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: sideLegend ? 8 : 6, flex: sideLegend ? 1 : "unset", minWidth: 0 }}>
             {visibleSlices.map(row)}
             {hiddenSlices.length > 0 && (
               <div style={{ position: "relative" }}>
@@ -321,7 +313,7 @@ const sw = 22;
                   {hiddenSlices.map(row)}
                 </div>
                 <div onClick={onUpgrade} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, background: C.card, padding: "5px 14px", borderRadius: RADIUS.lg, border: `1px solid ${C.border}` }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: DC.muted, background: DC.card, padding: "5px 14px", borderRadius: RADIUS.lg, border: `1px solid ${DC.faint}33` }}>
                     {t("dashboard.unlock_more_categories", { count: lockedCount })}
                   </span>
                 </div>
@@ -331,170 +323,6 @@ const sw = 22;
         );
       })()}
     </div>
-  );
-}
-
-// ─── Market Overview Card ─────────────────────────────��───────
-function MarketOverview({ onOpenMarket }) {
-  const { t } = useTranslation();
-  const [markets, setMarkets] = useState([]);
-  const [news, setNews] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("markets");
-  const [error, setError] = useState(null);
-  const [lastUpdated, setLastUpdated] = useState(null);
-
-  async function load() {
-    setLoading(true);
-    setError(null);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const headers = {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${session?.access_token ?? ""}`,
-        "apikey": SUPABASE_KEY,
-      };
-
-      const [mRes, nRes] = await Promise.all([
-        fetch(`${SUPABASE_URL}/functions/v1/market-data`, {
-          method: "POST", headers, body: JSON.stringify({ type: "overview" }),
-        }),
-        fetch(`${SUPABASE_URL}/functions/v1/market-data`, {
-          method: "POST", headers, body: JSON.stringify({ type: "news" }),
-        }),
-      ]);
-
-      if (!mRes.ok) {
-        const err = await mRes.json().catch(() => ({}));
-        throw new Error(err.error || `HTTP ${mRes.status}`);
-      }
-
-      const mData = await mRes.json();
-      const nData = nRes.ok ? await nRes.json().catch(() => ({})) : {};
-
-      if (mData?.markets) setMarkets(mData.markets);
-      if (nData?.news) setNews(nData.news);
-      setLastUpdated(new Date());
-    } catch (e) {
-      setError(e.message || "Could not load market data");
-    }
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    load();
-    const timer = setInterval(load, 60000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const MARKET_META = {
-    SPY:  { label: "S&P 500",  icon: "bar-chart", color: C.blue },
-    QQQ:  { label: "NASDAQ",   icon: "activity",  color: C.purple },
-    BTC:  { label: "Bitcoin",  icon: "zap",        color: C.amber },
-    ETH:  { label: "Ethereum", icon: "zap",        color: C.emerald },
-  };
-
-  return (
-    <GlassCard style={{ padding: "14px 16px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <div style={{ width: 28, height: 28, borderRadius: RADIUS.xs, background: C.blue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name="bar-chart" size={14} color={C.blue} />
-          </div>
-          <span style={{ fontWeight: 600, fontSize: 14 }}>{t("dashboard.markets")}</span>
-          {lastUpdated && !loading && (
-            <span style={{ fontSize: 10, color: C.faint }}>
-              {lastUpdated.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-            </span>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-          {["markets", "news"].map(tabId => (
-            <button key={tabId} onClick={() => setTab(tabId)}
-              style={{ padding: "4px 10px", minHeight: 44, borderRadius: RADIUS.lg, border: `1px solid ${tab === tabId ? C.blue : C.border}`, background: tab === tabId ? C.blue + "18" : "transparent", color: tab === tabId ? C.blue : C.faint, cursor: "pointer", fontSize: 11, fontWeight: tab === tabId ? 600 : 400, fontFamily: FONT, textTransform: "capitalize" }}>
-              {tabId}
-            </button>
-          ))}
-          <button onClick={load} aria-label={t("dashboard.refresh")} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, opacity: loading ? 0.4 : 0.7 }}>
-            <Icon name="repeat" size={13} color={C.muted} strokeWidth={2} />
-          </button>
-        </div>
-      </div>
-
-      {loading ? (
-        <div style={{ textAlign: "center", padding: "20px 0", color: C.faint, fontSize: 13 }}>
-          <div style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
-            {[0,1,2].map(i => (
-              <span key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: C.blue, display: "inline-block", animation: `bop 1.2s ease ${i*0.2}s infinite` }} />
-            ))}
-            <style>{`@keyframes bop{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}`}</style>
-          </div>
-          <div style={{ marginTop: 8, fontSize: 11 }}>{t("dashboard.loading_market_data")}</div>
-        </div>
-      ) : error ? (
-        <div style={{ padding: "12px 14px", background: C.red + "10", borderRadius: RADIUS.sm, border: `1px solid ${C.red}22` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-            <Icon name="alert-circle" size={14} color={C.red} />
-            <span style={{ fontSize: 12, color: C.red, fontWeight: 600 }}>{t("dashboard.could_not_load_market_data")}</span>
-          </div>
-          <div style={{ fontSize: 11, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>{error}</div>
-          <button onClick={load} style={{ marginTop: 10, padding: "7px 14px", minHeight: 44, background: C.blue + "22", border: `1px solid ${C.blue}44`, borderRadius: RADIUS.xs, color: C.blue, cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: FONT }}>
-            {t("dashboard.retry")}
-          </button>
-        </div>
-      ) : tab === "markets" ? (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {markets.map(m => {
-            const meta = MARKET_META[m.symbol] || { label: m.symbol, icon: "activity", color: C.cyan };
-            const pos = (m.changePct ?? 0) >= 0;
-            const chColor = pos ? C.green : C.red;
-            return (
-              <div key={m.symbol} onClick={() => onOpenMarket?.(m.symbol)} style={{ background: C.bgTertiary, borderRadius: RADIUS.sm, padding: "10px 12px", border: `1px solid ${C.border}`, cursor: "pointer" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                  <div style={{ width: 24, height: 24, borderRadius: RADIUS.xs, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Icon name={meta.icon} size={11} color={meta.color} strokeWidth={2.5} />
-                  </div>
-                  <span style={{ fontSize: 11, color: C.muted, fontWeight: 500 }}>{meta.label}</span>
-                </div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: C.text, letterSpacing: -0.3 }}>
-                  ${m.price != null ? Number(m.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
-                  <Icon name={pos ? "trending-up" : "trending-down"} size={10} color={chColor} strokeWidth={2.5} />
-                  <span style={{ fontSize: 11, color: chColor, fontWeight: 600 }}>
-                    {m.changePct != null ? `${pos ? "+" : ""}${Number(m.changePct).toFixed(2)}%` : "—"}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-          {news.length === 0
-            ? <div style={{ color: C.faint, fontSize: 12, textAlign: "center", padding: "16px 0" }}>{t("dashboard.no_news")}</div>
-            : news.slice(0, 4).map((n, i) => (
-              <a key={i} href={n.url} target="_blank" rel="noopener noreferrer"
-                style={{ display: "flex", gap: 10, textDecoration: "none", padding: "10px 0", borderBottom: i < 3 ? `1px solid ${C.sep}` : "none" }}>
-                {n.image && (
-                  <img src={n.image} alt="" style={{ width: 52, height: 40, borderRadius: RADIUS.xs, objectFit: "cover", flexShrink: 0 }} onError={e => { e.target.style.display = "none"; }} />
-                )}
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: C.text, lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{n.headline}</div>
-                  <div style={{ fontSize: 10, color: C.faint, marginTop: 3 }}>{n.source} · {new Date(n.datetime * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
-                </div>
-              </a>
-            ))
-          }
-        </div>
-      )}
-
-      {!loading && !error && tab === "markets" && markets.length > 0 && (
-        <div style={{ fontSize: 10, color: C.faint, marginTop: 10, textAlign: "right" }}>
-          {t("dashboard.powered_by_finnhub")}
-        </div>
-      )}
-    </GlassCard>
   );
 }
 
@@ -529,7 +357,7 @@ function Sparkline({ transactions, width = 62, height = 30 }) {
   const up = points[points.length - 1] >= points[0];
   return (
     <svg width={width} height={height} style={{ display: 'block', flexShrink: 0, opacity: 0.9 }}>
-      <polyline points={pts} fill="none" stroke={up ? C.green : C.red} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points={pts} fill="none" stroke={up ? DC.emerald : DC.ruby} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -888,11 +716,12 @@ function CalendarDayCell({ day, isToday, isPast, color, alpha, size, emphasized,
 // past/today day in the strip navigates to Transactions filtered by that
 // date; tapping a future day shows a tooltip — same rules as before, just
 // scoped to the strip instead of the whole grid.
-function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCategoryClick, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, accountBalance, bankConnected, onNavigate }) {
+function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCategoryClick, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, accountBalance, bankConnected, onNavigate, compactWeek = false }) {
   const { t } = useTranslation();
   const [selectedDay, setSelectedDay] = useState(null);
   const [tooltipDay, setTooltipDay] = useState(null);
   const [showAddPayment, setShowAddPayment] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const now = new Date();
   const year = now.getFullYear();
@@ -918,6 +747,19 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
   }
 
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  // Compact mode: just the current Mon-Sun week, clamped to this month (a
+  // week straddling a month boundary shows fewer than 7 cells at the edge —
+  // pastByDay/futureByDay are scoped to this month only, so cross-month
+  // days have no data to show anyway). "View full month" below reveals the
+  // full grid unchanged — this never replaces or loses that functionality.
+  const todayDow = (now.getDay() + 6) % 7; // Monday-first
+  const weekStart = Math.max(1, todayDate - todayDow);
+  const weekEnd = Math.min(daysInMonth, todayDate - todayDow + 6);
+  const weekDays = Array.from({ length: weekEnd - weekStart + 1 }, (_, i) => weekStart + i);
+  const showCompact = compactWeek && !expanded;
+  const visibleDays = showCompact ? weekDays : days;
+  const visibleLeadingBlanks = showCompact ? 0 : leadingBlanks;
 
   function dayColorAlpha(day) {
     const isToday = day === todayDate;
@@ -976,16 +818,48 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
   const selectedFutureInfo = selectedDay ? futureByDay[selectedDay] : null;
 
   return (
-    <GlassCard style={{ padding: "14px 16px" }}>
-      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10 }}>{t("dashboard.month_calendar_title")}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
+    <GlassCard style={compactWeek ? { padding: "14px 16px", background: DC.card, border: "none" } : { padding: "14px 16px" }}>
+      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10, color: compactWeek ? DC.text : C.text }}>{t("dashboard.month_calendar_title")}</div>
+      <div style={showCompact ? { display: "flex", justifyContent: "space-between", marginBottom: 6 } : { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
         {WEEKDAY_KEYS.map(key => (
-          <div key={key} style={{ textAlign: "center", fontSize: 10, color: C.muted, fontWeight: 600 }}>{t(`dashboard.${key}`)}</div>
+          <div key={key} style={showCompact ? { width: 30, textAlign: "center", fontSize: 10, color: DC.muted, fontWeight: 600 } : { textAlign: "center", fontSize: 10, color: C.muted, fontWeight: 600 }}>{t(`dashboard.${key}`)}</div>
         ))}
       </div>
+      {showCompact ? (
+        // Compact week — separate, deliberately minimal rendering from the
+        // full grid below: no per-category fill, no amount line. Past days:
+        // plain number, colored by that day's net (ruby=spent more, emerald=
+        // earned more). Future days with a known upcoming charge: red ring,
+        // not a fill — "something is due here," independent of size. Today
+        // keeps the existing white-fill treatment, unchanged.
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          {weekDays.map(day => {
+            const isToday = day === todayDate;
+            const isPast = day < todayDate;
+            const net = (isPast || isToday) ? dailyNet[day] : null;
+            const hasFutureCharge = !isPast && !isToday && !!futureByDay[day];
+            const textColor = isToday ? DC.bg : net == null ? DC.muted : net < 0 ? DC.ruby : net > 0 ? DC.emerald : DC.muted;
+            return (
+              <div
+                key={day}
+                onClick={() => setSelectedDay(day)}
+                style={{
+                  width: 30, height: 30, borderRadius: "50%",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: isToday ? DC.text : "transparent",
+                  border: hasFutureCharge ? `1.5px solid ${DC.ruby}` : "none",
+                  cursor: "pointer",
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 600, color: textColor }}>{day}</span>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
-        {Array.from({ length: leadingBlanks }, (_, i) => <div key={`blank-${i}`} />)}
-        {days.map(day => {
+        {Array.from({ length: visibleLeadingBlanks }, (_, i) => <div key={`blank-${i}`} />)}
+        {visibleDays.map(day => {
           const { color, alpha, isToday, isPast } = dayColorAlpha(day);
           const amountInfo = dayAmountInfo(day);
           return (
@@ -1027,6 +901,13 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
           );
         })}
       </div>
+      )}
+
+      {compactWeek && (
+        <button onClick={() => setExpanded(v => !v)} style={{ display: "block", background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold }}>
+          {expanded ? t("dashboard.show_less") : t("dashboard.view_full_month")}
+        </button>
+      )}
 
       {selectedDay && (
         <div onClick={() => { setSelectedDay(null); setTooltipDay(null); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 180, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
@@ -1211,13 +1092,116 @@ function AddPlannedPaymentModal({ dueDate, transactions, merchantAliasMap, sched
 }
 
 // ─── Dashboard ────────────────────────────────────────────────
-export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment }) {
+// Compact "coach" block — top of Dashboard, the highest-priority insight
+// with inline-highlighted dollar amounts (ruby for warning-tier insights,
+// gold for positive/neutral ones). Deliberately NOT a change to the shared
+// InsightCard (used by Insights.jsx too) — a separate component so this
+// pass stays scoped to Dashboard.jsx's own visual language.
+const COACH_WARNING_TYPES = ['cash_risk', 'category_spike', 'overspending', 'debt_utilization', 'goal_off_track'];
+
+function CoachBlock({ insight, onAction }) {
+  const { t } = useTranslation();
+  if (!insight?.rendered?.headline) return null;
+  const accent = COACH_WARNING_TYPES.includes(insight.type) ? DC.ruby : DC.gold;
+  const { headline, cta, action } = insight.rendered;
+  return (
+    <div style={{ background: DC.card, borderLeft: `3px solid ${accent}`, borderRadius: RADIUS.lg, padding: "20px", fontFamily: FONT }}>
+      <div style={{ fontSize: 13, color: DC.muted, fontWeight: 600, letterSpacing: 0.5, marginBottom: 6 }}>{t("dashboard.your_coach")}</div>
+      <div className="ph-mask" style={{ fontSize: 18, fontWeight: 700, color: DC.text, lineHeight: 1.4 }}>
+        {highlightNumbers(headline, accent)}
+      </div>
+      <button onClick={() => onAction?.(action, insight.data)} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 14, fontWeight: 700, color: accent }}>
+        {cta || t("dashboard.fix_this")}
+        <Icon name="chevron" size={13} color={accent} />
+      </button>
+    </div>
+  );
+}
+
+// Non-interactive placeholder — real Lessons functionality (streak logic,
+// content generation, backend) is a separate follow-up, not this pass. No
+// fabricated streak count or lesson title here on purpose (see CLAUDE.md:
+// never invent a plausible-looking placeholder number for an empty state).
+function TodaysLessonRow() {
+  const { t } = useTranslation();
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 4px" }}>
+      <Icon name="zap" size={16} color={DC.gold} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{t("dashboard.todays_lesson")}</div>
+        <div style={{ fontSize: 11, color: DC.muted, marginTop: 1 }}>{t("dashboard.todays_lesson_subtitle")}</div>
+      </div>
+      <Icon name="chevron" size={13} color={DC.faint} />
+    </div>
+  );
+}
+
+// Compact 2-value Markets row for Dashboard (S&P 500 + Bitcoin only) — the
+// full Markets experience (search/watchlist/buy/chart/news) already lives
+// entirely independently on the Markets nav tab (Markets.jsx, a separate
+// file/implementation, not shared with MarketOverview above), so trimming
+// this down risks no functionality loss.
+function MiniMarkets({ onOpenMarket }) {
+  const { t } = useTranslation();
+  const [markets, setMarkets] = useState([]);
+
+  useEffect(() => {
+    let alive = true;
+    async function load() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/market-data`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token ?? ""}`, "apikey": SUPABASE_KEY },
+          body: JSON.stringify({ type: "overview" }),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (alive && data?.markets) setMarkets(data.markets);
+      } catch {}
+    }
+    load();
+    const timer = setInterval(load, 60000);
+    return () => { alive = false; clearInterval(timer); };
+  }, []);
+
+  const META = { SPY: { label: "S&P 500", symbol: "SPY" }, BTC: { label: "Bitcoin", symbol: "BTC" } };
+  const rows = ["SPY", "BTC"].map(sym => ({ ...META[sym], data: markets.find(m => m.symbol === sym) }));
+
+  return (
+    <div>
+      <div style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 8 }}>{t("dashboard.markets")}</div>
+      <div style={{ display: "flex", gap: 8 }}>
+      {rows.map(row => {
+        const pos = (row.data?.changePct ?? 0) >= 0;
+        return (
+          <button key={row.symbol} onClick={() => onOpenMarket?.(row.symbol)} style={{ flex: 1, textAlign: "left", background: DC.card, borderRadius: RADIUS.md, padding: "14px 16px", border: "none", cursor: "pointer", fontFamily: FONT }}>
+            <div style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>{row.label}</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: DC.text }}>
+              {row.data?.price != null ? `$${Number(row.data.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+            </div>
+            {row.data?.changePct != null && (
+              <div style={{ fontSize: 11, fontWeight: 600, color: pos ? DC.emerald : DC.ruby, marginTop: 2 }}>
+                {pos ? "+" : ""}{Number(row.data.changePct).toFixed(2)}%
+              </div>
+            )}
+          </button>
+        );
+      })}
+      </div>
+    </div>
+  );
+}
+
+export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, onOpenChat }) {
   const { t } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
   const [creditAccounts, setCreditAccounts] = useState([]); // credit-card accounts from the same fetch
   const [otherBreakdown, setOtherBreakdown] = useState(false);
   const [allCreditCards, setAllCreditCards] = useState(false);
+  const [showCashFlowSheet, setShowCashFlowSheet] = useState(false);
+  const [showUpcomingSheet, setShowUpcomingSheet] = useState(false);
   const balanceFetchIdRef = useRef(0);
   const m = (n, dec = 0) => balanceVisible ? `$${fmt(n, dec)}` : "••••";
 
@@ -1266,13 +1250,9 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   const creditUtilColor = (pct) => pct == null ? C.faint : pct >= 0.70 ? C.red : pct >= 0.30 ? C.yellow : C.green;
   const budget = Number(profile?.monthly_budget) || 3000;
   const balance = totalIncome - totalSpent;
-  const pct = budget > 0 ? (totalSpent / budget) * 100 : 0;
   // Same formula as Insights.jsx.availableSafe — for cashPositionLow parity between screens.
   const availableSafe = Math.max(0, Math.min(totalIncome - totalSpent - BUFFER, accountBalance != null ? accountBalance - BUFFER : Infinity));
   const cashPositionLow = availableSafe <= 0 && accountBalance != null;
-  const incomeChange = lastIncome > 0 ? ((totalIncome - lastIncome) / lastIncome) * 100 : 0;
-  const expenseChange = lastSpent > 0 ? ((totalSpent - lastSpent) / lastSpent) * 100 : 0;
-  const balColor = balance >= 0 ? C.green : C.red;
 
   // ── Health Score ──────────────────────────────────────────────────────────
   const SUB_CATS = ['Subscriptions', 'Bills', 'Utilities', 'Phone', 'Internet', 'Insurance'];
@@ -1285,6 +1265,10 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
     budget,
     subscriptionSpend,
   });
+  // healthScore.js is shared (weekly-report duplicates its formula too) —
+  // not touching its returned hex directly, just mapping to the new
+  // palette for display here.
+  const dcScoreColor = scoreColor === '#FF5C7A' ? DC.ruby : scoreColor === '#FFB800' ? DC.gold : scoreColor === '#12D18E' ? DC.emerald : scoreColor;
   const healthComment = generateHealthComment({
     score: healthScore,
     breakdown: scoreBreakdown,
@@ -1323,10 +1307,10 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
 
       {/* 0a ── Onboarding welcome card (shown only when no transactions exist and no active trial toast) */}
       {transactions.length === 0 && !hideWelcomeBanner && (
-        <div style={{ background: "linear-gradient(135deg,#0D2A4A,#0B1A30)", borderRadius: RADIUS.lg, padding: "20px 18px", border: `1px solid ${C.cyan}33`, boxShadow: `0 4px 24px ${C.cyan}12` }}>
+        <div style={{ background: DC.card, borderRadius: RADIUS.lg, padding: "20px 18px" }}>
           <div style={{ fontSize: 22, marginBottom: 6 }}>👋</div>
-          <div style={{ fontWeight: 700, fontSize: 17, color: C.text, marginBottom: 4 }}>{t("dashboard.welcome_title")}</div>
-          <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 17, color: DC.text, marginBottom: 4 }}>{t("dashboard.welcome_title")}</div>
+          <div style={{ fontSize: 13, color: DC.muted, lineHeight: 1.6, marginBottom: 16 }}>
             {t("dashboard.welcome_body")}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -1337,14 +1321,14 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
             {!bankConnected && (
               <button
                 onClick={() => onNavigate("profile")}
-                style={{ flex: 1, padding: "11px 0", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.sm, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: FONT, boxShadow: `0 4px 14px ${C.cyan}44` }}
+                style={{ flex: 1, padding: "11px 0", background: DC.gold, border: "none", borderRadius: RADIUS.sm, color: DC.bg, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: FONT }}
               >
                 {t("dashboard.connect_bank")}
               </button>
             )}
             <button
               onClick={() => onNavigate("transactions")}
-              style={{ flex: 1, padding: "11px 0", background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT }}
+              style={{ flex: 1, padding: "11px 0", background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, color: DC.text, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT }}
             >
               {t("dashboard.add_transaction")}
             </button>
@@ -1352,103 +1336,146 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         </div>
       )}
 
-      {/* 0b ── Upcoming Recurring Charges — horizontal carousel */}
-      {upcomingCharges.length > 0 && (
-        <UpcomingChargesCard charges={upcomingCharges} />
-      )}
+      {/* 1 ── Coach block (highest-priority insight, moved to top) */}
+      <CoachBlock insight={insight?.type === 'savings_opportunity' && balance <= 0 ? null : insight} onAction={onInsightAction} />
 
-      {/* 1 ── Account Balance */}
+      {/* 2 ── Calendar week (compact by default, "View full month" reveals the unchanged full grid + Level 2 sheet) */}
+      <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} scheduledPayments={scheduledPayments} onAddScheduledPayment={onAddScheduledPayment} onCancelScheduledPayment={onCancelScheduledPayment} accountBalance={accountBalance} bankConnected={bankConnected} onNavigate={onNavigate} compactWeek />
+
+      {/* 3 ── Today's lesson (placeholder — real Lessons functionality is a separate follow-up) */}
+      <TodaysLessonRow />
+
+      {/* 4 ── Balance / End of month — compact boxes, tap either to open the full Cash Flow Forecast (burn-down bar + 3-stat grid) in a sheet, nothing lost or duplicated on-page */}
       {!bankConnected ? (
         <div data-tutorial="net-balance">
           <ConnectBankPrompt title={t("dashboard.account_balance")} message={t("dashboard.connect_bank_balance")} onNavigate={onNavigate} />
         </div>
-      ) : (
-        <>
-          <style>{`@keyframes bal-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
-          <div data-tutorial="net-balance" style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: RADIUS.lg, padding: "16px 18px", border: `1px solid ${C.border}`, position: "relative", overflow: "hidden", boxShadow: "0 4px 32px rgba(0,194,255,0.08)" }}>
-            <div style={{ position: "absolute", top: -30, right: -30, width: 110, height: 110, borderRadius: "50%", background: C.cyan + "0B", pointerEvents: "none" }} />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
-                {t("dashboard.account_balance")}
-              </span>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {isShowingLastMonth && <span style={{ fontSize: 9, color: C.yellow, fontWeight: 600, background: C.yellow + "18", padding: "2px 7px", borderRadius: RADIUS.full, letterSpacing: 0.3 }}>
-                  {new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleString('en-US', { month: 'short' })} data
-                </span>}
-                <button onClick={() => setBalanceVisible(v => !v)} aria-label={balanceVisible ? t("dashboard.hide_balance") : t("dashboard.show_balance")} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44 }}>
-                  <Icon name={balanceVisible ? "eye" : "eye-off"} size={15} color={C.faint} />
-                </button>
+      ) : (() => {
+        const today = new Date();
+        const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+        const endOfMonthDate = new Date(today.getFullYear(), today.getMonth(), daysInMonth);
+        const { projectedRaw } = accountBalance != null
+          ? projectBalanceAt(transactions, accountBalance, endOfMonthDate, merchantAliasMap, scheduledPayments, today)
+          : { projectedRaw: null };
+        const projectedBalance = projectedRaw != null ? Math.max(0, projectedRaw) : null;
+        const eomColor = projectedBalance == null ? DC.text : projectedRaw <= 0 ? DC.ruby : DC.text;
+        return (
+          <div data-tutorial="net-balance" style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setShowCashFlowSheet(true)} style={{ flex: 1, textAlign: "left", background: DC.card, borderRadius: RADIUS.md, padding: "14px 16px", border: "none", cursor: "pointer", fontFamily: FONT }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.balance_short")}</span>
+                <span onClick={e => { e.stopPropagation(); setBalanceVisible(v => !v); }} role="button" aria-label={balanceVisible ? t("dashboard.hide_balance") : t("dashboard.show_balance")} style={{ display: "flex", padding: 4 }}>
+                  <Icon name={balanceVisible ? "eye" : "eye-off"} size={13} color={DC.faint} />
+                </span>
               </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8 }}>
-              <div>
-                {accountBalance != null ? (
-                  <>
-                    <div className="ph-mask" style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1.5, color: balanceVisible ? C.cyan : C.text, lineHeight: 1.1, textShadow: balanceVisible ? `0 0 24px ${C.cyan}44` : "none" }}>
-                      {balanceVisible ? `$${fmt(accountBalance)}` : "••••"}
-                    </div>
-                    <div style={{ fontSize: 9, color: C.faint, marginTop: 2, letterSpacing: 0.5 }}>
-                      {t("dashboard.available_in_bank")}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ width: 160, height: 42, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${C.bgSecondary} 0%,${C.bgTertiary} 40%,${C.bgSecondary} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite", marginBottom: 6 }} />
-                    <div style={{ width: 90, height: 10, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${C.bgSecondary} 0%,${C.bgTertiary} 40%,${C.bgSecondary} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
-                  </>
-                )}
-              </div>
-              <Sparkline transactions={transactions} />
-            </div>
+              {accountBalance != null ? (
+                <>
+                  <div className="ph-mask" style={{ fontSize: 19, fontWeight: 800, letterSpacing: -0.5, color: DC.text }}>
+                    {balanceVisible ? `$${fmt(accountBalance)}` : "••••"}
+                  </div>
+                  <div style={{ marginTop: 4 }}><Sparkline transactions={transactions} /></div>
+                </>
+              ) : (
+                <div style={{ width: 100, height: 19, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${DC.card} 0%,#20263380 40%,${DC.card} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
+              )}
+            </button>
+            <button onClick={() => setShowCashFlowSheet(true)} style={{ flex: 1, textAlign: "left", background: DC.card, borderRadius: RADIUS.md, padding: "14px 16px", border: "none", cursor: "pointer", fontFamily: FONT }}>
+              <div style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 8 }}>{t("dashboard.end_of_month_short")}</div>
+              {projectedBalance != null ? (
+                <div className="ph-mask" style={{ fontSize: 19, fontWeight: 800, letterSpacing: -0.5, color: eomColor }}>{balanceVisible ? `$${fmt(projectedBalance)}` : "••••"}</div>
+              ) : (
+                <div style={{ width: 60, height: 19, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${DC.card} 0%,#20263380 40%,${DC.card} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
+              )}
+            </button>
           </div>
-        </>
-      )}
+        );
+      })()}
 
-      {/* 2 ── Cash Flow Forecast */}
-      <CashFlowForecast
-        accountBalance={accountBalance}
-        transactions={transactions}
-        balanceVisible={balanceVisible}
-        merchantAliasMap={merchantAliasMap}
-        bankConnected={bankConnected}
-        onNavigate={onNavigate}
-        scheduledPayments={scheduledPayments}
-      />
+      {/* 5 ── Next up: soonest upcoming charge, compact row. Full list (the
+          previous always-visible carousel) is one tap away in a sheet —
+          same UpcomingChargesCard component, unchanged, not lost. */}
+      {upcomingCharges.length > 0 && (() => {
+        const next = [...upcomingCharges].sort((a, b) => a.daysUntil - b.daysUntil)[0];
+        const dueDate = new Date(next.expectedDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+        return (
+          <button onClick={() => setShowUpcomingSheet(true)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", cursor: "pointer", fontFamily: FONT, textAlign: "left" }}>
+            <div style={{ width: 36, height: 36, borderRadius: RADIUS.sm, background: DC.gold + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Icon name="file" size={16} color={DC.gold} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: DC.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {t("dashboard.next")} <span style={{ color: DC.text, fontWeight: 600 }}>{next.merchant}</span>
+              </div>
+              <div style={{ fontSize: 11, color: DC.faint, marginTop: 2 }}>{t("dashboard.due_on", { date: dueDate })}</div>
+            </div>
+            <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.text, flexShrink: 0 }}>${fmt(next.amount, 2)}</span>
+          </button>
+        );
+      })()}
 
-      {/* 2b ── Credit Cards */}
+      {/* 7 ── Credit Cards */}
       {creditAccounts.length > 0 && (() => {
         const totalDebt = sumCreditDebt(creditAccounts);
         const netWorth = accountBalance != null ? accountBalance - totalDebt : null;
         const topCards = sortedCreditAccounts.slice(0, 3);
         const remaining = sortedCreditAccounts.length - topCards.length;
+        const utilColorDC = (pct) => pct == null ? DC.faint : pct >= 0.70 ? DC.ruby : pct >= 0.30 ? DC.gold : DC.emerald;
+        const netWorthLabel = netWorth != null
+          ? `${t("dashboard.credit_cards_net_worth")}: ${balanceVisible ? (netWorth < 0 ? `-$${fmt(Math.abs(netWorth))}` : `$${fmt(netWorth)}`) : "••••"}`
+          : null;
+
+        // Exactly one card: the generic "Credit Cards" label + total-debt
+        // header duplicated the single card's own name/balance below it.
+        // Use the card's real name as the header instead, and fold Net
+        // Worth into a small line next to utilization% rather than its own
+        // prominent row — one card doesn't need two header lines.
+        if (creditAccounts.length === 1) {
+          const only = topCards[0];
+          const pct = creditUtilization(only);
+          const color = utilColorDC(pct);
+          return (
+            <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: DC.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{only.name || only.official_name || t("dashboard.credit_cards_title")}</span>
+                <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.text }}>{m(Number(only.balance_current ?? 0))}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+                <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 0.5, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.credit_cards_utilization")}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color }}>{pct != null ? `${Math.round(pct * 100)}%` : "—"}</span>
+              </div>
+              {netWorthLabel && (
+                <div className="ph-mask" style={{ fontSize: 11, color: DC.faint, marginTop: 6 }}>{netWorthLabel}</div>
+              )}
+            </div>
+          );
+        }
+
         return (
-          <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: RADIUS.md, padding: "14px 18px", border: `1px solid ${C.border}` }}>
+          <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-              <span style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
+              <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
                 {t("dashboard.credit_cards_title")}
               </span>
-              <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: C.red }}>{m(totalDebt)}</span>
+              <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.ruby }}>{m(totalDebt)}</span>
             </div>
-            {netWorth != null && (
-              <div className="ph-mask" style={{ fontSize: 11, color: C.faint, marginBottom: 12 }}>
-                {t("dashboard.credit_cards_net_worth")}: {balanceVisible ? (netWorth < 0 ? `-$${fmt(Math.abs(netWorth))}` : `$${fmt(netWorth)}`) : "••••"}
-              </div>
+            {netWorthLabel && (
+              <div className="ph-mask" style={{ fontSize: 11, color: DC.faint, marginBottom: 12 }}>{netWorthLabel}</div>
             )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: netWorth != null ? 0 : 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: netWorthLabel ? 0 : 8 }}>
               {topCards.map((a, i) => {
                 const pct = creditUtilization(a);
-                const color = creditUtilColor(pct);
+                const color = utilColorDC(pct);
                 return (
                   <div key={a.account_id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 13, color: C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name || a.official_name || t("dashboard.credit_cards_title")}</span>
-                    <span className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{m(Number(a.balance_current ?? 0))}</span>
+                    <span style={{ fontSize: 13, color: DC.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name || a.official_name || t("dashboard.credit_cards_title")}</span>
+                    <span className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: DC.text }}>{m(Number(a.balance_current ?? 0))}</span>
                     <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 34, textAlign: "right" }}>{pct != null ? `${Math.round(pct * 100)}%` : "—"}</span>
                   </div>
                 );
               })}
             </div>
             {remaining > 0 && (
-              <button onClick={() => setAllCreditCards(true)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: C.cyan }}>
+              <button onClick={() => setAllCreditCards(true)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold }}>
                 {t("dashboard.credit_cards_more", { count: remaining })}
               </button>
             )}
@@ -1456,97 +1483,91 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         );
       })()}
 
-
-      {/* 3 ── Monthly Cash Flow */}
-      {!bankConnected ? (
-        <ConnectBankPrompt title={t("dashboard.monthly_cash_flow")} message={t("dashboard.connect_bank_cashflow")} onNavigate={onNavigate} />
-      ) : (
-        <div style={{ background: `linear-gradient(145deg,${C.cardBgStart},${C.bg})`, borderRadius: RADIUS.md, padding: "14px 18px", border: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 12 }}>{t("dashboard.monthly_cash_flow")}</div>
-          <div style={{ display: "flex" }}>
-            {[
-              { key: "income",   label: t("dashboard.income"),   value: m(totalIncome), color: C.green, dot: C.green, change: incomeChange },
-              { key: "expenses", label: t("dashboard.expenses"), value: m(totalSpent),  color: C.red,   dot: C.red,   change: expenseChange, flip: true },
-              { key: "net",      label: t("dashboard.net"),      value: balanceVisible ? (balance < 0 ? `-$${fmt(Math.abs(balance))}` : `$${fmt(balance)}`) : "••••", color: balance >= 0 ? C.green : C.red, dot: balance >= 0 ? C.green : C.red },
-            ].map((item, i) => (
-              <div key={item.key} style={{ flex: 1, paddingLeft: i > 0 ? 10 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : "none", marginLeft: i > 0 ? 10 : 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
-                  <div style={{ width: 5, height: 5, borderRadius: RADIUS.full, background: item.dot }} />
-                  <span style={{ fontSize: 9, color: C.muted, fontWeight: 500 }}>{item.label}</span>
-                </div>
-                <div className="ph-mask" style={{ fontSize: item.key === "net" ? 17 : 13, fontWeight: item.key === "net" ? 800 : 700, color: item.color, marginBottom: 3 }}>{item.value}</div>
-                {item.change !== undefined && <StatBadge value={item.flip ? -item.change : item.change} suffix="" />}
-              </div>
-            ))}
-          </div>
+      {/* 8 ── Spending by Category (donut + side legend) */}
+      <div style={{ background: DC.card, borderRadius: RADIUS.lg, padding: "14px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <span style={{ fontWeight: 600, fontSize: 14, color: DC.text }}>{t("dashboard.spending_by_category")}</span>
+          {isPro
+            ? <span style={{ fontSize: 10, color: DC.faint, background: DC.bg, padding: "3px 8px", borderRadius: RADIUS.full }}>{t("dashboard.tap_to_filter")}</span>
+            : <span style={{ fontSize: 10, color: DC.gold, background: DC.gold + "18", padding: "3px 8px", borderRadius: RADIUS.full, cursor: "pointer" }} onClick={onUpgrade}>Pro</span>
+          }
         </div>
-      )}
+        {Object.keys(spendingByCategory).length === 0 ? (
+          <div style={{ textAlign: "center", padding: "24px 0", color: DC.faint, fontSize: 13 }}>
+            {t("dashboard.no_spending_data")}
+          </div>
+        ) : (
+          <DonutChart data={spendingByCategory} size={120} sideLegend onCatClick={isPro ? handleCatClick : null} hideAmounts={!balanceVisible} lockList={!isPro} onUpgrade={onUpgrade} />
+        )}
+      </div>
 
-      {/* 2 ── Financial Health Score */}
+      {/* 9 ── Financial Health Score — same HealthScoreBar component as before (collapsed row + expand-on-tap breakdown), restyled to the new palette internally, not replaced */}
       <div data-tutorial="health-score">
-        <HealthScoreBar score={healthScore} color={scoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} prevScore={prevHealthScore} cashPositionLow={cashPositionLow} />
+        <HealthScoreBar score={healthScore} color={dcScoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} prevScore={prevHealthScore} cashPositionLow={cashPositionLow} />
         <button
           onClick={() => onNavigate("insights")}
           style={{ display: "flex", alignItems: "center", gap: 4, margin: "6px 0 0 2px", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: FONT }}
         >
-          <span style={{ fontSize: 13, fontWeight: 600, color: C.cyan }}>{t("dashboard.view_insights")}</span>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}>
-            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-          </svg>
+          <span style={{ fontSize: 13, fontWeight: 600, color: DC.gold }}>{t("dashboard.view_insights")}</span>
+          <Icon name="chevron" size={13} color={DC.gold} />
         </button>
       </div>
 
-      {/* 2b ── AI Brain Insight */}
-      <div data-tutorial="ai-insight">
-        <InsightCard insight={insight?.type === 'savings_opportunity' && balance <= 0 ? null : insight} onAction={onInsightAction} />
-      </div>
+      {/* 10 ── Markets */}
+      <MiniMarkets onOpenMarket={onOpenMarket} />
 
-      {/* 7 ── Monthly Budget (compact) */}
-      {(() => {
-        const isOver = totalSpent > budget;
-        const budgetPct = budget > 0 ? (totalSpent / budget) * 100 : 0;
-        const barColor = isOver ? C.red : budgetPct > 70 ? C.yellow : C.cyan;
-        return (
-          <GlassCard style={{ padding: "10px 16px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 13, color: C.muted }}>
-                <span style={{ fontWeight: 600, color: C.text }}>{t("dashboard.budget")}</span>
-                {'  '}{m(totalSpent)} / {m(budget)}
-              </span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: barColor }}>
-                {Math.round(budgetPct)}%{isOver ? ` ${t("dashboard.over_budget")}` : ''}
-              </span>
-            </div>
-            <div style={{ height: 3, background: C.bgTertiary, borderRadius: RADIUS.full }}>
-              <div style={{ height: 3, borderRadius: RADIUS.full, width: `${Math.min(budgetPct, 100)}%`, background: barColor, transition: "width 0.6s" }} />
-            </div>
-          </GlassCard>
-        );
-      })()}
+      {/* 11 ── Ask your coach anything */}
+      <button onClick={() => onOpenChat?.()} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.full, padding: "14px 20px", cursor: "pointer", fontFamily: FONT, marginTop: 4 }}>
+        <span style={{ fontSize: 13, color: DC.muted }}>{t("dashboard.ask_coach_placeholder")}</span>
+        <Icon name="chevron" size={14} color={DC.faint} />
+      </button>
 
-      {/* 3 ── Spending by Category */}
-      <GlassCard style={{ padding: "14px 16px", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <span style={{ fontWeight: 600, fontSize: 14 }}>{t("dashboard.spending_by_category")}</span>
-          {isPro
-            ? <span style={{ fontSize: 10, color: C.faint, background: C.bgTertiary, padding: "3px 8px", borderRadius: RADIUS.full }}>{t("dashboard.tap_to_filter")}</span>
-            : <span style={{ fontSize: 10, color: C.cyan + "AA", background: C.cyan + "10", padding: "3px 8px", borderRadius: RADIUS.full, cursor: "pointer" }} onClick={onUpgrade}>Pro</span>
-          }
-        </div>
-        {Object.keys(spendingByCategory).length === 0 ? (
-          <div style={{ textAlign: "center", padding: "24px 0", color: C.faint, fontSize: 13 }}>
-            {t("dashboard.no_spending_data")}
+      {/* ── Cash Flow Forecast sheet (full burn-down bar + 3-stat grid, tapped from the compact Balance/End-of-month boxes) ── */}
+      {showCashFlowSheet && (
+        <div onClick={() => setShowCashFlowSheet(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 180, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", border: `1px solid ${C.border}`, padding: "0 0 32px", maxHeight: "75vh", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "14px 0 0", display: "flex", justifyContent: "center" }}>
+              <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: "rgba(255,255,255,0.12)" }} />
+            </div>
+            <div style={{ padding: "12px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${C.sep}`, flexShrink: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{t("dashboard.cash_flow_forecast")}</div>
+              <button onClick={() => setShowCashFlowSheet(false)} aria-label={t("dashboard.close")} style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.xs, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div style={{ overflowY: "auto", padding: "16px 20px" }}>
+              <CashFlowForecast
+                accountBalance={accountBalance}
+                transactions={transactions}
+                balanceVisible={balanceVisible}
+                merchantAliasMap={merchantAliasMap}
+                bankConnected={bankConnected}
+                onNavigate={onNavigate}
+                scheduledPayments={scheduledPayments}
+              />
+            </div>
           </div>
-        ) : (
-          <DonutChart data={spendingByCategory} size={196} onCatClick={isPro ? handleCatClick : null} hideAmounts={!balanceVisible} lockList={!isPro} onUpgrade={onUpgrade} />
-        )}
-      </GlassCard>
+        </div>
+      )}
 
-      {/* 6 ── Month Calendar (replaces Recent Transactions) */}
-      <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} scheduledPayments={scheduledPayments} onAddScheduledPayment={onAddScheduledPayment} onCancelScheduledPayment={onCancelScheduledPayment} accountBalance={accountBalance} bankConnected={bankConnected} onNavigate={onNavigate} />
-
-      {/* 5 ── Market Overview */}
-      <MarketOverview onOpenMarket={onOpenMarket} />
+      {showUpcomingSheet && (
+        <div onClick={() => setShowUpcomingSheet(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 180, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", border: `1px solid ${C.border}`, padding: "0 0 32px", maxHeight: "75vh", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "14px 0 0", display: "flex", justifyContent: "center" }}>
+              <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: "rgba(255,255,255,0.12)" }} />
+            </div>
+            <div style={{ padding: "12px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${C.sep}`, flexShrink: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{t("dashboard.upcoming_charges")}</div>
+              <button onClick={() => setShowUpcomingSheet(false)} aria-label={t("dashboard.close")} style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.xs, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div style={{ overflowY: "auto", padding: "16px 20px" }}>
+              <UpcomingChargesCard charges={upcomingCharges} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── "Other" breakdown sheet ── */}
       {otherBreakdown && (() => {
