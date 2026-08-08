@@ -582,31 +582,16 @@ function groupExpensesByDay(transactions, year, month) {
   return byDay;
 }
 
-// For each day with expenses, the dominant category and day total —
-// derived from groupExpensesByDay. Returns { [dayOfMonth]: { category, total } }.
-function getDailyDominantCategory(transactions, year, month) {
-  const byDay = groupExpensesByDay(transactions, year, month);
-  const result = {};
-  for (const [day, catMap] of Object.entries(byDay)) {
-    const [category] = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
-    const total = Object.values(catMap).reduce((s, v) => s + v, 0);
-    result[day] = { category, total };
-  }
-  return result;
-}
-
 // Signed net (income - expense) per day — separate from groupExpensesByDay,
-// which is expense-only (drives the cell's dominant category/color and
-// stays that way). Deliberately excludes ONLY "Transfer" (singular), same
-// as groupExpensesByDay — NOT also "Transfers" (plural), even though the
-// plural is the one that actually shows up in real data and arguably
-// should be excluded too. Matching groupExpensesByDay's filter exactly,
-// bug-for-bug, is intentional here: this number and that cell's color
-// must be computed from the same transaction set, or the color and the
-// text underneath it would silently disagree within one cell. The
-// singular/plural inconsistency itself is real and tracked in BACKLOG —
-// fix it there (in groupExpensesByDay, once, for both consumers), not by
-// letting this function quietly diverge from it.
+// which is expense-only (drives the Level 2 day-detail category breakdown
+// list, not cell color anymore). Deliberately excludes ONLY "Transfer"
+// (singular), same as groupExpensesByDay — NOT also "Transfers" (plural),
+// even though the plural is the one that actually shows up in real data and
+// arguably should be excluded too. Matching groupExpensesByDay's filter
+// exactly, bug-for-bug, is intentional here rather than letting this
+// function quietly diverge from it. The singular/plural inconsistency
+// itself is real and tracked in BACKLOG — fix it there (in
+// groupExpensesByDay, once, for both consumers).
 function getDailyNet(transactions, year, month) {
   const net = {};
   transactions.forEach(t => {
@@ -628,18 +613,6 @@ function fmtDayAmount(n) {
   const abs = Math.abs(n);
   if (abs >= 1000) return sign + "$" + Math.round(abs / 1000) + "k";
   return sign + "$" + Math.round(abs);
-}
-
-// Log-scale intensity (0.25-1.0) relative to the month's biggest spend day —
-// linear scaling gets crushed by one-time lump payments (rent, insurance),
-// making every ordinary day look equally faint. Log compresses the outlier
-// enough that everyday spending differences stay visible. Returns a 2-digit
-// hex alpha suffix.
-function dailyIntensityAlpha(total, maxTotal) {
-  if (!total || !maxTotal) return "40";
-  const frac = Math.log(1 + total) / Math.log(1 + maxTotal);
-  const intensity = 0.25 + 0.75 * Math.min(1, Math.max(0, frac));
-  return Math.round(intensity * 255).toString(16).padStart(2, "0");
 }
 
 // For each remaining day of the current month, finds the dominant (largest
@@ -686,34 +659,37 @@ function getUpcomingChargesByDay(transactions, aliasMap, referenceDate, schedule
 const WEEKDAY_KEYS = ["weekday_mon", "weekday_tue", "weekday_wed", "weekday_thu", "weekday_fri", "weekday_sat", "weekday_sun"];
 
 // Small day cell shared by the grid (level 1) and the day-detail strip
-// (level 2) — same color/intensity rules, different size and click behavior.
-function CalendarDayCell({ day, isToday, isPast, color, alpha, size, emphasized, onClick, tooltip }) {
+// (level 2) — same neutral net-color/red-ring rules as the full grid and
+// compact week, different size and click behavior. emphasized (cyan ring)
+// is this strip's own selection state, orthogonal to the money coloring —
+// not part of the DASHBOARD_C consistency pass, left as-is.
+function CalendarDayCell({ day, isToday, textColor, hasFutureCharge, size, emphasized, onClick, tooltip }) {
   return (
     <div
       onClick={onClick}
       style={{
         width: size, height: size, borderRadius: RADIUS.sm, flexShrink: 0,
-        background: color + alpha,
-        border: isToday ? `2px solid ${C.text}` : emphasized ? `2px solid ${C.cyan}` : `1px solid ${color}55`,
+        background: isToday ? DC.text : "transparent",
+        border: isToday ? "none" : emphasized ? `2px solid ${C.cyan}` : hasFutureCharge ? `1.5px solid ${DC.ruby}` : `1px solid ${DC.faint}22`,
         display: "flex", alignItems: "center", justifyContent: "center",
         cursor: "pointer", position: "relative",
       }}
     >
-      <span style={{ fontSize: 12, fontWeight: isToday || emphasized ? 700 : 500, color: isPast || isToday ? C.text : C.muted }}>{day}</span>
+      <span style={{ fontSize: 12, fontWeight: isToday || emphasized ? 700 : 500, color: isToday ? DC.bg : textColor }}>{day}</span>
       {tooltip}
     </div>
   );
 }
 
 // ─── Month Calendar — replaces Recent Transactions ─────────────────────────
-// Level 1: classic grid (7 cols × N rows, Monday-first). Past/today days are
-// colored by dominant spending category, with intensity (log-scaled, see
-// dailyIntensityAlpha) proportional to that day's total spend. Future days
-// are colored by the dominant predicted charge. Tapping any day selects it
-// (no navigation) and opens level 2.
+// Level 1: classic grid (7 cols × N rows, Monday-first), same neutral system
+// as the compact week above it: no per-category fill, digit color = that
+// day's net sign (ruby/emerald), red ring = a known upcoming charge. Tapping
+// any day selects it (no navigation) and opens level 2.
 // Level 2: a bottom sheet (same interaction pattern as the "Other" spending
 // breakdown sheet below) showing the selected day ± 2 neighbors as a small
-// strip, plus the full category breakdown for the selected day. Tapping a
+// strip (same neutral cell system as level 1), plus the full category
+// breakdown for the selected day. Tapping a
 // past/today day in the strip navigates to Transactions filtered by that
 // date; tapping a future day shows a tooltip — same rules as before, just
 // scoped to the strip instead of the whole grid.
@@ -734,14 +710,7 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
 
   const dayBreakdown = useMemo(() => groupExpensesByDay(transactions, year, month), [transactions, year, month]);
   const dailyNet = useMemo(() => getDailyNet(transactions, year, month), [transactions, year, month]);
-  const pastByDay = useMemo(() => getDailyDominantCategory(transactions, year, month), [transactions, year, month]);
   const futureByDay = useMemo(() => getUpcomingChargesByDay(transactions, merchantAliasMap, now, scheduledPayments), [transactions, merchantAliasMap, scheduledPayments]);
-  const maxDayTotal = useMemo(() => Math.max(0, ...Object.values(pastByDay).map(d => d.total)), [pastByDay]);
-  // Separate scale from maxDayTotal on purpose: past totals are a SUM of every
-  // transaction that day, future amounts are a SINGLE dominant merchant's
-  // predicted charge — different quantities. Sharing one max (usually set by
-  // a lump payment like rent) would flatten every future day near the floor.
-  const maxFutureDayTotal = useMemo(() => Math.max(0, ...Object.values(futureByDay).map(c => c.amount)), [futureByDay]);
 
   if (!bankConnected) {
     return <ConnectBankPrompt title={t("dashboard.month_calendar_title")} message={t("dashboard.connect_bank_calendar")} onNavigate={onNavigate} />;
@@ -751,9 +720,9 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
 
   // Compact mode: just the current Mon-Sun week, clamped to this month (a
   // week straddling a month boundary shows fewer than 7 cells at the edge —
-  // pastByDay/futureByDay are scoped to this month only, so cross-month
-  // days have no data to show anyway). "View full month" below reveals the
-  // full grid unchanged — this never replaces or loses that functionality.
+  // futureByDay is scoped to this month only, so cross-month days have no
+  // data to show anyway). "View full month" below reveals the full grid
+  // unchanged — this never replaces or loses that functionality.
   const todayDow = (now.getDay() + 6) % 7; // Monday-first
   const weekStart = Math.max(1, todayDate - todayDow);
   const weekEnd = Math.min(daysInMonth, todayDate - todayDow + 6);
@@ -761,17 +730,6 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
   const showCompact = compactWeek && !expanded;
   const visibleDays = showCompact ? weekDays : days;
   const visibleLeadingBlanks = showCompact ? 0 : leadingBlanks;
-
-  function dayColorAlpha(day) {
-    const isToday = day === todayDate;
-    const isPast = day < todayDate;
-    const info = isPast || isToday ? pastByDay[day] : futureByDay[day];
-    const color = info ? (CAT_COLORS[info.category] || C.faint) : C.sep;
-    const alpha = isPast || isToday
-      ? dailyIntensityAlpha(pastByDay[day]?.total, maxDayTotal)
-      : dailyIntensityAlpha(futureByDay[day]?.amount, maxFutureDayTotal);
-    return { color, alpha, isToday, isPast };
-  }
 
   // Second line under the day number. Past/today: honest signed net
   // (income - expense) — red/green because it's a real fact about that day.
@@ -790,11 +748,11 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
     if (isPast || isToday) {
       const net = dailyNet[day];
       if (net == null) return null;
-      return { text: fmtDayAmount(net), color: net < 0 ? C.red : C.green };
+      return { text: fmtDayAmount(net), color: net < 0 ? DC.ruby : DC.emerald };
     }
     const info = futureByDay[day];
     if (!info) return null;
-    return { text: fmtDayAmount(-info.amount), color: C.text };
+    return { text: fmtDayAmount(-info.amount), color: DC.muted };
   }
 
   function dateStr(day) {
@@ -858,44 +816,36 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
           })}
         </div>
       ) : (
+      // Full grid — same neutral system as the compact week above (and the
+      // Level 2 neighbor strip below, via CalendarDayCell), just with room
+      // for the amount line underneath (compact only fits the digit). No
+      // per-category fill anymore (that was dayColorAlpha/CAT_COLORS,
+      // removed): digit color = that day's net sign, red ring = a known
+      // upcoming charge, today = solid fill like the compact week's circle.
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
         {Array.from({ length: visibleLeadingBlanks }, (_, i) => <div key={`blank-${i}`} />)}
         {visibleDays.map(day => {
-          const { color, alpha, isToday, isPast } = dayColorAlpha(day);
+          const isToday = day === todayDate;
+          const isPast = day < todayDate;
+          const net = (isPast || isToday) ? dailyNet[day] : null;
+          const hasFutureCharge = !isPast && !isToday && !!futureByDay[day];
+          const textColor = isToday ? DC.bg : net == null ? DC.muted : net < 0 ? DC.ruby : net > 0 ? DC.emerald : DC.muted;
           const amountInfo = dayAmountInfo(day);
           return (
             <div key={day} style={{ aspectRatio: "1" }}>
               <div
                 onClick={() => setSelectedDay(day)}
                 style={{
-                  width: "100%", height: "100%", borderRadius: RADIUS.sm, position: "relative",
-                  background: color + alpha,
-                  border: isToday ? `2px solid ${C.text}` : `1px solid ${color}55`,
+                  width: "100%", height: "100%", borderRadius: RADIUS.sm,
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                  background: isToday ? DC.text : "transparent",
+                  border: isToday ? "none" : hasFutureCharge ? `1.5px solid ${DC.ruby}` : `1px solid ${DC.faint}22`,
                   cursor: "pointer",
                 }}
               >
-                {/* Near-full-cell dark backdrop, not a small chip around the
-                    text — keeps the cell's fill (the whole point of the
-                    intensity work: month activity readable at a glance)
-                    while guaranteeing text contrast on a fixed dark surface
-                    regardless of category color/alpha underneath. A thin
-                    border-only accent (colored ring, dark interior) was
-                    tried and rejected — it read distinctly weaker for "see
-                    the month's activity at a glance" than keeping the fill.
-                    Only shown when the cell actually has a color (past/
-                    future day with data) — an empty day has nothing to
-                    contrast against, so it stays a plain muted number. */}
-                {color !== C.sep ? (
-                  <div style={{ position: "absolute", inset: 3, borderRadius: RADIUS.xs, background: "rgba(0,0,0,0.55)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                    <span style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: C.text, lineHeight: 1.1 }}>{day}</span>
-                    {amountInfo && (
-                      <span style={{ fontSize: 8.5, fontWeight: 700, color: amountInfo.color, lineHeight: 1.1, marginTop: 3, whiteSpace: "nowrap" }}>{amountInfo.text}</span>
-                    )}
-                  </div>
-                ) : (
-                  <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <span style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: isToday ? C.text : C.muted, lineHeight: 1.1 }}>{day}</span>
-                  </div>
+                <span style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: textColor, lineHeight: 1.1 }}>{day}</span>
+                {amountInfo && (
+                  <span style={{ fontSize: 8.5, fontWeight: 700, color: amountInfo.color, lineHeight: 1.1, marginTop: 3, whiteSpace: "nowrap" }}>{amountInfo.text}</span>
                 )}
               </div>
             </div>
@@ -938,12 +888,16 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
             <div style={{ overflowY: "auto", padding: "16px 20px 0" }}>
               <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 16 }}>
                 {neighborDays.map(day => {
-                  const { color, alpha, isToday, isPast } = dayColorAlpha(day);
+                  const isToday = day === todayDate;
+                  const isPast = day < todayDate;
                   const isFuture = !isPast && !isToday;
+                  const net = (isPast || isToday) ? dailyNet[day] : null;
+                  const hasFutureCharge = isFuture && !!futureByDay[day];
+                  const textColor = net == null ? DC.muted : net < 0 ? DC.ruby : net > 0 ? DC.emerald : DC.muted;
                   return (
                     <div key={day} style={{ position: "relative" }}>
                       <CalendarDayCell
-                        day={day} isToday={isToday} isPast={isPast} color={color} alpha={alpha}
+                        day={day} isToday={isToday} textColor={textColor} hasFutureCharge={hasFutureCharge}
                         size={day === selectedDay ? 52 : 40}
                         emphasized={day === selectedDay}
                         onClick={() => {
