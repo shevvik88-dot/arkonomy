@@ -11,6 +11,7 @@ import { calculateHealthScore, generateHealthComment, getScoreLabel } from "../h
 import { highlightNumbers } from "./Insights";
 import UpcomingChargesCard from "./UpcomingChargesCard";
 import { getUpcomingCharges, getUpcomingCardPayments } from '../utils/recurringSummary';
+import { getTodaysLesson, getPersonalizedLessonNote, computeNextStreak } from '../utils/lessons';
 import { BUFFER } from "../shared/financialConstants";
 
 
@@ -1118,18 +1119,21 @@ function CoachBlock({ insight, onAction }) {
   );
 }
 
-// Non-interactive placeholder — real Lessons functionality (streak logic,
-// content generation, backend) is a separate follow-up, not this pass. No
-// fabricated streak count or lesson title here on purpose (see CLAUDE.md:
-// never invent a plausible-looking placeholder number for an empty state).
-function TodaysLessonRow() {
+// Subtitle shows the actual lesson title until completed today, then
+// switches to the streak — same "tap = done" completion as decided (no
+// separate confirm step). Lesson body itself is English-only for v1 (see
+// utils/lessons.js header comment); the streak/chrome text around it is
+// still localized normally.
+function TodaysLessonRow({ lesson, streak, alreadyCompletedToday, onClick }) {
   const { t } = useTranslation();
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 4px" }}>
+    <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 4px", cursor: "pointer" }}>
       <Icon name="zap" size={16} color={DC.gold} />
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{t("dashboard.todays_lesson")}</div>
-        <div style={{ fontSize: 11, color: DC.muted, marginTop: 1 }}>{t("dashboard.todays_lesson_subtitle")}</div>
+        <div style={{ fontSize: 11, color: DC.muted, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {alreadyCompletedToday && streak > 0 ? `🔥 ${t("dashboard.todays_lesson_streak", { count: streak })}` : lesson.title}
+        </div>
       </div>
       <Icon name="chevron" size={13} color={DC.faint} />
     </div>
@@ -1193,7 +1197,7 @@ function MiniMarkets({ onOpenMarket }) {
   );
 }
 
-export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, onOpenChat }) {
+export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, onOpenChat, lessonStreak = { current_streak: 0, last_completed_date: null }, onCompleteLesson }) {
   const { t } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
@@ -1202,6 +1206,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   const [allCreditCards, setAllCreditCards] = useState(false);
   const [showCashFlowSheet, setShowCashFlowSheet] = useState(false);
   const [showUpcomingSheet, setShowUpcomingSheet] = useState(false);
+  const [showLessonSheet, setShowLessonSheet] = useState(false);
   const balanceFetchIdRef = useRef(0);
   const m = (n, dec = 0) => balanceVisible ? `$${fmt(n, dec)}` : "••••";
 
@@ -1253,6 +1258,14 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   // Same formula as Insights.jsx.availableSafe — for cashPositionLow parity between screens.
   const availableSafe = Math.max(0, Math.min(totalIncome - totalSpent - BUFFER, accountBalance != null ? accountBalance - BUFFER : Infinity));
   const cashPositionLow = availableSafe <= 0 && accountBalance != null;
+
+  // ── Today's Lesson ────────────────────────────────────────────────────────
+  const todaysLesson = useMemo(() => getTodaysLesson(), []);
+  const lessonAlreadyDoneToday = computeNextStreak(lessonStreak.last_completed_date, lessonStreak.current_streak).alreadyCompletedToday;
+  const lessonPersonalizedNote = useMemo(
+    () => getPersonalizedLessonNote({ cashPositionLow, upcomingCharges, spendingByCategory }),
+    [cashPositionLow, upcomingCharges, spendingByCategory]
+  );
 
   // ── Health Score ──────────────────────────────────────────────────────────
   const SUB_CATS = ['Subscriptions', 'Bills', 'Utilities', 'Phone', 'Internet', 'Insurance'];
@@ -1342,8 +1355,8 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       {/* 2 ── Calendar week (compact by default, "View full month" reveals the unchanged full grid + Level 2 sheet) */}
       <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} scheduledPayments={scheduledPayments} onAddScheduledPayment={onAddScheduledPayment} onCancelScheduledPayment={onCancelScheduledPayment} accountBalance={accountBalance} bankConnected={bankConnected} onNavigate={onNavigate} compactWeek />
 
-      {/* 3 ── Today's lesson (placeholder — real Lessons functionality is a separate follow-up) */}
-      <TodaysLessonRow />
+      {/* 3 ── Today's lesson */}
+      <TodaysLessonRow lesson={todaysLesson} streak={lessonStreak.current_streak} alreadyCompletedToday={lessonAlreadyDoneToday} onClick={() => { setShowLessonSheet(true); onCompleteLesson?.(); }} />
 
       {/* 4 ── Balance / End of month — compact boxes, tap either to open the full Cash Flow Forecast (burn-down bar + 3-stat grid) in a sheet, nothing lost or duplicated on-page */}
       {!bankConnected ? (
@@ -1564,6 +1577,44 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
             </div>
             <div style={{ overflowY: "auto", padding: "16px 20px" }}>
               <UpcomingChargesCard charges={upcomingCharges} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Today's Lesson sheet ── */}
+      {showLessonSheet && (
+        <div onClick={() => setShowLessonSheet(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 180, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 430, background: C.card, borderRadius: "20px 20px 0 0", border: `1px solid ${C.border}`, padding: "0 0 32px", maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "14px 0 0", display: "flex", justifyContent: "center" }}>
+              <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: "rgba(255,255,255,0.12)" }} />
+            </div>
+            <div style={{ padding: "12px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${C.sep}`, flexShrink: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{t("dashboard.todays_lesson")}</div>
+              <button onClick={() => setShowLessonSheet(false)} aria-label={t("dashboard.close")} style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.xs, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div style={{ overflowY: "auto", padding: "16px 20px" }}>
+              {lessonAlreadyDoneToday && lessonStreak.current_streak > 0 && (
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.yellow, marginBottom: 12 }}>
+                  🔥 {t("dashboard.todays_lesson_streak", { count: lessonStreak.current_streak })}
+                </div>
+              )}
+              <div style={{ fontSize: 11, color: C.faint, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 4 }}>{todaysLesson.category}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 12 }}>{todaysLesson.title}</div>
+              {lessonPersonalizedNote && (
+                <div style={{ fontSize: 13, color: C.cyan, background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, padding: "10px 12px", marginBottom: 14 }}>
+                  {lessonPersonalizedNote}
+                </div>
+              )}
+              {todaysLesson.body.map((p, i) => (
+                <p key={i} style={{ fontSize: 14, color: C.text, lineHeight: 1.5, margin: "0 0 12px" }}>{p}</p>
+              ))}
+              <div style={{ fontSize: 12, color: C.muted, background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, padding: "10px 12px", marginTop: 4 }}>
+                <span style={{ fontWeight: 700, color: C.text }}>{t("dashboard.todays_lesson_tip")}: </span>
+                {todaysLesson.tip}
+              </div>
             </div>
           </div>
         </div>

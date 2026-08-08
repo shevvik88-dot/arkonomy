@@ -25,6 +25,7 @@ import { BUFFER } from "./shared/financialConstants";
 import { IS_IOS_NATIVE } from "./lib/platform";
 import { useUSStorefront } from "./lib/storefront";
 import { computeRecurringSummary, findDuplicateSubscriptions, getUpcomingCharges, getUpcomingCardPayments } from "./utils/recurringSummary";
+import { computeNextStreak } from "./utils/lessons";
 import GlassCard from "./components/shared/GlassCard";
 import AuthScreen from "./components/AuthScreen";
 import Icon from "./components/shared/Icon";
@@ -364,6 +365,7 @@ export default function App() {
   const [savings, setSavings] = useState([]);
   const [merchantAliases, setMerchantAliases] = useState([]);
   const [scheduledPayments, setScheduledPayments] = useState([]);
+  const [lessonStreak, setLessonStreak] = useState({ current_streak: 0, last_completed_date: null });
   const [loading, setLoading] = useState(true);
   const [showAddTx, setShowAddTx] = useState(false);
   const [editTx, setEditTx] = useState(null);
@@ -590,13 +592,14 @@ export default function App() {
   async function loadAll(silent = false) {
     if (!silent) setLoading(true);
     try {
-      const [p, t, c, sv, ma, sp, alpacaCheck] = await Promise.all([
+      const [p, t, c, sv, ma, sp, ls, alpacaCheck] = await Promise.all([
         supabase.from("profiles").select("id, email, full_name, avatar_url, monthly_budget, savings_goal, roundup_enabled, created_at, plan, push_subscription, watchlist, stripe_customer_id, tutorial_completed, last_synced_at, trial_ends_at, trial_web_search_count").eq("id", user.id).single(),
         supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }).limit(5000),
         supabase.from("categories").select("*").eq("user_id", user.id),
         supabase.from("savings").select("*").eq("user_id", user.id),
         supabase.from("merchant_aliases").select("*").eq("user_id", user.id),
         supabase.from("scheduled_payments").select("*").eq("user_id", user.id).eq("status", "pending"),
+        supabase.from("lesson_streaks").select("*").eq("user_id", user.id).maybeSingle(),
         supabase.rpc("has_alpaca_token"),
       ]);
       if (p.data) {
@@ -624,6 +627,10 @@ export default function App() {
       if (c.data) { setCategories(c.data); if (c.data.length === 0) await seedCategories(); }
       if (ma.data) setMerchantAliases(ma.data);
       if (sp.data) setScheduledPayments(sp.data);
+      // No row yet = brand new user, never completed a lesson — keep the
+      // useState default (streak 0, last_completed_date null) rather than
+      // overwriting with nothing.
+      if (ls.data) setLessonStreak(ls.data);
     } catch (err) {
       logger.error("[loadAll] failed:", err);
     } finally {
@@ -1059,6 +1066,23 @@ export default function App() {
       setScheduledPayments(prev => prev.filter(p => p.id !== id));
     } catch (err) {
       logger.error("[cancelScheduledPayment] failed:", err);
+    }
+  }
+
+  // Tap-to-open on Today's Lesson = completion. No-ops if already completed
+  // today (computeNextStreak returns the same streak + alreadyCompletedToday)
+  // so re-opening the same lesson twice in a day is safe to call unguarded.
+  async function completeLesson() {
+    const { streak, lastCompletedDate } = computeNextStreak(lessonStreak.last_completed_date, lessonStreak.current_streak);
+    if (lastCompletedDate === lessonStreak.last_completed_date && streak === lessonStreak.current_streak) return;
+    try {
+      const { data, error } = await supabase.from("lesson_streaks")
+        .upsert({ user_id: user.id, current_streak: streak, last_completed_date: lastCompletedDate })
+        .select().single();
+      if (error) throw error;
+      if (data) setLessonStreak(data);
+    } catch (err) {
+      logger.error("[completeLesson] failed:", err);
     }
   }
 
@@ -1682,7 +1706,7 @@ export default function App() {
           );
         })() : (
           <>
-            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setMerchantFilter(null); setDateFilter(null); setScreen("transactions"); }} onMerchantClick={tx => { setMerchantFilter(tx.description); setCatFilter(null); setDateFilter(null); setScreen("transactions"); }} onDayClick={date => { setDateFilter(date); setCatFilter(null); setMerchantFilter(null); setScreen("transactions"); }} onDayCategoryClick={(date, cat) => { setDateFilter(date); setCatFilter(cat); setMerchantFilter(null); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} lastSyncedAt={lastSyncedAt} hideWelcomeBanner={proToast} merchantAliasMap={merchantAliasMap} scheduledPayments={scheduledPayments} onAddScheduledPayment={addScheduledPayment} onCancelScheduledPayment={cancelScheduledPayment} onOpenChat={openChatWithContext} />}
+            {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setMerchantFilter(null); setDateFilter(null); setScreen("transactions"); }} onMerchantClick={tx => { setMerchantFilter(tx.description); setCatFilter(null); setDateFilter(null); setScreen("transactions"); }} onDayClick={date => { setDateFilter(date); setCatFilter(null); setMerchantFilter(null); setScreen("transactions"); }} onDayCategoryClick={(date, cat) => { setDateFilter(date); setCatFilter(cat); setMerchantFilter(null); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} lastSyncedAt={lastSyncedAt} hideWelcomeBanner={proToast} merchantAliasMap={merchantAliasMap} scheduledPayments={scheduledPayments} onAddScheduledPayment={addScheduledPayment} onCancelScheduledPayment={cancelScheduledPayment} onOpenChat={openChatWithContext} lessonStreak={lessonStreak} onCompleteLesson={completeLesson} />}
             {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} onToast={showAlert} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} activeMerchantFilter={merchantFilter} onClearMerchantFilter={() => setMerchantFilter(null)} activeDateFilter={dateFilter} onClearDateFilter={() => setDateFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} bankConnected={bankConnected} onNavigate={setScreen} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} InsightCard={InsightCard} roundupEnabled={roundupEnabled} onToggleRoundup={v => { setRoundupEnabled(v); saveProfile({ roundup_enabled: v }); }} />}
