@@ -165,7 +165,11 @@ export function computeNextStreak(lastCompletedDate, currentStreak, now = new Da
 // computed (no new fetch, no AI call). Returns null if nothing fires.
 export function getPersonalizedLessonNote({ cashPositionLow, upcomingCharges = [], spendingByCategory = {} } = {}) {
   if (cashPositionLow) {
-    return "Heads up — your projected balance is running tight this month. Today's lesson on cash flow forecasting might be worth a closer read.";
+    // Was hardcoded to claim "today's lesson on cash flow forecasting" —
+    // false whenever the actual lesson (picked independently by day-of-year)
+    // isn't that one. Same neutral "see if it connects" phrasing as the
+    // topCategory branch below, no specific topic claim.
+    return "Heads up — your projected balance is running tight this month. See if today's lesson connects.";
   }
   const nearest = upcomingCharges[0];
   if (nearest && nearest.amount >= 100) {

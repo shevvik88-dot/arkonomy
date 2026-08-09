@@ -292,7 +292,12 @@ test.describe('Arkonomy — full user journey', () => {
     try {
       await navTo(page, 'dashboard').catch(() => {});
 
-      const chatBtn = page.locator('[data-tutorial="ai-chat"]');
+      // Floating ai-chat button is intentionally hidden on Dashboard
+      // (2026-08-09) — use the "Ask your coach anything" row instead, same
+      // retargeting OnboardingFlow.jsx's own tour steps got for the same
+      // reason. This step was silently failing (caught by the try/catch
+      // below) and never actually testing chat before this fix.
+      const chatBtn = page.locator('[data-tutorial="ask-coach"]');
       await chatBtn.waitFor({ state: 'visible', timeout: 8_000 });
       await chatBtn.click();
       await idle(page, 1_000);

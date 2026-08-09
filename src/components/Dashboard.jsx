@@ -1090,7 +1090,7 @@ function TodaysLessonRow({ lesson, streak, alreadyCompletedToday, onClick }) {
     <div onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 4px", cursor: "pointer" }}>
       <Icon name="zap" size={16} color={DC.gold} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{t("dashboard.todays_lesson")}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: DC.muted }}>{t("dashboard.todays_lesson")}</div>
         <div style={{ fontSize: 11, color: DC.muted, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {alreadyCompletedToday && streak > 0 ? `🔥 ${t("dashboard.todays_lesson_streak", { count: streak })}` : lesson.title}
         </div>
@@ -1522,7 +1522,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       {/* 8 ── Spending by Category (donut + side legend) */}
       <div {...spendingLongPress} style={{ background: DC.card, borderRadius: RADIUS.lg, padding: "14px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <span style={{ fontWeight: 600, fontSize: 14, color: DC.text }}>{t("dashboard.spending_by_category")}</span>
+          <span style={{ fontWeight: 600, fontSize: 14, color: DC.muted }}>{t("dashboard.spending_by_category")}</span>
           {isPro
             ? <span style={{ fontSize: 10, color: DC.faint, background: DC.bg, padding: "3px 8px", borderRadius: RADIUS.full }}>{t("dashboard.tap_to_filter")}</span>
             : <span style={{ fontSize: 10, color: DC.gold, background: DC.gold + "18", padding: "3px 8px", borderRadius: RADIUS.full, cursor: "pointer" }} onClick={onUpgrade}>Pro</span>

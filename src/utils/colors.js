@@ -86,28 +86,35 @@ export const DASHBOARD_C = {
   faint: "#6B7688",
 };
 
+// Muted/desaturated versions of the original bright Tailwind-400 set —
+// found 2026-08-09 to read as too "rainbow"/screaming against the
+// DASHBOARD_C redesign. HSL remap (S -> 35+S*0.22, L -> L*0.92, hue
+// unchanged) computed against the actual DASHBOARD_C accent trio's own
+// saturation/lightness range (gold/ruby/emerald sit around S 58-70%,
+// L 44-70%) rather than picked by eye. Government/Other/Transfer were
+// already desaturated slate greys — left untouched on purpose.
 export const CAT_COLORS = {
-  "Housing":          "#60A5FA",
-  "Bills":            "#A78BFA",
-  "Subscriptions":    "#A78BFA",
-  "Shopping":         "#FB923C",
-  "Food & Dining":    "#F87171",
-  "Transport":        "#2DD4BF",
-  "Transportation":   "#2DD4BF",
-  "Entertainment":    "#F472B6",
-  "Health":           "#4ADE80",
-  "Health & Fitness": "#34D399",
-  "Personal Care":    "#FBBF24",
-  "Travel":           "#818CF8",
-  "Education":        "#38BDF8",
-  "Taxes":            "#F59E0B",
+  "Housing":          "#6898D4",
+  "Bills":            "#9781DA",
+  "Subscriptions":    "#9781DA",
+  "Shopping":         "#CE8950",
+  "Food & Dining":    "#D77575",
+  "Transport":        "#3BB0A1",
+  "Transportation":   "#3BB0A1",
+  "Entertainment":    "#D676A8",
+  "Health":           "#4BC377",
+  "Health & Fitness": "#3DB388",
+  "Personal Care":    "#C9A340",
+  "Travel":           "#8189DA",
+  "Education":        "#4CA5CD",
+  "Taxes":            "#B68635",
   "Government":       "#94A3B8",
-  "Charity":          "#EC4899",
-  "Fees":             "#EF4444",
-  "Cost of Debt":     "#F97316",
-  "Utilities":        "#67E8F9",
-  "Transfers":        "#6366F1",
+  "Charity":          "#CA538E",
+  "Fees":             "#CA4E4E",
+  "Cost of Debt":     "#C37037",
+  "Utilities":        "#6DC8D5",
+  "Transfers":        "#6769D0",
   "Other":            "#94A3B8",
   "Transfer":         "#475569",
-  "Income":           "#34D399",
+  "Income":           "#3DB388",
 };
