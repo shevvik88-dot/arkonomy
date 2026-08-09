@@ -48,6 +48,11 @@ export default function BottomNav({ screen, setScreen, onOpenChat, insightCount 
         The button inside uses position: absolute + right/bottom to sit
         20px from the container's right edge, 16px above the nav bar.
       */}
+      {/* Hidden on Dashboard only — it duplicates the "Ask your coach
+          anything" row there, plus card long-press now covers the same
+          action. Stays exactly as-is (badge included) on every other
+          screen, where it's still the only entry point. */}
+      {screen !== 'dashboard' && (
       <div style={{
         position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
         width: '100%', maxWidth: 430, height: 0, zIndex: 55, pointerEvents: 'none',
@@ -143,6 +148,7 @@ export default function BottomNav({ screen, setScreen, onOpenChat, insightCount 
           )}
         </div>
       </div>
+      )}
 
       {/* ── Nav bar ── */}
       <div className="cap-bottom-nav" style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "rgba(11,20,38,0.97)", backdropFilter: "blur(24px)", borderTop: `1px solid ${C.sep}`, display: "flex", padding: "10px 0 20px", zIndex: 50 }}>

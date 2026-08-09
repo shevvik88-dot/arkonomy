@@ -12,6 +12,8 @@ import { highlightNumbers } from "./Insights";
 import UpcomingChargesCard from "./UpcomingChargesCard";
 import { getUpcomingCharges, getUpcomingCardPayments } from '../utils/recurringSummary';
 import { getTodaysLesson, getPersonalizedLessonNote, computeNextStreak } from '../utils/lessons';
+import { getCardQuestion } from '../utils/cardQuestions';
+import { useLongPress } from '../hooks/useLongPress';
 import { BUFFER } from "../shared/financialConstants";
 
 
@@ -1054,13 +1056,17 @@ function AddPlannedPaymentModal({ dueDate, transactions, merchantAliasMap, sched
 // pass stays scoped to Dashboard.jsx's own visual language.
 const COACH_WARNING_TYPES = ['cash_risk', 'category_spike', 'overspending', 'debt_utilization', 'goal_off_track'];
 
-function CoachBlock({ insight, onAction }) {
+function CoachBlock({ insight, onAction, onAskCoach }) {
   const { t } = useTranslation();
-  if (!insight?.rendered?.headline) return null;
+  const headline = insight?.rendered?.headline;
+  // Above the early return below — a hook after a conditional return is a
+  // Rules of Hooks violation (see Coding rules in CLAUDE.md).
+  const longPress = useLongPress(() => onAskCoach?.(headline));
+  if (!headline) return null;
   const accent = COACH_WARNING_TYPES.includes(insight.type) ? DC.ruby : DC.gold;
-  const { headline, cta, action } = insight.rendered;
+  const { cta, action } = insight.rendered;
   return (
-    <div style={{ background: DC.card, borderLeft: `3px solid ${accent}`, borderRadius: RADIUS.lg, padding: "20px", fontFamily: FONT }}>
+    <div {...longPress} style={{ background: DC.card, borderLeft: `3px solid ${accent}`, borderRadius: RADIUS.lg, padding: "20px", fontFamily: FONT }}>
       <div style={{ fontSize: 13, color: DC.muted, fontWeight: 600, letterSpacing: 0.5, marginBottom: 6 }}>{t("dashboard.your_coach")}</div>
       <div className="ph-mask" style={{ fontSize: 18, fontWeight: 700, color: DC.text, lineHeight: 1.4 }}>
         {highlightNumbers(headline, accent)}
@@ -1151,7 +1157,7 @@ function MiniMarkets({ onOpenMarket }) {
   );
 }
 
-export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, onOpenChat, lessonStreak = { current_streak: 0, last_completed_date: null }, onCompleteLesson }) {
+export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, onOpenChat, lessonStreak = { current_streak: 0, last_completed_date: null }, onCompleteLesson, onOpenChatWithMessage }) {
   const { t } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
@@ -1161,13 +1167,34 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   const [showCashFlowSheet, setShowCashFlowSheet] = useState(false);
   const [showUpcomingSheet, setShowUpcomingSheet] = useState(false);
   const [showLessonSheet, setShowLessonSheet] = useState(false);
+  const [showLongPressTip, setShowLongPressTip] = useState(false);
   const balanceFetchIdRef = useRef(0);
   const m = (n, dec = 0) => balanceVisible ? `$${fmt(n, dec)}` : "••••";
+
+  // One-time tip, localStorage only (pure UI nicety, not worth a profile
+  // column/migration) — shown once, dismissed either by the × or by the
+  // first successful long-press itself (see handleCardLongPress).
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem('arkonomy_longpress_tip_seen')) setShowLongPressTip(true);
+    } catch {}
+  }, []);
+
+  function dismissLongPressTip() {
+    setShowLongPressTip(false);
+    try { localStorage.setItem('arkonomy_longpress_tip_seen', '1'); } catch {}
+  }
 
   // Intercept "Other" clicks — show breakdown instead of navigating
   function handleCatClick(cat) {
     if (cat === 'Other') { setOtherBreakdown(true); return; }
     onCatClick?.(cat);
+  }
+
+  function handleCardLongPress(cardKey, data) {
+    const question = getCardQuestion(cardKey, data, t);
+    if (question) onOpenChatWithMessage?.(question);
+    if (showLongPressTip) dismissLongPressTip();
   }
 
   useEffect(() => {
@@ -1212,6 +1239,36 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   // Same formula as Insights.jsx.availableSafe — for cashPositionLow parity between screens.
   const availableSafe = Math.max(0, Math.min(totalIncome - totalSpent - BUFFER, accountBalance != null ? accountBalance - BUFFER : Infinity));
   const cashPositionLow = availableSafe <= 0 && accountBalance != null;
+  // Hoisted so the "Next up" render and its long-press callback below don't
+  // independently recompute the same pick — single source, like everywhere
+  // else in this file.
+  const nextUpcomingCharge = upcomingCharges.length > 0
+    ? [...upcomingCharges].sort((a, b) => a.daysUntil - b.daysUntil)[0]
+    : null;
+
+  // ── Card long-press → prefilled AI chat question ───────────────────────────
+  // useLongPress itself must be called unconditionally at the top level (not
+  // inside a render-time IIFE/conditional) — Rules of Hooks. The callbacks
+  // read whatever card-specific data they need at press time from these
+  // already-computed top-level values, so a single hook instance covers
+  // both Credit Cards render branches (single-card vs multi-card).
+  const cashFlowLongPress = useLongPress(() => handleCardLongPress('cashFlow'));
+  const creditCardsLongPress = useLongPress(() => {
+    const top = sortedCreditAccounts[0];
+    if (!top) return;
+    handleCardLongPress('creditCards', { cardName: top.name || top.official_name || t("dashboard.credit_cards_title"), pct: creditUtilization(top) });
+  });
+  const spendingLongPress = useLongPress(() => {
+    const top = Object.entries(spendingByCategory).sort((a, b) => b[1] - a[1])[0];
+    if (!top) return;
+    handleCardLongPress('spending', { category: tCat(top[0], t) });
+  });
+  const healthScoreLongPress = useLongPress(() => handleCardLongPress('healthScore', { label: getScoreLabel(healthScore) }));
+  const nextUpLongPress = useLongPress(() => {
+    if (!nextUpcomingCharge) return;
+    const dueDate = new Date(nextUpcomingCharge.expectedDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    handleCardLongPress('nextUp', { merchant: nextUpcomingCharge.merchant, date: dueDate });
+  });
 
   // ── Today's Lesson ────────────────────────────────────────────────────────
   const todaysLesson = useMemo(() => getTodaysLesson(), []);
@@ -1303,8 +1360,20 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         </div>
       )}
 
+      {/* 0b ── One-time long-press tip — dismissed by the × or by the first
+          successful long-press itself (handleCardLongPress), never shown again. */}
+      {showLongPressTip && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, background: DC.card, border: `1px solid ${DC.gold}33`, borderRadius: RADIUS.md, padding: "10px 14px" }}>
+          <Icon name="zap" size={14} color={DC.gold} />
+          <div style={{ flex: 1, fontSize: 12, color: DC.muted }}>{t("dashboard.longpress_tip")}</div>
+          <button onClick={dismissLongPressTip} aria-label={t("dashboard.close")} style={{ background: "none", border: "none", padding: 4, cursor: "pointer", display: "flex" }}>
+            <Icon name="x" size={14} color={DC.faint} />
+          </button>
+        </div>
+      )}
+
       {/* 1 ── Coach block (highest-priority insight, moved to top) */}
-      <CoachBlock insight={insight?.type === 'savings_opportunity' && balance <= 0 ? null : insight} onAction={onInsightAction} />
+      <CoachBlock insight={insight?.type === 'savings_opportunity' && balance <= 0 ? null : insight} onAction={onInsightAction} onAskCoach={headline => handleCardLongPress('coach', { headline })} />
 
       {/* 2 ── Calendar week (compact by default, "View full month" reveals the unchanged full grid + Level 2 sheet) */}
       <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} scheduledPayments={scheduledPayments} onAddScheduledPayment={onAddScheduledPayment} onCancelScheduledPayment={onCancelScheduledPayment} accountBalance={accountBalance} bankConnected={bankConnected} onNavigate={onNavigate} compactWeek />
@@ -1327,7 +1396,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         const projectedBalance = projectedRaw != null ? Math.max(0, projectedRaw) : null;
         const eomColor = projectedBalance == null ? DC.text : projectedRaw <= 0 ? DC.ruby : DC.text;
         return (
-          <div data-tutorial="net-balance" style={{ display: "flex", gap: 8 }}>
+          <div data-tutorial="net-balance" {...cashFlowLongPress} style={{ display: "flex", gap: 8 }}>
             <button onClick={() => setShowCashFlowSheet(true)} style={{ flex: 1, textAlign: "left", background: DC.card, borderRadius: RADIUS.md, padding: "14px 16px", border: "none", cursor: "pointer", fontFamily: FONT }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.balance_short")}</span>
@@ -1361,11 +1430,11 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       {/* 5 ── Next up: soonest upcoming charge, compact row. Full list (the
           previous always-visible carousel) is one tap away in a sheet —
           same UpcomingChargesCard component, unchanged, not lost. */}
-      {upcomingCharges.length > 0 && (() => {
-        const next = [...upcomingCharges].sort((a, b) => a.daysUntil - b.daysUntil)[0];
+      {nextUpcomingCharge && (() => {
+        const next = nextUpcomingCharge;
         const dueDate = new Date(next.expectedDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
         return (
-          <button onClick={() => setShowUpcomingSheet(true)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", cursor: "pointer", fontFamily: FONT, textAlign: "left" }}>
+          <button onClick={() => setShowUpcomingSheet(true)} {...nextUpLongPress} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", cursor: "pointer", fontFamily: FONT, textAlign: "left" }}>
             <div style={{ width: 36, height: 36, borderRadius: RADIUS.sm, background: DC.gold + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Icon name="file" size={16} color={DC.gold} />
             </div>
@@ -1401,7 +1470,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           const pct = creditUtilization(only);
           const color = utilColorDC(pct);
           return (
-            <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none" }}>
+            <div {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 14, fontWeight: 700, color: DC.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{only.name || only.official_name || t("dashboard.credit_cards_title")}</span>
                 <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.text }}>{m(Number(only.balance_current ?? 0))}</span>
@@ -1418,7 +1487,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         }
 
         return (
-          <div style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none" }}>
+          <div {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
               <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
                 {t("dashboard.credit_cards_title")}
@@ -1451,7 +1520,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       })()}
 
       {/* 8 ── Spending by Category (donut + side legend) */}
-      <div style={{ background: DC.card, borderRadius: RADIUS.lg, padding: "14px 16px" }}>
+      <div {...spendingLongPress} style={{ background: DC.card, borderRadius: RADIUS.lg, padding: "14px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <span style={{ fontWeight: 600, fontSize: 14, color: DC.text }}>{t("dashboard.spending_by_category")}</span>
           {isPro
@@ -1469,7 +1538,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       </div>
 
       {/* 9 ── Financial Health Score — same HealthScoreBar component as before (collapsed row + expand-on-tap breakdown), restyled to the new palette internally, not replaced */}
-      <div data-tutorial="health-score">
+      <div data-tutorial="health-score" {...healthScoreLongPress}>
         <HealthScoreBar score={healthScore} color={dcScoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} prevScore={prevHealthScore} cashPositionLow={cashPositionLow} />
         <button
           onClick={() => onNavigate("insights")}
@@ -1484,7 +1553,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       <MiniMarkets onOpenMarket={onOpenMarket} />
 
       {/* 11 ── Ask your coach anything */}
-      <button onClick={() => onOpenChat?.()} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.full, padding: "14px 20px", cursor: "pointer", fontFamily: FONT, marginTop: 4 }}>
+      <button data-tutorial="ask-coach" onClick={() => onOpenChat?.()} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.full, padding: "14px 20px", cursor: "pointer", fontFamily: FONT, marginTop: 4 }}>
         <span style={{ fontSize: 13, color: DC.muted }}>{t("dashboard.ask_coach_placeholder")}</span>
         <Icon name="chevron" size={14} color={DC.faint} />
       </button>

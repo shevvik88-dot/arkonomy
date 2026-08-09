@@ -17,7 +17,7 @@ export const TUTORIAL_STEPS = [
   { selector: '[data-tutorial="nav-markets"]',      screen: null,        title: "onboarding.tut_5_title", description: "onboarding.tut_5_desc" },
   { selector: '[data-tutorial="nav-savings"]',      screen: null,        title: "onboarding.tut_6_title", description: "onboarding.tut_6_desc" },
   { selector: '[data-tutorial="nav-insights"]',     screen: null,        title: "onboarding.tut_7_title", description: "onboarding.tut_7_desc" },
-  { selector: '[data-tutorial="ai-chat"]',          screen: null,        title: "onboarding.tut_8_title", description: "onboarding.tut_8_desc" },
+  { selector: '[data-tutorial="ask-coach"]',        screen: null,        title: "onboarding.tut_8_title", description: "onboarding.tut_8_desc" },
 ];
 
 export const MINI_TOURS = {
@@ -33,7 +33,7 @@ export const MINI_TOURS = {
   "invest": [
     { selector: '[data-tutorial="nav-markets"]',  screen: "dashboard", title: "Step 1: Browse Markets",           description: "Tap Markets to see live prices for stocks, ETFs and crypto — tap any ticker for charts and AI analysis" },
     { selector: '[data-tutorial="nav-savings"]',  screen: "dashboard", title: "Step 2: Connect Investment Account", description: "In Savings, connect your investment account to enable automatic investing of your monthly round-ups" },
-    { selector: '[data-tutorial="ai-chat"]',      screen: "dashboard", title: "Step 3: Ask AI for picks",         description: "Ask your AI advisor which assets fit your goals and risk profile before investing" },
+    { selector: '[data-tutorial="ask-coach"]',    screen: "dashboard", title: "Step 3: Ask AI for picks",         description: "Ask your AI advisor which assets fit your goals and risk profile before investing" },
   ],
   "budget": [
     { selector: '[data-tutorial="health-score"]', screen: "dashboard", title: "Budget drives your score",         description: "Your health score is calculated against your monthly budget — the tighter you stick to it, the higher it goes" },
