@@ -1960,7 +1960,13 @@ export default function App() {
       )}
 
       {/* ── AI Idle Bubble ─────────────────────────────────────── */}
-      {idleBubble && !showChat && (
+      {/* Hidden on Dashboard only — same pattern as BottomNav's floating
+          AI button (2026-08-09): its tail is positioned to visually point
+          at that button, now gone there, and the same category of insight
+          it nudges toward is already always-visible via CoachBlock on
+          Dashboard. Unchanged on every other screen, where the button (and
+          the tail pointing at it) is still present. */}
+      {idleBubble && !showChat && screen !== 'dashboard' && (
         <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, zIndex: 56, pointerEvents: 'none' }}>
         <div
           onClick={() => { setIdleBubble(null); clearTimeout(idleDismissRef.current); openChatWithContext(); }}
