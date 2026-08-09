@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { C, FONT, CAT_COLORS, RADIUS } from "../utils/colors";
+import { FONT, CAT_COLORS, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmt, fmtDate, parseDate, guessCategory, tCat, cleanMerchantName, localDateString, sumAmounts } from "../utils/helpers";
 import Icon from "./shared/Icon";
 import { ConnectBankPrompt } from "./shared/ConnectBankPrompt";
@@ -8,7 +8,7 @@ import { InsightCard } from "./Insights";
 
 function CatIcon({ name, type, size = 18 }) {
   const isIncome = type === "income";
-  const color = isIncome ? (CAT_COLORS["Income"] || C.green) : (CAT_COLORS[name] || C.blue);
+  const color = isIncome ? (CAT_COLORS["Income"] || DC.emerald) : (CAT_COLORS[name] || DC.gold);
   const icon  = isIncome ? "dollar" : (CAT_ICONS_MAP[name] || "credit");
   return (
     <div style={{ width: 42, height: 42, borderRadius: RADIUS.sm, background: color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: `0 2px 8px ${color}44` }}>
@@ -77,10 +77,15 @@ function deriveSignal(t) {
   return null;
 }
 
+// unusual/recurring both resolve to the same DC.gold accent (yellow and
+// blue both collapsed to gold per the palette migration) — they never
+// co-occur on one transaction, but two different rows could show the same
+// gold badge for two different reasons now. Flagged, not fixed here — pure
+// color transfer per plan, not a new signal-design decision.
 const SIGNAL_STYLE = {
-  spike:     { label: "↑ Spike",     color: "#FF5C7A", bg: "rgba(255,92,122,0.13)" },
-  unusual:   { label: "⚠ Unusual",   color: "#FFB800", bg: "rgba(255,184,0,0.13)"  },
-  recurring: { label: "↻ Recurring", color: "#2F80FF", bg: "rgba(47,128,255,0.13)" },
+  spike:     { label: "↑ Spike",     color: DC.ruby,   bg: DC.ruby + "21" },
+  unusual:   { label: "⚠ Unusual",   color: DC.gold,   bg: DC.gold + "21" },
+  recurring: { label: "↻ Recurring", color: DC.gold,   bg: DC.gold + "21" },
 };
 
 const CAT_ICONS_MAP = {
@@ -113,10 +118,10 @@ export function useToasts() {
 
 export function ToastStack({ toasts, dismiss }) {
   const cfg = {
-    success: { color: "#12D18E", border: "#12D18E33", icon: "check-circle" },
-    warning: { color: "#FFB800", border: "#FFB80033", icon: "alert-circle" },
-    danger:  { color: "#FF5C7A", border: "#FF5C7A33", icon: "alert-circle" },
-    info:    { color: "#2F80FF", border: "#2F80FF33", icon: "bell" },
+    success: { color: DC.emerald, border: DC.emerald + "33", icon: "check-circle" },
+    warning: { color: DC.gold,    border: DC.gold + "33",    icon: "alert-circle" },
+    danger:  { color: DC.ruby,    border: DC.ruby + "33",    icon: "alert-circle" },
+    info:    { color: DC.gold,    border: DC.gold + "33",    icon: "bell" },
   };
   return (
     <div style={{ position: "fixed", bottom: 92, left: "50%", transform: "translateX(-50%)", display: "flex", flexDirection: "column", gap: 8, alignItems: "center", zIndex: 300, width: "100%", maxWidth: 400, padding: "0 16px", boxSizing: "border-box" }}>
@@ -156,42 +161,42 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
   const hasNetPrev  = summary.netVsPrev     !== null;
 
   const incomeCtx     = hasIncPrev ? fmtPct(summary.incomeVsPrev) + " " + t("transactions.ctx_vs_last_mo") : null;
-  const incomeCtxClr  = hasIncPrev ? ((summary.incomeVsPrev ?? 0) >= 0 ? "#12D18E" : "#FF5C7A") : C.faint;
+  const incomeCtxClr  = hasIncPrev ? ((summary.incomeVsPrev ?? 0) >= 0 ? DC.emerald : DC.ruby) : DC.faint;
 
   const expVsBudgetPct = summary.income > 0 ? Math.round((summary.expense / summary.income) * 100) : null;
   const isOverBudget  = hasExpPrev ? (summary.expenseVsPrev ?? 0) > 10 : (expVsBudgetPct !== null && expVsBudgetPct > 80);
   const expenseCtx    = hasExpPrev
     ? fmtPct(summary.expenseVsPrev) + " " + t("transactions.ctx_vs_budget")
     : expVsBudgetPct !== null ? t("transactions.ctx_of_income", { pct: expVsBudgetPct }) : null;
-  const expenseCtxClr = isOverBudget ? "#FF5C7A" : "#12D18E";
+  const expenseCtxClr = isOverBudget ? DC.ruby : DC.emerald;
 
   const netCtx    = hasNetPrev
     ? fmtMoney(summary.netVsPrev, true) + " " + t("transactions.ctx_vs_last_mo")
     : summary.income > 0 ? fmtMoney(summary.income - summary.expense, true) + " " + t("transactions.ctx_net_balance") : null;
-  const netCtxClr = hasNetPrev ? ((summary.netVsPrev ?? 0) >= 0 ? "#12D18E" : "#FF5C7A") : summary.net >= 0 ? "#12D18E" : "#FF5C7A";
+  const netCtxClr = hasNetPrev ? ((summary.netVsPrev ?? 0) >= 0 ? DC.emerald : DC.ruby) : summary.net >= 0 ? DC.emerald : DC.ruby;
 
   const cards = [
-    { label: t("transactions.income"),   value: fmtMoney(summary.income),        valColor: "#12D18E",                                     ctx: incomeCtx,  ctxColor: incomeCtxClr,  badge: null,                                                           onClick: onIncomeClick },
-    { label: t("transactions.filter_expense"), value: fmtMoney(summary.expense), valColor: "#FF5C7A",                                     ctx: expenseCtx, ctxColor: expenseCtxClr, badge: summary.income === 0 ? t("transactions.badge_no_income") : isOverBudget ? t("transactions.badge_over_budget") : summary.net < 0 ? null : t("transactions.badge_within_budget"), badgeOk: summary.income === 0 ? null : !isOverBudget, onClick: onExpenseClick },
-    { label: t("dashboard.net"),         value: fmtMoney(summary.net, true),     valColor: summary.net > 0 ? "#12D18E" : summary.net < 0 ? "#FF5C7A" : "#FFB800", ctx: netCtx,     ctxColor: netCtxClr,     badge: summary.net > 0 ? t("transactions.badge_surplus") : summary.net < 0 ? t("transactions.badge_deficit") : t("transactions.badge_balanced"), badgeOk: summary.net > 0 ? true : summary.net < 0 ? false : null, highlight: true, highlightColor: summary.net > 0 ? "#12D18E" : summary.net < 0 ? "#FF5C7A" : "#FFB800", onClick: onNetClick },
+    { label: t("transactions.income"),   value: fmtMoney(summary.income),        valColor: DC.emerald,                                     ctx: incomeCtx,  ctxColor: incomeCtxClr,  badge: null,                                                           onClick: onIncomeClick },
+    { label: t("transactions.filter_expense"), value: fmtMoney(summary.expense), valColor: DC.ruby,                                     ctx: expenseCtx, ctxColor: expenseCtxClr, badge: summary.income === 0 ? t("transactions.badge_no_income") : isOverBudget ? t("transactions.badge_over_budget") : summary.net < 0 ? null : t("transactions.badge_within_budget"), badgeOk: summary.income === 0 ? null : !isOverBudget, onClick: onExpenseClick },
+    { label: t("dashboard.net"),         value: fmtMoney(summary.net, true),     valColor: summary.net > 0 ? DC.emerald : summary.net < 0 ? DC.ruby : DC.gold, ctx: netCtx,     ctxColor: netCtxClr,     badge: summary.net > 0 ? t("transactions.badge_surplus") : summary.net < 0 ? t("transactions.badge_deficit") : t("transactions.badge_balanced"), badgeOk: summary.net > 0 ? true : summary.net < 0 ? false : null, highlight: true, highlightColor: summary.net > 0 ? DC.emerald : summary.net < 0 ? DC.ruby : DC.gold, onClick: onNetClick },
   ];
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 6, marginBottom: 8 }}>
       {cards.map(card => (
         <button key={card.label} onClick={card.onClick}
-          style={{ background: card.highlight ? `${card.highlightColor}12` : C.card, border: `1px solid ${card.highlight ? `${card.highlightColor}33` : C.border}`, borderRadius: RADIUS.md, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 3, cursor: "pointer", textAlign: "left", fontFamily: FONT, minHeight: 90, transition: "transform 0.12s ease" }}
+          style={{ background: card.highlight ? `${card.highlightColor}12` : DC.card, border: `1px solid ${card.highlight ? `${card.highlightColor}33` : `${DC.faint}33`}`, borderRadius: RADIUS.md, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 3, cursor: "pointer", textAlign: "left", fontFamily: FONT, minHeight: 90, transition: "transform 0.12s ease" }}
           onPointerDown={e => e.currentTarget.style.transform = "scale(0.96)"}
           onPointerUp={e => e.currentTarget.style.transform = ""}
           onPointerLeave={e => e.currentTarget.style.transform = ""}
         >
-          <span style={{ fontSize: 10, fontWeight: 600, color: C.faint, letterSpacing: 0.5, textTransform: "uppercase" }}>{card.label}</span>
+          <span style={{ fontSize: 10, fontWeight: 600, color: DC.faint, letterSpacing: 0.5, textTransform: "uppercase" }}>{card.label}</span>
           <span className="ph-mask" style={{ fontSize: 15, fontWeight: 700, color: card.valColor, letterSpacing: -0.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.value}</span>
           {card.ctx
             ? <span className="ph-mask" style={{ fontSize: 10, color: card.ctxColor, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.ctx}</span>
-            : <span style={{ fontSize: 10, color: C.faint }}>{t("transactions.this_month")}</span>
+            : <span style={{ fontSize: 10, color: DC.faint }}>{t("transactions.this_month")}</span>
           }
           {card.badge && (
-            <span style={{ fontSize: 9, fontWeight: 700, color: card.badgeOk === null ? "#FFB800" : card.badgeOk ? "#12D18E" : "#FF5C7A", background: card.badgeOk === null ? "rgba(255,184,0,0.12)" : card.badgeOk ? "rgba(18,209,142,0.12)" : "rgba(255,92,122,0.12)", padding: "2px 6px", borderRadius: RADIUS.xs, alignSelf: "flex-start", letterSpacing: 0.4, textTransform: "uppercase", marginTop: 2 }}>{card.badge}</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: card.badgeOk === null ? DC.gold : card.badgeOk ? DC.emerald : DC.ruby, background: card.badgeOk === null ? DC.gold + "1F" : card.badgeOk ? DC.emerald + "1F" : DC.ruby + "1F", padding: "2px 6px", borderRadius: RADIUS.xs, alignSelf: "flex-start", letterSpacing: 0.4, textTransform: "uppercase", marginTop: 2 }}>{card.badge}</span>
           )}
         </button>
       ))}
@@ -202,32 +207,32 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
 function QuickActionsMenu({ tx, onClose, onEdit, onDelete, onDuplicate }) {
   const { t } = useTranslation();
   const actions = [
-    { label: t("transactions.action_edit"),          desc: t("transactions.action_edit_desc"),          icon: "edit",         color: "#2F80FF", fn: () => { onClose(); onEdit(tx); } },
-    { label: t("transactions.action_duplicate"),     desc: t("transactions.action_duplicate_desc"),     icon: "repeat",       color: "#2F80FF", fn: () => { onClose(); onDuplicate(tx); } },
-    { label: t("transactions.delete"),               desc: t("transactions.action_delete_desc"),        icon: "x",            color: "#FF5C7A", danger: true, fn: () => { onClose(); onDelete(tx.id); } },
+    { label: t("transactions.action_edit"),          desc: t("transactions.action_edit_desc"),          icon: "edit",         color: DC.gold, fn: () => { onClose(); onEdit(tx); } },
+    { label: t("transactions.action_duplicate"),     desc: t("transactions.action_duplicate_desc"),     icon: "repeat",       color: DC.gold, fn: () => { onClose(); onDuplicate(tx); } },
+    { label: t("transactions.delete"),               desc: t("transactions.action_delete_desc"),        icon: "x",            color: DC.ruby, danger: true, fn: () => { onClose(); onDelete(tx.id); } },
   ];
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 150, display: "flex", alignItems: "flex-end", maxWidth: 430, margin: "0 auto" }} onClick={onClose}>
-      <div style={{ width: "100%", background: C.card, borderRadius: "22px 22px 0 0", border: `1px solid ${C.border}`, paddingBottom: 32, fontFamily: FONT }} onClick={e => e.stopPropagation()}>
+      <div style={{ width: "100%", background: DC.card, borderRadius: "22px 22px 0 0", border: `1px solid ${DC.faint}33`, paddingBottom: 32, fontFamily: FONT }} onClick={e => e.stopPropagation()}>
         <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.11)", borderRadius: RADIUS.full, margin: "10px auto 0" }} />
-        <div style={{ fontSize: 16, fontWeight: 600, color: C.text, padding: "14px 18px 3px", letterSpacing: -0.3 }}>{normalizeTxName(tx)}</div>
-        <div style={{ height: 1, background: C.sep, margin: "10px 0 2px" }} />
+        <div style={{ fontSize: 16, fontWeight: 600, color: DC.text, padding: "14px 18px 3px", letterSpacing: -0.3 }}>{normalizeTxName(tx)}</div>
+        <div style={{ height: 1, background: `${DC.faint}22`, margin: "10px 0 2px" }} />
         {actions.map(a => (
           <button key={a.label} onClick={a.fn}
             style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontFamily: FONT, minHeight: 56 }}
-            onPointerEnter={e => e.currentTarget.style.background = C.bgSecondary}
+            onPointerEnter={e => e.currentTarget.style.background = DC.bg}
             onPointerLeave={e => e.currentTarget.style.background = "none"}
           >
             <div style={{ width: 36, height: 36, borderRadius: RADIUS.sm, background: a.color + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Icon name={a.icon} size={15} color={a.color} strokeWidth={1.8} />
             </div>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 500, color: a.danger ? "#FF5C7A" : C.text }}>{a.label}</div>
-              <div style={{ fontSize: 11, color: C.faint, marginTop: 1 }}>{a.desc}</div>
+              <div style={{ fontSize: 14, fontWeight: 500, color: a.danger ? DC.ruby : DC.text }}>{a.label}</div>
+              <div style={{ fontSize: 11, color: DC.faint, marginTop: 1 }}>{a.desc}</div>
             </div>
           </button>
         ))}
-        <button onClick={onClose} style={{ display: "block", width: "calc(100% - 32px)", margin: "4px 16px 0", padding: 13, textAlign: "center", fontSize: 13, fontWeight: 500, color: C.muted, background: C.bgSecondary, border: "none", borderRadius: RADIUS.sm, cursor: "pointer", fontFamily: FONT, minHeight: 48 }}>
+        <button onClick={onClose} style={{ display: "block", width: "calc(100% - 32px)", margin: "4px 16px 0", padding: 13, textAlign: "center", fontSize: 13, fontWeight: 500, color: DC.muted, background: DC.bg, border: "none", borderRadius: RADIUS.sm, cursor: "pointer", fontFamily: FONT, minHeight: 48 }}>
           {t("transactions.cancel")}
         </button>
       </div>
@@ -238,11 +243,11 @@ function QuickActionsMenu({ tx, onClose, onEdit, onDelete, onDuplicate }) {
 function BreakdownSheet({ title, subtitle, rows, actionLabel, actionColor, onAction, onClose }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 150, display: "flex", alignItems: "flex-end", maxWidth: 430, margin: "0 auto" }} onClick={onClose}>
-      <div style={{ width: "100%", background: C.card, borderRadius: "22px 22px 0 0", border: `1px solid ${C.border}`, maxHeight: "85vh", overflowY: "auto", paddingBottom: 32, fontFamily: FONT }} onClick={e => e.stopPropagation()}>
+      <div style={{ width: "100%", background: DC.card, borderRadius: "22px 22px 0 0", border: `1px solid ${DC.faint}33`, maxHeight: "85vh", overflowY: "auto", paddingBottom: 32, fontFamily: FONT }} onClick={e => e.stopPropagation()}>
         <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.11)", borderRadius: RADIUS.full, margin: "10px auto 0" }} />
-        <div style={{ fontSize: 16, fontWeight: 600, color: C.text, padding: "14px 18px 3px", letterSpacing: -0.3 }}>{title}</div>
-        <div className="ph-mask" style={{ fontSize: 12, color: C.faint, padding: "0 18px 12px" }}>{subtitle}</div>
-        <div style={{ height: 1, background: C.sep, marginBottom: 2 }} />
+        <div style={{ fontSize: 16, fontWeight: 600, color: DC.text, padding: "14px 18px 3px", letterSpacing: -0.3 }}>{title}</div>
+        <div className="ph-mask" style={{ fontSize: 12, color: DC.faint, padding: "0 18px 12px" }}>{subtitle}</div>
+        <div style={{ height: 1, background: `${DC.faint}22`, marginBottom: 2 }} />
         {rows.map((r, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 18px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 11, flex: 1, minWidth: 0 }}>
@@ -250,12 +255,12 @@ function BreakdownSheet({ title, subtitle, rows, actionLabel, actionColor, onAct
                 <Icon name={r.icon || "dollar"} size={14} color={r.color} strokeWidth={1.8} />
               </div>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
-                {r.sub && <div style={{ fontSize: 11, color: C.faint, marginTop: 1 }}>{r.sub}</div>}
+                <div style={{ fontSize: 13, fontWeight: 500, color: DC.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
+                {r.sub && <div style={{ fontSize: 11, color: DC.faint, marginTop: 1 }}>{r.sub}</div>}
               </div>
             </div>
             <div style={{ textAlign: "right", flexShrink: 0, paddingLeft: 10 }}>
-              <div className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: "nowrap" }}>{r.amount}</div>
+              <div className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: DC.text, whiteSpace: "nowrap" }}>{r.amount}</div>
               {r.pct !== undefined && (
                 <div style={{ height: 2, width: 60, background: "rgba(255,255,255,0.07)", borderRadius: RADIUS.full, marginTop: 5, marginLeft: "auto" }}>
                   <div style={{ height: "100%", width: Math.min(r.pct, 100) + "%", background: r.color, borderRadius: RADIUS.full }} />
@@ -288,7 +293,7 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
 
   const signal      = deriveSignal(t);
   const isIncome    = t.type === "income";
-  const catColor    = CAT_COLORS[t.category_name] || C.blue;
+  const catColor    = CAT_COLORS[t.category_name] || DC.gold;
   const catIcon     = isIncome ? "dollar" : (CAT_ICONS_MAP[t.category_name] || "credit");
   const displayName = normalizeTxName(t);
 
@@ -354,37 +359,37 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
 
   return (
     <div style={{ position: "relative", overflow: "hidden", borderRadius: RADIUS.md, marginBottom: 2 }}>
-      <div ref={bgLRef} onClick={() => { resetSwipe(); onEdit(t); }} style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 76, background: C.blue, borderRadius: "14px 0 0 14px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, opacity: 0, transition: "opacity 0.14s", cursor: "pointer" }}>
-        <Icon name="edit" size={16} color="#fff" strokeWidth={1.8} />
-        <span style={{ fontSize: 10, fontWeight: 600, color: "#fff", fontFamily: FONT }}>{i18t("transactions.edit")}</span>
+      <div ref={bgLRef} onClick={() => { resetSwipe(); onEdit(t); }} style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 76, background: DC.gold, borderRadius: "14px 0 0 14px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, opacity: 0, transition: "opacity 0.14s", cursor: "pointer" }}>
+        <Icon name="edit" size={16} color={DC.bg} strokeWidth={1.8} />
+        <span style={{ fontSize: 10, fontWeight: 600, color: DC.bg, fontFamily: FONT }}>{i18t("transactions.edit")}</span>
       </div>
-      <div ref={bgRRef} onClick={() => { resetSwipe(); setConfirmDelete(true); }} style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 76, background: C.red, borderRadius: "0 14px 14px 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, opacity: 0, transition: "opacity 0.14s", cursor: "pointer" }}>
+      <div ref={bgRRef} onClick={() => { resetSwipe(); setConfirmDelete(true); }} style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 76, background: DC.ruby, borderRadius: "0 14px 14px 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, opacity: 0, transition: "opacity 0.14s", cursor: "pointer" }}>
         <Icon name="x" size={16} color="#fff" strokeWidth={2} />
         <span style={{ fontSize: 10, fontWeight: 600, color: "#fff", fontFamily: FONT }}>{i18t("transactions.delete")}</span>
       </div>
       {confirmDelete && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px" }} onClick={e => { if (e.target === e.currentTarget) setConfirmDelete(false); }}>
-          <div style={{ background: "#111E33", border: "1px solid rgba(255,255,255,0.1)", borderRadius: RADIUS.lg, padding: "24px 20px", width: "100%", maxWidth: 360, fontFamily: FONT }}>
-            <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 8 }}>{i18t("transactions.delete_confirm_title")}</div>
-            <div style={{ fontSize: 13, color: C.faint, marginBottom: 24 }}>{i18t("transactions.delete_confirm_body", { name: displayName })}</div>
+          <div style={{ background: DC.card, border: "1px solid rgba(255,255,255,0.1)", borderRadius: RADIUS.lg, padding: "24px 20px", width: "100%", maxWidth: 360, fontFamily: FONT }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: DC.text, marginBottom: 8 }}>{i18t("transactions.delete_confirm_title")}</div>
+            <div style={{ fontSize: 13, color: DC.faint, marginBottom: 24 }}>{i18t("transactions.delete_confirm_body", { name: displayName })}</div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: "12px 0", borderRadius: RADIUS.sm, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: C.text, fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>{i18t("transactions.cancel")}</button>
-              <button onClick={() => { setConfirmDelete(false); onDelete(t.id); }} style={{ flex: 1, padding: "12px 0", borderRadius: RADIUS.sm, border: "none", background: C.red, color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>{i18t("transactions.delete")}</button>
+              <button onClick={() => setConfirmDelete(false)} style={{ flex: 1, padding: "12px 0", borderRadius: RADIUS.sm, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: DC.text, fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>{i18t("transactions.cancel")}</button>
+              <button onClick={() => { setConfirmDelete(false); onDelete(t.id); }} style={{ flex: 1, padding: "12px 0", borderRadius: RADIUS.sm, border: "none", background: DC.ruby, color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>{i18t("transactions.delete")}</button>
             </div>
           </div>
         </div>
       )}
       <div ref={rowRef} onClick={handleClick} onPointerDown={onPD} onPointerMove={onPM} onPointerUp={onPU} onPointerLeave={e => { if (dragging.current) onPU(e); }} onPointerCancel={() => { dragging.current = false; moved.current = false; clearTimeout(lpTimer.current); resetSwipe(); }}
-        style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: RADIUS.md, padding: "12px 13px", display: "flex", alignItems: "center", gap: 11, cursor: "pointer", userSelect: "none", willChange: "transform", position: "relative", zIndex: 1, touchAction: "pan-y", minHeight: 64 }}>
+        style={{ background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.md, padding: "12px 13px", display: "flex", alignItems: "center", gap: 11, cursor: "pointer", userSelect: "none", willChange: "transform", position: "relative", zIndex: 1, touchAction: "pan-y", minHeight: 64 }}>
         <div style={{ width: 40, height: 40, minWidth: 40, borderRadius: RADIUS.sm, background: catColor + "20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Icon name={catIcon} size={16} color={catColor} strokeWidth={1.8} />
         </div>
         <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-          <div style={{ fontSize: 14, fontWeight: 500, color: C.text, letterSpacing: -0.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{displayName}</div>
-          <div style={{ fontSize: 11, color: C.faint, marginTop: 2, display: "flex", alignItems: "center", gap: 4, overflow: "hidden", fontFamily: FONT }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: DC.text, letterSpacing: -0.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{displayName}</div>
+          <div style={{ fontSize: 11, color: DC.faint, marginTop: 2, display: "flex", alignItems: "center", gap: 4, overflow: "hidden", fontFamily: FONT }}>
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1 }}>{tCat(t.category_name || guessCategory(t.description, t.type) || "Other", i18t)} · {fmtDate(t.date)}</span>
             {t.pending && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#F59E0B", background: "rgba(245,158,11,0.15)", padding: "1px 5px", borderRadius: RADIUS.xs, flexShrink: 0 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: DC.gold, background: DC.gold + "26", padding: "1px 5px", borderRadius: RADIUS.xs, flexShrink: 0 }}>
                 {i18t("transactions.pending")}
               </span>
             )}
@@ -396,11 +401,11 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0, paddingLeft: 8, gap: 2 }}>
-          <span className="ph-mask" style={{ fontSize: 15, fontWeight: 600, color: isIncome ? "#12D18E" : "#FF5C7A", letterSpacing: -0.35, fontFamily: FONT }}>
+          <span className="ph-mask" style={{ fontSize: 15, fontWeight: 600, color: isIncome ? DC.emerald : DC.ruby, letterSpacing: -0.35, fontFamily: FONT }}>
             {hideAmount ? "••••" : `${isIncome ? "+" : "−"}${fmtMoney(Number(t.amount))}`}
           </span>
           {t._incomeTotal > 0 && !isIncome && Number(t.amount) > 0 && (
-            (() => { const p = Math.round((Number(t.amount) / t._incomeTotal) * 100); return p >= 1 && p <= 500 ? <span style={{ fontSize: 11, color: "#7A8EA8", fontWeight: 600, fontFamily: FONT, letterSpacing: 0.1 }}>{p}%</span> : null; })()
+            (() => { const p = Math.round((Number(t.amount) / t._incomeTotal) * 100); return p >= 1 && p <= 500 ? <span style={{ fontSize: 11, color: DC.faint, fontWeight: 600, fontFamily: FONT, letterSpacing: 0.1 }}>{p}%</span> : null; })()
           )}
         </div>
       </div>
@@ -485,7 +490,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
 
   const expenseMap  = effectiveCurTxs.filter(t => t.type === "expense" && t.category_name !== "Transfer").reduce((a, t) => { const k = t.category_name || "Other"; a[k] = (a[k] || 0) + Number(t.amount); return a; }, {});
   const expenseRows = Object.entries(expenseMap).sort((a, b) => b[1] - a[1]).map(([name, total], _, arr) => ({
-    name, amount: fmtMoney(total), color: CAT_COLORS[name] || C.blue, icon: CAT_ICONS_MAP[name] || "credit",
+    name, amount: fmtMoney(total), color: CAT_COLORS[name] || DC.gold, icon: CAT_ICONS_MAP[name] || "credit",
     pct: Math.round((total / arr.reduce((s, [, v]) => s + v, 0)) * 100),
   }));
 
@@ -499,27 +504,27 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
     <div style={{ fontFamily: FONT }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
         <div>
-          <h2 style={{ margin: "0 0 6px", fontSize: 26, fontWeight: 700, letterSpacing: -0.6, color: C.text, lineHeight: 1.1 }}>{t("transactions.title")}</h2>
+          <h2 style={{ margin: "0 0 6px", fontSize: 26, fontWeight: 700, letterSpacing: -0.6, color: DC.text, lineHeight: 1.1 }}>{t("transactions.title")}</h2>
           <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
-            <button onClick={() => setMonthOffset(o => o - 1)} aria-label={t("transactions.previous_month")} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px 2px 0", minHeight: 44, minWidth: 32, color: C.muted, fontSize: 15, lineHeight: 1, fontFamily: FONT, display: "flex", alignItems: "center" }}>‹</button>
-            <span style={{ fontSize: 13, fontWeight: 600, color: C.text, minWidth: 100, textAlign: "center" }}>{monthLabel}</span>
-            <button onClick={() => setMonthOffset(o => Math.min(o + 1, 0))} disabled={monthOffset === 0} aria-label={t("transactions.next_month")} style={{ background: "none", border: "none", cursor: monthOffset === 0 ? "default" : "pointer", padding: "2px 0 2px 6px", minHeight: 44, minWidth: 32, color: monthOffset === 0 ? C.faint : C.muted, fontSize: 15, lineHeight: 1, fontFamily: FONT, display: "flex", alignItems: "center", opacity: monthOffset === 0 ? 0.3 : 1 }}>›</button>
+            <button onClick={() => setMonthOffset(o => o - 1)} aria-label={t("transactions.previous_month")} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px 2px 0", minHeight: 44, minWidth: 32, color: DC.muted, fontSize: 15, lineHeight: 1, fontFamily: FONT, display: "flex", alignItems: "center" }}>‹</button>
+            <span style={{ fontSize: 13, fontWeight: 600, color: DC.text, minWidth: 100, textAlign: "center" }}>{monthLabel}</span>
+            <button onClick={() => setMonthOffset(o => Math.min(o + 1, 0))} disabled={monthOffset === 0} aria-label={t("transactions.next_month")} style={{ background: "none", border: "none", cursor: monthOffset === 0 ? "default" : "pointer", padding: "2px 0 2px 6px", minHeight: 44, minWidth: 32, color: monthOffset === 0 ? DC.faint : DC.muted, fontSize: 15, lineHeight: 1, fontFamily: FONT, display: "flex", alignItems: "center", opacity: monthOffset === 0 ? 0.3 : 1 }}>›</button>
           </div>
         </div>
         <button onClick={onAdd}
-          style={{ width: 46, height: 46, minWidth: 46, borderRadius: "50%", background: `linear-gradient(135deg,${C.cyan},${C.blue})`, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 14px rgba(47,128,255,0.32), 0 0 0 5px rgba(47,128,255,0.08)`, transition: "transform 0.16s cubic-bezier(.22,1,.36,1), box-shadow 0.16s ease" }}
-          onPointerDown={e => { e.currentTarget.style.transform = "scale(0.86)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(47,128,255,0.25), 0 0 0 2px rgba(47,128,255,0.08)"; }}
-          onPointerUp={e => { const el = e.currentTarget; el.style.transform = "scale(1.04)"; el.style.boxShadow = "0 4px 18px rgba(47,128,255,0.4), 0 0 0 5px rgba(47,128,255,0.09)"; setTimeout(() => { el.style.transform = ""; el.style.boxShadow = "0 4px 20px rgba(47,128,255,0.45), 0 0 0 6px rgba(47,128,255,0.11)"; }, 120); }}
-          onPointerLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 20px rgba(47,128,255,0.45), 0 0 0 6px rgba(47,128,255,0.11)"; }}
+          style={{ width: 46, height: 46, minWidth: 46, borderRadius: "50%", background: DC.gold, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 14px rgba(232,201,125,0.32), 0 0 0 5px rgba(232,201,125,0.08)`, transition: "transform 0.16s cubic-bezier(.22,1,.36,1), box-shadow 0.16s ease" }}
+          onPointerDown={e => { e.currentTarget.style.transform = "scale(0.86)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(232,201,125,0.25), 0 0 0 2px rgba(232,201,125,0.08)"; }}
+          onPointerUp={e => { const el = e.currentTarget; el.style.transform = "scale(1.04)"; el.style.boxShadow = "0 4px 18px rgba(232,201,125,0.4), 0 0 0 5px rgba(232,201,125,0.09)"; setTimeout(() => { el.style.transform = ""; el.style.boxShadow = "0 4px 20px rgba(232,201,125,0.45), 0 0 0 6px rgba(232,201,125,0.11)"; }, 120); }}
+          onPointerLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 20px rgba(232,201,125,0.45), 0 0 0 6px rgba(232,201,125,0.11)"; }}
         >
-          <Icon name="plus" size={18} color="#fff" strokeWidth={2.5} />
+          <Icon name="plus" size={18} color={DC.bg} strokeWidth={2.5} />
         </button>
       </div>
 
       {monthOffset === -1 && (() => {
         const currentMonthLabel = new Date().toLocaleString('en-US', { month: 'long' });
         return (
-          <div style={{ fontSize: 12, color: "#F59E0B", background: "#F59E0B10", border: "1px solid #F59E0B30", borderRadius: RADIUS.sm, padding: "8px 12px", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ fontSize: 12, color: DC.gold, background: DC.gold + "10", border: `1px solid ${DC.gold}30`, borderRadius: RADIUS.sm, padding: "8px 12px", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
             <span>No transactions in {currentMonthLabel} yet — showing {monthLabel}.</span>
           </div>
         );
@@ -527,9 +532,9 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
 
       <SummaryCards
         summary={summary}
-        onIncomeClick={() => setSheet({ title: t("transactions.income_breakdown"), subtitle: `${monthLabel} · ${fmtMoney(summary.income)} total`, rows: effectiveCurTxs.filter(t => t.type === "income").map(t => ({ name: normalizeTxName(t), sub: fmtDate(t.date), amount: fmtMoney(Number(t.amount), true), color: "#12D18E", icon: "dollar" })) })}
+        onIncomeClick={() => setSheet({ title: t("transactions.income_breakdown"), subtitle: `${monthLabel} · ${fmtMoney(summary.income)} total`, rows: effectiveCurTxs.filter(t => t.type === "income").map(t => ({ name: normalizeTxName(t), sub: fmtDate(t.date), amount: fmtMoney(Number(t.amount), true), color: DC.emerald, icon: "dollar" })) })}
         onExpenseClick={() => setSheet({ title: t("transactions.expenses_breakdown"), subtitle: `${monthLabel} · ${fmtMoney(summary.expense)} total`, rows: expenseRows })}
-        onNetClick={() => setSheet({ title: t("transactions.net_summary"), subtitle: monthLabel, rows: [{ name: t("transactions.total_income"), amount: fmtMoney(summary.income, true), color: "#12D18E", icon: "trending-up", pct: 100 }, { name: t("transactions.total_expenses"), amount: fmtMoney(summary.expense), color: "#FF5C7A", icon: "trending-down", pct: Math.round(summary.expense / Math.max(summary.income, 1) * 100) }, { name: t("transactions.net_balance"), amount: fmtMoney(summary.net, true), color: "#12D18E", icon: "award", pct: Math.round(summary.net / Math.max(summary.income, 1) * 100) }] })}
+        onNetClick={() => setSheet({ title: t("transactions.net_summary"), subtitle: monthLabel, rows: [{ name: t("transactions.total_income"), amount: fmtMoney(summary.income, true), color: DC.emerald, icon: "trending-up", pct: 100 }, { name: t("transactions.total_expenses"), amount: fmtMoney(summary.expense), color: DC.ruby, icon: "trending-down", pct: Math.round(summary.expense / Math.max(summary.income, 1) * 100) }, { name: t("transactions.net_balance"), amount: fmtMoney(summary.net, true), color: DC.emerald, icon: "award", pct: Math.round(summary.net / Math.max(summary.income, 1) * 100) }] })}
       />
 
       <InsightCard insight={insight} onAction={onInsightAction} />
@@ -541,47 +546,47 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
         return (
           <div
             onClick={() => setSearch(normalizeTxName(topTx))}
-            style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, padding: "10px 14px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
+            style={{ background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, padding: "10px 14px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, overflow: "hidden" }}>
-              <div style={{ width: 6, height: 6, borderRadius: RADIUS.full, background: C.yellow, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{t("transactions.top_expense")}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{normalizeTxName(topTx)}</span>
+              <div style={{ width: 6, height: 6, borderRadius: RADIUS.full, background: DC.gold, flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: DC.muted, flexShrink: 0 }}>{t("transactions.top_expense")}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: DC.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{normalizeTxName(topTx)}</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, paddingLeft: 8 }}>
-              <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: C.red }}>{fmtMoney(Number(topTx.amount))}</span>
-              <span style={{ fontSize: 13, color: C.faint }}>→</span>
+              <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.ruby }}>{fmtMoney(Number(topTx.amount))}</span>
+              <span style={{ fontSize: 13, color: DC.faint }}>→</span>
             </div>
           </div>
         );
       })()}
 
       {catFilter && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: (CAT_COLORS[catFilter] || C.cyan) + "18", borderRadius: RADIUS.sm, border: `1px solid ${(CAT_COLORS[catFilter] || C.cyan)}33` }}>
-          <div style={{ width: 8, height: 8, borderRadius: RADIUS.full, background: CAT_COLORS[catFilter] || C.cyan }} />
-          <span style={{ fontSize: 13, color: CAT_COLORS[catFilter] || C.cyan, fontWeight: 600, flex: 1 }}>{tCat(catFilter, t)}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: (CAT_COLORS[catFilter] || DC.gold) + "18", borderRadius: RADIUS.sm, border: `1px solid ${(CAT_COLORS[catFilter] || DC.gold)}33` }}>
+          <div style={{ width: 8, height: 8, borderRadius: RADIUS.full, background: CAT_COLORS[catFilter] || DC.gold }} />
+          <span style={{ fontSize: 13, color: CAT_COLORS[catFilter] || DC.gold, fontWeight: 600, flex: 1 }}>{tCat(catFilter, t)}</span>
           <button onClick={onClearCatFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4, minHeight: 28 }}>
-            <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
+            <Icon name="x" size={13} color={DC.muted} strokeWidth={2.5} />
           </button>
         </div>
       )}
 
       {activeMerchantFilter && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: C.cyan + "18", borderRadius: RADIUS.sm, border: `1px solid ${C.cyan}33` }}>
-          <div style={{ width: 8, height: 8, borderRadius: RADIUS.full, background: C.cyan }} />
-          <span style={{ fontSize: 13, color: C.cyan, fontWeight: 600, flex: 1 }}>{cleanMerchantName(activeMerchantFilter) || activeMerchantFilter}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: DC.gold + "18", borderRadius: RADIUS.sm, border: `1px solid ${DC.gold}33` }}>
+          <div style={{ width: 8, height: 8, borderRadius: RADIUS.full, background: DC.gold }} />
+          <span style={{ fontSize: 13, color: DC.gold, fontWeight: 600, flex: 1 }}>{cleanMerchantName(activeMerchantFilter) || activeMerchantFilter}</span>
           <button onClick={onClearMerchantFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4, minHeight: 28 }}>
-            <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
+            <Icon name="x" size={13} color={DC.muted} strokeWidth={2.5} />
           </button>
         </div>
       )}
 
       {activeDateFilter && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: C.cyan + "18", borderRadius: RADIUS.sm, border: `1px solid ${C.cyan}33` }}>
-          <div style={{ width: 8, height: 8, borderRadius: RADIUS.full, background: C.cyan }} />
-          <span style={{ fontSize: 13, color: C.cyan, fontWeight: 600, flex: 1 }}>{fmtDate(activeDateFilter)}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: DC.gold + "18", borderRadius: RADIUS.sm, border: `1px solid ${DC.gold}33` }}>
+          <div style={{ width: 8, height: 8, borderRadius: RADIUS.full, background: DC.gold }} />
+          <span style={{ fontSize: 13, color: DC.gold, fontWeight: 600, flex: 1 }}>{fmtDate(activeDateFilter)}</span>
           <button onClick={onClearDateFilter} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", padding: 4, minHeight: 28 }}>
-            <Icon name="x" size={13} color={C.muted} strokeWidth={2.5} />
+            <Icon name="x" size={13} color={DC.muted} strokeWidth={2.5} />
           </button>
         </div>
       )}
@@ -589,7 +594,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
       {/* Search bar */}
       <div style={{ position: "relative", marginBottom: 10 }}>
         <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-          <Icon name="search" size={15} color={searchFocused ? C.blue : C.muted} />
+          <Icon name="search" size={15} color={searchFocused ? DC.gold : DC.muted} />
         </div>
         <input
           type="text"
@@ -601,10 +606,10 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
           style={{
             width: "100%",
             padding: "10px 36px 10px 36px",
-            background: searchFocused ? "#1A2840" : C.bgTertiary,
-            border: `1px solid ${searchFocused ? C.blue : search ? C.blue + "55" : "rgba(255,255,255,0.18)"}`,
+            background: searchFocused ? DC.card : DC.bg,
+            border: `1px solid ${searchFocused ? DC.gold : search ? DC.gold + "55" : "rgba(255,255,255,0.18)"}`,
             borderRadius: RADIUS.sm,
-            color: C.text,
+            color: DC.text,
             fontSize: 14,
             boxSizing: "border-box",
             fontFamily: FONT,
@@ -612,8 +617,8 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
           }}
         />
         {search && (
-          <button onClick={() => setSearch("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", color: C.faint }}>
-            <Icon name="x" size={14} color={C.faint} strokeWidth={2.5} />
+          <button onClick={() => setSearch("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", color: DC.faint }}>
+            <Icon name="x" size={14} color={DC.faint} strokeWidth={2.5} />
           </button>
         )}
       </div>
@@ -623,9 +628,9 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
           const on = filter === f.key;
           return (
             <button key={f.key} onClick={() => setFilter(f.key)}
-              style={{ padding: "7px 14px", borderRadius: RADIUS.lg, border: `1px solid ${on ? C.blue : C.border}`, background: on ? C.blue : "transparent", color: on ? "#fff" : C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: on ? 600 : 400, display: "flex", alignItems: "center", gap: 5, minHeight: 38, transition: "all 0.15s ease" }}>
+              style={{ padding: "7px 14px", borderRadius: RADIUS.lg, border: `1px solid ${on ? DC.gold : `${DC.faint}33`}`, background: on ? DC.gold : "transparent", color: on ? DC.bg : DC.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: on ? 600 : 400, display: "flex", alignItems: "center", gap: 5, minHeight: 38, transition: "all 0.15s ease" }}>
               {f.label}
-              <span style={{ fontSize: 11, background: on ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.07)", borderRadius: RADIUS.xs, padding: "1px 6px", color: on ? "rgba(255,255,255,0.9)" : C.faint }}>{counts[f.key]}</span>
+              <span style={{ fontSize: 11, background: on ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.07)", borderRadius: RADIUS.xs, padding: "1px 6px", color: on ? DC.bg : DC.faint }}>{counts[f.key]}</span>
             </button>
           );
         })}
@@ -639,21 +644,21 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
               {showCatDropdown && <div onClick={() => setShowCatDropdown(false)} style={{ position: "fixed", inset: 0, zIndex: 98 }} />}
               <button
                 onClick={() => setShowCatDropdown(v => !v)}
-                style={{ padding: "7px 12px", borderRadius: RADIUS.lg, border: `1px solid ${active ? C.cyan : C.border}`, background: active ? C.cyan + "22" : "transparent", color: active ? C.cyan : C.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: active ? 600 : 400, display: "flex", alignItems: "center", gap: 4, minHeight: 38, transition: "all 0.15s ease" }}
+                style={{ padding: "7px 12px", borderRadius: RADIUS.lg, border: `1px solid ${active ? DC.gold : `${DC.faint}33`}`, background: active ? DC.gold + "22" : "transparent", color: active ? DC.gold : DC.muted, cursor: "pointer", fontSize: 13, fontFamily: FONT, fontWeight: active ? 600 : 400, display: "flex", alignItems: "center", gap: 4, minHeight: 38, transition: "all 0.15s ease" }}
               >
                 {active ? tCat(active, t) : t("transactions.category")} <span style={{ fontSize: 10, opacity: 0.7 }}>▾</span>
               </button>
               {showCatDropdown && (
-                <div style={{ position: "absolute", top: 44, left: 0, zIndex: 99, background: C.card, border: `1px solid ${C.border}`, borderRadius: RADIUS.md, padding: "6px 0", boxShadow: "0 8px 32px rgba(0,0,0,0.55)", minWidth: 190, maxHeight: 260, overflowY: "auto" }}>
+                <div style={{ position: "absolute", top: 44, left: 0, zIndex: 99, background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.md, padding: "6px 0", boxShadow: "0 8px 32px rgba(0,0,0,0.55)", minWidth: 190, maxHeight: 260, overflowY: "auto" }}>
                   {active && (
-                    <button onClick={() => { setLocalCatFilter(null); setShowCatDropdown(false); }} style={{ display: "flex", width: "100%", textAlign: "left", padding: "9px 14px", background: "none", border: "none", borderBottom: `1px solid ${C.sep}`, color: C.muted, fontSize: 12, cursor: "pointer", fontFamily: FONT, alignItems: "center", gap: 8 }}>
-                      <Icon name="x" size={11} color={C.muted} strokeWidth={2.5} /> {t("transactions.clear_filter")}
+                    <button onClick={() => { setLocalCatFilter(null); setShowCatDropdown(false); }} style={{ display: "flex", width: "100%", textAlign: "left", padding: "9px 14px", background: "none", border: "none", borderBottom: `1px solid ${DC.faint}22`, color: DC.muted, fontSize: 12, cursor: "pointer", fontFamily: FONT, alignItems: "center", gap: 8 }}>
+                      <Icon name="x" size={11} color={DC.muted} strokeWidth={2.5} /> {t("transactions.clear_filter")}
                     </button>
                   )}
                   {cats.map(cat => (
                     <button key={cat} onClick={() => { setLocalCatFilter(cat); setShowCatDropdown(false); }}
-                      style={{ display: "flex", width: "100%", textAlign: "left", padding: "9px 14px", background: cat === active ? C.cyan + "18" : "none", border: "none", color: cat === active ? C.cyan : C.text, fontSize: 13, cursor: "pointer", fontFamily: FONT, alignItems: "center", gap: 10 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: RADIUS.full, background: CAT_COLORS[cat] || C.blue, flexShrink: 0 }} />
+                      style={{ display: "flex", width: "100%", textAlign: "left", padding: "9px 14px", background: cat === active ? DC.gold + "18" : "none", border: "none", color: cat === active ? DC.gold : DC.text, fontSize: 13, cursor: "pointer", fontFamily: FONT, alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: RADIUS.full, background: CAT_COLORS[cat] || DC.gold, flexShrink: 0 }} />
                       {tCat(cat, t)}
                     </button>
                   ))}
@@ -668,12 +673,12 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
         <ConnectBankPrompt title={t("transactions.title")} message={t("dashboard.connect_bank_transactions")} onNavigate={onNavigate} />
       ) : filtered.length === 0 ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "36px 20px", textAlign: "center" }}>
-          <div style={{ width: 56, height: 56, background: C.bgSecondary, borderRadius: RADIUS.md, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name="credit" size={24} color={C.faint} strokeWidth={1.6} />
+          <div style={{ width: 56, height: 56, background: DC.bg, borderRadius: RADIUS.md, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="credit" size={24} color={DC.faint} strokeWidth={1.6} />
           </div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{search ? t("transactions.no_results_for", { query: search }) : filter === "all" ? t("transactions.no_transactions") : filter === "expense" ? t("transactions.no_expense") : t("transactions.no_income")}</div>
-          <div style={{ fontSize: 13, color: C.faint, maxWidth: 220, lineHeight: 1.55 }}>{search ? t("transactions.try_different") : filter === "all" ? t("transactions.add_first_hint") : t("transactions.nothing_this_month")}</div>
-          {!search && filter === "all" && <button onClick={onAdd} style={{ background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.sm, padding: "12px 24px", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 13, fontFamily: FONT, minHeight: 44 }}>{t("transactions.add_first_btn")}</button>}
+          <div style={{ fontSize: 15, fontWeight: 600, color: DC.text }}>{search ? t("transactions.no_results_for", { query: search }) : filter === "all" ? t("transactions.no_transactions") : filter === "expense" ? t("transactions.no_expense") : t("transactions.no_income")}</div>
+          <div style={{ fontSize: 13, color: DC.faint, maxWidth: 220, lineHeight: 1.55 }}>{search ? t("transactions.try_different") : filter === "all" ? t("transactions.add_first_hint") : t("transactions.nothing_this_month")}</div>
+          {!search && filter === "all" && <button onClick={onAdd} style={{ background: DC.gold, border: "none", borderRadius: RADIUS.sm, padding: "12px 24px", color: DC.bg, fontWeight: 700, cursor: "pointer", fontSize: 13, fontFamily: FONT, minHeight: 44 }}>{t("transactions.add_first_btn")}</button>}
         </div>
       ) : (() => {
         const visible = filtered.slice(0, visibleCount);
@@ -700,10 +705,10 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
             {groups.map(group => {
               const dayNet = group.txs.filter(t => t.category_name !== 'Transfer').reduce((s, t) => s + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0);
               const dayNetStr = dayNet === 0 ? null : dayNet < 0 ? `-$${fmt(Math.abs(dayNet))}` : `+$${fmt(dayNet)}`;
-              const dayNetColor = dayNet < 0 ? C.red : C.green;
+              const dayNetColor = dayNet < 0 ? DC.ruby : DC.emerald;
               return (
               <div key={group.date}>
-                <div style={{ padding: "10px 4px 4px", fontSize: 11, fontWeight: 700, color: C.faint, letterSpacing: 0.6, textTransform: "uppercase", position: "sticky", top: 0, background: "transparent", backdropFilter: "blur(8px)", zIndex: 2, display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ padding: "10px 4px 4px", fontSize: 11, fontWeight: 700, color: DC.faint, letterSpacing: 0.6, textTransform: "uppercase", position: "sticky", top: 0, background: "transparent", backdropFilter: "blur(8px)", zIndex: 2, display: "flex", alignItems: "center", gap: 6 }}>
                   <span>{group.label}</span>
                   {dayNetStr && <span className="ph-mask" style={{ color: dayNetColor, fontSize: 12, fontWeight: 500, opacity: 0.6, letterSpacing: 0, textTransform: "none" }}>{dayNetStr}</span>}
                 </div>
@@ -716,7 +721,7 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
             {/* Sentinel — observed by IntersectionObserver to trigger next batch */}
             <div ref={sentinelRef} style={{ height: 1 }} />
             {hasMore && (
-              <div style={{ textAlign: "center", padding: "12px 0", fontSize: 12, color: C.faint }}>
+              <div style={{ textAlign: "center", padding: "12px 0", fontSize: 12, color: DC.faint }}>
                 {t("transactions.loading_more")}
               </div>
             )}
@@ -728,12 +733,12 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
         <div style={{ marginTop: 8, padding: "8px 14px", background: "rgba(255,255,255,0.03)", borderRadius: RADIUS.sm, border: `1px solid rgba(255,255,255,0.05)`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, animation: "hintFade 0.3s ease forwards", animationDelay: "1.2s", opacity: 1 }}>
           <style>{`@keyframes hintFade{0%{opacity:1}100%{opacity:0;visibility:hidden}}`}</style>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 11, color: C.faint }}>{t("transactions.swipe_hint")}</span>
-            <span style={{ fontSize: 11, fontWeight: 500, color: C.blue }}>{t("transactions.swipe_edit")}</span>
-            <span style={{ fontSize: 10, color: C.faint }}>·</span>
-            <span style={{ fontSize: 11, fontWeight: 500, color: C.red }}>{t("transactions.swipe_delete")}</span>
+            <span style={{ fontSize: 11, color: DC.faint }}>{t("transactions.swipe_hint")}</span>
+            <span style={{ fontSize: 11, fontWeight: 500, color: DC.gold }}>{t("transactions.swipe_edit")}</span>
+            <span style={{ fontSize: 10, color: DC.faint }}>·</span>
+            <span style={{ fontSize: 11, fontWeight: 500, color: DC.ruby }}>{t("transactions.swipe_delete")}</span>
           </div>
-          <button onClick={() => setHintDone(true)} style={{ width: 22, height: 22, background: "none", border: "none", cursor: "pointer", color: C.faint, fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, opacity: 0.5 }}>×</button>
+          <button onClick={() => setHintDone(true)} style={{ width: 22, height: 22, background: "none", border: "none", cursor: "pointer", color: DC.faint, fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT, opacity: 0.5 }}>×</button>
         </div>
       )}
 
@@ -745,13 +750,13 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
 }
 
 const INCOME_CATS = [
-  { name: "Salary", icon: "dollar", color: "#00A67E" },
-  { name: "Freelance", icon: "star", color: "#00C2FF" },
-  { name: "Transfer", icon: "repeat", color: "#60A5FA" },
-  { name: "Dividends", icon: "activity", color: "#A78BFA" },
-  { name: "Debt Repaid", icon: "check-circle", color: "#34D399" },
-  { name: "Gift", icon: "heart", color: "#F97316" },
-  { name: "Other Income", icon: "plus", color: "#94A3B8" },
+  { name: "Salary", icon: "dollar", color: "#2CA084" },
+  { name: "Freelance", icon: "star", color: "#3298B8" },
+  { name: "Transfer", icon: "repeat", color: "#6898D4" },
+  { name: "Dividends", icon: "activity", color: "#9781DA" },
+  { name: "Debt Repaid", icon: "check-circle", color: "#3DB388" },
+  { name: "Gift", icon: "heart", color: "#C37037" },
+  { name: "Other Income", icon: "plus", color: "#94A3B8" }, // unchanged, already neutral
 ];
 
 // Matches the transactions.amount column (NUMERIC(10,2)) — Supabase rejects
@@ -772,7 +777,7 @@ export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
   const isEdit = !!existing;
 
   const noSpinStyle = `input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield}`;
-  const inp = { width: "100%", padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT };
+  const inp = { width: "100%", padding: "13px 14px", background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, color: DC.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT };
 
   function switchType(typeName) { setType(typeName); setCatId(""); setCatName(""); setShowCats(false); }
 
@@ -783,48 +788,48 @@ export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "flex-end", zIndex: 100, maxWidth: 430, margin: "0 auto" }}>
       <style>{noSpinStyle}</style>
-      <div style={{ background: C.card, width: "100%", borderRadius: "24px 24px 0 0", padding: 24, border: `1px solid ${C.border}`, maxHeight: "90vh", overflowY: "auto", fontFamily: FONT }}>
+      <div style={{ background: DC.card, width: "100%", borderRadius: "24px 24px 0 0", padding: 24, border: `1px solid ${DC.faint}33`, maxHeight: "90vh", overflowY: "auto", fontFamily: FONT }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{isEdit ? t("transactions.edit_transaction") : t("transactions.add_transaction_modal")}</h3>
-          <button onClick={onClose} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.full, cursor: "pointer", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name="x" size={14} color={C.muted} strokeWidth={2.5} />
+          <button onClick={onClose} style={{ background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.full, cursor: "pointer", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Icon name="x" size={14} color={DC.muted} strokeWidth={2.5} />
           </button>
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           {["expense", "income"].map(typeOpt => (
-            <button key={typeOpt} onClick={() => switchType(typeOpt)} style={{ flex: 1, padding: 11, borderRadius: RADIUS.sm, border: `1px solid ${type === typeOpt ? (typeOpt === "expense" ? C.red : C.green) : C.border}`, background: type === typeOpt ? (typeOpt === "expense" ? C.red + "18" : C.green + "18") : "transparent", color: type === typeOpt ? (typeOpt === "expense" ? C.red : C.green) : C.muted, cursor: "pointer", fontWeight: 600, textTransform: "capitalize", fontFamily: FONT }}>{t("transactions." + typeOpt)}</button>
+            <button key={typeOpt} onClick={() => switchType(typeOpt)} style={{ flex: 1, padding: 11, borderRadius: RADIUS.sm, border: `1px solid ${type === typeOpt ? (typeOpt === "expense" ? DC.ruby : DC.emerald) : `${DC.faint}33`}`, background: type === typeOpt ? (typeOpt === "expense" ? DC.ruby + "18" : DC.emerald + "18") : "transparent", color: type === typeOpt ? (typeOpt === "expense" ? DC.ruby : DC.emerald) : DC.muted, cursor: "pointer", fontWeight: 600, textTransform: "capitalize", fontFamily: FONT }}>{t("transactions." + typeOpt)}</button>
           ))}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ position: "relative" }}>
-            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: C.muted, fontSize: 16, fontWeight: 600, pointerEvents: "none" }}>$</span>
-            <input type="number" min="0.01" max={MAX_TX_AMOUNT} step="0.01" placeholder="0.00" value={amount} onChange={e => { setAmount(e.target.value); setAmountError(""); }} style={{ ...inp, paddingLeft: 30, border: amountError ? `1px solid ${C.red}` : inp.border }} />
+            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: DC.muted, fontSize: 16, fontWeight: 600, pointerEvents: "none" }}>$</span>
+            <input type="number" min="0.01" max={MAX_TX_AMOUNT} step="0.01" placeholder="0.00" value={amount} onChange={e => { setAmount(e.target.value); setAmountError(""); }} style={{ ...inp, paddingLeft: 30, border: amountError ? `1px solid ${DC.ruby}` : inp.border }} />
           </div>
-          {amountError && <div style={{ color: C.red, fontSize: 12, fontWeight: 500, marginTop: -4 }}>{amountError}</div>}
+          {amountError && <div style={{ color: DC.ruby, fontSize: 12, fontWeight: 500, marginTop: -4 }}>{amountError}</div>}
           <input style={inp} placeholder={t("transactions.description_optional")} value={desc} onChange={e => setDesc(e.target.value)} />
           <div>
             <button onClick={() => setShowCats(!showCats)} style={{ ...inp, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left" }}>
               {catName
                 ? type === "income"
-                  ? <><div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: INCOME_CATS.find(c => c.name === catName)?.color || C.green, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name={INCOME_CATS.find(c => c.name === catName)?.icon || "dollar"} size={15} color="#fff" strokeWidth={2} /></div><span style={{ color: C.text }}>{catName}</span></>
-                  : <><CatIcon name={catName} type={type} size={15} /><span style={{ color: C.text }}>{catName}</span></>
-                : <span style={{ color: C.muted }}>{type === "income" ? t("transactions.select_income_source") : t("transactions.select_category")}</span>
+                  ? <><div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: INCOME_CATS.find(c => c.name === catName)?.color || DC.emerald, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name={INCOME_CATS.find(c => c.name === catName)?.icon || "dollar"} size={15} color="#fff" strokeWidth={2} /></div><span style={{ color: DC.text }}>{catName}</span></>
+                  : <><CatIcon name={catName} type={type} size={15} /><span style={{ color: DC.text }}>{catName}</span></>
+                : <span style={{ color: DC.muted }}>{type === "income" ? t("transactions.select_income_source") : t("transactions.select_category")}</span>
               }
-              <span style={{ marginLeft: "auto" }}><Icon name="chevron" size={14} color={C.faint} /></span>
+              <span style={{ marginLeft: "auto" }}><Icon name="chevron" size={14} color={DC.faint} /></span>
             </button>
             {showCats && (
-              <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, marginTop: 4, overflow: "hidden", maxHeight: 240, overflowY: "auto" }}>
+              <div style={{ background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, marginTop: 4, overflow: "hidden", maxHeight: 240, overflowY: "auto" }}>
                 {displayCats.map(c => (
                   <div key={c.id || c.name} onClick={() => { setCatId(c.id || c.name); setCatName(c.name); setShowCats(false); }}
-                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", cursor: "pointer", background: catName === c.name ? C.cyan + "10" : "transparent", borderBottom: `1px solid ${C.sep}` }}>
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", cursor: "pointer", background: catName === c.name ? DC.gold + "10" : "transparent", borderBottom: `1px solid ${DC.faint}22` }}>
                     {type === "income"
                       ? <div style={{ width: 34, height: 34, borderRadius: RADIUS.sm, background: c.color, display: "flex", alignItems: "center", justifyContent: "center" }}>
                           <Icon name={c.icon} size={15} color="#fff" strokeWidth={2} />
                         </div>
                       : <CatIcon name={c.name} type={type} size={15} />
                     }
-                    <span style={{ color: C.text, fontSize: 14, fontWeight: 500 }}>{c.name}</span>
-                    {catName === c.name && <Icon name="check-circle" size={14} color={C.cyan} style={{ marginLeft: "auto" }} />}
+                    <span style={{ color: DC.text, fontSize: 14, fontWeight: 500 }}>{c.name}</span>
+                    {catName === c.name && <Icon name="check-circle" size={14} color={DC.gold} style={{ marginLeft: "auto" }} />}
                   </div>
                 ))}
               </div>
@@ -861,7 +866,7 @@ export function AddTransactionModal({ categories, onAdd, onClose, existing }) {
               setSubmitting(false);
             }
           }}
-          style={{ width: "100%", marginTop: 18, padding: 15, background: submitting ? C.border : `linear-gradient(90deg,${type === "expense" ? C.red : C.green},${type === "expense" ? "#CC1A3A" : "#00A67E"})`, border: "none", borderRadius: RADIUS.md, color: "#fff", fontWeight: 700, fontSize: 15, cursor: submitting ? "not-allowed" : "pointer", fontFamily: FONT, opacity: submitting ? 0.6 : 1 }}>
+          style={{ width: "100%", marginTop: 18, padding: 15, background: submitting ? `${DC.faint}33` : (type === "expense" ? DC.ruby : DC.emerald), border: "none", borderRadius: RADIUS.md, color: "#fff", fontWeight: 700, fontSize: 15, cursor: submitting ? "not-allowed" : "pointer", fontFamily: FONT, opacity: submitting ? 0.6 : 1 }}>
           {submitting ? t("transactions.saving") : isEdit ? t("transactions.save_changes") : type === "expense" ? t("transactions.add_expense") : t("transactions.add_income")}
         </button>
       </div>
