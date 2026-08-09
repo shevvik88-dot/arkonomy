@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { usePostHog } from "@posthog/react";
-import { C, FONT, RADIUS } from "../utils/colors";
+import { C, FONT, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmt, parseDate, tCat, cleanMerchantName, sumAmounts } from "../utils/helpers";
 import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
@@ -11,6 +11,22 @@ import { IS_IOS_NATIVE } from "../lib/platform";
 import { useUSStorefront } from "../lib/storefront";
 import { computeRecurringSummary, findDuplicateSubscriptions, findMerchantAliasCandidates } from "../utils/recurringSummary";
 import { isFeatureEnabled } from "../lib/featureFlags";
+
+// Desaturated via the same HSL formula already applied to CAT_COLORS/
+// INCOME_CATS/ASSET_TILES (S -> 35+S*0.22, L -> L*0.92, hue unchanged).
+// Used for this screen's per-section card washes (Subscriptions, Regular
+// Payments, Possibly Cancelled, Alias-candidates, Goal Progress, Autopilot
+// tip, Weekly Summary) and HealthScore's 4-way breakdown bars — deliberately
+// NOT collapsed into DC.gold/emerald, since this is a long, scrollable
+// screen where distinct section colors help orient at a glance, unlike the
+// compact Dashboard's 3-accent-only design.
+const HUES = {
+  cyan:   "#3299B8",
+  blue:   "#477ACD",
+  purple: "#9781DA",
+  yellow: "#B89232",
+  green:  "#31A079",
+};
 
 // Maps findDuplicateSubscriptions' category labels to i18n keys for the "Similar service" badge.
 const DUPLICATE_CATEGORY_I18N_KEY = {
@@ -51,7 +67,7 @@ export function highlightNumbers(text, accentColor = "#FFFFFF") {
     if (!/^[-+]?\$|[-+]?\d.*%$/.test(part) || !/\d/.test(part)) return part;
     const isNeg = part.startsWith("-");
     const isPos = part.startsWith("+");
-    const color = isNeg ? "#FF5C7A" : isPos ? "#12D18E" : accentColor;
+    const color = isNeg ? DC.ruby : isPos ? DC.emerald : accentColor;
     return (
       <span key={i} className="ph-mask" style={{ color, fontWeight: 700, fontSize: "1.05em" }}>{part}</span>
     );
@@ -90,9 +106,9 @@ function sanitizeAiBody(text) {
 
 const INSIGHT_CONFIG = {
   cash_risk: {
-    bg: "rgba(255,92,122,0.04)",
-    border: "#FF5C7A",
-    accent: "#FF5C7A",
+    bg: `${DC.ruby}0A`,
+    border: DC.ruby,
+    accent: DC.ruby,
     label: "AI Insight",
     Icon: ({ color }) => (
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -102,9 +118,9 @@ const INSIGHT_CONFIG = {
     ),
   },
   category_spike: {
-    bg: "rgba(255,184,0,0.04)",
-    border: "#FFB800",
-    accent: "#FFB800",
+    bg: `${DC.gold}0A`,
+    border: DC.gold,
+    accent: DC.gold,
     label: "AI Insight",
     Icon: ({ color }) => (
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -114,9 +130,9 @@ const INSIGHT_CONFIG = {
     ),
   },
   overspending: {
-    bg: "rgba(255,184,0,0.04)",
-    border: "#FFB800",
-    accent: "#FFB800",
+    bg: `${DC.gold}0A`,
+    border: DC.gold,
+    accent: DC.gold,
     label: "AI Insight",
     Icon: ({ color }) => (
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -127,9 +143,9 @@ const INSIGHT_CONFIG = {
     ),
   },
   savings_opportunity: {
-  bg: "rgba(18,209,142,0.04)",
-  border: "#12D18E",
-  accent: "#12D18E",
+  bg: `${DC.emerald}0A`,
+  border: DC.emerald,
+  accent: DC.emerald,
   label: "AI Insight",
   Icon: ({ color }) => (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -139,9 +155,9 @@ const INSIGHT_CONFIG = {
   ),
 },
   goal_off_track: {
-    bg: "rgba(167,139,250,0.04)",
-    border: "#A78BFA",
-    accent: "#A78BFA",
+    bg: `${DC.gold}0A`,
+    border: DC.gold,
+    accent: DC.gold,
     label: "AI Insight",
     Icon: ({ color }) => (
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -152,9 +168,9 @@ const INSIGHT_CONFIG = {
     ),
   },
   positive_progress: {
-    bg: "rgba(0,194,255,0.04)",
-    border: "#00C2FF",
-    accent: "#00C2FF",
+    bg: `${DC.emerald}0A`,
+    border: DC.emerald,
+    accent: DC.emerald,
     label: "AI Insight",
     Icon: ({ color }) => (
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -262,7 +278,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
         }}>
           {highlightNumbers(cleanHeadline, accent)}
         </div>
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 3 }}>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={DC.faint} strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 3 }}>
           {expanded
             ? <polyline points="18 15 12 9 6 15"/>
             : <polyline points="6 9 12 15 18 9"/>
@@ -299,7 +315,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
                     <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${accent}BB, ${accent})`, borderRadius: RADIUS.full }} />
                   )}
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.muted + "99", marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: DC.muted + "99", marginBottom: 10 }}>
                   <span>${goalCurrent.toLocaleString("en-US", { maximumFractionDigits: 0 })} {t("insights.goal_saved")}</span>
                   <span>${goalTarget.toLocaleString("en-US", { maximumFractionDigits: 0 })} {t("insights.goal_label")}</span>
                 </div>
@@ -311,7 +327,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
               </div>
             );
           })() : (
-            <p style={{ color: C.muted + "D9", fontSize: 13, lineHeight: 1.6, margin: "0 0 12px" }}>
+            <p style={{ color: DC.muted + "D9", fontSize: 13, lineHeight: 1.6, margin: "0 0 12px" }}>
               {highlightNumbers(body, accent)}
             </p>
           )}
@@ -327,15 +343,15 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
               gap: 4,
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: C.muted + "B3", minWidth: 110 }}>{t("insights.available")}</span>
+                <span style={{ fontSize: 12, color: DC.muted + "B3", minWidth: 110 }}>{t("insights.available")}</span>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "#FFFFFF" }}>
                   ${Number(breakdown.available || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
-                  <span style={{ fontSize: 12, color: C.muted + "B3", display: "block", paddingTop: 1 }}>{t("insights.safe_to_move")}</span>
-                  <span style={{ fontSize: 11, color: C.muted + "99", display: "block", marginTop: 3, paddingLeft: 2 }}>
+                  <span style={{ fontSize: 12, color: DC.muted + "B3", display: "block", paddingTop: 1 }}>{t("insights.safe_to_move")}</span>
+                  <span style={{ fontSize: 11, color: DC.muted + "99", display: "block", marginTop: 3, paddingLeft: 2 }}>
                     {t("insights.keeps_buffer", { amount: Number(breakdown.bufferAmount || 1000).toLocaleString("en-US", { maximumFractionDigits: 0 }) })}
                   </span>
                 </div>
@@ -356,7 +372,12 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
               style={{
                 width: "100%", padding: "13px 16px",
                 background: accent, border: "none", borderRadius: RADIUS.sm,
-                color: insight.type === "savings_opportunity" ? "#061A10" : "#fff",
+                // DC.gold is a pale fill (unlike ruby/emerald) — needs dark
+                // text for contrast. Was previously a savings_opportunity-only
+                // special case, but 3 of the 6 INSIGHT_CONFIG types now use
+                // gold as their accent, so this has to key off the actual
+                // accent color, not one hardcoded type.
+                color: accent === DC.gold ? DC.bg : "#fff",
                 fontWeight: 800, fontSize: 15, cursor: "pointer",
                 fontFamily: FONT,
                 letterSpacing: -0.3,
@@ -390,7 +411,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
           {range && (
             <div style={{
               textAlign: "center", marginTop: 7, fontSize: 11,
-              color: C.muted + "99", letterSpacing: 0.1,
+              color: DC.muted + "99", letterSpacing: 0.1,
             }}>
               {range.replace("Suggested range:", "Safe range:").replace("Flexible:", "Safe range:")}
             </div>
@@ -423,7 +444,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
           {isSavings && roundUpPrompt && !(insight.data?.roundUpMonthly > 0) && (
             <div style={{
               marginTop: 6, textAlign: "center", fontSize: 12,
-              color: C.muted + "CC", letterSpacing: 0.1, cursor: "pointer",
+              color: DC.muted + "CC", letterSpacing: 0.1, cursor: "pointer",
             }}>
               {t("insights.automate_roundups")}
             </div>
@@ -448,7 +469,7 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
       label: t("insights.savings_rate_label"),
       score: rawBreakdown.savings.points,
       max: 30,
-      color: C.cyan,
+      color: HUES.cyan,
       desc: rawBreakdown.savings.rate >= 0.2
         ? t("insights.on_target")
         : t("insights.currently_pct", { pct: Math.round(rawBreakdown.savings.rate * 100) }),
@@ -457,14 +478,14 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
       label: t("insights.budget_adherence"),
       score: rawBreakdown.budget.points,
       max: 25,
-      color: C.blue,
+      color: HUES.blue,
       desc: rawBreakdown.budget.points >= 20 ? t("insights.within_budget") : t("dashboard.over_budget"),
     },
     {
       label: t("insights.recurring_charges"),
       score: rawBreakdown.recurring.points,
       max: 20,
-      color: C.purple,
+      color: HUES.purple,
       desc: rawBreakdown.recurring.ratio < 0.1
         ? t("insights.less_than_10pct")
         : t("dashboard.pct_income", { pct: Math.round(rawBreakdown.recurring.ratio * 100) }),
@@ -473,7 +494,7 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
       label: t("insights.balance_trend"),
       score: rawBreakdown.trend.points,
       max: 25,
-      color: C.yellow,
+      color: HUES.yellow,
       desc: rawBreakdown.trend.thisBalance >= rawBreakdown.trend.lastBalance
         ? t("insights.improving")
         : t("insights.down"),
@@ -482,20 +503,20 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
 
   if (!hasData) {
     return (
-      <GlassCard>
+      <GlassCard style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ position: "relative", width: 72, height: 72, flexShrink: 0 }}>
             <svg width={72} height={72}>
-              <circle cx={36} cy={36} r={28} fill="none" stroke={C.bgTertiary} strokeWidth={6} />
+              <circle cx={36} cy={36} r={28} fill="none" stroke={DC.bg} strokeWidth={6} />
             </svg>
             <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.faint, textAlign: "center", lineHeight: 1.3 }}>—</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: DC.faint, textAlign: "center", lineHeight: 1.3 }}>—</div>
             </div>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 10, color: C.faint, fontWeight: 600, letterSpacing: 1, marginBottom: 4 }}>{t("insights.financial_health")}</div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: C.muted, marginBottom: 4 }}>{t("insights.no_data")}</div>
-            <div style={{ fontSize: 12, color: C.faint, lineHeight: 1.5 }}>{t("insights.no_data_body")}</div>
+            <div style={{ fontSize: 10, color: DC.faint, fontWeight: 600, letterSpacing: 1, marginBottom: 4 }}>{t("insights.financial_health")}</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: DC.muted, marginBottom: 4 }}>{t("insights.no_data")}</div>
+            <div style={{ fontSize: 12, color: DC.faint, lineHeight: 1.5 }}>{t("insights.no_data_body")}</div>
           </div>
         </div>
       </GlassCard>
@@ -505,11 +526,11 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
   const budgetUsedPct = budget > 0 ? Math.round((totalSpent / budget) * 100) : 0;
 
   return (
-    <GlassCard>
+    <GlassCard style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 16 }} onClick={() => setShowBreakdown(v => !v)} >
         <div style={{ position: "relative", width: 72, height: 72, flexShrink: 0, cursor: "pointer" }}>
           <svg width={72} height={72} style={{ filter: `drop-shadow(0 0 8px ${color}55)` }}>
-            <circle cx={36} cy={36} r={28} fill="none" stroke={C.bgTertiary} strokeWidth={6} />
+            <circle cx={36} cy={36} r={28} fill="none" stroke={DC.bg} strokeWidth={6} />
             <circle cx={36} cy={36} r={28} fill="none" stroke={color} strokeWidth={6}
               strokeDasharray={`${dash} ${circumference}`} strokeLinecap="round"
               transform="rotate(-90 36 36)" style={{ transition: "stroke-dasharray 1s ease" }} />
@@ -519,35 +540,35 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
           </div>
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, color: C.faint, fontWeight: 600, letterSpacing: 1, marginBottom: 4 }}>{t("insights.financial_health")}</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 4 }}>
+          <div style={{ fontSize: 10, color: DC.faint, fontWeight: 600, letterSpacing: 1, marginBottom: 4 }}>{t("insights.financial_health")}</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: DC.text, marginBottom: 4 }}>
             {t(label)}{" "}
             <span style={{ color, fontSize: 13 }}>{score}/100</span>
             {prevScore != null && prevScore !== score && (
-              <span style={{ fontSize: 12, fontWeight: 700, color: score > prevScore ? C.green : C.red, marginLeft: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: score > prevScore ? DC.emerald : DC.ruby, marginLeft: 6 }}>
                 {score > prevScore ? `↑${score - prevScore}` : `↓${prevScore - score}`}
               </span>
             )}
           </div>
           {cashPositionLow && (
-            <div style={{ fontSize: 11, color: C.yellow, fontWeight: 600, marginBottom: 2 }}>{t("health.cash_position_low")}</div>
+            <div style={{ fontSize: 11, color: DC.gold, fontWeight: 600, marginBottom: 2 }}>{t("health.cash_position_low")}</div>
           )}
-          <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: DC.muted, lineHeight: 1.5 }}>
             {comment ? (comment.rawCat ? t(comment.key, { cat: tCat(comment.rawCat, t), ...comment.params }) : t(comment.key)) : (score >= 75 ? t("insights.score_great") : score >= 50 ? t("insights.score_decent") : t("insights.score_focus"))}
           </div>
-          <div style={{ fontSize: 11, color: C.faint, marginTop: 4 }}>{t("insights.tap_breakdown")}</div>
+          <div style={{ fontSize: 11, color: DC.faint, marginTop: 4 }}>{t("insights.tap_breakdown")}</div>
         </div>
       </div>
 
       {showBreakdown && (
-        <div style={{ marginTop: 14, borderTop: `1px solid ${C.sep}`, paddingTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ marginTop: 14, borderTop: `1px solid ${DC.faint}22`, paddingTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
           {breakdown.map(item => (
             <div key={item.label}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                <span style={{ fontSize: 12, color: C.muted }}>{item.label}</span>
+                <span style={{ fontSize: 12, color: DC.muted }}>{item.label}</span>
                 <span style={{ fontSize: 12, fontWeight: 700, color: item.color }}>{item.score}/{item.max} pts · {item.desc}</span>
               </div>
-              <div style={{ height: 4, background: C.bgTertiary, borderRadius: RADIUS.full }}>
+              <div style={{ height: 4, background: DC.bg, borderRadius: RADIUS.full }}>
                 <div style={{ height: 4, borderRadius: RADIUS.full, width: `${(item.score / item.max) * 100}%`, background: item.color, transition: "width 0.6s" }} />
               </div>
             </div>
@@ -560,16 +581,18 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
           const rawRate = Math.round(rawBreakdown.savings.rate * 100);
           const isDeepDeficit = rawRate < -100;
           const savingsDisplay = isDeepDeficit ? null : rawRate; // null → custom label
-          const savingsColor = rawRate < 0 ? C.red : rawRate < 10 ? C.yellow : C.cyan;
+          // Bad/medium/good status triad — cyan/purple here mean "good", not
+          // brand accent, so this maps to DC.emerald, not DC.gold (see plan).
+          const savingsColor = rawRate < 0 ? DC.ruby : rawRate < 10 ? DC.gold : DC.emerald;
           return [
             { label: t("insights.savings_rate"), value: savingsDisplay, display: isDeepDeficit ? t("dashboard.deficit") : null, color: savingsColor },
-            { label: t("insights.budget_used"), value: budgetUsedPct, color: budgetUsedPct > 100 ? C.red : budgetUsedPct > 70 ? C.yellow : C.cyan },
-            { label: t("insights.recurring_label"), value: Math.min(99, Math.round(rawBreakdown.recurring.ratio * 100)), color: rawBreakdown.recurring.ratio > 0.25 ? C.red : rawBreakdown.recurring.ratio > 0.1 ? C.yellow : C.purple },
+            { label: t("insights.budget_used"), value: budgetUsedPct, color: budgetUsedPct > 100 ? DC.ruby : budgetUsedPct > 70 ? DC.gold : DC.emerald },
+            { label: t("insights.recurring_label"), value: Math.min(99, Math.round(rawBreakdown.recurring.ratio * 100)), color: rawBreakdown.recurring.ratio > 0.25 ? DC.ruby : rawBreakdown.recurring.ratio > 0.1 ? DC.gold : DC.emerald },
           ];
         })().map(item => (
-          <div key={item.label} style={{ flex: 1, background: C.bgTertiary, borderRadius: RADIUS.sm, padding: "10px 8px", textAlign: "center" }}>
+          <div key={item.label} style={{ flex: 1, background: DC.bg, borderRadius: RADIUS.sm, padding: "10px 8px", textAlign: "center" }}>
             <div style={{ fontSize: item.display ? 11 : 16, fontWeight: 700, color: item.color }}>{item.display ?? (item.value === null ? "N/A" : item.value + "%")}</div>
-            <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{item.label}</div>
+            <div style={{ fontSize: 10, color: DC.muted, marginTop: 2 }}>{item.label}</div>
           </div>
         ))}
       </div>
@@ -619,14 +642,14 @@ function WeeklySummary({ transactions }) {
   const topCat = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
 
   return (
-    <GlassCard style={{ background: `linear-gradient(135deg,${C.blue}10,${C.card})`, border: `1px solid ${C.blue}30` }}>
+    <GlassCard style={{ background: `linear-gradient(135deg,${HUES.blue}10,${DC.card})`, border: `1px solid ${HUES.blue}30` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-        <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: C.blue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Icon name="calendar" size={15} color={C.blue} />
+        <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: HUES.blue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon name="calendar" size={15} color={HUES.blue} />
         </div>
-        <span style={{ fontWeight: 600, fontSize: 14, color: C.blue }}>{t("insights.this_week")}</span>
+        <span style={{ fontWeight: 600, fontSize: 14, color: HUES.blue }}>{t("insights.this_week")}</span>
         {change !== null && (
-          <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: pos ? C.green : C.red }}>
+          <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: pos ? DC.emerald : DC.ruby }}>
             {pos ? "↓" : "↑"}{Math.abs(change).toFixed(0)}% {t("insights.vs_last_week")}
           </span>
         )}
@@ -643,13 +666,13 @@ function WeeklySummary({ transactions }) {
               <div style={{ flex: 1, width: "100%", display: "flex", alignItems: "flex-end" }}>
                 <div style={{
                   width: "100%", height: barH,
-                  background: isToday ? C.blue : C.blue + "55",
+                  background: isToday ? HUES.blue : HUES.blue + "55",
                   borderRadius: 3,
                   opacity: isFuture ? 0.12 : 1,
                   transition: "height 0.4s",
                 }} />
               </div>
-              <div style={{ fontSize: 10, color: isToday ? C.blue : C.faint, fontWeight: isToday ? 700 : 400 }}>
+              <div style={{ fontSize: 10, color: isToday ? HUES.blue : DC.faint, fontWeight: isToday ? 700 : 400 }}>
                 {DAY_LABELS[i]}
               </div>
             </div>
@@ -657,8 +680,8 @@ function WeeklySummary({ transactions }) {
         })}
       </div>
 
-      <div className="ph-mask" style={{ fontSize: 22, fontWeight: 800, color: C.text, marginBottom: 3 }}>${fmt(thisWeek)}</div>
-      <div style={{ fontSize: 12, color: C.muted }}>
+      <div className="ph-mask" style={{ fontSize: 22, fontWeight: 800, color: DC.text, marginBottom: 3 }}>${fmt(thisWeek)}</div>
+      <div style={{ fontSize: 12, color: DC.muted }}>
         {t("insights.week_start")}–{todayLabel}{topCat ? t("insights.mostly_cat", { cat: tCat(topCat[0], t) }) : ""}
       </div>
     </GlassCard>
@@ -823,7 +846,7 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
   function SectionRec({ title, items, color, total, icon, showAskAction, duplicateCategoryByName }) {
     if (items.length === 0) return null;
     return (
-      <GlassCard style={{ background: `linear-gradient(135deg,${color}0D,${C.card})`, border: `1px solid ${color}30` }}>
+      <GlassCard style={{ background: `linear-gradient(135deg,${color}0D,${DC.card})`, border: `1px solid ${color}30` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: color + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Icon name={icon} size={14} color={color} />
@@ -836,26 +859,26 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
           const displayName = cleanMerchantName(m.name) || m.name;
           const dupCategory = duplicateCategoryByName?.get(m.name);
           return (
-            <div key={i} style={{ padding: "7px 0", borderTop: `1px solid ${C.sep}` }}>
+            <div key={i} style={{ padding: "7px 0", borderTop: `1px solid ${DC.faint}22` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 28, height: 28, borderRadius: RADIUS.xs, background: brand.color + "22", border: `1px solid ${brand.color}44`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden", position: "relative" }}>
                   <MerchantFavicon name={m.name} color={brand.color} letter={brand.letter} />
                 </div>
-                <span style={{ fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{displayName}</span>
-                <span style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>{m.months} mo · <span className="ph-mask" style={{ color, fontWeight: 600 }}>${fmt(m.avgMonthly)}/mo</span></span>
+                <span style={{ fontSize: 13, color: DC.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{displayName}</span>
+                <span style={{ fontSize: 12, color: DC.muted, flexShrink: 0 }}>{m.months} mo · <span className="ph-mask" style={{ color, fontWeight: 600 }}>${fmt(m.avgMonthly)}/mo</span></span>
                 {showAskAction && (
                   <button
                     onClick={() => { posthog?.capture('subscription_ai_inquiry_started'); onOpenChat?.(tRec("insights.ask_about_subscription", { merchant: displayName })); }}
                     aria-label={tRec("insights.ask_about_subscription", { merchant: displayName })}
                     style={{ background: "none", border: "none", cursor: "pointer", padding: 4, margin: "-4px -4px -4px 0", display: "flex", alignItems: "center", flexShrink: 0 }}
                   >
-                    <Icon name="search" size={14} color={C.muted} />
+                    <Icon name="search" size={14} color={DC.muted} />
                   </button>
                 )}
               </div>
               {dupCategory && (
-                <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: 38, marginTop: 3, fontSize: 11, color: C.muted }}>
-                  <Icon name="info" size={11} color={C.muted} />
+                <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: 38, marginTop: 3, fontSize: 11, color: DC.muted }}>
+                  <Icon name="info" size={11} color={DC.muted} />
                   {tRec("insights.similar_service", { category: tRec(DUPLICATE_CATEGORY_I18N_KEY[dupCategory] || dupCategory) })}
                 </div>
               )}
@@ -868,61 +891,61 @@ function RecurringSummary({ transactions, onOpenChat, merchantAliasMap, merchant
 
   return (
     <>
-      <SectionRec title={tRec("insights.subscriptions")}    items={subscriptions}   color={C.purple} total={subTotal}     icon="repeat" showAskAction={askAboutSubscriptionEnabled} duplicateCategoryByName={duplicateCategoryByName} />
-      <SectionRec title={tRec("insights.regular_payments")} items={regularPayments} color={C.blue}   total={regularTotal} icon="file"   />
+      <SectionRec title={tRec("insights.subscriptions")}    items={subscriptions}   color={HUES.purple} total={subTotal}     icon="repeat" showAskAction={askAboutSubscriptionEnabled} duplicateCategoryByName={duplicateCategoryByName} />
+      <SectionRec title={tRec("insights.regular_payments")} items={regularPayments} color={HUES.blue}   total={regularTotal} icon="file"   />
       {possiblyCancelled.length > 0 && (
-        <GlassCard style={{ background: `linear-gradient(135deg,${C.yellow}0D,${C.card})`, border: `1px solid ${C.yellow}30` }}>
+        <GlassCard style={{ background: `linear-gradient(135deg,${HUES.yellow}0D,${DC.card})`, border: `1px solid ${HUES.yellow}30` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: C.yellow + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Icon name="alert-circle" size={14} color={C.yellow} />
+            <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: HUES.yellow + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="alert-circle" size={14} color={HUES.yellow} />
             </div>
-            <span style={{ fontWeight: 600, fontSize: 14, color: C.yellow }}>{tRec("insights.possibly_cancelled")}</span>
+            <span style={{ fontWeight: 600, fontSize: 14, color: HUES.yellow }}>{tRec("insights.possibly_cancelled")}</span>
           </div>
           {possiblyCancelled.slice(0, 6).map((m, i) => {
             const brand = getBrandStyle(m.name);
             const displayName = cleanMerchantName(m.name) || m.name;
             return (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: `1px solid ${C.sep}` }}>
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: `1px solid ${DC.faint}22` }}>
                 <div style={{ width: 28, height: 28, borderRadius: RADIUS.xs, background: brand.color + "22", border: `1px solid ${brand.color}44`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden", position: "relative" }}>
                   <MerchantFavicon name={m.name} color={brand.color} letter={brand.letter} />
                 </div>
-                <span style={{ fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{displayName}</span>
-                <span className="ph-mask" style={{ fontSize: 12, color: C.muted, flexShrink: 0 }}>${fmt(m.avgMonthly)}/mo · {tRec("insights.last_charged_days_ago", { days: m.daysSinceLast })}</span>
+                <span style={{ fontSize: 13, color: DC.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{displayName}</span>
+                <span className="ph-mask" style={{ fontSize: 12, color: DC.muted, flexShrink: 0 }}>${fmt(m.avgMonthly)}/mo · {tRec("insights.last_charged_days_ago", { days: m.daysSinceLast })}</span>
               </div>
             );
           })}
         </GlassCard>
       )}
       {aliasCandidates.length > 0 && (
-        <GlassCard style={{ background: `linear-gradient(135deg,${C.cyan}0D,${C.card})`, border: `1px solid ${C.cyan}30` }}>
+        <GlassCard style={{ background: `linear-gradient(135deg,${HUES.cyan}0D,${DC.card})`, border: `1px solid ${HUES.cyan}30` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: C.cyan + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Icon name="refresh-cw" size={14} color={C.cyan} />
+            <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: HUES.cyan + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="refresh-cw" size={14} color={HUES.cyan} />
             </div>
-            <span style={{ fontWeight: 600, fontSize: 14, color: C.cyan }}>{tRec("insights.same_payment_title")}</span>
+            <span style={{ fontWeight: 600, fontSize: 14, color: HUES.cyan }}>{tRec("insights.same_payment_title")}</span>
           </div>
           {aliasCandidates.slice(0, 6).map((c, i) => {
             const olderName = cleanMerchantName(c.older.name) || c.older.name;
             const newerName = cleanMerchantName(c.newer.name) || c.newer.name;
             return (
-              <div key={i} style={{ padding: "9px 0", borderTop: i > 0 ? `1px solid ${C.sep}` : "none" }}>
-                <div className="ph-mask" style={{ fontSize: 13, color: C.text, marginBottom: 6 }}>
+              <div key={i} style={{ padding: "9px 0", borderTop: i > 0 ? `1px solid ${DC.faint}22` : "none" }}>
+                <div className="ph-mask" style={{ fontSize: 13, color: DC.text, marginBottom: 6 }}>
                   {olderName} (${fmt(c.older.amount)}/mo) &harr; {newerName} (${fmt(c.newer.amount)}/mo)
                 </div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>{tRec("insights.same_payment_hint")}</div>
+                <div style={{ fontSize: 11, color: DC.muted, marginBottom: 8 }}>{tRec("insights.same_payment_hint")}</div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button
                     onClick={() => onDecideMerchantAlias?.(c.older.key, c.newer.key, "confirmed")}
-                    style={{ display: "flex", alignItems: "center", gap: 6, background: C.green + "22", border: `1px solid ${C.green}44`, borderRadius: RADIUS.xs, padding: "6px 10px", color: C.green, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                    style={{ display: "flex", alignItems: "center", gap: 6, background: DC.emerald + "22", border: `1px solid ${DC.emerald}44`, borderRadius: RADIUS.xs, padding: "6px 10px", color: DC.emerald, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                   >
-                    <Icon name="check" size={13} color={C.green} />
+                    <Icon name="check" size={13} color={DC.emerald} />
                     {tRec("insights.same_payment_confirm")}
                   </button>
                   <button
                     onClick={() => onDecideMerchantAlias?.(c.older.key, c.newer.key, "rejected")}
-                    style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: `1px solid ${C.sep}`, borderRadius: RADIUS.xs, padding: "6px 10px", color: C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                    style={{ display: "flex", alignItems: "center", gap: 6, background: "transparent", border: `1px solid ${DC.faint}22`, borderRadius: RADIUS.xs, padding: "6px 10px", color: DC.muted, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                   >
-                    <Icon name="x" size={13} color={C.muted} />
+                    <Icon name="x" size={13} color={DC.muted} />
                     {tRec("insights.same_payment_reject")}
                   </button>
                 </div>
@@ -946,12 +969,12 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ marginBottom: 4 }}>
           <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 700 }}>{t("insights.title")}</h2>
-          <div style={{ fontSize: 13, color: C.muted }}>{t("insights.subtitle")}</div>
+          <div style={{ fontSize: 13, color: DC.muted }}>{t("insights.subtitle")}</div>
         </div>
         {bankConnected ? (
-          <GlassCard>
-            <div style={{ fontSize: 15, fontWeight: 600, color: C.muted, marginBottom: 4 }}>{t("insights.no_data")}</div>
-            <div style={{ fontSize: 12, color: C.faint, lineHeight: 1.5 }}>{t("insights.no_data_body")}</div>
+          <GlassCard style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: DC.muted, marginBottom: 4 }}>{t("insights.no_data")}</div>
+            <div style={{ fontSize: 12, color: DC.faint, lineHeight: 1.5 }}>{t("insights.no_data_body")}</div>
           </GlassCard>
         ) : (
           <ConnectBankPrompt title={t("insights.title")} message={t("dashboard.connect_bank_insights")} onNavigate={onNavigate} />
@@ -1046,22 +1069,19 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
     }
   }
 
-  const colors = { info: C.cyan, warning: C.yellow, danger: C.red, good: C.green };
+  const colors = { info: DC.gold, warning: DC.gold, danger: DC.ruby, good: DC.emerald };
 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ marginBottom: 4 }}>
         <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 700 }}>{t("insights.title")}</h2>
-        <div style={{ fontSize: 13, color: C.muted }}>{t("insights.subtitle")}</div>
+        <div style={{ fontSize: 13, color: DC.muted }}>{t("insights.subtitle")}</div>
       </div>
 
       {/* Monthly Cash Flow + Budget — moved here from Dashboard's compact
           redesign (not duplicated: Dashboard no longer shows these at all).
-          Insights.jsx hasn't been migrated to the new DASHBOARD_C palette
-          yet (staged rollout, one screen at a time), so this stays on the
-          existing C tokens to match the rest of this screen, not the
-          palette it moved away from. */}
+          Now migrated to DASHBOARD_C along with the rest of this screen. */}
       {bankConnected && (() => {
         const monthlyBudget = Number(profile?.monthly_budget) || 3000;
         const netFlow = totalIncome - totalSpent;
@@ -1069,35 +1089,36 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
         const expenseChangePct = lastSpent > 0 ? ((totalSpent - lastSpent) / lastSpent) * 100 : 0;
         const isOverBudget = totalSpent > monthlyBudget;
         const budgetPct = monthlyBudget > 0 ? (totalSpent / monthlyBudget) * 100 : 0;
-        const barColor = isOverBudget ? C.red : budgetPct > 70 ? C.yellow : C.cyan;
+        // Bad/medium/good status triad, same rule as HealthScore's mini-tiles.
+        const barColor = isOverBudget ? DC.ruby : budgetPct > 70 ? DC.gold : DC.emerald;
         return (
           <>
-            <GlassCard style={{ padding: "16px" }}>
-              <div style={{ fontSize: 10, color: C.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 12 }}>{t("dashboard.monthly_cash_flow")}</div>
+            <GlassCard style={{ padding: "16px", background: DC.card, border: `1px solid ${DC.faint}33` }}>
+              <div style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 12 }}>{t("dashboard.monthly_cash_flow")}</div>
               <div style={{ display: "flex" }}>
                 {[
-                  { key: "income",   label: t("dashboard.income"),   value: `$${fmt(totalIncome, 0)}`, color: C.green, change: incomeChangePct },
-                  { key: "expenses", label: t("dashboard.expenses"), value: `$${fmt(totalSpent, 0)}`,   color: C.text,  change: expenseChangePct, flip: true },
-                  { key: "net",      label: t("dashboard.net"),      value: netFlow < 0 ? `-$${fmt(Math.abs(netFlow), 0)}` : `$${fmt(netFlow, 0)}`, color: netFlow >= 0 ? C.green : C.red },
+                  { key: "income",   label: t("dashboard.income"),   value: `$${fmt(totalIncome, 0)}`, color: DC.emerald, change: incomeChangePct },
+                  { key: "expenses", label: t("dashboard.expenses"), value: `$${fmt(totalSpent, 0)}`,   color: DC.text,    change: expenseChangePct, flip: true },
+                  { key: "net",      label: t("dashboard.net"),      value: netFlow < 0 ? `-$${fmt(Math.abs(netFlow), 0)}` : `$${fmt(netFlow, 0)}`, color: netFlow >= 0 ? DC.emerald : DC.ruby },
                 ].map((item, i) => (
-                  <div key={item.key} style={{ flex: 1, paddingLeft: i > 0 ? 10 : 0, borderLeft: i > 0 ? `1px solid ${C.sep}` : "none", marginLeft: i > 0 ? 10 : 0 }}>
-                    <div style={{ fontSize: 9, color: C.muted, fontWeight: 500, marginBottom: 2 }}>{item.label}</div>
+                  <div key={item.key} style={{ flex: 1, paddingLeft: i > 0 ? 10 : 0, borderLeft: i > 0 ? `1px solid ${DC.faint}22` : "none", marginLeft: i > 0 ? 10 : 0 }}>
+                    <div style={{ fontSize: 9, color: DC.muted, fontWeight: 500, marginBottom: 2 }}>{item.label}</div>
                     <div style={{ fontSize: item.key === "net" ? 17 : 13, fontWeight: item.key === "net" ? 800 : 700, color: item.color }}>{item.value}</div>
                   </div>
                 ))}
               </div>
             </GlassCard>
-            <GlassCard style={{ padding: "10px 16px" }}>
+            <GlassCard style={{ padding: "10px 16px", background: DC.card, border: `1px solid ${DC.faint}33` }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ fontSize: 13, color: C.muted }}>
-                  <span style={{ fontWeight: 600, color: C.text }}>{t("dashboard.budget")}</span>
+                <span style={{ fontSize: 13, color: DC.muted }}>
+                  <span style={{ fontWeight: 600, color: DC.text }}>{t("dashboard.budget")}</span>
                   {'  '}${fmt(totalSpent, 0)} / ${fmt(monthlyBudget, 0)}
                 </span>
                 <span style={{ fontSize: 12, fontWeight: 700, color: barColor }}>
                   {Math.round(budgetPct)}%{isOverBudget ? ` ${t("dashboard.over_budget")}` : ''}
                 </span>
               </div>
-              <div style={{ height: 3, background: C.bgTertiary, borderRadius: RADIUS.full }}>
+              <div style={{ height: 3, background: DC.bg, borderRadius: RADIUS.full }}>
                 <div style={{ height: 3, borderRadius: RADIUS.full, width: `${Math.min(budgetPct, 100)}%`, background: barColor, transition: "width 0.6s" }} />
               </div>
             </GlassCard>
@@ -1142,7 +1163,7 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
       {(!allInsights || allInsights.length === 0) && insights.map(ins => {
         const color = colors[ins.severity];
         return (
-          <GlassCard key={ins.id}>
+          <GlassCard key={ins.id} style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div style={{ width: 44, height: 44, borderRadius: RADIUS.md, background: color + "22", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 14px ${color}33` }}>
                 <Icon name={ins.icon} size={20} color={color} />
@@ -1150,7 +1171,7 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
               {ins.value && <span className="ph-mask" style={{ background: color + "22", color, borderRadius: RADIUS.full, padding: "4px 12px", fontSize: 13, fontWeight: 700 }}>{ins.value}</span>}
             </div>
             <div className="ph-mask" style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>{ins.title}</div>
-            <div className="ph-mask" style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 14 }}>{ins.desc}</div>
+            <div className="ph-mask" style={{ fontSize: 13, color: DC.muted, lineHeight: 1.7, marginBottom: 14 }}>{ins.desc}</div>
             <button onClick={() => onOpenChat?.(ins.context)} style={{ background: "none", border: "none", cursor: "pointer", color, fontSize: 13, fontWeight: 600, padding: 0, display: "flex", alignItems: "center", gap: 6, fontFamily: FONT }}>
               <Icon name="message" size={13} color={color} /> {t("insights.ask_ai_about_this")} <Icon name="chevron" size={13} color={color} />
             </button>
@@ -1159,12 +1180,12 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
       })}
 
       {monthlySavings >= 50 && (
-        <GlassCard style={{ background: `linear-gradient(135deg,${C.cyan}0D,${C.card})`, border: `1px solid ${C.cyan}30` }}>
+        <GlassCard style={{ background: `linear-gradient(135deg,${HUES.cyan}0D,${DC.card})`, border: `1px solid ${HUES.cyan}30` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <Icon name="zap" size={16} color={C.cyan} />
-            <span style={{ fontWeight: 600, fontSize: 15, color: C.cyan }}>{t("insights.autopilot_tip")}</span>
+            <Icon name="zap" size={16} color={HUES.cyan} />
+            <span style={{ fontWeight: 600, fontSize: 15, color: HUES.cyan }}>{t("insights.autopilot_tip")}</span>
           </div>
-          <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.65 }}>
+          <div style={{ fontSize: 13, color: DC.muted, lineHeight: 1.65 }}>
             {t("insights.autopilot_tip_body")}
           </div>
         </GlassCard>
@@ -1179,36 +1200,36 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
         const totalTarget = active.reduce((s, sv) => s + Number(sv.target), 0);
         const overallPct = totalTarget > 0 ? Math.min((totalSaved / totalTarget) * 100, 100) : 0;
         return (
-          <GlassCard style={{ background: `linear-gradient(135deg,${C.green}10,${C.card})`, border: `1px solid ${C.green}35` }}>
+          <GlassCard style={{ background: `linear-gradient(135deg,${HUES.green}10,${DC.card})`, border: `1px solid ${HUES.green}35` }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: C.green + "22", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 10px ${C.green}33` }}>
-                  <Icon name="target" size={14} color={C.green} />
+                <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: HUES.green + "22", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 10px ${HUES.green}33` }}>
+                  <Icon name="target" size={14} color={HUES.green} />
                 </div>
-                <span style={{ fontWeight: 700, fontSize: 14, color: C.green }}>{t("insights.goal_progress")}</span>
+                <span style={{ fontWeight: 700, fontSize: 14, color: HUES.green }}>{t("insights.goal_progress")}</span>
               </div>
-              <div style={{ background: C.green + "22", borderRadius: RADIUS.full, padding: "3px 10px" }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.green }}>{overallPct.toFixed(0)}% {t("insights.pct_total")}</span>
+              <div style={{ background: HUES.green + "22", borderRadius: RADIUS.full, padding: "3px 10px" }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: HUES.green }}>{overallPct.toFixed(0)}% {t("insights.pct_total")}</span>
               </div>
             </div>
-            <div style={{ height: 5, background: C.bgTertiary, borderRadius: RADIUS.full, marginBottom: 14, overflow: "visible" }}>
-              <div style={{ height: '100%', width: `${overallPct}%`, background: `linear-gradient(90deg,${C.green}CC,${C.green})`, borderRadius: RADIUS.full, boxShadow: overallPct > 0 ? `0 0 8px ${C.green}55, 0 0 16px ${C.green}22` : 'none', transition: "width 0.6s ease" }} />
+            <div style={{ height: 5, background: DC.bg, borderRadius: RADIUS.full, marginBottom: 14, overflow: "visible" }}>
+              <div style={{ height: '100%', width: `${overallPct}%`, background: `linear-gradient(90deg,${HUES.green}CC,${HUES.green})`, borderRadius: RADIUS.full, boxShadow: overallPct > 0 ? `0 0 8px ${HUES.green}55, 0 0 16px ${HUES.green}22` : 'none', transition: "width 0.6s ease" }} />
             </div>
             {active.slice(0, 3).map((sv, i) => {
               const cur = Number(sv.current), tgt = Number(sv.target);
               const pct = Math.min((cur / tgt) * 100, 100);
               const fc  = computeGoalForecast(tgt - cur, surplus, savings.length);
               return (
-                <div key={sv.id} style={{ marginTop: i > 0 ? 12 : 0, paddingTop: i > 0 ? 12 : 0, borderTop: i > 0 ? `1px solid ${C.sep}` : 'none' }}>
+                <div key={sv.id} style={{ marginTop: i > 0 ? 12 : 0, paddingTop: i > 0 ? 12 : 0, borderTop: i > 0 ? `1px solid ${DC.faint}22` : 'none' }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 5 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{sv.name}</span>
-                    <span className="ph-mask" style={{ fontSize: 11, color: C.muted }}>${fmt(cur, 0)} / ${fmt(tgt, 0)}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: DC.text }}>{sv.name}</span>
+                    <span className="ph-mask" style={{ fontSize: 11, color: DC.muted }}>${fmt(cur, 0)} / ${fmt(tgt, 0)}</span>
                   </div>
-                  <div style={{ height: 6, background: C.bgTertiary, borderRadius: RADIUS.full, marginBottom: 4, overflow: "visible" }}>
-                    <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg,${C.green}AA,${C.green})`, borderRadius: RADIUS.full, boxShadow: pct > 0 ? `0 0 8px ${C.green}44` : 'none', transition: "width 0.6s ease" }} />
+                  <div style={{ height: 6, background: DC.bg, borderRadius: RADIUS.full, marginBottom: 4, overflow: "visible" }}>
+                    <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg,${HUES.green}AA,${HUES.green})`, borderRadius: RADIUS.full, boxShadow: pct > 0 ? `0 0 8px ${HUES.green}44` : 'none', transition: "width 0.6s ease" }} />
                   </div>
                   {fc.type !== 'complete' && (
-                    <div className="ph-mask" style={{ fontSize: 11, color: fc.type === 'on_track' ? C.green : C.yellow, lineHeight: 1.4 }}>
+                    <div className="ph-mask" style={{ fontSize: 11, color: fc.type === 'on_track' ? HUES.green : DC.gold, lineHeight: 1.4 }}>
                       {fc.type === 'on_track'
                         ? t("insights.on_track_for", { date: formatForecastDate(fc.date) })
                         : t("insights.need_more_for", { amount: fmt(fc.shortfall, 0), date: formatForecastDate(fc.targetDate) })}
@@ -1221,7 +1242,7 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
         );
       })()}
 
-      <div style={{ fontSize: 11, color: C.faint, textAlign: "center", lineHeight: 1.5, padding: "0 8px", opacity: 0.55 }}>
+      <div style={{ fontSize: 11, color: DC.faint, textAlign: "center", lineHeight: 1.5, padding: "0 8px", opacity: 0.55 }}>
         {t("chat.disclaimer")}
       </div>
     </div>
