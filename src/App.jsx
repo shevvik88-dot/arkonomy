@@ -5,7 +5,7 @@ import { logger } from "./utils/logger";
 // one deliberately App.jsx-local field (trialEndedAccent) — no hardcoded
 // duplicate values left here. Aliased since the file also has its own
 // local `const C` derived from it (name collision otherwise).
-import { C as sharedC, RADIUS } from "./utils/colors";
+import { C as sharedC, RADIUS, DASHBOARD_C as DC } from "./utils/colors";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { usePostHog } from "@posthog/react";
 import { useTranslation } from "react-i18next";
@@ -1587,9 +1587,9 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ color: C.muted, fontSize: 16, fontWeight: 600 }}>{profile?.full_name || user.email?.split("@")[0]}</span>
               {isTrial
-                ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: C.amber, background: C.amber + "20", borderRadius: RADIUS.lg, padding: "3px 9px", cursor: "pointer" }}>Trial: {trialDaysLeft}d left</span>
+                ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: DC.gold, background: DC.gold + "20", borderRadius: RADIUS.lg, padding: "3px 9px", cursor: "pointer" }}>Trial: {trialDaysLeft}d left</span>
                 : trialExpired
-                ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: "#EF4444", background: "#EF444420", borderRadius: RADIUS.lg, padding: "3px 9px", cursor: "pointer" }}>Trial ended</span>
+                ? <span onClick={onUpgrade} style={{ fontSize: 12, fontWeight: 700, color: DC.ruby, background: DC.ruby + "20", borderRadius: RADIUS.lg, padding: "3px 9px", cursor: "pointer" }}>Trial ended</span>
                 : isPro && <span style={{ fontSize: 10, fontWeight: 700, color: sharedC.proAccent, background: sharedC.proAccent + "18", border: `1px solid ${sharedC.proAccent}44`, borderRadius: RADIUS.full, padding: "2px 8px", letterSpacing: 0.5 }}>PRO</span>
               }
             </div>
@@ -1605,11 +1605,11 @@ export default function App() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {/* Globe / language picker */}
           <div ref={langRef} style={{ position: "relative" }}>
-            <button onClick={() => setLangOpen(v => !v)} aria-label="Change language" style={{ background: langOpen ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${langOpen ? C.cyan + "44" : C.border}`, borderRadius: RADIUS.sm, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-              <Icon name="globe" size={19} color={langOpen ? C.cyan : C.muted} />
+            <button onClick={() => setLangOpen(v => !v)} aria-label="Change language" style={{ background: langOpen ? DC.gold + "18" : DC.card, border: `1px solid ${langOpen ? DC.gold + "44" : `${DC.faint}33`}`, borderRadius: RADIUS.sm, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <Icon name="globe" size={19} color={langOpen ? DC.gold : DC.muted} />
             </button>
             {langOpen && (
-              <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, background: C.card, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, boxShadow: "0 8px 32px rgba(0,0,0,0.5)", zIndex: 200, minWidth: 150, overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, boxShadow: "0 8px 32px rgba(0,0,0,0.5)", zIndex: 200, minWidth: 150, overflow: "hidden" }}>
                 {[
                   { code: "en", label: "English" },
                   { code: "ru", label: "Русский" },
@@ -1626,18 +1626,18 @@ export default function App() {
                         if (user) supabase.from('profiles').update({ preferred_language: lang.code }).eq('id', user.id);
                         setLangOpen(false);
                       }}
-                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "12px 16px", background: active ? C.cyan + "14" : "transparent", border: "none", borderBottom: idx < arr.length - 1 ? `1px solid ${C.sep}` : "none", color: active ? C.cyan : C.text, fontSize: 14, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: FONT, textAlign: "left" }}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "12px 16px", background: active ? DC.gold + "14" : "transparent", border: "none", borderBottom: idx < arr.length - 1 ? `1px solid ${DC.faint}22` : "none", color: active ? DC.gold : DC.text, fontSize: 14, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: FONT, textAlign: "left" }}
                     >
                       {lang.label}
-                      {active && <Icon name="check" size={14} color={C.cyan} strokeWidth={2.5} />}
+                      {active && <Icon name="check" size={14} color={DC.gold} strokeWidth={2.5} />}
                     </button>
                   );
                 })}
               </div>
             )}
           </div>
-          <button data-tutorial="settings-btn" onClick={() => setScreen("profile")} style={{ background: screen === "profile" ? C.cyan + "18" : C.bgSecondary, border: `1px solid ${screen === "profile" ? C.cyan + "44" : C.border}`, borderRadius: RADIUS.sm, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-            <Icon name="settings" size={21} color={screen === "profile" ? C.cyan : C.muted} />
+          <button data-tutorial="settings-btn" onClick={() => setScreen("profile")} style={{ background: screen === "profile" ? DC.gold + "18" : DC.card, border: `1px solid ${screen === "profile" ? DC.gold + "44" : `${DC.faint}33`}`, borderRadius: RADIUS.sm, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <Icon name="settings" size={21} color={screen === "profile" ? DC.gold : DC.muted} />
           </button>
         </div>
       </div>
