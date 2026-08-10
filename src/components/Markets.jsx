@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import { supabase } from "../utils/supabase";
 import { SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
-import { C, FONT, RADIUS } from "../utils/colors";
+import { C, FONT, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmtPct } from "../utils/helpers";
 import GlassCard from "./shared/GlassCard";
 import Icon from "./shared/Icon";
@@ -16,27 +16,32 @@ import { useUSStorefront } from "../lib/storefront";
 const DEFAULT_WATCHLIST = ["SPY", "QQQ", "BTC", "ETH"];
 const MAX_WATCHLIST = 20;
 
+// Colors desaturated via the same HSL formula as CAT_COLORS/INCOME_CATS/
+// ASSET_TILES (S -> 35+S*0.22, L -> L*0.92, hue unchanged). These are
+// identity colors (which symbol/sector this is), not status colors, so
+// they're preserved as a distinguishable set rather than collapsed into
+// DC.gold — same reasoning as Savings.jsx's ASSET_TILES.
 const MARKET_META = {
-  SPY:  { label: "S&P 500",  color: "#2F80FF", icon: "bar-chart", isCrypto: false },
-  QQQ:  { label: "NASDAQ",   color: "#A78BFA", icon: "activity",  isCrypto: false },
-  BTC:  { label: "Bitcoin",  color: "#F59E0B", icon: "zap",       isCrypto: true  },
-  ETH:  { label: "Ethereum", color: "#34D399", icon: "zap",       isCrypto: true  },
-  SOL:  { label: "Solana",   color: "#9945FF", icon: "zap",       isCrypto: true  },
-  DOGE: { label: "Dogecoin", color: "#C2A633", icon: "zap",       isCrypto: true  },
+  SPY:  { label: "S&P 500",  color: "#477ACD", icon: "bar-chart", isCrypto: false },
+  QQQ:  { label: "NASDAQ",   color: "#9781DA", icon: "activity",  isCrypto: false },
+  BTC:  { label: "Bitcoin",  color: "#B68735", icon: "zap",       isCrypto: true  },
+  ETH:  { label: "Ethereum", color: "#3EB68A", icon: "zap",       isCrypto: true  },
+  SOL:  { label: "Solana",   color: "#905BD2", icon: "zap",       isCrypto: true  },
+  DOGE: { label: "Dogecoin", color: "#A6913A", icon: "zap",       isCrypto: true  },
 };
 
 const TRENDING = [
-  { symbol: "AAPL", name: "Apple Inc.",   color: "#9AA4B2" },
-  { symbol: "TSLA", name: "Tesla, Inc.",  color: "#E05C5C" },
-  { symbol: "NVDA", name: "NVIDIA Corp.", color: "#76B900" },
+  { symbol: "AAPL", name: "Apple Inc.",   color: "#9AA4B2" }, // already neutral, untouched
+  { symbol: "TSLA", name: "Tesla, Inc.",  color: "#C85B5B" },
+  { symbol: "NVDA", name: "NVIDIA Corp.", color: "#76A02C" },
 ];
 
 const SECTORS = [
-  { name: "Tech",       etf: "XLK", color: "#2F80FF", stocks: ["AAPL", "MSFT", "NVDA"]  },
-  { name: "Finance",    etf: "XLF", color: "#A78BFA", stocks: ["JPM",  "BAC",  "GS"]    },
-  { name: "Energy",     etf: "XLE", color: "#F59E0B", stocks: ["XOM",  "CVX",  "COP"]   },
-  { name: "Healthcare", etf: "XLV", color: "#34D399", stocks: ["UNH",  "JNJ",  "ABBV"]  },
-  { name: "Consumer",   etf: "XLY", color: "#FF6B9D", stocks: ["AMZN", "HD",   "MCD"]   },
+  { name: "Tech",       etf: "XLK", color: "#477ACD", stocks: ["AAPL", "MSFT", "NVDA"]  },
+  { name: "Finance",    etf: "XLF", color: "#9781DA", stocks: ["JPM",  "BAC",  "GS"]    },
+  { name: "Energy",     etf: "XLE", color: "#B68735", stocks: ["XOM",  "CVX",  "COP"]   },
+  { name: "Healthcare", etf: "XLV", color: "#3EB68A", stocks: ["UNH",  "JNJ",  "ABBV"]  },
+  { name: "Consumer",   etf: "XLY", color: "#D97395", stocks: ["AMZN", "HD",   "MCD"]   },
 ];
 
 // Alpaca uses BTCUSD / ETHUSD for crypto orders
@@ -78,14 +83,14 @@ async function callMarketData(body) {
 // ─── Stock Logo ───────────────────────────────────────────────
 
 function StockLogo({ symbol, color, icon, size = 36, borderRadius = 10 }) {
-  const bg = (color ?? C.cyan) + "22";
-  const border = `1px solid ${(color ?? C.cyan)}33`;
+  const bg = (color ?? DC.gold) + "22";
+  const border = `1px solid ${(color ?? DC.gold)}33`;
   const circleRadius = icon ? borderRadius : "50%";
   return (
     <div style={{ width: size, height: size, borderRadius: circleRadius, background: bg, border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
       {icon
-        ? <Icon name={icon} size={Math.round(size * 0.42)} color={color ?? C.cyan} strokeWidth={2.5} />
-        : <span style={{ fontSize: Math.round(size * 0.44), fontWeight: 800, color: color ?? C.cyan, letterSpacing: -0.5 }}>{(symbol || "?")[0]}</span>
+        ? <Icon name={icon} size={Math.round(size * 0.42)} color={color ?? DC.gold} strokeWidth={2.5} />
+        : <span style={{ fontSize: Math.round(size * 0.44), fontWeight: 800, color: color ?? DC.gold, letterSpacing: -0.5 }}>{(symbol || "?")[0]}</span>
       }
     </div>
   );
@@ -99,7 +104,7 @@ function PriceChart({ candles = [], color, height = 130 }) {
   const svgRef = useRef(null);
 
   if (!candles.length) return (
-    <div style={{ height, display: "flex", alignItems: "center", justifyContent: "center", color: C.faint, fontSize: 12 }}>
+    <div style={{ height, display: "flex", alignItems: "center", justifyContent: "center", color: DC.faint, fontSize: 12 }}>
       {t("markets.no_chart_data")}
     </div>
   );
@@ -111,7 +116,7 @@ function PriceChart({ candles = [], color, height = 130 }) {
   if (prices.length < 2) {
     if (prices.length === 1) prices.push(prices[0]);
     else return (
-      <div style={{ height, display: "flex", alignItems: "center", justifyContent: "center", color: C.faint, fontSize: 12 }}>
+      <div style={{ height, display: "flex", alignItems: "center", justifyContent: "center", color: DC.faint, fontSize: 12 }}>
         {t("markets.no_chart_data")}
       </div>
     );
@@ -122,7 +127,7 @@ function PriceChart({ candles = [], color, height = 130 }) {
   const range  = max - min || 1;
   const W = 320, PAD = 6;
   const isPositive = prices[prices.length - 1] >= prices[0];
-  const lineColor  = color ?? (isPositive ? C.green : C.red);
+  const lineColor  = color ?? (isPositive ? DC.emerald : DC.ruby);
   const gradId = `cg_${lineColor.replace("#", "")}`;
 
   const pts = prices.map((p, i) => ({
@@ -195,45 +200,45 @@ function PriceChart({ candles = [], color, height = 130 }) {
           position: "absolute", top: 0,
           left: tooltipLeft,
           transform: "translateX(-50%)",
-          background: C.card,
+          background: DC.card,
           border: `1px solid ${lineColor}55`,
           borderRadius: RADIUS.xs,
           padding: "4px 8px",
           fontSize: 12,
           fontWeight: 700,
-          color: C.text,
+          color: DC.text,
           pointerEvents: "none",
           whiteSpace: "nowrap",
           boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
           zIndex: 10,
         }}>
           {fmtCrosshairPrice(crosshair.price)}
-          <span style={{ color: C.faint, fontWeight: 400, fontSize: 10, marginLeft: 5 }}>
+          <span style={{ color: DC.faint, fontWeight: 400, fontSize: 10, marginLeft: 5 }}>
             {new Date(crosshair.ts * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
           </span>
         </div>
       ) : (
         <div style={{
           position: "absolute", top: 4, right: 6,
-          background: C.card,
+          background: DC.card,
           border: `1px solid ${lineColor}33`,
           borderRadius: RADIUS.xs,
           padding: "3px 8px",
           fontSize: 12,
           fontWeight: 700,
-          color: C.text,
+          color: DC.text,
           pointerEvents: "none",
           whiteSpace: "nowrap",
           boxShadow: "0 2px 6px rgba(0,0,0,0.35)",
         }}>
           {fmtCrosshairPrice(lastPrice)}
-          <span style={{ color: C.faint, fontWeight: 400, fontSize: 10, marginLeft: 5 }}>
+          <span style={{ color: DC.faint, fontWeight: 400, fontSize: 10, marginLeft: 5 }}>
             {new Date(lastTs * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
           </span>
         </div>
       )}
       {!crosshair && (
-        <div style={{ fontSize: 10, color: C.faint, textAlign: "center", marginTop: 5, letterSpacing: 0.2 }}>
+        <div style={{ fontSize: 10, color: DC.faint, textAlign: "center", marginTop: 5, letterSpacing: 0.2 }}>
           {t("markets.touch_hint")}
         </div>
       )}
@@ -245,7 +250,7 @@ function PriceChart({ candles = [], color, height = 130 }) {
 
 function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, isPro, isTrial, onUpgrade, watchlist = [], addToWatchlist, removeFromWatchlist, onToast }) {
   const { t } = useTranslation();
-  const meta    = MARKET_META[symbol] ?? { label: symbol, color: C.cyan, icon: "activity", isCrypto: false };
+  const meta    = MARKET_META[symbol] ?? { label: symbol, color: DC.gold, icon: "activity", isCrypto: false };
   const [tab, setTab]         = useState("overview");
   const [period, setPeriod]   = useState("1M");
   const [stats, setStats]     = useState(null);
@@ -379,7 +384,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
   }
 
   const isPos = (stats?.changePct ?? 0) >= 0;
-  const chColor = isPos ? C.green : C.red;
+  const chColor = isPos ? DC.emerald : DC.ruby;
   const PERIODS = ["1D", "1W", "1M", "1Y"];
   const TABS = ["overview", "chart", "ai", "buy"];
 
@@ -399,16 +404,16 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-        <button onClick={onBack} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-          <Icon name="arrow-left" size={16} color={C.text} />
+        <button onClick={onBack} style={{ background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+          <Icon name="arrow-left" size={16} color={DC.text} />
         </button>
         <StockLogo symbol={symbol} color={meta.color} icon={meta.icon} size={38} borderRadius={12} />
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{cleanCompanyName(meta.label) || symbol}</div>
-          <div style={{ fontSize: 12, color: C.muted }}>{symbol}</div>
+          <div style={{ fontSize: 12, color: DC.muted }}>{symbol}</div>
         </div>
-        <button onClick={toggleWatchlist} aria-label={t("markets.watchlist")} style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
-          <Icon name="star" size={16} color={inWatchlist ? C.yellow : C.muted} fill={inWatchlist ? C.yellow : "none"} />
+        <button onClick={toggleWatchlist} aria-label={t("markets.watchlist")} style={{ background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+          <Icon name="star" size={16} color={inWatchlist ? DC.gold : DC.muted} fill={inWatchlist ? DC.gold : "none"} />
         </button>
         {stats && (
           <div style={{ textAlign: "right" }}>
@@ -419,10 +424,10 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
       </div>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 16, background: C.bgSecondary, borderRadius: RADIUS.sm, padding: 4 }}>
+      <div style={{ display: "flex", gap: 4, marginBottom: 16, background: DC.card, borderRadius: RADIUS.sm, padding: 4 }}>
         {TABS.map(tabId => (
           <button key={tabId} onClick={() => setTab(tabId)}
-            style={{ flex: 1, padding: "7px 0", borderRadius: RADIUS.sm, border: "none", background: tab === tabId ? C.card : "transparent", color: tab === tabId ? C.text : C.faint, fontWeight: tab === tabId ? 700 : 400, fontSize: 12, cursor: "pointer", fontFamily: FONT, textTransform: "capitalize" }}>
+            style={{ flex: 1, padding: "7px 0", borderRadius: RADIUS.sm, border: "none", background: tab === tabId ? DC.bg : "transparent", color: tab === tabId ? DC.text : DC.faint, fontWeight: tab === tabId ? 700 : 400, fontSize: 12, cursor: "pointer", fontFamily: FONT, textTransform: "capitalize" }}>
             {t("markets.tab_" + tabId)}
           </button>
         ))}
@@ -430,24 +435,24 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
 
       {/* ── OVERVIEW TAB ─────────────────────────────────────── */}
       {tab === "overview" && (
-        <GlassCard>
+        <GlassCard style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
           {loadingStats ? (
-            <div style={{ color: C.faint, fontSize: 13, textAlign: "center", padding: "20px 0" }}>{t("markets.loading_stats")}</div>
+            <div style={{ color: DC.faint, fontSize: 13, textAlign: "center", padding: "20px 0" }}>{t("markets.loading_stats")}</div>
           ) : stats?.error ? (
-            <div style={{ color: C.red, fontSize: 12 }}>{t("markets.could_not_load_stats")}</div>
+            <div style={{ color: DC.ruby, fontSize: 12 }}>{t("markets.could_not_load_stats")}</div>
           ) : (
             <>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14 }}>{t("markets.key_stats")}</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
                 {[
                   { label: t("markets.price"),      value: fmtPrice(stats?.price, meta.isCrypto) },
-                  { label: t("markets.change"),     value: fmtPct(stats?.changePct), color: (stats?.changePct ?? 0) >= 0 ? C.green : C.red },
+                  { label: t("markets.change"),     value: fmtPct(stats?.changePct), color: (stats?.changePct ?? 0) >= 0 ? DC.emerald : DC.ruby },
                   !meta.isCrypto && { label: t("markets.beta"),       value: stats?.beta != null ? Number(stats.beta).toFixed(2) : "—" },
                   !meta.isCrypto && { label: t("markets.div_yield"), value: stats?.dividendYield != null ? Number(stats.dividendYield).toFixed(2) + "%" : "—" },
                 ].filter(Boolean).map((s) => (
-                  <div key={s.label} style={{ background: C.bgSecondary, borderRadius: RADIUS.sm, padding: "10px 12px" }}>
-                    <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: s.color ?? C.text }}>{s.value}</div>
+                  <div key={s.label} style={{ background: DC.bg, borderRadius: RADIUS.sm, padding: "10px 12px" }}>
+                    <div style={{ fontSize: 10, color: DC.faint, fontWeight: 500, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: s.color ?? DC.text }}>{s.value}</div>
                   </div>
                 ))}
               </div>
@@ -459,17 +464,17 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
                 const dayPct  = (dh != null && dl != null && dh > dl) ? Math.round((p - dl) / (dh - dl) * 100) : null;
                 const w52Pct  = (wh != null && wl != null && wh > wl) ? Math.round((p - wl) / (wh - wl) * 100) : null;
                 const RangeBar = ({ label, lo, hi, pct, isCrypto: ic }) => (
-                  <div style={{ background: C.bgSecondary, borderRadius: RADIUS.sm, padding: "10px 12px" }}>
-                    <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>{label}</div>
+                  <div style={{ background: DC.bg, borderRadius: RADIUS.sm, padding: "10px 12px" }}>
+                    <div style={{ fontSize: 10, color: DC.faint, fontWeight: 500, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>{label}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                      <span style={{ fontSize: 11, color: C.muted }}>{fmtPrice(lo, ic)}</span>
-                      <div style={{ flex: 1, height: 4, background: C.border, borderRadius: RADIUS.full, position: "relative" }}>
+                      <span style={{ fontSize: 11, color: DC.muted }}>{fmtPrice(lo, ic)}</span>
+                      <div style={{ flex: 1, height: 4, background: `${DC.faint}33`, borderRadius: RADIUS.full, position: "relative" }}>
                         {pct != null && (
                           <div style={{ position: "absolute", left: `${Math.max(1, Math.min(97, pct))}%`, top: "50%", transform: "translate(-50%, -50%)", width: 8, height: 8, borderRadius: "50%", background: meta.color }} />
                         )}
                         <div style={{ height: "100%", width: pct != null ? `${pct}%` : "0%", background: meta.color + "44", borderRadius: RADIUS.full }} />
                       </div>
-                      <span style={{ fontSize: 11, color: C.muted }}>{fmtPrice(hi, ic)}</span>
+                      <span style={{ fontSize: 11, color: DC.muted }}>{fmtPrice(hi, ic)}</span>
                     </div>
                   </div>
                 );
@@ -488,13 +493,13 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                     {[
                       { label: t("markets.open"),       value: fmtPrice(stats?.dayOpen,    meta.isCrypto) },
-                      { label: t("markets.day_high"),   value: fmtPrice(stats?.dayHigh,    meta.isCrypto), color: C.green },
-                      { label: t("markets.day_low"),    value: fmtPrice(stats?.dayLow,     meta.isCrypto), color: C.red },
+                      { label: t("markets.day_high"),   value: fmtPrice(stats?.dayHigh,    meta.isCrypto), color: DC.emerald },
+                      { label: t("markets.day_low"),    value: fmtPrice(stats?.dayLow,     meta.isCrypto), color: DC.ruby },
                       { label: t("markets.prev_close"), value: fmtPrice(stats?.prevClose,  meta.isCrypto) },
                     ].map(s => (
-                      <div key={s.label} style={{ background: C.bgSecondary, borderRadius: RADIUS.sm, padding: "10px 12px" }}>
-                        <div style={{ fontSize: 10, color: C.faint, fontWeight: 500, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: s.color ?? C.text }}>{s.value}</div>
+                      <div key={s.label} style={{ background: DC.bg, borderRadius: RADIUS.sm, padding: "10px 12px" }}>
+                        <div style={{ fontSize: 10, color: DC.faint, fontWeight: 500, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: s.color ?? DC.text }}>{s.value}</div>
                       </div>
                     ))}
                   </div>
@@ -507,21 +512,21 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
 
       {/* ── CHART TAB ────────────────────────────────────────── */}
       {tab === "chart" && (
-        <GlassCard>
+        <GlassCard style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
           <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
             {PERIODS.map(p => (
               <button key={p} onClick={() => setPeriod(p)}
-                style={{ flex: 1, padding: "5px 0", borderRadius: RADIUS.xs, border: `1px solid ${period === p ? meta.color + "66" : C.border}`, background: period === p ? meta.color + "18" : "transparent", color: period === p ? meta.color : C.faint, fontWeight: period === p ? 700 : 400, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
+                style={{ flex: 1, padding: "5px 0", borderRadius: RADIUS.xs, border: `1px solid ${period === p ? meta.color + "66" : `${DC.faint}33`}`, background: period === p ? meta.color + "18" : "transparent", color: period === p ? meta.color : DC.faint, fontWeight: period === p ? 700 : 400, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
                 {p}
               </button>
             ))}
           </div>
           {loadingChart ? (
-            <div style={{ height: 130, display: "flex", alignItems: "center", justifyContent: "center", color: C.faint, fontSize: 12 }}>{t("markets.loading_chart")}</div>
+            <div style={{ height: 130, display: "flex", alignItems: "center", justifyContent: "center", color: DC.faint, fontSize: 12 }}>{t("markets.loading_chart")}</div>
           ) : chartError ? (
-            <div style={{ background: C.red + "12", border: `1px solid ${C.red}33`, borderRadius: RADIUS.sm, padding: "12px 14px", margin: "4px 0" }}>
-              <div style={{ fontSize: 13, color: C.red, fontWeight: 600, marginBottom: 4 }}>{t("markets.chart_unavailable")}</div>
-              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
+            <div style={{ background: DC.ruby + "12", border: `1px solid ${DC.ruby}33`, borderRadius: RADIUS.sm, padding: "12px 14px", margin: "4px 0" }}>
+              <div style={{ fontSize: 13, color: DC.ruby, fontWeight: 600, marginBottom: 4 }}>{t("markets.chart_unavailable")}</div>
+              <div style={{ fontSize: 12, color: DC.muted, lineHeight: 1.5 }}>
                 {chartError}
               </div>
             </div>
@@ -530,19 +535,19 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
               <PriceChart candles={candles} color={meta.color} height={140} />
               {candles.length > 0 ? (
                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
-                  <span style={{ fontSize: 11, color: C.faint }}>
+                  <span style={{ fontSize: 11, color: DC.faint }}>
                     {new Date(candles[0].t * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                   </span>
-                  <span style={{ fontSize: 11, color: C.faint }}>
+                  <span style={{ fontSize: 11, color: DC.faint }}>
                     {new Date(candles[candles.length - 1].t * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                   </span>
                 </div>
               ) : (
-                <div style={{ fontSize: 12, color: C.faint, textAlign: "center", marginTop: 8 }}>
+                <div style={{ fontSize: 12, color: DC.faint, textAlign: "center", marginTop: 8 }}>
                   {meta.isCrypto ? t("markets.no_chart_crypto") : t("markets.no_chart_stock")}
                 </div>
               )}
-              <div style={{ fontSize: 10, color: C.faint, textAlign: "right", marginTop: 6 }}>{t("markets.powered_by_finnhub")}</div>
+              <div style={{ fontSize: 10, color: DC.faint, textAlign: "right", marginTop: 6 }}>{t("markets.powered_by_finnhub")}</div>
             </>
           )}
         </GlassCard>
@@ -550,19 +555,19 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
 
       {/* ── AI TAB ───────────────────────────────────────────── */}
       {tab === "ai" && (
-        <GlassCard style={{ border: `1px solid ${C.cyan}22` }}>
+        <GlassCard style={{ background: DC.card, border: `1px solid ${DC.gold}22` }}>
           <style>{`@keyframes aiDot{0%,80%,100%{transform:translateY(0);opacity:0.4}40%{transform:translateY(-5px);opacity:1}}`}</style>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-            <div style={{ width: 30, height: 30, borderRadius: RADIUS.xs, background: C.cyan + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Icon name="activity" size={14} color={C.cyan} />
+            <div style={{ width: 30, height: 30, borderRadius: RADIUS.xs, background: DC.gold + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="activity" size={14} color={DC.gold} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, fontSize: 14 }}>{t("markets.ai_analysis")}</div>
-              <div style={{ fontSize: 11, color: C.faint }}>{t("markets.powered_by_claude")}</div>
+              <div style={{ fontSize: 11, color: DC.faint }}>{t("markets.powered_by_claude")}</div>
             </div>
             {aiError && !aiLoading && (
               <button onClick={() => { aiCalledRef.current = false; setAi(null); setAiError(null); runAiAnalysis(); }}
-                style={{ background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.xs, padding: "4px 10px", color: C.muted, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
+                style={{ background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.xs, padding: "4px 10px", color: DC.muted, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
                 {t("common.retry")}
               </button>
             )}
@@ -572,15 +577,15 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "28px 0" }}>
               <div style={{ display: "flex", gap: 6 }}>
                 {[0,1,2].map(i => (
-                  <span key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: C.cyan, display: "inline-block", animation: `aiDot 1.2s ease-in-out ${i*0.2}s infinite` }} />
+                  <span key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: DC.gold, display: "inline-block", animation: `aiDot 1.2s ease-in-out ${i*0.2}s infinite` }} />
                 ))}
               </div>
-              <div style={{ fontSize: 13, color: C.muted }}>{t("markets.analyzing", { symbol })}</div>
+              <div style={{ fontSize: 13, color: DC.muted }}>{t("markets.analyzing", { symbol })}</div>
             </div>
           ) : aiError ? (
-            <div style={{ background: C.red + "12", border: `1px solid ${C.red}33`, borderRadius: RADIUS.sm, padding: "12px 14px" }}>
-              <div style={{ fontSize: 13, color: C.red, fontWeight: 600, marginBottom: 4 }}>{t("markets.analysis_unavailable")}</div>
-              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
+            <div style={{ background: DC.ruby + "12", border: `1px solid ${DC.ruby}33`, borderRadius: RADIUS.sm, padding: "12px 14px" }}>
+              <div style={{ fontSize: 13, color: DC.ruby, fontWeight: 600, marginBottom: 4 }}>{t("markets.analysis_unavailable")}</div>
+              <div style={{ fontSize: 12, color: DC.muted, lineHeight: 1.5 }}>
                 {t("markets.analysis_unavailable_body")}
               </div>
             </div>
@@ -588,39 +593,42 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
             <>
               {ai.trend ? (
                 <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 11, color: C.cyan, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>{t("markets.trend_analysis")}</div>
-                  <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6 }}>{ai.trend}</div>
+                  {/* Trend/Risks/Market Note - per-semantic collapse to DC.gold,
+                      same as INSIGHT_CONFIG in Insights.jsx: each subsection
+                      already has its own label + icon, color is decorative. */}
+                  <div style={{ fontSize: 11, color: DC.gold, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>{t("markets.trend_analysis")}</div>
+                  <div style={{ fontSize: 13, color: DC.text, lineHeight: 1.6 }}>{ai.trend}</div>
                 </div>
               ) : null}
               {Array.isArray(ai.risks) && ai.risks.length > 0 && (
                 <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 11, color: C.yellow, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>{t("markets.key_risks")}</div>
+                  <div style={{ fontSize: 11, color: DC.gold, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>{t("markets.key_risks")}</div>
                   {ai.risks.map((r, i) => (
                     <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-                      <div style={{ width: 5, height: 5, borderRadius: "50%", background: C.yellow, marginTop: 5, flexShrink: 0 }} />
-                      <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>{String(r)}</div>
+                      <div style={{ width: 5, height: 5, borderRadius: "50%", background: DC.gold, marginTop: 5, flexShrink: 0 }} />
+                      <div style={{ fontSize: 13, color: DC.muted, lineHeight: 1.5 }}>{String(r)}</div>
                     </div>
                   ))}
                 </div>
               )}
               {ai.analystView ? (
                 <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 11, color: C.purple, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>{t("markets.market_note")}</div>
-                  <div style={{ fontSize: 13, color: C.text, lineHeight: 1.6 }}>{ai.analystView}</div>
+                  <div style={{ fontSize: 11, color: DC.gold, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>{t("markets.market_note")}</div>
+                  <div style={{ fontSize: 13, color: DC.text, lineHeight: 1.6 }}>{ai.analystView}</div>
                 </div>
               ) : null}
               {ai.disclaimer ? (
-                <div style={{ background: C.bgSecondary, borderRadius: RADIUS.sm, padding: "10px 12px", border: `1px solid ${C.border}` }}>
-                  <div style={{ fontSize: 11, color: C.faint, lineHeight: 1.6 }}>{ai.disclaimer}</div>
+                <div style={{ background: DC.bg, borderRadius: RADIUS.sm, padding: "10px 12px", border: `1px solid ${DC.faint}33` }}>
+                  <div style={{ fontSize: 11, color: DC.faint, lineHeight: 1.6 }}>{ai.disclaimer}</div>
                 </div>
               ) : null}
             </>
           ) : (
-            <div style={{ textAlign: "center", padding: "24px 0", color: C.faint, fontSize: 13 }}>
+            <div style={{ textAlign: "center", padding: "24px 0", color: DC.faint, fontSize: 13 }}>
               {t("markets.retry_analysis")}
               <div style={{ marginTop: 12 }}>
                 <button onClick={() => { aiCalledRef.current = false; runAiAnalysis(); }}
-                  style={{ background: C.cyan + "18", border: `1px solid ${C.cyan}44`, borderRadius: RADIUS.sm, padding: "8px 20px", color: C.cyan, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+                  style={{ background: DC.gold + "18", border: `1px solid ${DC.gold}44`, borderRadius: RADIUS.sm, padding: "8px 20px", color: DC.gold, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
                   {t("markets.analyze", { symbol })}
                 </button>
               </div>
@@ -633,14 +641,14 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
       {tab === "buy" && (
         <>
           {!alpacaConnected ? (
-            <GlassCard style={{ marginBottom: 12, textAlign: "center", padding: "28px 20px" }}>
-              <div style={{ width: 52, height: 52, borderRadius: RADIUS.md, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-                <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <GlassCard style={{ marginBottom: 12, textAlign: "center", padding: "28px 20px", background: DC.card, border: `1px solid ${DC.faint}33` }}>
+              <div style={{ width: 52, height: 52, borderRadius: RADIUS.md, background: DC.gold + "18", border: `1px solid ${DC.gold}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+                <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={DC.gold} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" />
                 </svg>
               </div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 6 }}>{t("markets.connect_alpaca_title")}</div>
-              <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 20 }}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: DC.text, marginBottom: 6 }}>{t("markets.connect_alpaca_title")}</div>
+              <div style={{ fontSize: 13, color: DC.muted, lineHeight: 1.6, marginBottom: 20 }}>
                 {t("markets.connect_alpaca_body")}
               </div>
               <div style={{ background: C.alpacaAccent + "12", border: `1px solid ${C.alpacaAccent}59`, borderRadius: RADIUS.sm, padding: "14px 16px", marginBottom: 16, textAlign: "left" }}>
@@ -654,42 +662,42 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
               </div>
               <button
                 onClick={onConnectAlpaca}
-                style={{ width: "100%", padding: "14px 0", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.sm, color: "#000", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, marginBottom: 10 }}
+                style={{ width: "100%", padding: "14px 0", background: DC.gold, border: "none", borderRadius: RADIUS.sm, color: DC.bg, fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: FONT, marginBottom: 10 }}
               >
                 {t("markets.connect_alpaca_btn")}
               </button>
-              <div style={{ fontSize: 11, color: C.faint, lineHeight: 1.6 }}>
+              <div style={{ fontSize: 11, color: DC.faint, lineHeight: 1.6 }}>
                 {t("markets.alpaca_tagline")}
               </div>
             </GlassCard>
           ) : (
-          <GlassCard style={{ marginBottom: 12 }}>
+          <GlassCard style={{ marginBottom: 12, background: DC.card, border: `1px solid ${DC.faint}33` }}>
             <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16 }}>{t("markets.buy_title", { label: meta.label || symbol })}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
-              <div style={{ background: C.bgSecondary, borderRadius: RADIUS.sm, padding: "10px 12px" }}>
-                <div style={{ fontSize: 10, color: C.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.current_price")}</div>
+              <div style={{ background: DC.bg, borderRadius: RADIUS.sm, padding: "10px 12px" }}>
+                <div style={{ fontSize: 10, color: DC.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.current_price")}</div>
                 <div style={{ fontSize: 15, fontWeight: 700 }}>{fmtPrice(stats?.price, meta.isCrypto)}</div>
               </div>
-              <div style={{ background: C.bgSecondary, borderRadius: RADIUS.sm, padding: "10px 12px" }}>
-                <div style={{ fontSize: 10, color: C.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.est_shares")}</div>
+              <div style={{ background: DC.bg, borderRadius: RADIUS.sm, padding: "10px 12px" }}>
+                <div style={{ fontSize: 10, color: DC.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.est_shares")}</div>
                 <div style={{ fontSize: 15, fontWeight: 700 }}>
                   {stats?.price && buyAmt ? (Number(buyAmt) / stats.price).toFixed(4) : "—"}
                 </div>
               </div>
             </div>
 
-            <div style={{ color: C.muted, fontSize: 12, fontWeight: 500, marginBottom: 6 }}>{t("markets.amount_usd")}</div>
+            <div style={{ color: DC.muted, fontSize: 12, fontWeight: 500, marginBottom: 6 }}>{t("markets.amount_usd")}</div>
             <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
               <input
                 type="number" value={buyAmt}
                 onChange={e => setBuyAmt(e.target.value)}
-                style={{ flex: 1, padding: "13px 14px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 16, fontFamily: FONT }}
+                style={{ flex: 1, padding: "13px 14px", background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, color: DC.text, fontSize: 16, fontFamily: FONT }}
                 placeholder="100"
               />
             </div>
             {["25","50","100","250"].map(amt => (
               <button key={amt} onClick={() => setBuyAmt(amt)}
-                style={{ marginRight: 8, marginBottom: 14, padding: "5px 12px", background: buyAmt === amt ? meta.color + "22" : C.bgSecondary, border: `1px solid ${buyAmt === amt ? meta.color + "55" : C.border}`, borderRadius: RADIUS.full, color: buyAmt === amt ? meta.color : C.muted, fontSize: 12, fontWeight: buyAmt === amt ? 700 : 400, cursor: "pointer", fontFamily: FONT }}>
+                style={{ marginRight: 8, marginBottom: 14, padding: "5px 12px", background: buyAmt === amt ? meta.color + "22" : DC.bg, border: `1px solid ${buyAmt === amt ? meta.color + "55" : `${DC.faint}33`}`, borderRadius: RADIUS.full, color: buyAmt === amt ? meta.color : DC.muted, fontSize: 12, fontWeight: buyAmt === amt ? 700 : 400, cursor: "pointer", fontFamily: FONT }}>
                 ${amt}
               </button>
             ))}
@@ -703,34 +711,34 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
               onClick={(!isPro || isTrial) ? onUpgrade : handleBuy}
               disabled={buying}
               style={{ width: "100%", padding: 15, border: "none", borderRadius: RADIUS.sm, fontWeight: 700, fontSize: 15, fontFamily: FONT, cursor: buying ? "not-allowed" : "pointer",
-                background: buying ? C.bgTertiary : (!isPro || isTrial) ? `linear-gradient(135deg,${C.proAccent},#38B6FF)` : `linear-gradient(90deg,${meta.color},${meta.color}BB)`,
-                color: buying ? C.faint : "#fff" }}>
+                background: buying ? DC.card : (!isPro || isTrial) ? `linear-gradient(135deg,${C.proAccent},#38B6FF)` : `linear-gradient(90deg,${meta.color},${meta.color}BB)`,
+                color: buying ? DC.faint : "#fff" }}>
               {buying ? t("markets.placing_order") : (!isPro || isTrial) ? (showRealUpgrade ? t("markets.upgrade_pro") : t("markets.pro_feature")) : t("markets.buy_btn", { amount: buyAmt || "—", symbol })}
             </button>
 
             {buyResult && (
               (buyResult.notConnected || buyResult.noFunds) ? (
-                <div style={{ marginTop: 14, padding: "18px 16px", background: C.bgSecondary, border: `1px solid ${C.border}`, borderRadius: RADIUS.md, textAlign: "center" }}>
-                  <div style={{ width: 40, height: 40, borderRadius: RADIUS.sm, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
-                    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={C.cyan} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <div style={{ marginTop: 14, padding: "18px 16px", background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.md, textAlign: "center" }}>
+                  <div style={{ width: 40, height: 40, borderRadius: RADIUS.sm, background: DC.gold + "18", border: `1px solid ${DC.gold}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
+                    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={DC.gold} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" />
                     </svg>
                   </div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 4 }}>{t("markets.connect_to_invest")}</div>
-                  <div style={{ fontSize: 13, color: C.muted, marginBottom: 14, lineHeight: 1.5 }}>{t("markets.create_alpaca")}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: DC.text, marginBottom: 4 }}>{t("markets.connect_to_invest")}</div>
+                  <div style={{ fontSize: 13, color: DC.muted, marginBottom: 14, lineHeight: 1.5 }}>{t("markets.create_alpaca")}</div>
                   <a
                     href="https://app.alpaca.markets"
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ display: "inline-block", padding: "11px 28px", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, borderRadius: RADIUS.sm, color: "#000", fontWeight: 700, fontSize: 14, textDecoration: "none", fontFamily: FONT }}
+                    style={{ display: "inline-block", padding: "11px 28px", background: DC.gold, borderRadius: RADIUS.sm, color: DC.bg, fontWeight: 700, fontSize: 14, textDecoration: "none", fontFamily: FONT }}
                   >
                     {t("markets.open_alpaca")}
                   </a>
-                  <div style={{ fontSize: 11, color: C.faint, marginTop: 10 }}>{t("markets.after_alpaca")}</div>
+                  <div style={{ fontSize: 11, color: DC.faint, marginTop: 10 }}>{t("markets.after_alpaca")}</div>
                 </div>
               ) : (
-                <div style={{ marginTop: 12, padding: "10px 14px", background: buyResult.success ? C.green + "12" : C.red + "12", border: `1px solid ${buyResult.success ? C.green : C.red}33`, borderRadius: RADIUS.sm }}>
-                  <div style={{ fontSize: 13, color: buyResult.success ? C.green : C.red, fontWeight: 600 }}>
+                <div style={{ marginTop: 12, padding: "10px 14px", background: buyResult.success ? DC.emerald + "12" : DC.ruby + "12", border: `1px solid ${buyResult.success ? DC.emerald : DC.ruby}33`, borderRadius: RADIUS.sm }}>
+                  <div style={{ fontSize: 13, color: buyResult.success ? DC.emerald : DC.ruby, fontWeight: 600 }}>
                     {buyResult.success ? "✓ " + buyResult.message : "✗ " + t("markets.order_failed")}
                   </div>
                 </div>
@@ -741,7 +749,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
 
           {alpacaConnected && (
           <div style={{ padding: "0 2px" }}>
-            <div style={{ fontSize: 10, color: C.faint, lineHeight: 1.7 }}>
+            <div style={{ fontSize: 10, color: DC.faint, lineHeight: 1.7 }}>
               {t("markets.investment_disclaimer")}
             </div>
           </div>
@@ -936,16 +944,16 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>{t("markets.title")}</h2>
         <button onClick={() => { setEditMode(e => !e); setDragList([...watchlist]); }}
-          style={{ padding: "6px 14px", background: editMode ? C.cyan + "22" : C.bgSecondary, border: `1px solid ${editMode ? C.cyan + "55" : C.border}`, borderRadius: RADIUS.sm, color: editMode ? C.cyan : C.muted, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+          style={{ padding: "6px 14px", background: editMode ? DC.gold + "22" : DC.card, border: `1px solid ${editMode ? DC.gold + "55" : `${DC.faint}33`}`, borderRadius: RADIUS.sm, color: editMode ? DC.gold : DC.muted, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
           {editMode ? t("markets.done") : t("markets.edit")}
         </button>
       </div>
 
       {/* ── WATCHLIST ──────────────────────────────────────── */}
-      <GlassCard style={{ padding: "14px 16px" }}>
+      <GlassCard style={{ padding: "14px 16px", background: DC.card, border: `1px solid ${DC.faint}33` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <span style={{ fontWeight: 600, fontSize: 14 }}>{t("markets.watchlist")}</span>
-          <span style={{ fontSize: 11, color: C.faint }}>{watchlist.length}/{MAX_WATCHLIST}</span>
+          <span style={{ fontSize: 11, color: DC.faint }}>{watchlist.length}/{MAX_WATCHLIST}</span>
         </div>
 
         {editMode ? (
@@ -956,24 +964,24 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
               style={{ touchAction: "none" }}
             >
               {dragList.map((sym, idx) => {
-                const meta = MARKET_META[sym] ?? { label: sym, color: C.cyan, icon: "activity" };
+                const meta = MARKET_META[sym] ?? { label: sym, color: DC.gold, icon: "activity" };
                 return (
                   <div key={sym}
-                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: idx < dragList.length - 1 ? `1px solid ${C.sep}` : "none", userSelect: "none", opacity: dragging?.idx === idx ? 0.5 : 1 }}>
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: idx < dragList.length - 1 ? `1px solid ${DC.faint}22` : "none", userSelect: "none", opacity: dragging?.idx === idx ? 0.5 : 1 }}>
                     <div
                       onMouseDown={e => onDragStart(e, idx)}
                       onTouchStart={e => onDragStart(e, idx)}
-                      style={{ cursor: "grab", padding: "4px 6px", color: C.faint, fontSize: 14 }}>⋮⋮</div>
+                      style={{ cursor: "grab", padding: "4px 6px", color: DC.faint, fontSize: 14 }}>⋮⋮</div>
                     <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       <Icon name={meta.icon} size={13} color={meta.color} />
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600, fontSize: 13 }}>{meta.label || sym}</div>
-                      <div style={{ fontSize: 11, color: C.faint }}>{sym}</div>
+                      <div style={{ fontSize: 11, color: DC.faint }}>{sym}</div>
                     </div>
                     <button onClick={() => removeFromWatchlist(sym)}
-                      style={{ background: C.red + "18", border: `1px solid ${C.red}33`, borderRadius: RADIUS.xs, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                      <Icon name="x" size={12} color={C.red} />
+                      style={{ background: DC.ruby + "18", border: `1px solid ${DC.ruby}33`, borderRadius: RADIUS.xs, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                      <Icon name="x" size={12} color={DC.ruby} />
                     </button>
                   </div>
                 );
@@ -983,23 +991,23 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
             {watchlist.length < MAX_WATCHLIST && (
               <div style={{ marginTop: 14 }}>
                 <div style={{ position: "relative" }}>
-                  <Icon name="search" size={14} color={C.faint} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
+                  <Icon name="search" size={14} color={DC.faint} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
                   <input
                     value={addQuery}
                     onChange={e => onAddQueryChange(e.target.value)}
                     placeholder={t("markets.search_ticker")}
-                    style={{ width: "100%", padding: "10px 12px 10px 34px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 13, boxSizing: "border-box", fontFamily: FONT }}
+                    style={{ width: "100%", padding: "10px 12px 10px 34px", background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, color: DC.text, fontSize: 13, boxSizing: "border-box", fontFamily: FONT }}
                   />
                 </div>
-                {searchingAdd && <div style={{ color: C.faint, fontSize: 12, marginTop: 8 }}>{t("markets.searching")}</div>}
+                {searchingAdd && <div style={{ color: DC.faint, fontSize: 12, marginTop: 8 }}>{t("markets.searching")}</div>}
                 {addResults.map(r => (
                   <div key={r.symbol} onClick={() => addToWatchlist(r.symbol)}
-                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.sep}`, cursor: "pointer" }}>
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${DC.faint}22`, cursor: "pointer" }}>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 13 }}>{r.symbol}</div>
-                      <div style={{ fontSize: 11, color: C.faint }}>{r.description}</div>
+                      <div style={{ fontSize: 11, color: DC.faint }}>{r.description}</div>
                     </div>
-                    <div style={{ background: C.green + "18", border: `1px solid ${C.green}33`, borderRadius: RADIUS.xs, padding: "3px 10px", fontSize: 12, color: C.green, fontWeight: 600 }}>
+                    <div style={{ background: DC.emerald + "18", border: `1px solid ${DC.emerald}33`, borderRadius: RADIUS.xs, padding: "3px 10px", fontSize: 12, color: DC.emerald, fontWeight: 600 }}>
                       {watchlist.includes(r.symbol) ? t("markets.added") : t("markets.add")}
                     </div>
                   </div>
@@ -1010,25 +1018,25 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
         ) : (
           <div>
             {watchlist.map((sym, i) => {
-              const meta = MARKET_META[sym] ?? { label: sym, color: C.cyan, icon: "activity", isCrypto: false };
+              const meta = MARKET_META[sym] ?? { label: sym, color: DC.gold, icon: "activity", isCrypto: false };
               const q    = quotes[sym];
               const pos  = (q?.changePct ?? 0) >= 0;
               return (
                 <div key={sym} onClick={() => setSelectedSymbol(sym)}
-                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${C.sep}` : "none", cursor: "pointer" }}>
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${DC.faint}22` : "none", cursor: "pointer" }}>
                   <StockLogo symbol={sym} color={meta.color} icon={meta.icon} size={32} borderRadius={9} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{sym}</div>
-                    <div style={{ fontSize: 11, color: C.faint }}>{meta.label || sym}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{sym}</div>
+                    <div style={{ fontSize: 11, color: DC.faint }}>{meta.label || sym}</div>
                   </div>
                   {loadingQuotes ? (
-                    <div style={{ height: 20, width: 70, background: C.border, borderRadius: RADIUS.xs }} />
+                    <div style={{ height: 20, width: 70, background: `${DC.faint}33`, borderRadius: RADIUS.xs }} />
                   ) : (
                     <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmtPrice(q?.price, meta.isCrypto)}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{fmtPrice(q?.price, meta.isCrypto)}</div>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end", marginTop: 2 }}>
-                        <Icon name={pos ? "trending-up" : "trending-down"} size={10} color={pos ? C.green : C.red} strokeWidth={2.5} />
-                        <span style={{ fontSize: 11, fontWeight: 600, color: pos ? C.green : C.red }}>{fmtPct(q?.changePct)}</span>
+                        <Icon name={pos ? "trending-up" : "trending-down"} size={10} color={pos ? DC.emerald : DC.ruby} strokeWidth={2.5} />
+                        <span style={{ fontSize: 11, fontWeight: 600, color: pos ? DC.emerald : DC.ruby }}>{fmtPct(q?.changePct)}</span>
                       </div>
                     </div>
                   )}
@@ -1041,79 +1049,79 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
 
       {/* ── PORTFOLIO / CONNECT ────────────────────────────── */}
       {alpacaConnected ? (
-        <GlassCard>
+        <GlassCard style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12 }}>{t("markets.portfolio_title")}</div>
           {loadingPortfolio ? (
-            <div style={{ color: C.faint, fontSize: 13, textAlign: "center", padding: "12px 0" }}>{t("markets.loading_portfolio")}</div>
+            <div style={{ color: DC.faint, fontSize: 13, textAlign: "center", padding: "12px 0" }}>{t("markets.loading_portfolio")}</div>
           ) : portfolio ? (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-                <div style={{ background: C.bgSecondary, borderRadius: RADIUS.sm, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 10, color: C.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.portfolio_value")}</div>
-                  <div className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: C.text }}>{fmtPrice(portfolio.portfolio_value)}</div>
+                <div style={{ background: DC.bg, borderRadius: RADIUS.sm, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 10, color: DC.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.portfolio_value")}</div>
+                  <div className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.text }}>{fmtPrice(portfolio.portfolio_value)}</div>
                 </div>
-                <div style={{ background: C.bgSecondary, borderRadius: RADIUS.sm, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 10, color: C.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.buying_power")}</div>
-                  <div className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: C.cyan }}>{fmtPrice(portfolio.buying_power)}</div>
+                <div style={{ background: DC.bg, borderRadius: RADIUS.sm, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 10, color: DC.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.buying_power")}</div>
+                  <div className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.gold }}>{fmtPrice(portfolio.buying_power)}</div>
                 </div>
               </div>
               {portfolio.positions.length > 0 ? (
                 <>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: C.faint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>{t("markets.holdings")}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: DC.faint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>{t("markets.holdings")}</div>
                   {portfolio.positions.map((p, i) => {
                     const pl  = p.unrealized_pl;
                     const pos = pl >= 0;
                     const meta = MARKET_META[p.symbol] ?? {};
                     return (
                       <div key={p.symbol} onClick={() => setSelectedSymbol(p.symbol)}
-                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${C.sep}` : "none", cursor: "pointer" }}>
-                        <StockLogo symbol={p.symbol} color={meta.color ?? C.cyan} icon={meta.icon ?? "activity"} size={32} borderRadius={9} />
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${DC.faint}22` : "none", cursor: "pointer" }}>
+                        <StockLogo symbol={p.symbol} color={meta.color ?? DC.gold} icon={meta.icon ?? "activity"} size={32} borderRadius={9} />
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{p.symbol}</div>
-                          <div style={{ fontSize: 11, color: C.faint }}>{t("markets.qty_shares", { qty: p.qty.toFixed(4) })}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{p.symbol}</div>
+                          <div style={{ fontSize: 11, color: DC.faint }}>{t("markets.qty_shares", { qty: p.qty.toFixed(4) })}</div>
                         </div>
                         <div style={{ textAlign: "right" }}>
-                          <div className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmtPrice(p.market_value)}</div>
-                          <div className="ph-mask" style={{ fontSize: 11, fontWeight: 600, color: pos ? C.green : C.red }}>{pos ? "+" : "-"}{fmtPrice(Math.abs(pl))}</div>
+                          <div className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{fmtPrice(p.market_value)}</div>
+                          <div className="ph-mask" style={{ fontSize: 11, fontWeight: 600, color: pos ? DC.emerald : DC.ruby }}>{pos ? "+" : "-"}{fmtPrice(Math.abs(pl))}</div>
                         </div>
                       </div>
                     );
                   })}
                 </>
               ) : (
-                <div style={{ fontSize: 13, color: C.faint, textAlign: "center", padding: "8px 0" }}>{t("markets.no_holdings")}</div>
+                <div style={{ fontSize: 13, color: DC.faint, textAlign: "center", padding: "8px 0" }}>{t("markets.no_holdings")}</div>
               )}
             </>
           ) : null}
         </GlassCard>
       ) : (
-        <GlassCard style={{ textAlign: "center", padding: "24px 20px" }}>
-          <div style={{ width: 44, height: 44, borderRadius: RADIUS.md, background: C.cyan + "18", border: `1px solid ${C.cyan}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
-            <Icon name="trending-up" size={18} color={C.cyan} />
+        <GlassCard style={{ textAlign: "center", padding: "24px 20px", background: DC.card, border: `1px solid ${DC.faint}33` }}>
+          <div style={{ width: 44, height: 44, borderRadius: RADIUS.md, background: DC.gold + "18", border: `1px solid ${DC.gold}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+            <Icon name="trending-up" size={18} color={DC.gold} />
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>{t("markets.connect_alpaca_title")}</div>
-          <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>{t("markets.connect_alpaca_body")}</div>
-          <button onClick={onConnectAlpaca} style={{ width: "100%", padding: "12px 0", background: `linear-gradient(90deg,${C.cyan},${C.blue})`, border: "none", borderRadius: RADIUS.sm, color: "#000", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: DC.text, marginBottom: 6 }}>{t("markets.connect_alpaca_title")}</div>
+          <div style={{ fontSize: 13, color: DC.muted, lineHeight: 1.6, marginBottom: 16 }}>{t("markets.connect_alpaca_body")}</div>
+          <button onClick={onConnectAlpaca} style={{ width: "100%", padding: "12px 0", background: DC.gold, border: "none", borderRadius: RADIUS.sm, color: DC.bg, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
             {t("markets.connect_alpaca_btn")}
           </button>
         </GlassCard>
       )}
 
       {/* ── EXPLORE ────────────────────────────────────────── */}
-      <GlassCard>
+      <GlassCard style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
         <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12 }}>{t("markets.explore_stocks")}</div>
         <div style={{ position: "relative", marginBottom: 12 }}>
           <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-            <Icon name="search" size={14} color={C.faint} />
+            <Icon name="search" size={14} color={DC.faint} />
           </div>
           <input
             value={exploreQuery}
             onChange={e => onExploreChange(e.target.value)}
             placeholder={t("markets.search_stock")}
-            style={{ width: "100%", padding: "11px 12px 11px 34px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, color: C.text, fontSize: 14, boxSizing: "border-box", fontFamily: FONT }}
+            style={{ width: "100%", padding: "11px 12px 11px 34px", background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, color: DC.text, fontSize: 14, boxSizing: "border-box", fontFamily: FONT }}
           />
         </div>
-        {searchingExplore && <div style={{ color: C.faint, fontSize: 12, textAlign: "center", padding: "8px 0" }}>{t("markets.searching")}</div>}
+        {searchingExplore && <div style={{ color: DC.faint, fontSize: 12, textAlign: "center", padding: "8px 0" }}>{t("markets.searching")}</div>}
         {!searchingExplore && exploreNonUS && (
           <div style={{ fontSize: 12, color: C.nonUsTickerWarning, padding: "8px 12px", background: C.nonUsTickerWarning + "14", border: `1px solid ${C.nonUsTickerWarning}40`, borderRadius: RADIUS.sm, marginBottom: 8 }}>
             {t("markets.us_only")}
@@ -1123,14 +1131,14 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
           <div style={{ display: "flex", flexDirection: "column" }}>
             {exploreResults.map((r, i) => (
               <div key={r.symbol} onClick={() => setSelectedSymbol(r.symbol)}
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: i < exploreResults.length - 1 ? `1px solid ${C.sep}` : "none", cursor: "pointer" }}>
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: i < exploreResults.length - 1 ? `1px solid ${DC.faint}22` : "none", cursor: "pointer" }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{r.symbol}</div>
-                  <div style={{ fontSize: 12, color: C.faint, marginTop: 1 }}>{r.description}</div>
+                  <div style={{ fontSize: 12, color: DC.faint, marginTop: 1 }}>{r.description}</div>
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <span style={{ fontSize: 11, color: C.faint, background: C.bgSecondary, borderRadius: RADIUS.xs, padding: "2px 7px" }}>{r.type}</span>
-                  <Icon name="chevron" size={14} color={C.faint} />
+                  <span style={{ fontSize: 11, color: DC.faint, background: DC.bg, borderRadius: RADIUS.xs, padding: "2px 7px" }}>{r.type}</span>
+                  <Icon name="chevron" size={14} color={DC.faint} />
                 </div>
               </div>
             ))}
@@ -1138,24 +1146,24 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
         ) : !exploreQuery && (
           <>
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.faint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>{t("markets.trending_today")}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: DC.faint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>{t("markets.trending_today")}</div>
               {TRENDING.map((t, i) => {
                 const q = extraQuotes[t.symbol];
                 const pos = (q?.changePct ?? 0) >= 0;
                 return (
                   <div key={t.symbol} onClick={() => setSelectedSymbol(t.symbol)}
-                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 6px", borderBottom: i < TRENDING.length - 1 ? `1px solid ${C.sep}` : "none", cursor: "pointer" }}>
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 6px", borderBottom: i < TRENDING.length - 1 ? `1px solid ${DC.faint}22` : "none", cursor: "pointer" }}>
                     <StockLogo symbol={t.symbol} color={t.color} size={36} borderRadius={10} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cleanCompanyName(t.name)}</div>
-                      <div style={{ fontSize: 11, color: C.faint }}>{t.symbol}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: DC.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{cleanCompanyName(t.name)}</div>
+                      <div style={{ fontSize: 11, color: DC.faint }}>{t.symbol}</div>
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
                       {loadingExtra
-                        ? <div style={{ width: 48, height: 12, background: C.border, borderRadius: RADIUS.xs }} />
+                        ? <div style={{ width: 48, height: 12, background: `${DC.faint}33`, borderRadius: RADIUS.xs }} />
                         : <>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmtPrice(q?.price)}</div>
-                            <div style={{ fontSize: 11, fontWeight: 600, color: pos ? C.green : C.red }}>{fmtPct(q?.changePct)}</div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{fmtPrice(q?.price)}</div>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: pos ? DC.emerald : DC.ruby }}>{fmtPct(q?.changePct)}</div>
                           </>
                       }
                     </div>
@@ -1165,7 +1173,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
             </div>
 
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.faint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>{t("markets.sectors")}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: DC.faint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>{t("markets.sectors")}</div>
               <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 6, scrollbarWidth: "none", msOverflowStyle: "none" }}>
                 {SECTORS.map(sector => {
                   const q = extraQuotes[sector.etf];
@@ -1175,12 +1183,12 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
                   return (
                     <button key={sector.name} onClick={() => toggleSector(sector)} style={{
                       flexShrink: 0, minWidth: 80, padding: "8px 12px", borderRadius: RADIUS.sm, textAlign: "left",
-                      background: active ? sector.color + "18" : C.bgTertiary,
-                      border: `1px solid ${active ? sector.color + "55" : C.border}`,
+                      background: active ? sector.color + "18" : DC.bg,
+                      border: `1px solid ${active ? sector.color + "55" : `${DC.faint}33`}`,
                       cursor: "pointer", fontFamily: FONT,
                     }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: active ? sector.color : C.text, marginBottom: 3 }}>{sector.name}</div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: loadingExtra ? C.faint : pos ? C.green : C.red }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: active ? sector.color : DC.text, marginBottom: 3 }}>{sector.name}</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: loadingExtra ? DC.faint : pos ? DC.emerald : DC.ruby }}>
                         {loadingExtra ? "—" : fmtPct(pct)}
                       </div>
                     </button>
@@ -1189,24 +1197,24 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
               </div>
 
               {activeSector && (
-                <div style={{ marginTop: 10, borderRadius: RADIUS.sm, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+                <div style={{ marginTop: 10, borderRadius: RADIUS.sm, border: `1px solid ${DC.faint}33`, overflow: "hidden" }}>
                   {loadingSectorStocks
-                    ? <div style={{ padding: "12px 14px", color: C.faint, fontSize: 12 }}>{t("markets.loading")}</div>
+                    ? <div style={{ padding: "12px 14px", color: DC.faint, fontSize: 12 }}>{t("markets.loading")}</div>
                     : activeSector.stocks.map((sym, i) => {
                         const q = extraQuotes[sym];
                         const pos = (q?.changePct ?? 0) >= 0;
                         return (
                           <div key={sym} onClick={() => setSelectedSymbol(sym)}
-                            style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", borderTop: i > 0 ? `1px solid ${C.sep}` : "none", background: C.bgTertiary }}>
+                            style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", borderTop: i > 0 ? `1px solid ${DC.faint}22` : "none", background: DC.bg }}>
                             <StockLogo symbol={sym} color={activeSector.color} size={28} borderRadius={8} />
                             <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{sym}</div>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: DC.text }}>{sym}</div>
                             </div>
                             <div style={{ textAlign: "right" }}>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{fmtPrice(q?.price)}</div>
-                              <div style={{ fontSize: 11, fontWeight: 600, color: pos ? C.green : C.red }}>{fmtPct(q?.changePct)}</div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{fmtPrice(q?.price)}</div>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: pos ? DC.emerald : DC.ruby }}>{fmtPct(q?.changePct)}</div>
                             </div>
-                            <Icon name="chevron" size={12} color={C.faint} />
+                            <Icon name="chevron" size={12} color={DC.faint} />
                           </div>
                         );
                       })
@@ -1219,7 +1227,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
       </GlassCard>
 
       <div style={{ padding: "4px 2px" }}>
-        <div style={{ fontSize: 10, color: C.faint, lineHeight: 1.7 }}>
+        <div style={{ fontSize: 10, color: DC.faint, lineHeight: 1.7 }}>
           {t("markets.investment_disclaimer")}
         </div>
       </div>
