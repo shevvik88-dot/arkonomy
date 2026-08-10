@@ -415,7 +415,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
         </div>
         {[
           { key: "overspendAlerts",  icon: "bell",         color: DC.gold,    title: t("profile.overspend_alerts"),   sub: t("profile.overspend_alerts_sub") },
-          { key: "largeTxAlerts",   icon: "alert-circle", color: DC.ruby,    title: t("profile.large_tx_alerts"),    sub: t("profile.large_tx_alerts_sub", { threshold: autopilot.largeTxThreshold }) },
+          { key: "largeTxAlerts",   icon: "alert-circle", color: DC.ruby,    title: t("profile.large_tx_alerts"),    sub: t("profile.autopilot_large_tx_alerts_sub", { threshold: autopilot.largeTxThreshold }) },
           { key: "lowBalanceAlerts",icon: "dollar",       color: DC.emerald, title: t("profile.low_balance_alerts"), sub: t("profile.low_balance_alerts_sub", { threshold: autopilot.lowBalanceThreshold }) },
           { key: "unusualSpending", icon: "activity",     color: DC.gold,    title: t("profile.unusual_spending"),   sub: t("profile.unusual_spending_sub") },
         ].map((rule, i) => (
