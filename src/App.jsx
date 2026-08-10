@@ -1362,6 +1362,13 @@ export default function App() {
     } else if (action === "view_progress") {
       setScreen("insights");
     } else if (action === "view_debt") {
+      // Dashboard's own CoachBlock intercepts this locally (scroll-to-card,
+      // see Dashboard.jsx) before it ever reaches here — this fallback only
+      // fires when the same debt_utilization insight surfaces via
+      // Insights.jsx's InsightCardGroup instead (allInsights, unfiltered by
+      // SCREEN_PREFERENCES, so debt_utilization can appear there too). No
+      // scroll target exists on that screen, so just navigate to Dashboard,
+      // where the Credit Cards card is visible.
       setScreen("dashboard");
     } else if (action === "invest_alpaca") {
       investAlpaca(data); setScreen("savings");

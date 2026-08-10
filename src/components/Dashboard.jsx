@@ -1171,6 +1171,22 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   const balanceFetchIdRef = useRef(0);
   const m = (n, dec = 0) => balanceVisible ? `$${fmt(n, dec)}` : "••••";
 
+  // Coach block's "Review Credit Cards" CTA (action:'view_debt') scrolls to
+  // the Credit Cards card already rendered below on this same screen —
+  // debt_utilization insights only ever surface on the home screen
+  // preference (get-insights SCREEN_PREFERENCES.home), so this card is
+  // guaranteed to be present when the CTA is clickable. A brief highlight
+  // flash is added on top of the plain scroll, since scrollIntoView is a
+  // silent no-op when the card is already fully in view — without it, the
+  // button could still look broken on taller viewports.
+  const creditCardsRef = useRef(null);
+  const [creditCardsHighlight, setCreditCardsHighlight] = useState(false);
+  function scrollToCreditCards() {
+    creditCardsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setCreditCardsHighlight(true);
+    setTimeout(() => setCreditCardsHighlight(false), 1600);
+  }
+
   // One-time tip, localStorage only (pure UI nicety, not worth a profile
   // column/migration) — shown once, dismissed either by the × or by the
   // first successful long-press itself (see handleCardLongPress).
@@ -1373,7 +1389,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       )}
 
       {/* 1 ── Coach block (highest-priority insight, moved to top) */}
-      <CoachBlock insight={insight?.type === 'savings_opportunity' && balance <= 0 ? null : insight} onAction={onInsightAction} onAskCoach={headline => handleCardLongPress('coach', { headline })} />
+      <CoachBlock insight={insight?.type === 'savings_opportunity' && balance <= 0 ? null : insight} onAction={(action, data) => action === 'view_debt' ? scrollToCreditCards() : onInsightAction(action, data)} onAskCoach={headline => handleCardLongPress('coach', { headline })} />
 
       {/* 2 ── Calendar week (compact by default, "View full month" reveals the unchanged full grid + Level 2 sheet) */}
       <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} scheduledPayments={scheduledPayments} onAddScheduledPayment={onAddScheduledPayment} onCancelScheduledPayment={onCancelScheduledPayment} accountBalance={accountBalance} bankConnected={bankConnected} onNavigate={onNavigate} compactWeek />
@@ -1470,7 +1486,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           const pct = creditUtilization(only);
           const color = utilColorDC(pct);
           return (
-            <div {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none" }}>
+            <div ref={creditCardsRef} {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", outline: creditCardsHighlight ? `2px solid ${DC.gold}` : "2px solid transparent", outlineOffset: 2, transition: "outline-color 0.3s" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 14, fontWeight: 700, color: DC.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{only.name || only.official_name || t("dashboard.credit_cards_title")}</span>
                 <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.text }}>{m(Number(only.balance_current ?? 0))}</span>
@@ -1487,7 +1503,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         }
 
         return (
-          <div {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none" }}>
+          <div ref={creditCardsRef} {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", outline: creditCardsHighlight ? `2px solid ${DC.gold}` : "2px solid transparent", outlineOffset: 2, transition: "outline-color 0.3s" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
               <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
                 {t("dashboard.credit_cards_title")}
