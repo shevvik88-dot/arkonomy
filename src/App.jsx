@@ -1907,20 +1907,6 @@ export default function App() {
           <div
             ref={chatContainerRef}
             onClick={e => e.stopPropagation()}
-            onTouchStart={e => {
-              chatDragStart.current  = e.touches[0].clientY;
-              chatDragStartX.current = e.touches[0].clientX;
-              chatDragging.current   = true;
-            }}
-            onTouchEnd={() => {
-              chatDragging.current = false;
-              if (chatDragY > 80) {
-                setChatDragY(window.innerHeight);
-                setTimeout(() => { setShowChat(false); setChatDragY(0); }, 280);
-              } else {
-                setChatDragY(0);
-              }
-            }}
             style={{
               width: "100%", maxWidth: 430,
               height: "88vh",
@@ -1936,8 +1922,31 @@ export default function App() {
               willChange: "transform",
             }}
           >
-            {/* Drag handle pill + header — no extra handlers needed, sheet captures all */}
-            <div style={{ flexShrink: 0, userSelect: "none" }}>
+            {/* Drag handle pill + header — swipe-to-dismiss is scoped to this
+                zone only (not the whole sheet, unlike before) so a drag
+                starting inside the scrollable message body below always
+                scrolls content instead of being hijacked as a close-gesture.
+                touchmove stays on chatContainerRef via the imperative
+                listener above — touch events bubble, so it still fires; it's
+                chatDragging.current (only set true by a touchstart here)
+                that now gates whether a given drag actually closes the sheet. */}
+            <div
+              onTouchStart={e => {
+                chatDragStart.current  = e.touches[0].clientY;
+                chatDragStartX.current = e.touches[0].clientX;
+                chatDragging.current   = true;
+              }}
+              onTouchEnd={() => {
+                chatDragging.current = false;
+                if (chatDragY > 80) {
+                  setChatDragY(window.innerHeight);
+                  setTimeout(() => { setShowChat(false); setChatDragY(0); }, 280);
+                } else {
+                  setChatDragY(0);
+                }
+              }}
+              style={{ flexShrink: 0, userSelect: "none" }}
+            >
               {/* Handle pill */}
               <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
                 <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: "rgba(255,255,255,0.18)" }} />
