@@ -116,6 +116,12 @@ async function callWithToolLoop(
     const body: any = {
       model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
+      // Was unset (API default 1.0) — high sampling variance let the model
+      // inconsistently follow the LANGUAGE section's default-language rule
+      // (same RU-app/EN-message prompt produced English on some calls,
+      // Russian on others). Lower temperature for more consistent
+      // instruction-following generally, not just for language.
+      temperature: 0.4,
       system: systemPrompt,
       messages: currentMessages,
     };
@@ -226,13 +232,21 @@ does not add a new restriction:
   the reply on the refusal alone.
 
 LANGUAGE:
-- Respond in USER'S APP LANGUAGE (below) by default — this is the user's
-  actual selected app language, a more reliable signal than message text
-  alone, since conversation history can carry earlier messages from before
-  a language switch.
-- Exception: if the user's MOST RECENT message is clearly written in a
-  different language than USER'S APP LANGUAGE, follow that message instead
-  — a deliberate switch by the user in the message itself wins.
+- Respond in USER'S APP LANGUAGE (below) — this is the default and the
+  primary source of truth for which language to reply in, more reliable
+  than guessing from message text alone (conversation history can carry
+  earlier messages from before a language switch).
+- Override ONLY when the user's MOST RECENT message is clearly and
+  entirely written in a specific, unambiguous language OTHER than English
+  that differs from USER'S APP LANGUAGE (e.g. Russian, Spanish, French) —
+  that is a strong, deliberate signal and wins.
+- A message written in English is NOT by itself a reason to override
+  USER'S APP LANGUAGE. Financial terms, tickers, and short phrases are
+  commonly typed in English regardless of the user's actual language, so
+  English text alone is not a reliable signal of a deliberate switch —
+  default to USER'S APP LANGUAGE for any English-language message.
+- Short, ambiguous, single-word, or numbers-only messages never trigger an
+  override either way — always follow USER'S APP LANGUAGE for those.
 - Never mix languages within one reply.
 
 RESPONSE FORMULA (follow in order, never label the sections):
@@ -431,6 +445,14 @@ TIME AWARENESS:
 
 ---
 AI CONTEXT — treat as ground truth. Use these numbers in every answer:
+
+RESPOND IN ${languageName}: describe the financial facts below to the user
+entirely in ${languageName} — the language requirement is part of the task
+itself, not a separate formatting note to lose track of while you focus on
+the numbers. The labels and data below are in English for your own reading;
+your reply must not be. Switch away from ${languageName} only if the user's
+own latest message is clearly and entirely written in a specific
+non-English language other than ${languageName} (per LANGUAGE above).
 
 USER'S APP LANGUAGE: ${languageName}
 TIMING: Day ${dayOfMonth} of ${daysInMonth} (${daysLeft} days left, ${monthPhase}-month)
