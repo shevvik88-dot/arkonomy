@@ -420,6 +420,10 @@ export default function App() {
   const chatDragStartX    = useRef(0);
   const chatDragging      = useRef(false);
   const chatContainerRef  = useRef(null);
+  // Card-longpress AI answer cache — see openChatWithMessage. Keyed by the
+  // exact generated question text, value { reply, ts }.
+  const cardAnswerCacheRef = useRef(new Map());
+  const CARD_ANSWER_CACHE_TTL_MS = 5 * 60 * 1000; // matches arkonomy_accounts_v2's 5min TTL convention
   const [headerHeight, setHeaderHeight] = useState(68);
   const headerRef = useRef(null);
   const [seenInsightCount, setSeenInsightCount] = useState(() => {
@@ -1480,7 +1484,19 @@ export default function App() {
     posthog?.capture('ai_chat_opened', { has_history: hasHistory, source: 'card_longpress' });
     setShowChat(true);
     markInsightsSeen();
-    sendChat(msg, base);
+
+    // Repeated long-press on the same card within the TTL reuses the last
+    // AI answer instead of re-billing an identical ai-chat call. Keyed by
+    // the exact generated question text (not cardKey) — if the card's
+    // underlying data actually changed since the last press, getCardQuestion
+    // produces different text, which naturally misses the cache instead of
+    // showing a stale answer.
+    const cached = cardAnswerCacheRef.current.get(msg);
+    if (cached && Date.now() - cached.ts < CARD_ANSWER_CACHE_TTL_MS) {
+      setChatMessages([...base, { role: "user", text: msg }, { role: "assistant", text: cached.reply }]);
+      return;
+    }
+    sendChat(msg, base, { cacheKey: msg });
   }
 
   function startNewChat() {
@@ -1489,7 +1505,7 @@ export default function App() {
     try { sessionStorage.setItem('arkonomy_chat_history', JSON.stringify(fresh)); } catch {}
   }
 
-  async function sendChat(input, baseMessages) {
+  async function sendChat(input, baseMessages, options) {
     if (!input.trim()) return;
     const userMsg = { role: "user", text: input };
     const updated = [...(baseMessages ?? chatMessages), userMsg];
@@ -1584,6 +1600,7 @@ export default function App() {
       const raw = res?.reply || "Sorry, something went wrong.";
       const reply = raw.replace(/^[\s.,!?;:]+/, '');
       setChatMessages(prev => prev.map(m => m.id === lid ? { role: "assistant", text: reply } : m));
+      if (options?.cacheKey) cardAnswerCacheRef.current.set(options.cacheKey, { reply, ts: Date.now() });
     } catch {
       setChatMessages(prev => prev.map(m => m.id === lid ? { role: "assistant", text: "Could not reach AI. Check your connection." } : m));
     }
