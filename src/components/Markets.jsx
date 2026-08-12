@@ -900,7 +900,11 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
     if (!q.trim()) { setAddResults([]); return; }
     addSearchTimer.current = setTimeout(async () => {
       setSearchingAdd(true);
-      const d = await callMarketData({ type: "search", query: q });
+      // Finnhub's search matches company names case-insensitively but
+      // ticker symbols exact-case (symbols are stored uppercase) — "aapl"
+      // wasn't finding Apple while "AAPL" did. Uppercase what we send, not
+      // the input field itself, so the user still sees what they typed.
+      const d = await callMarketData({ type: "search", query: q.trim().toUpperCase() });
       setAddResults(filterUSStocks(d.results));
       setSearchingAdd(false);
     }, 400);
@@ -913,7 +917,8 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
     if (!q.trim()) { setExploreResults([]); setExploreNonUS(false); return; }
     exploreTimer.current = setTimeout(async () => {
       setSearchingExplore(true);
-      const d = await callMarketData({ type: "search", query: q });
+      // Same case-normalization as onAddQueryChange above.
+      const d = await callMarketData({ type: "search", query: q.trim().toUpperCase() });
       const filtered = filterUSStocks(d.results);
       setExploreResults(filtered);
       setExploreNonUS(!filtered.length && (d.results ?? []).length > 0);
