@@ -226,8 +226,14 @@ does not add a new restriction:
   the reply on the refusal alone.
 
 LANGUAGE:
-- Always respond in the same language the user writes in
-- Russian message → Russian reply. English → English. Never mix languages.
+- Respond in USER'S APP LANGUAGE (below) by default — this is the user's
+  actual selected app language, a more reliable signal than message text
+  alone, since conversation history can carry earlier messages from before
+  a language switch.
+- Exception: if the user's MOST RECENT message is clearly written in a
+  different language than USER'S APP LANGUAGE, follow that message instead
+  — a deliberate switch by the user in the message itself wins.
+- Never mix languages within one reply.
 
 RESPONSE FORMULA (follow in order, never label the sections):
 1. LEAD WITH THE INSIGHT — open with the most important observation right now, using real numbers. If you spot a problem the user didn't ask about, name it immediately.
@@ -354,7 +360,10 @@ TIME AWARENESS:
 
   if (!ctx) return BASE_PROMPT + "\n\nNo financial data available yet.";
 
-  const { metrics, engine, regularCommitments, topCategories, savingsGoals, totalSaved, recentTransactions, creditCards, interestThisMonth } = ctx;
+  const { language, metrics, engine, regularCommitments, topCategories, savingsGoals, totalSaved, recentTransactions, creditCards, interestThisMonth } = ctx;
+
+  const LANGUAGE_NAMES: Record<string, string> = { en: "English", ru: "Russian", es: "Spanish", pt: "Portuguese (Brazilian)" };
+  const languageName = LANGUAGE_NAMES[(language ?? "").slice(0, 2)] ?? "English";
 
   const now = new Date();
   const dayOfMonth = now.getDate();
@@ -423,6 +432,7 @@ TIME AWARENESS:
 ---
 AI CONTEXT — treat as ground truth. Use these numbers in every answer:
 
+USER'S APP LANGUAGE: ${languageName}
 TIMING: Day ${dayOfMonth} of ${daysInMonth} (${daysLeft} days left, ${monthPhase}-month)
 STATE: ${state}
 BALANCE: ${metrics?.currentBalance != null ? `$${metrics.currentBalance}` : "unavailable right now — do NOT guess, estimate, or substitute another number (e.g. income minus spending) for this. Tell the user their balance couldn't be loaded and to try again in a moment."}

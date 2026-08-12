@@ -1529,6 +1529,11 @@ export default function App() {
     const duplicates = findDuplicateSubscriptions(subscriptions);
 
     const ctx = {
+      // Explicit signal for ai-chat's LANGUAGE section — without this the
+      // model has to infer language purely from message text, which breaks
+      // when sessionStorage-persisted chatMessages history mixes languages
+      // after a mid-session UI language switch.
+      language: i18n.language,
       metrics: {
         // null (not a substituted number) when genuinely unavailable —
         // ai-chat's prompt must handle this explicitly, never guess.
