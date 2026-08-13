@@ -48,6 +48,7 @@
     "todays_lesson_streak_few": "{{count}} дня подряд",
     "todays_lesson_streak_many": "{{count}} дней подряд",
     "todays_lesson_tip": "Совет",
+    "todays_lesson_english_only": "Этот урок доступен только на английском",
     "longpress_tip": "Совет: удерживайте карточку, чтобы спросить коуча",
     "card_question_coach": "Что мне делать с этим: «{{headline}}»?",
     "card_question_credit_cards": "Почему использование лимита по карте {{cardName}} — это повод для беспокойства?",

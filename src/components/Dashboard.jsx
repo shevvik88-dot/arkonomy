@@ -1158,7 +1158,7 @@ function MiniMarkets({ onOpenMarket }) {
 }
 
 export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, onOpenChat, lessonStreak = { current_streak: 0, last_completed_date: null }, onCompleteLesson, onOpenChatWithMessage }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
   const [creditAccounts, setCreditAccounts] = useState([]); // credit-card accounts from the same fetch
@@ -1642,6 +1642,16 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
               )}
               <div style={{ fontSize: 11, color: C.faint, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 4 }}>{todaysLesson.category}</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: C.text, marginBottom: 12 }}>{todaysLesson.title}</div>
+              {/* Lesson content (lessons.js) is English-only for v1 — see
+                  BACKLOG.md for the full RU/ES/PT translation task. Honest
+                  notice instead of silently showing English under a
+                  non-English UI, same principle as every other "don't fake
+                  it" call in this codebase. */}
+              {!i18n.language?.startsWith('en') && (
+                <div style={{ fontSize: 12, color: C.muted, background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, padding: "8px 12px", marginBottom: 12 }}>
+                  {t("dashboard.todays_lesson_english_only")}
+                </div>
+              )}
               {lessonPersonalizedNote && (
                 <div style={{ fontSize: 13, color: C.cyan, background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, padding: "10px 12px", marginBottom: 14 }}>
                   {lessonPersonalizedNote}

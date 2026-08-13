@@ -46,6 +46,7 @@
     "todays_lesson_streak_one": "{{count}}-day streak",
     "todays_lesson_streak_other": "{{count}}-day streak",
     "todays_lesson_tip": "Tip",
+    "todays_lesson_english_only": "This lesson is available in English only",
     "longpress_tip": "Tip: long-press any card to ask your coach",
     "card_question_coach": "What should I do about: '{{headline}}'?",
     "card_question_credit_cards": "Why is my {{cardName}} utilization a concern?",
