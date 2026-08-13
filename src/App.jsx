@@ -1478,12 +1478,6 @@ export default function App() {
   // subscription" search-icon already uses (setChatMessages + setShowChat +
   // sendChat), just generalized to any card instead of one hardcoded prompt.
   function openChatWithMessage(msg) {
-    // TEMP DIAGNOSTIC — remove after the duplication bug is confirmed fixed.
-    console.log('[DBG openChatWithMessage] ENTRY', {
-      msg,
-      chatMessagesNow: chatMessages.map(m => ({ role: m.role, text: (m.text || '').slice(0, 50) })),
-      cacheKeys: [...cardAnswerCacheRef.current.keys()].map(k => k.slice(0, 50)),
-    });
     const hasHistory = chatMessages.some(m => m.role === "user");
     const base = hasHistory ? chatMessages : [{ role: "assistant", text: buildChatGreeting() }];
     if (!hasHistory) setChatMessages(base);
@@ -1498,12 +1492,6 @@ export default function App() {
     // produces different text, which naturally misses the cache instead of
     // showing a stale answer.
     const cached = cardAnswerCacheRef.current.get(msg);
-    // TEMP DIAGNOSTIC
-    console.log('[DBG openChatWithMessage] cache lookup', {
-      hit: !!cached,
-      ageMs: cached ? Date.now() - cached.ts : null,
-      ttlMs: CARD_ANSWER_CACHE_TTL_MS,
-    });
     if (cached && Date.now() - cached.ts < CARD_ANSWER_CACHE_TTL_MS) {
       // Chat history survives close/reopen (sessionStorage) — `base` on a
       // second long-press is the FULL prior history, not empty. If the
@@ -1511,20 +1499,11 @@ export default function App() {
       // pair from the previous open; showing the cached answer again would
       // duplicate it. Only append when it isn't already the last thing asked.
       const lastUserMsg = [...base].reverse().find(m => m.role === "user");
-      // TEMP DIAGNOSTIC
-      console.log('[DBG openChatWithMessage] cache HIT branch', {
-        baseLen: base.length,
-        lastUserMsgText: (lastUserMsg?.text || '').slice(0, 50),
-        msgText: msg.slice(0, 50),
-        willSkipAppend: lastUserMsg?.text === msg,
-      });
       if (lastUserMsg?.text !== msg) {
         setChatMessages([...base, { role: "user", text: msg }, { role: "assistant", text: cached.reply }]);
       }
       return;
     }
-    // TEMP DIAGNOSTIC
-    console.log('[DBG openChatWithMessage] cache MISS branch → calling sendChat (real ai-chat call)');
     sendChat(msg, base, { cacheKey: msg });
   }
 
