@@ -24,6 +24,13 @@ export function useLongPress(onLongPress) {
   }, []);
 
   const onPointerDown = useCallback((e) => {
+    // Guard against a re-entrant pointerdown for the same physical gesture
+    // (some mobile browsers dispatch an extra synthetic pointer/mouse-compat
+    // event for real <button> elements, like Dashboard's Balance/End of
+    // Month card). Without this, a second pointerdown overwrites
+    // timerRef.current before clear() can cancel the first timer via its
+    // now-lost id — both timers fire onLongPress() moments apart.
+    if (timerRef.current) return;
     startPos.current = { x: e.clientX, y: e.clientY };
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
