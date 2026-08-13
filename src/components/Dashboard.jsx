@@ -1066,7 +1066,7 @@ function CoachBlock({ insight, onAction, onAskCoach }) {
   const accent = COACH_WARNING_TYPES.includes(insight.type) ? DC.ruby : DC.gold;
   const { cta, action } = insight.rendered;
   return (
-    <div {...longPress} style={{ background: DC.card, borderLeft: `3px solid ${accent}`, borderRadius: RADIUS.lg, padding: "20px", fontFamily: FONT }}>
+    <div {...longPress} style={{ background: DC.card, borderLeft: `3px solid ${accent}`, borderRadius: RADIUS.lg, padding: "20px", fontFamily: FONT, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
       <div style={{ fontSize: 13, color: DC.muted, fontWeight: 600, letterSpacing: 0.5, marginBottom: 6 }}>{t("dashboard.your_coach")}</div>
       <div className="ph-mask" style={{ fontSize: 18, fontWeight: 700, color: DC.text, lineHeight: 1.4 }}>
         {highlightNumbers(headline, accent)}
@@ -1412,7 +1412,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         const projectedBalance = projectedRaw != null ? Math.max(0, projectedRaw) : null;
         const eomColor = projectedBalance == null ? DC.text : projectedRaw <= 0 ? DC.ruby : DC.text;
         return (
-          <div data-tutorial="net-balance" {...cashFlowLongPress} style={{ display: "flex", gap: 8 }}>
+          <div data-tutorial="net-balance" {...cashFlowLongPress} style={{ display: "flex", gap: 8, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
             <button onClick={() => setShowCashFlowSheet(true)} style={{ flex: 1, textAlign: "left", background: DC.card, borderRadius: RADIUS.md, padding: "14px 16px", border: "none", cursor: "pointer", fontFamily: FONT }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.balance_short")}</span>
@@ -1450,7 +1450,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         const next = nextUpcomingCharge;
         const dueDate = new Date(next.expectedDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
         return (
-          <button onClick={() => setShowUpcomingSheet(true)} {...nextUpLongPress} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", cursor: "pointer", fontFamily: FONT, textAlign: "left" }}>
+          <button onClick={() => setShowUpcomingSheet(true)} {...nextUpLongPress} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", cursor: "pointer", fontFamily: FONT, textAlign: "left", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
             <div style={{ width: 36, height: 36, borderRadius: RADIUS.sm, background: DC.gold + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Icon name="file" size={16} color={DC.gold} />
             </div>
@@ -1486,7 +1486,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           const pct = creditUtilization(only);
           const color = utilColorDC(pct);
           return (
-            <div ref={creditCardsRef} {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", outline: creditCardsHighlight ? `2px solid ${DC.gold}` : "2px solid transparent", outlineOffset: 2, transition: "outline-color 0.3s" }}>
+            <div ref={creditCardsRef} {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", outline: creditCardsHighlight ? `2px solid ${DC.gold}` : "2px solid transparent", outlineOffset: 2, transition: "outline-color 0.3s", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 14, fontWeight: 700, color: DC.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{only.name || only.official_name || t("dashboard.credit_cards_title")}</span>
                 <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.text }}>{m(Number(only.balance_current ?? 0))}</span>
@@ -1503,7 +1503,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         }
 
         return (
-          <div ref={creditCardsRef} {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", outline: creditCardsHighlight ? `2px solid ${DC.gold}` : "2px solid transparent", outlineOffset: 2, transition: "outline-color 0.3s" }}>
+          <div ref={creditCardsRef} {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", outline: creditCardsHighlight ? `2px solid ${DC.gold}` : "2px solid transparent", outlineOffset: 2, transition: "outline-color 0.3s", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
               <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
                 {t("dashboard.credit_cards_title")}
@@ -1536,7 +1536,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       })()}
 
       {/* 8 ── Spending by Category (donut + side legend) */}
-      <div {...spendingLongPress} style={{ background: DC.card, borderRadius: RADIUS.lg, padding: "14px 16px" }}>
+      <div {...spendingLongPress} style={{ background: DC.card, borderRadius: RADIUS.lg, padding: "14px 16px", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <span style={{ fontWeight: 600, fontSize: 14, color: DC.muted }}>{t("dashboard.spending_by_category")}</span>
           {isPro
@@ -1554,7 +1554,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       </div>
 
       {/* 9 ── Financial Health Score — same HealthScoreBar component as before (collapsed row + expand-on-tap breakdown), restyled to the new palette internally, not replaced */}
-      <div data-tutorial="health-score" {...healthScoreLongPress}>
+      <div data-tutorial="health-score" {...healthScoreLongPress} style={{ userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
         <HealthScoreBar score={healthScore} color={dcScoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} prevScore={prevHealthScore} cashPositionLow={cashPositionLow} />
         <button
           onClick={() => onNavigate("insights")}
