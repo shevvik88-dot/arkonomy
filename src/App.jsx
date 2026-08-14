@@ -1125,12 +1125,21 @@ export default function App() {
     }
   }
 
+  // Returns true/false so callers (e.g. Profile.jsx's "Saved!" confirmation)
+  // can tell a real DB failure apart from success, instead of always
+  // optimistically updating local state and reporting success regardless.
   async function saveProfile(updates) {
     try {
-      await supabase.from("profiles").update(updates).eq("id", user.id);
+      const { error } = await supabase.from("profiles").update(updates).eq("id", user.id);
+      if (error) {
+        logger.error("[saveProfile] failed:", error);
+        return false;
+      }
       setProfile(prev => ({ ...prev, ...updates }));
+      return true;
     } catch (err) {
       logger.error("[saveProfile] failed:", err);
+      return false;
     }
   }
 

@@ -58,6 +58,8 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
     : 0;
   const [budget, setBudget] = useState(profile?.monthly_budget || 3000);
   const [goal, setGoal] = useState(profile?.savings_goal || 10000);
+  const [budgetError, setBudgetError] = useState("");
+  const [goalError, setGoalError] = useState("");
   const [saved, setSaved] = useState(false);
   const [showChangePw, setShowChangePw] = useState(false);
   const [newPw, setNewPw] = useState("");
@@ -372,7 +374,8 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
       <GlassCard style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
         <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16 }}>{t("profile.financial_settings")}</div>
         <div style={{ color: DC.muted, fontSize: 12, fontWeight: 500, marginBottom: 6 }}>{t("profile.monthly_budget")}</div>
-        <input style={{ ...inp, marginBottom: 8 }} type="number" value={budget} onChange={e => setBudget(e.target.value)} />
+        <input style={{ ...inp, marginBottom: budgetError ? 4 : 8, border: budgetError ? `1px solid ${DC.ruby}` : inp.border }} type="number" value={budget} onChange={e => { setBudget(e.target.value); setBudgetError(""); }} />
+        {budgetError && <div style={{ color: DC.ruby, fontSize: 12, fontWeight: 500, marginBottom: 8 }}>{budgetError}</div>}
         {avgMonthlyIncome !== null && Number(budget) > avgMonthlyIncome && (
           <div style={{ fontSize: 12, color: DC.gold, background: DC.gold + "14", border: `1px solid ${DC.gold}33`, borderRadius: RADIUS.sm, padding: "8px 12px", marginBottom: 8 }}>
             ⚠️ {t("profile.budget_exceeds_income", { amount: avgMonthlyIncome.toLocaleString() })}
@@ -395,8 +398,23 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           </div>
         )}
         <div style={{ color: DC.muted, fontSize: 12, fontWeight: 500, marginBottom: 6 }}>{t("profile.annual_savings_goal")}</div>
-        <input style={{ ...inp, marginBottom: 18 }} type="number" value={goal} onChange={e => setGoal(e.target.value)} />
-        <button onClick={async () => { await onSave({ monthly_budget: parseFloat(budget), savings_goal: parseFloat(goal) }); setSaved(true); setTimeout(() => setSaved(false), 2000); }}
+        <input style={{ ...inp, marginBottom: goalError ? 4 : 18, border: goalError ? `1px solid ${DC.ruby}` : inp.border }} type="number" value={goal} onChange={e => { setGoal(e.target.value); setGoalError(""); }} />
+        {goalError && <div style={{ color: DC.ruby, fontSize: 12, fontWeight: 500, marginBottom: 14 }}>{goalError}</div>}
+        <button onClick={async () => {
+            const b = parseFloat(budget), g = parseFloat(goal);
+            // Mirrors AddTransactionModal's amount guard (Transactions.jsx) — this
+            // form had no validation at all before, and profiles.monthly_budget /
+            // savings_goal are unbounded NUMERIC columns with no DB-side check,
+            // so a negative value used to save silently and corrupt Health Score
+            // and Insights' Budget Used % on other screens.
+            let invalid = false;
+            if (!Number.isFinite(b) || b <= 0) { setBudgetError(t("profile.budget_must_be_positive")); invalid = true; }
+            if (!Number.isFinite(g) || g <= 0) { setGoalError(t("profile.goal_must_be_positive")); invalid = true; }
+            if (invalid) return;
+            const ok = await onSave({ monthly_budget: b, savings_goal: g });
+            if (ok) { setSaved(true); setTimeout(() => setSaved(false), 2000); }
+            else { setBudgetError(t("profile.save_failed")); }
+          }}
           style={{ width: "100%", padding: 14, background: saved ? DC.emerald : DC.gold, border: "none", borderRadius: RADIUS.sm, color: saved ? DC.bg : DC.bg, fontWeight: 700, cursor: "pointer", transition: "background 0.3s", fontFamily: FONT }}>
           {saved ? t("profile.saved") : t("profile.save_settings")}
         </button>
