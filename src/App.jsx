@@ -919,7 +919,7 @@ export default function App() {
           error.code === "22003" ? "Amount is too large — max $99,999,999.99" : "Couldn't save transaction. Try again.",
           "danger", "alert-circle",
         );
-        return; // keep the modal open (no finally-close) so the user's input isn't lost
+        return false; // keep the modal open (no finally-close) so the user's input isn't lost
       }
       if (data) {
         // Update state first (pure — no side effects inside the updater)
@@ -1009,10 +1009,12 @@ export default function App() {
         setUpcomingCharges(getUpcomingChargesForCarousel([data, ...transactions], merchantAliasMap));
         posthog?.capture('transaction_added', { type: tx.type });
         setShowAddTx(false); // only close on confirmed success
+        return true;
       }
     } catch (err) {
       logger.error("[addTransaction] failed:", err);
       showAlertRef.current("Couldn't save transaction. Try again.", "danger", "alert-circle");
+      return false;
     }
   }
 
@@ -1785,7 +1787,7 @@ export default function App() {
           <>
             {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setMerchantFilter(null); setDateFilter(null); setScreen("transactions"); }} onMerchantClick={tx => { setMerchantFilter(tx.description); setCatFilter(null); setDateFilter(null); setScreen("transactions"); }} onDayClick={date => { setDateFilter(date); setCatFilter(null); setMerchantFilter(null); setScreen("transactions"); }} onDayCategoryClick={(date, cat) => { setDateFilter(date); setCatFilter(cat); setMerchantFilter(null); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} lastSyncedAt={lastSyncedAt} hideWelcomeBanner={proToast} merchantAliasMap={merchantAliasMap} scheduledPayments={scheduledPayments} onAddScheduledPayment={addScheduledPayment} onCancelScheduledPayment={cancelScheduledPayment} onOpenChat={openChatWithContext} lessonStreak={lessonStreak} onCompleteLesson={completeLesson} onOpenChatWithMessage={openChatWithMessage} />}
             {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} onToast={showAlert} />}
-            {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} activeMerchantFilter={merchantFilter} onClearMerchantFilter={() => setMerchantFilter(null)} activeDateFilter={dateFilter} onClearDateFilter={() => setDateFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} bankConnected={bankConnected} onNavigate={setScreen} />}
+            {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDuplicateTransaction={addTransaction} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} activeMerchantFilter={merchantFilter} onClearMerchantFilter={() => setMerchantFilter(null)} activeDateFilter={dateFilter} onClearDateFilter={() => setDateFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} bankConnected={bankConnected} onNavigate={setScreen} />}
             {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} InsightCard={InsightCard} roundupEnabled={roundupEnabled} onToggleRoundup={v => { setRoundupEnabled(v); saveProfile({ roundup_enabled: v }); }} />}
             {screen === "insights" && <Insights {...shared} onOpenChat={msg => { const budget = Number(profile?.monthly_budget)||3000; const sub = ['Subscriptions','Bills','Utilities','Phone','Internet','Insurance'].reduce((s,c)=>s+(spendingByCategory[c]||0),0); const {score:hs}=calculateHealthScore({totalIncome:effectiveIncome,totalSpent,lastIncome,lastSpent,budget,subscriptionSpend:sub}); const greeting=buildContextGreeting('insights',{totalIncome:effectiveIncome,totalSpent,spendingByCategory,savings,transactions,profile,allInsights,healthScore:hs}); const base=[{role:"assistant",text:greeting}]; setChatMessages(base); setShowChat(true); sendChat(msg,base); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} merchantAliasMap={merchantAliasMap} merchantAliases={merchantAliases} onDecideMerchantAlias={decideMerchantAlias} bankConnected={bankConnected} onNavigate={setScreen} />}
             {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} onSignOut={signOut} onDeleteAccount={deleteAccount} onBack={() => setScreen("dashboard")} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} getReconnectToken={getReconnectToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} lastSyncedAt={lastSyncedAt} backgroundSyncing={backgroundSyncing} onRefreshBalance={refreshBalanceNow} refreshingBalance={refreshingBalance} lastBalanceRefreshAt={profile?.last_balance_refresh_at} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}

@@ -413,7 +413,7 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
   );
 }
 
-export default function Transactions({ transactions, categories, onAdd, onDelete, onEdit, activeCatFilter, onClearCatFilter, activeMerchantFilter, onClearMerchantFilter, activeDateFilter, onClearDateFilter, insight, onInsightAction, onToast, bankConnected, onNavigate }) {
+export default function Transactions({ transactions, categories, onAdd, onDuplicateTransaction, onDelete, onEdit, activeCatFilter, onClearCatFilter, activeMerchantFilter, onClearMerchantFilter, activeDateFilter, onClearDateFilter, insight, onInsightAction, onToast, bankConnected, onNavigate }) {
   const { t } = useTranslation();
   const [filter,          setFilter]          = useState("all");
   const [search,          setSearch]          = useState("");
@@ -495,7 +495,16 @@ export default function Transactions({ transactions, categories, onAdd, onDelete
   }));
 
   function handleDelete(id)     { onDelete(id); toast(t("transactions.toast_deleted"), "warning"); }
-  function handleDuplicate(tx)  { onAdd({ amount: tx.amount, description: tx.description, category_id: tx.category_id, category_name: tx.category_name, date: tx.date, type: tx.type }); toast(t("transactions.toast_duplicated"), "info"); }
+  // Was calling onAdd — which just opens the (empty) Add Transaction modal
+  // and ignores its arguments — so "Duplicate" showed a success toast
+  // without ever inserting a row. Uses the real insert function
+  // (addTransaction, same one the modal itself uses) and only toasts on
+  // confirmed success; addTransaction() already surfaces its own error
+  // alert on failure, so no separate failure toast here.
+  async function handleDuplicate(tx) {
+    const ok = await onDuplicateTransaction({ amount: tx.amount, description: tx.description, category_id: tx.category_id, category_name: tx.category_name, date: tx.date, type: tx.type });
+    if (ok) toast(t("transactions.toast_duplicated"), "info");
+  }
 
   const monthLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   useEffect(() => { setVisibleCount(50); }, [monthOffset]);
