@@ -879,7 +879,8 @@ export default function App() {
     } catch (err) {
       logger.error("[signOut] failed:", err);
     } finally {
-      setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]); setMerchantAliases([]); setScheduledPayments([]);
+      sessionStorage.removeItem('arkonomy_chat_history');
+      setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]); setMerchantAliases([]); setScheduledPayments([]); setChatMessages([]);
     }
   }
 
@@ -901,8 +902,9 @@ export default function App() {
       if (import.meta.env.DEV) logger.error("[deleteAccount]", e);
     }
     clearAccountsCache();
+    sessionStorage.removeItem('arkonomy_chat_history');
     await supabase.auth.signOut();
-    setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]); setMerchantAliases([]); setScheduledPayments([]);
+    setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]); setMerchantAliases([]); setScheduledPayments([]); setChatMessages([]);
   }
 
   async function addTransaction(tx) {
@@ -1018,12 +1020,19 @@ export default function App() {
     }
   }
 
+  // Returns true/false — same pattern as addTransaction()/saveProfile().
   async function deleteTransaction(id) {
     try {
-      await supabase.from("transactions").delete().eq("id", id);
+      const { error } = await supabase.from("transactions").delete().eq("id", id);
+      if (error) {
+        logger.error("[deleteTransaction] failed:", error);
+        return false;
+      }
       setTransactions(prev => prev.filter(t => t.id !== id));
+      return true;
     } catch (err) {
       logger.error("[deleteTransaction] failed:", err);
+      return false;
     }
   }
 

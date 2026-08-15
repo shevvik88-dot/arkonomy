@@ -238,7 +238,8 @@
     "action_duplicate_desc": "Скопировать транзакцию",
     "action_delete_desc": "Удалить без возможности восстановления",
     "toast_deleted": "Удалено",
-    "toast_duplicated": "Транзакция продублирована"
+    "toast_duplicated": "Транзакция продублирована",
+    "toast_delete_failed": "Не удалось удалить. Попробуйте ещё раз."
   },
   "insights": {
     "title": "Аналитика",

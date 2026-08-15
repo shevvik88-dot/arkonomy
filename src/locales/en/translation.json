@@ -233,7 +233,8 @@
     "action_duplicate_desc": "Copy this transaction",
     "action_delete_desc": "Remove permanently",
     "toast_deleted": "Deleted",
-    "toast_duplicated": "Transaction duplicated"
+    "toast_duplicated": "Transaction duplicated",
+    "toast_delete_failed": "Couldn't delete. Try again."
   },
   "insights": {
     "title": "Insights",

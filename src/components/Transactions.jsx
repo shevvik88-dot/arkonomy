@@ -494,7 +494,17 @@ export default function Transactions({ transactions, categories, onAdd, onDuplic
     pct: Math.round((total / arr.reduce((s, [, v]) => s + v, 0)) * 100),
   }));
 
-  function handleDelete(id)     { onDelete(id); toast(t("transactions.toast_deleted"), "warning"); }
+  // Was firing the "Deleted" toast synchronously, before onDelete even
+  // resolved — a real DB failure (deleteTransaction silently swallowed
+  // its error, same class of bug already fixed today in saveProfile()/
+  // addSaving()/editSaving()/addTransaction()) would still show a
+  // success toast with the row left in place. Now awaits the real
+  // result and only confirms success when the delete actually happened.
+  async function handleDelete(id) {
+    const ok = await onDelete(id);
+    if (ok) toast(t("transactions.toast_deleted"), "warning");
+    else toast(t("transactions.toast_delete_failed"), "danger");
+  }
   // Was calling onAdd — which just opens the (empty) Add Transaction modal
   // and ignores its arguments — so "Duplicate" showed a success toast
   // without ever inserting a row. Uses the real insert function

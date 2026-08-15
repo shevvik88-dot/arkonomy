@@ -233,7 +233,8 @@
     "action_duplicate_desc": "Copiar esta transacción",
     "action_delete_desc": "Eliminar permanentemente",
     "toast_deleted": "Eliminado",
-    "toast_duplicated": "Transacción duplicada"
+    "toast_duplicated": "Transacción duplicada",
+    "toast_delete_failed": "No se pudo eliminar. Inténtalo de nuevo."
   },
   "insights": {
     "title": "Análisis",
