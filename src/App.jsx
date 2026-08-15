@@ -1287,9 +1287,11 @@ export default function App() {
     return () => el.removeEventListener('touchmove', onMove);
   }, [showChat]);
 
-  // Accepted risk: sessionStorage, not localStorage — tab-lifetime scope,
-  // cleared explicitly on signOut()/deleteAccount(). No Plaid/Stripe/Alpaca
-  // tokens here, only AI chat text. See CLAUDE.md "Storage conventions".
+  // Accepted risk (not a false positive): sessionStorage, not localStorage — scoped
+  // to tab lifetime, cleared explicitly on signOut()/deleteAccount(). No Plaid/Stripe/
+  // Alpaca tokens here, only AI chat history. See CLAUDE.md Storage conventions.
+  // CodeQL alert #7 dismissed as accepted risk (GitHub UI shows "false positive"
+  // due to available reason options, but this is an accepted-risk decision).
   useEffect(() => {
     try {
       const toSave = chatMessages.filter(m => !m.loading);
