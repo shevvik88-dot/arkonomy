@@ -5,11 +5,23 @@ name: Gitleaks
 # installed locally, and .claude/hooks/pre-commit-security-review.cjs only
 # sees commits made through Claude Code's own Bash tool. This one hard-fails
 # CI regardless of how the commit was made.
+#
+# push/pull_request jobs scan only the new commits/diff (gitleaks-action's
+# default behavior, fast). The daily schedule (+ manual workflow_dispatch)
+# does a full commit-history scan, so every commit still gets re-verified
+# even if it slipped through an earlier incremental scan.
+#
+# gitleaks-action is free for personal GitHub accounts (this repo), no
+# GITLEAKS_LICENSE needed. Would be required if this ever moves to an org.
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: "0 5 * * *" # daily full-history scan
+  workflow_dispatch: {} # manual full-history scan
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,24 +30,14 @@ concurrency:
 jobs:
   gitleaks:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # gitleaks-action comments on the PR if leaks are found
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # full history, required for gitleaks-action to work correctly
 
-      - name: Install gitleaks
-        run: |
-          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz -o gitleaks.tar.gz
-          tar -xzf gitleaks.tar.gz gitleaks
-          sudo mv gitleaks /usr/local/bin/gitleaks
-
-      - name: Scan pushed/PR commits for secrets
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            RANGE="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
-          elif [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ] && [ -n "${{ github.event.before }}" ]; then
-            RANGE="${{ github.event.before }}..${{ github.event.after }}"
-          else
-            RANGE="-1"
-          fi
-          gitleaks detect --source . --redact --no-banner --log-opts="$RANGE"
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
