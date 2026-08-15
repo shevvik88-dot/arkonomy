@@ -1287,6 +1287,9 @@ export default function App() {
     return () => el.removeEventListener('touchmove', onMove);
   }, [showChat]);
 
+  // Accepted risk: sessionStorage, not localStorage — tab-lifetime scope,
+  // cleared explicitly on signOut()/deleteAccount(). No Plaid/Stripe/Alpaca
+  // tokens here, only AI chat text. See CLAUDE.md "Storage conventions".
   useEffect(() => {
     try {
       const toSave = chatMessages.filter(m => !m.loading);
