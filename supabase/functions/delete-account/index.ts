@@ -75,7 +75,8 @@ Deno.serve(async (req) => {
             would_cancel: sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due',
           }));
         } catch (err) {
-          stripeLookupError = err instanceof Error ? err.message : String(err);
+          console.error(`[delete-account] dry-run Stripe lookup failed:`, err);
+          stripeLookupError = 'Unable to look up Stripe subscription status';
         }
       }
 
