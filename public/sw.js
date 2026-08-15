@@ -67,18 +67,30 @@ self.addEventListener('notificationclick', event => {
   );
 });
 
+// Matches the request's hostname exactly or as a subdomain of an allowed
+// domain — url.includes(domain) would also match an untrusted host that
+// merely contains the domain as a substring (e.g. "supabase.co.evil.com").
+function isTrustedHost(url, domains) {
+  try {
+    const hostname = new URL(url).hostname;
+    return domains.some(d => hostname === d || hostname.endsWith(`.${d}`));
+  } catch {
+    return false;
+  }
+}
+
 // ── Fetch — network first, fallback to cache ──────────────────────────────────
 self.addEventListener('fetch', event => {
   // Skip non-GET and Supabase API calls
   if (event.request.method !== 'GET') return;
-  if (event.request.url.includes('supabase.co')) return;
-  if (event.request.url.includes('finnhub.io')) return;
+  if (isTrustedHost(event.request.url, ['supabase.co'])) return;
+  if (isTrustedHost(event.request.url, ['finnhub.io'])) return;
   // Plaid Link's script (cdn.plaid.com/link/v2/stable/link-initialize.js) was
   // getting intercepted and failing here — confirmed live: every new user's
   // first "Connect Your Bank" attempt got stuck on a synthetic 504 from the
   // catch() below instead of the real script. Matches any plaid.com
   // subdomain, not just cdn., in case Link's own runtime fetches others.
-  if (event.request.url.includes('plaid.com')) return;
+  if (isTrustedHost(event.request.url, ['plaid.com'])) return;
 
   event.respondWith(
     fetch(event.request)

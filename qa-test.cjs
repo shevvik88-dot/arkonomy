@@ -35,6 +35,18 @@ async function waitIdle(page, ms = 2000) {
   await page.waitForTimeout(ms);
 }
 
+// Matches the URL's hostname exactly or as a subdomain of an allowed domain —
+// url.includes(domain) would also match an untrusted host that merely
+// contains the domain as a substring (e.g. "stripe.com.evil.com").
+function isTrustedHost(url, domains) {
+  try {
+    const hostname = new URL(url).hostname;
+    return domains.some(d => hostname === d || hostname.endsWith(`.${d}`));
+  } catch {
+    return false;
+  }
+}
+
 function adminReq(method, urlPath, body) {
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : null;
@@ -711,7 +723,7 @@ async function deleteTestUser() {
         const finalUrl = page.url();
         await ss(page, '24-stripe-redirect');
 
-        if (finalUrl.includes('stripe.com') || finalUrl.includes('checkout')) {
+        if (isTrustedHost(finalUrl, ['stripe.com'])) {
           pass(`Upgrade: redirected to Stripe (${finalUrl.slice(0, 70)})`);
         } else if (finalUrl !== prevUrl) {
           pass(`Upgrade: navigated away from app (${finalUrl.slice(0, 70)})`);
