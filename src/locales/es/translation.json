@@ -454,6 +454,8 @@
     "cancel": "Cancelar",
     "goal_name": "Nombre de la meta",
     "target_amount": "Monto objetivo ($)",
+    "target_must_be_positive": "Introduce un objetivo mayor de $0",
+    "save_failed": "No se pudo guardar. Inténtalo de nuevo.",
     "savings_account_optional": "Cuenta de ahorro (opcional)",
     "track_manually": "Seguimiento manual",
     "save": "Guardar",

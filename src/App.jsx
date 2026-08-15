@@ -1090,11 +1090,21 @@ export default function App() {
     }
   }
 
+  // Returns true/false so the Add/Edit Goal forms (Savings.jsx) can tell a
+  // real DB failure apart from success — same pattern as saveProfile().
   async function addSaving(sv) {
-    const { data } = await supabase.from("savings").insert({ ...sv, user_id: user.id }).select().single();
-    if (data) {
+    try {
+      const { data, error } = await supabase.from("savings").insert({ ...sv, user_id: user.id }).select().single();
+      if (error) {
+        logger.error("[addSaving] failed:", error);
+        return false;
+      }
       setSavings(prev => [...prev, data]);
       posthog?.capture('savings_goal_created');
+      return true;
+    } catch (err) {
+      logger.error("[addSaving] failed:", err);
+      return false;
     }
   }
 
@@ -1107,12 +1117,19 @@ export default function App() {
     }
   }
 
+  // Returns true/false — same pattern as addSaving()/saveProfile().
   async function editSaving(id, updates) {
     try {
-      await supabase.from("savings").update(updates).eq("id", id);
+      const { error } = await supabase.from("savings").update(updates).eq("id", id);
+      if (error) {
+        logger.error("[editSaving] failed:", error);
+        return false;
+      }
       setSavings(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+      return true;
     } catch (err) {
       logger.error("[editSaving] failed:", err);
+      return false;
     }
   }
 

@@ -23,6 +23,7 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [editName, setEditName] = useState(sv.name);
   const [editTarget, setEditTarget] = useState(String(sv.target));
+  const [editTargetError, setEditTargetError] = useState("");
   const [editAccountId, setEditAccountId] = useState(sv.plaid_account_id || "");
   const [editAccountName, setEditAccountName] = useState(sv.plaid_account_name || "");
   const [updating, setUpdating] = useState(false);
@@ -217,7 +218,8 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
               </div>
               <div>
                 <label style={{ display: "block", fontSize: 12, color: DC.muted, marginBottom: 6, fontWeight: 600 }}>{t("savings.target_amount").toUpperCase()}</label>
-                <input style={{ width: "100%", padding: 14, background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, color: DC.text, fontSize: 15 }} type="number" value={editTarget} onChange={e => setEditTarget(e.target.value)} />
+                <input style={{ width: "100%", padding: 14, background: DC.bg, border: editTargetError ? `1px solid ${DC.ruby}` : `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, color: DC.text, fontSize: 15 }} type="number" value={editTarget} onChange={e => { setEditTarget(e.target.value); setEditTargetError(""); }} />
+                {editTargetError && <div style={{ color: DC.ruby, fontSize: 12, fontWeight: 500, marginTop: 6 }}>{editTargetError}</div>}
               </div>
 
               {plaidAccounts.length > 0 && (
@@ -245,9 +247,20 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
 
               <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
                 <button
-                  onClick={() => {
-                    onEdit(sv.id, { name: editName, target: parseFloat(editTarget), plaid_account_id: editAccountId || null, plaid_account_name: editAccountName || null });
-                    setShowEdit(false);
+                  onClick={async () => {
+                    const target = parseFloat(editTarget);
+                    // Mirrors Profile.jsx's Financial Settings guard — target
+                    // was previously an unvalidated parseFloat, so a negative
+                    // or zero goal could save silently and break the
+                    // progress bar / projected-date math elsewhere on this
+                    // card (division by a non-positive target).
+                    if (!Number.isFinite(target) || target <= 0) {
+                      setEditTargetError(t("savings.target_must_be_positive"));
+                      return;
+                    }
+                    const ok = await onEdit(sv.id, { name: editName, target, plaid_account_id: editAccountId || null, plaid_account_name: editAccountName || null });
+                    if (ok) setShowEdit(false);
+                    else setEditTargetError(t("savings.save_failed"));
                   }}
                   style={{ flex: 1, padding: 14, background: DC.gold, border: "none", borderRadius: RADIUS.sm, color: DC.bg, fontWeight: 700, cursor: "pointer" }}
                 >
@@ -398,6 +411,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
   const [selectedPreset, setSelectedPreset] = useState(null);
   const [newName, setNewName]               = useState("");
   const [newTarget, setNewTarget]           = useState("");
+  const [newTargetError, setNewTargetError] = useState("");
   const [newAccountId, setNewAccountId]     = useState("");
   const [newAccountName, setNewAccountName] = useState("");
   const [plaidAccounts, setPlaidAccounts]   = useState([]);
@@ -498,17 +512,27 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
     { name: t("savings.custom_goal"), target: 1000, icon: "plus-circle" },
   ];
 
-  function handleAdd() {
+  async function handleAdd() {
     if (!newName || !newTarget) return;
-    onAdd({
+    const target = parseFloat(newTarget);
+    // Mirrors Profile.jsx's Financial Settings guard — target was an
+    // unvalidated parseFloat, so a negative/zero goal could save silently
+    // and break the progress bar / projected-date math on GoalCard
+    // (division by a non-positive target).
+    if (!Number.isFinite(target) || target <= 0) {
+      setNewTargetError(t("savings.target_must_be_positive"));
+      return;
+    }
+    const ok = await onAdd({
       name: newName,
-      target: parseFloat(newTarget),
+      target,
       current: 0,
       plaid_account_id: newAccountId || null,
       plaid_account_name: newAccountName || null
     });
+    if (!ok) { setNewTargetError(t("savings.save_failed")); return; }
     setShowAdd(false);
-    setNewName(""); setNewTarget(""); setNewAccountId(""); setNewAccountName(""); setSelectedPreset(null);
+    setNewName(""); setNewTarget(""); setNewTargetError(""); setNewAccountId(""); setNewAccountName(""); setSelectedPreset(null);
   }
 
 
@@ -733,7 +757,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
             {!selectedPreset ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {PRESETS.map(p => (
-                  <button key={p.name} onClick={() => { setSelectedPreset(p); setNewName(p.name); setNewTarget(String(p.target)); }} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: 16, background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.md, color: DC.text, textAlign: "left", cursor: "pointer" }}>
+                  <button key={p.name} onClick={() => { setSelectedPreset(p); setNewName(p.name); setNewTarget(String(p.target)); setNewTargetError(""); }} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: 16, background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.md, color: DC.text, textAlign: "left", cursor: "pointer" }}>
                     <div style={{ width: 40, height: 40, borderRadius: RADIUS.sm, background: DC.card, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <Icon name={p.icon} size={20} color={DC.gold} />
                     </div>
@@ -752,7 +776,8 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 12, color: DC.muted, marginBottom: 8, fontWeight: 600 }}>{t("savings.target_amount_label").toUpperCase()}</label>
-                  <input style={inp} type="number" placeholder="5000" value={newTarget} onChange={e => setNewTarget(e.target.value)} />
+                  <input style={{ ...inp, border: newTargetError ? `1px solid ${DC.ruby}` : inp.border }} type="number" placeholder="5000" value={newTarget} onChange={e => { setNewTarget(e.target.value); setNewTargetError(""); }} />
+                  {newTargetError && <div style={{ color: DC.ruby, fontSize: 12, fontWeight: 500, marginTop: -6, marginBottom: 4 }}>{newTargetError}</div>}
                 </div>
 
                 <div style={{ marginTop: 4 }}>

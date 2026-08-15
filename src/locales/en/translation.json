@@ -454,6 +454,8 @@
     "cancel": "Cancel",
     "goal_name": "Goal name",
     "target_amount": "Target amount ($)",
+    "target_must_be_positive": "Enter a target greater than $0",
+    "save_failed": "Couldn't save. Try again.",
     "savings_account_optional": "Savings account (optional)",
     "track_manually": "Track manually",
     "save": "Save",
