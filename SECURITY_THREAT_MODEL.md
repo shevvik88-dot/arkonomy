@@ -143,17 +143,29 @@ it stops being true."
   one exists, should go through validation — grep `src/` for direct transaction
   table writes as a follow-up; not exhaustively re-checked for this document).
 
-### T3. Stripe/Plaid webhook replay or payload tampering
+### T3. Stripe/Plaid webhook replay or payload tampering — **Stripe side re-verified and fixed 2026-08-17**
 - **Entry point:** `stripe-webhook`, `plaid-webhook` — same entry points as S2.
 - **Current mitigation:** signature verification (S2) prevents payload tampering —
   any modified byte in the body invalidates the signature. Stripe's SDK-level
   `constructEventAsync` also implicitly bounds replay risk via its timestamp
-  tolerance. Idempotency: CLAUDE.md's "Stripe idempotency" security-audit item
-  (Item 6, closed) — not re-verified line-by-line for this document.
+  tolerance. **Idempotency — actually re-verified this time, not assumed:** the
+  earlier "Item 6, closed" note in CLAUDE.md turned out to be about Stripe's own
+  API-level idempotency keys (for outgoing calls Arkonomy makes to Stripe), not
+  about `stripe-webhook` deduplicating *incoming* redelivered events — those are
+  different things. Read `stripe-webhook/index.ts` line by line for the
+  race-condition audit (2026-08-17) and found no `event.id` dedup at all:
+  `checkout.session.completed` computed `trial_ends_at = now() + 7 days` fresh on
+  every delivery, so a plain Stripe retry (non-2xx, timeout, or a manual dashboard
+  resend — no attacker needed) would silently re-extend the trial each time. Fixed
+  same day: `stripe_webhook_events(event_id PRIMARY KEY)` table
+  (`20260817000000_stripe_webhook_events.sql`), inserted before any side effect;
+  a `23505` conflict short-circuits to `{received: true, duplicate: true}`. Applies
+  to all 5 event types the handler processes, not just the one that was provably
+  broken. See T5 for a related, deliberately-accepted gap this fix introduced.
 - **Recommendation:** confirm Plaid webhook handling is itself idempotent
   (a legitimately-retried webhook — Plaid does retry on non-2xx — shouldn't
   double-trigger `sync_item` in a way that duplicates data). Worth an explicit test
-  rather than an assumption.
+  rather than an assumption — not yet done, unlike the Stripe side above.
 
 ### T4. Rate-limit / lockout counters tamperable by the rate-limited user
 - **Entry point:** `check_and_increment_rate_limit`, `check_login_lockout` /
@@ -166,6 +178,33 @@ it stops being true."
 - **Recommendation:** none open on the two already-audited tables. Apply the same
   `REVOKE`-then-`GRANT service_role` pattern to any future `SECURITY DEFINER`
   function as a hard rule (already in CLAUDE.md's Security decisions).
+
+### T5. `stripe-webhook` dedup-insert and side-effects are not one transaction — partial-failure window
+- **Entry point:** `stripe-webhook/index.ts`, the `stripe_webhook_events` insert
+  added for T3, immediately followed by a separate, independently-committed
+  `profiles` update per event type.
+- **Scenario:** the dedup `INSERT` and the subsequent `UPDATE profiles` are two
+  separate PostgREST requests, not one SQL transaction. If the function crashes
+  or times out between them (after the insert commits, before the update does),
+  the event is permanently marked "processed" in `stripe_webhook_events` but the
+  actual effect (e.g. `plan: 'pro'`) never applied. A legitimate Stripe retry of
+  that same `event.id` would then be silently ignored as a duplicate — the user's
+  plan/trial state would be stuck wrong with no automatic recovery path.
+- **Severity:** low-probability — requires the process to die in the narrow
+  window between two specific network calls, not attacker-triggerable, and
+  Sentry's `captureAndFlush` on any thrown error in the handler would surface
+  the crash even if it doesn't fix the state. Deliberately accepted for now
+  rather than fixed, per the same trade-off analysis as the fix's own inline
+  comment: insert-before-processing (current choice) risks under-processing on
+  partial failure; insert-after-processing risks the original double-processing
+  bug (T3) instead. Neither ordering alone is fully safe without a shared
+  transaction.
+- **Recommendation:** if a stricter guarantee is ever needed, wrap the dedup
+  insert and all side effects in a single Postgres RPC function (`SECURITY
+  DEFINER`, called via `supabase.rpc(...)` instead of sequential `.from()`
+  calls) so they commit or roll back together. Not done now — narrow window,
+  and the added complexity of a stored-procedure code path isn't justified
+  until this actually bites in production.
 
 ---
 

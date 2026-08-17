@@ -50,6 +50,34 @@ Deno.serve(async (req) => {
     return new Response(`Webhook Error: ${"Internal Server Error"}`, { status: 400 });
   }
 
+  // Idempotency: Stripe delivers at-least-once — retries on non-2xx and
+  // manual dashboard resends can redeliver the same event.id. Insert it
+  // first, before any side effect; a PRIMARY KEY conflict means this
+  // event was already processed (e.g. checkout.session.completed would
+  // otherwise recompute trial_ends_at = now() + 7 days on every
+  // redelivery, silently extending the trial with zero attacker action).
+  //
+  // Known gap: insert and side-effects are not in one transaction — if the
+  // function crashes between them, the event is marked processed but the
+  // side-effect didn't apply, and Stripe's retry will be silently ignored.
+  // See SECURITY_THREAT_MODEL.md.
+  const { error: dedupErr } = await supabase
+    .from('stripe_webhook_events')
+    .insert({ event_id: event.id });
+  if (dedupErr) {
+    if (dedupErr.code === '23505') {
+      return new Response(JSON.stringify({ received: true, duplicate: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    console.error('stripe-webhook: dedup insert failed:', dedupErr);
+    await captureAndFlush(dedupErr, { function_name: 'stripe-webhook', event_id: event.id });
+    return new Response(JSON.stringify({ error: "Internal Server Error" }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
