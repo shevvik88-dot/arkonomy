@@ -54,3 +54,9 @@ verify_jwt = false
 
 [functions.alpaca-portfolio]
 verify_jwt = false
+
+[functions.check-bank-connection]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
