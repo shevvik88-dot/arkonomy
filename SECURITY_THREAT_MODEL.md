@@ -334,6 +334,38 @@ it stops being true."
   anywhere; category display uses a denormalized `category_name` column set
   independently by the client at insert time).
 
+### I7. Legacy `service_role` key hardcoded in a migration file — **Historical incident, closed 2026-04-13** (confirmed dead, not just historically fixed)
+- **Entry point:** `supabase/migrations/20260412065802_transaction_push_trigger.sql:17`
+  (commit `87701be9`, 2026-04-12) — a `pg_net` trigger function hardcoded a
+  full legacy-format `service_role` JWT (`v_key TEXT := 'eyJh...'`) to call
+  the `push-notify` edge function from inside Postgres. File no longer exists
+  in current `main` (removed at some point after), but the value is
+  permanently in git history regardless of current HEAD state — found by the
+  project's daily gitleaks full-history scan.
+- **Verification, not assumption:** decoded the JWT payload directly —
+  `{"iss":"supabase","ref":"hvnkxxazjfesbxdkzuba","role":"service_role",
+  "iat":1773028365,"exp":2088604365}` — confirmed real, project-matching,
+  full-admin credential, not a placeholder. Then tested the actual leaked
+  key against the live API (`GET /auth/v1/admin/users` with the key as both
+  `apikey` and `Authorization: Bearer`) rather than trusting the Supabase
+  Dashboard's "Legacy HS256 (Previous Key): Revoked" label at face value —
+  Dashboard's JWT Signing Keys section (session-token signing) and the API
+  Keys section's legacy-key toggle are two related but distinct settings,
+  and only the live-API test proves the specific leaked credential is
+  actually rejected.
+- **Result:** `HTTP 401`, body: `{"message":"Legacy API keys are disabled",
+  "hint":"Your legacy API keys (anon, service_role) were disabled on
+  2026-04-12T20:13:41.082883+00:00..."}`. The disable timestamp is ~13 hours
+  after the leak commit — same-day, not a 4-month exposure window. The
+  currently active `SUPABASE_SERVICE_ROLE_KEY` (`.env.local`, and the
+  auto-injected edge function env var) is already the new `sb_secret_...`
+  format, unrelated to and unaffected by this legacy key's status.
+- **Recommendation:** none — confirmed closed, not just presumed closed.
+  No rotation needed for the current active key. The migration file itself
+  could still be deleted from the working tree if it hasn't been already
+  (cosmetic — the dead key's presence in git history is permanent either
+  way and no longer exploitable).
+
 ---
 
 ## D — Denial of Service
