@@ -24,12 +24,18 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    );
+  // Declared outside the try block on purpose: a `const` inside try is not
+  // visible to the catch block below (separate scopes), so if fetch() itself
+  // throws (network failure, not just a non-ok response) after the pending
+  // row is reserved, the catch block still needs both of these to clean it
+  // up — otherwise a thrown exception leaks a permanent dead reservation.
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+  let pendingRowId: string | null = null;
 
+  try {
     // ── Authenticate caller ──────────────────────────────────────
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -65,30 +71,60 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── Reject a duplicate submitted in the last 60s ──────────────
-    // Checks real elapsed time against the most recent matching order,
-    // not a fixed calendar-minute bucket — a bucket key (floor(now/60s))
-    // has a boundary gap where two submits 1-2s apart can land in
-    // different buckets if they straddle a minute edge (e.g. :59.9 and
-    // :00.1), letting a duplicate through. This has no such edge: any
-    // matching order in the last 60 real seconds blocks the retry.
-    const { data: recentDuplicate } = await supabase
-      .from('investments')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('symbol', sym)
-      .eq('amount', Number(amount))
-      .gte('created_at', new Date(Date.now() - 60_000).toISOString())
-      .limit(1)
-      .maybeSingle();
+    // ── Reject a duplicate: atomic pending-row insert, not a racy read ──
+    // Replaces the old SELECT-then-later-INSERT check (real TOCTOU gap —
+    // the SELECT and the eventual INSERT were separated by two Alpaca
+    // network calls, so two near-simultaneous requests could both pass
+    // the check before either had written a row). windowBucket reuses the
+    // exact same per-minute bucket client_order_id already used below —
+    // one definition of "window", not two. This does reintroduce the
+    // calendar-minute boundary edge case the old SELECT-based check
+    // specifically avoided (two submits straddling a minute mark, e.g.
+    // :59.9 and :00.1, land in different buckets and won't collide) —
+    // accepted tradeoff: atomicity via a DB unique constraint beats a
+    // wider-but-racy window check. See SECURITY_THREAT_MODEL.md FINDING-A.
+    const windowBucket = Math.floor(Date.now() / 60_000);
 
-    if (recentDuplicate) {
-      return new Response(JSON.stringify({
-        error: 'This order was already submitted. Please wait a moment before retrying.',
-      }), {
-        status: 409,
+    const { data: pendingRow, error: pendingErr } = await supabase
+      .from('investments')
+      .insert({
+        user_id:       user.id,
+        symbol:        sym,
+        amount:        numAmount,
+        window_bucket: windowBucket,
+        status:        'pending',
+      })
+      .select('id')
+      .single();
+
+    if (pendingErr) {
+      if (pendingErr.code === '23505') {
+        return new Response(JSON.stringify({
+          error: 'This order was already submitted. Please wait a moment before retrying.',
+        }), {
+          status: 409,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      console.error('alpaca-invest: pending row insert failed:', pendingErr);
+      await captureAndFlush(pendingErr, { function_name: 'alpaca-invest' });
+      return new Response(JSON.stringify({ error: "Internal Server Error" }), {
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // Assign to the outer-scoped variable (see comment at the top of the
+    // function) so the catch block can still find it if something throws.
+    pendingRowId = pendingRow.id;
+
+    // From here on, any early return must clean up the reserved pending
+    // row first — otherwise a legitimate retry after a real failure
+    // (network blip, insufficient funds, Alpaca rejection) would stay
+    // blocked by its own dead reservation until the minute bucket rolls
+    // over.
+    async function releasePending() {
+      await supabase.from('investments').delete().eq('id', pendingRowId);
     }
 
     // ── Load user's Alpaca access token from profiles ────────────
@@ -99,6 +135,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (profileErr || !profile?.alpaca_access_token) {
+      await releasePending();
       return new Response(JSON.stringify({ error: 'alpaca_not_connected' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -128,6 +165,7 @@ Deno.serve(async (req) => {
           })
           .eq('id', user.id);
 
+        await releasePending();
         return new Response(JSON.stringify({ error: 'alpaca_not_connected' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -135,6 +173,7 @@ Deno.serve(async (req) => {
       }
 
       console.error('Alpaca account error:', JSON.stringify(account));
+      await releasePending();
       return new Response(JSON.stringify({ error: 'brokerage_account_error' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -143,6 +182,7 @@ Deno.serve(async (req) => {
 
     const buyingPower = parseFloat(account.buying_power);
     if (buyingPower < Number(amount)) {
+      await releasePending();
       return new Response(JSON.stringify({
         error: `Insufficient buying power. Available: $${buyingPower.toFixed(2)}`,
       }), {
@@ -152,13 +192,10 @@ Deno.serve(async (req) => {
     }
 
     // ── Place fractional order ───────────────────────────────────
-    // client_order_id is a secondary backstop for the narrow race where
-    // two requests both pass the recentDuplicate check above before
-    // either's investments row is inserted (the DB check above is the
-    // primary defense and has no boundary gap; this one still has the
-    // calendar-minute edge case, but only matters for that sub-second
-    // race window now).
-    const clientOrderId = `ark-${user.id.slice(0, 8)}-${sym}-${Number(amount).toFixed(2)}-${Math.floor(Date.now() / 60_000)}`;
+    // client_order_id is a secondary backstop, kept as defense-in-depth —
+    // the pending row above is now the primary defense against a double
+    // submission ever reaching Alpaca at all.
+    const clientOrderId = `ark-${user.id.slice(0, 8)}-${sym}-${Number(amount).toFixed(2)}-${windowBucket}`;
 
     const orderRes = await fetch(`${BASE_URL}/v2/orders`, {
       method: 'POST',
@@ -183,6 +220,7 @@ Deno.serve(async (req) => {
       const isDuplicate = orderRes.status === 422
         && typeof order?.message === 'string'
         && order.message.toLowerCase().includes('client order id');
+      await releasePending();
       if (isDuplicate) {
         return new Response(JSON.stringify({
           error: 'This order was already submitted. Please wait a moment before retrying.',
@@ -197,15 +235,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── Record in Supabase ───────────────────────────────────────
-    await supabase.from('investments').insert({
-      user_id:    user.id,
-      symbol:     sym,
-      amount:     Number(amount),
-      order_id:   order.id,
-      status:     order.status,
-      created_at: new Date().toISOString(),
-    });
+    // ── Confirm the reserved row — update, not a new insert ──────
+    await supabase
+      .from('investments')
+      .update({ order_id: order.id, status: order.status })
+      .eq('id', pendingRowId);
 
     return new Response(JSON.stringify({
       success:  true,
@@ -220,6 +254,18 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     console.error('alpaca-invest error:', err);
+    // A thrown exception (e.g. fetch() itself failing on a network error,
+    // not just a non-ok response) after the pending row was reserved would
+    // otherwise leak a permanent dead reservation — clean it up here too.
+    //
+    // Known gap: catch treats fetch timeout on order-placement (line 200)
+    // same as any other error — releasePending() runs even if Alpaca may
+    // have already processed the order. Real fix requires reconciliation
+    // job against Alpaca order history, not just retry-blocking. See
+    // SECURITY_THREAT_MODEL.md.
+    if (pendingRowId) {
+      await supabase.from('investments').delete().eq('id', pendingRowId);
+    }
     await captureAndFlush(err, { function_name: 'alpaca-invest' });
     return new Response(JSON.stringify({ error: "Internal Server Error" }), {
       status: 500,

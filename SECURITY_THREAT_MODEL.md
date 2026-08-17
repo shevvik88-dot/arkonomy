@@ -206,6 +206,53 @@ it stops being true."
   and the added complexity of a stored-procedure code path isn't justified
   until this actually bites in production.
 
+### T6. `alpaca-invest` — indeterminate order-placement outcome treated as failure, accepted risk
+- **Entry point:** `alpaca-invest/index.ts`, the outer `catch (err)` block
+  (originally FINDING-A of the 2026-08-17 race-condition audit — the fix for
+  the double-order TOCTOU gap is what introduced this narrower, distinct
+  gap).
+- **Scenario:** the fix for FINDING-A reserves a `pending` row in
+  `investments` before calling Alpaca, and releases it (`releasePending()`)
+  on any failure path so a legitimate retry isn't permanently blocked. The
+  `catch` block does not distinguish between two different kinds of
+  failure: (1) Alpaca explicitly rejecting the order (`!orderRes.ok`, a
+  definite "no" — safe to release) and (2) the order-placement `fetch()`
+  call itself throwing (network timeout, connection reset, edge function
+  execution timeout) before a response is ever read — an *indeterminate*
+  outcome, since Alpaca's server may have already received and processed
+  the request before the connection dropped. The `catch` currently releases
+  the pending row in both cases identically.
+- **Exploitation condition (not attacker-triggered — a timing accident):**
+  requires the order-placement `fetch()` to time out or the connection to
+  drop *after* Alpaca has actually placed the order server-side but
+  *before* our edge function reads the response, **and** the user's retry
+  to land in a different minute bucket (`window_bucket`/`client_order_id`
+  changed) than the original attempt — otherwise Alpaca's own
+  `client_order_id` dedup (kept as defense-in-depth) would still catch the
+  retry. Both conditions together: rare, but not impossible — a real
+  network blip lasting past a minute boundary is a plausible, if unlikely,
+  coincidence.
+- **Impact if triggered:** a second real order is placed at Alpaca, with no
+  record of the first (successful) order anywhere in `investments` — the
+  pending row for it was deleted. Real money impact (user is charged/buys
+  twice), not just a display bug — this is why it's flagged here rather
+  than silently accepted without documentation.
+- **Severity:** low probability, but real financial impact if it occurs.
+  Deliberately left as an accepted risk rather than fixed immediately —
+  see Recommendation for why a real fix is a bigger lift than this specific
+  bug warrants right now.
+- **Recommendation:** a correct fix requires a background reconciliation
+  job, not just smarter retry-blocking: on an indeterminate outcome, mark
+  the row `status: 'indeterminate'` instead of deleting it, then
+  periodically (e.g. a cron edge function) query Alpaca's order history API
+  for any `client_order_id` matching an `indeterminate` row — if Alpaca
+  confirms the order exists, promote the row to a real record (`order_id`,
+  real status); if Alpaca confirms it does not exist, safe to delete. Not
+  implemented now — this is real scope (a new cron function, Alpaca order-
+  history API integration, a new row status and its own edge cases), not a
+  small patch, and doesn't meet the bar to block this fix's release given
+  how narrow the trigger window is.
+
 ---
 
 ## R — Repudiation (denying an action was taken; lack of audit trail)
