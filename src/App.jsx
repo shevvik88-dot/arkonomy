@@ -1119,6 +1119,10 @@ export default function App() {
     }
   }
 
+  // Known lost-update pattern (read-modify-write) — currently dead code, no
+  // UI path calls this with a deposit action. If a "add deposit" UI is
+  // added, use atomic SQL increment (current = current + $amount) instead
+  // of reading current on the client. See CLAUDE.md.
   async function updateSaving(id, current) {
     try {
       await supabase.from("savings").update({ current }).eq("id", id);
