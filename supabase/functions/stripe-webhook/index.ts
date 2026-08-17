@@ -88,10 +88,25 @@ Deno.serve(async (req) => {
         const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
         const { error } = await supabase
           .from('profiles')
-          .update({ plan: 'pro', stripe_customer_id: customerId, trial_ends_at: trialEndsAt })
+          .update({ plan: 'pro', stripe_customer_id: customerId, trial_ends_at: trialEndsAt, checkout_pending_at: null })
           .eq('id', userId);
 
         if (error) console.error('Failed to update profile to trial:', error);
+      }
+    }
+
+    // Releases the stripe-checkout FINDING-C guard so the user can start a
+    // new checkout — an expired session means they never completed
+    // payment, not that one is still in flight.
+    if (event.type === 'checkout.session.expired') {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const userId = session.client_reference_id;
+      if (userId) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ checkout_pending_at: null })
+          .eq('id', userId);
+        if (error) console.error('Failed to clear checkout_pending_at on expiry:', error);
       }
     }
 

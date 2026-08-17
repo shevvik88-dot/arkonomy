@@ -1,0 +1,18 @@
+-- Closes FINDING-C (SECURITY_THREAT_MODEL.md race-condition audit,
+-- 2026-08-17): stripe-checkout's findActiveSubscription check (kept as-is,
+-- guards a different scenario — an already-active Stripe subscription
+-- under a stale/wrong stripe_customer_id) only catches subscriptions that
+-- already exist. Two near-simultaneous checkout attempts (double tab,
+-- double click before redirect) both see "no active subscription" and
+-- both get a valid Checkout session, since the actual subscription is
+-- only created later, async, when the user completes payment.
+--
+-- checkout_pending_at is a second, complementary guard: an atomic
+-- check-and-set before creating a new Checkout session, reset by
+-- stripe-webhook on checkout.session.completed or checkout.session.expired.
+--
+-- Deliberately NOT added to profiles' client-writable column grant list
+-- (20260730000000/20260730000001) — only stripe-checkout/stripe-webhook
+-- (service role) ever touch this column, same posture as plan/
+-- stripe_customer_id/trial_ends_at.
+ALTER TABLE profiles ADD COLUMN checkout_pending_at TIMESTAMPTZ;

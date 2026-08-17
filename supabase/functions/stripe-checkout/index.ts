@@ -75,6 +75,41 @@ Deno.serve(async (req) => {
       });
     }
 
+    // findActiveSubscription above only catches a subscription that
+    // already exists in Stripe — it can't see a checkout that's in
+    // flight (session created, payment not yet completed), since the
+    // subscription itself is only created later, async, on
+    // checkout.session.completed. Second, complementary guard: atomic
+    // check-and-set on profiles.checkout_pending_at, reset by
+    // stripe-webhook on checkout.session.completed/.expired. Without
+    // this, two near-simultaneous checkout attempts (double tab, double
+    // click before redirect) both pass the check above and both get a
+    // valid session.
+    const { data: lockedProfile, error: lockErr } = await supabase
+      .from('profiles')
+      .update({ checkout_pending_at: new Date().toISOString() })
+      .eq('id', user.id)
+      .or('checkout_pending_at.is.null,checkout_pending_at.lt.' + new Date(Date.now() - 15 * 60 * 1000).toISOString())
+      .select('id')
+      .maybeSingle();
+
+    if (lockErr) {
+      console.error('stripe-checkout: checkout_pending_at check failed:', lockErr);
+      await captureAndFlush(lockErr, { function_name: 'stripe-checkout' });
+      return new Response(JSON.stringify({ error: "Internal Server Error" }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (!lockedProfile) {
+      return new Response(JSON.stringify({
+        error: 'A checkout is already in progress. Please finish or cancel it before starting another.',
+      }), {
+        status: 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const { data: profile } = await supabase
       .from('profiles')
       .select('stripe_customer_id')
