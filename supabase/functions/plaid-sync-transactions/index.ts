@@ -303,7 +303,8 @@ async function syncItemTransactions(
   item:        { id: string; access_token: string; plaid_cursor: string | null; user_id: string },
   seenKeys?:   Set<string>,  // cross-item dedup for users with multiple items at same bank
 ): Promise<{ added: number; modified: number; removed: number }> {
-  let cursor  = item.plaid_cursor as string | null;
+  const startCursor = item.plaid_cursor as string | null;
+  let cursor  = startCursor;
   let hasMore = true;
 
   const addedRows:    ReturnType<typeof plaidTxToRow>[] = [];
@@ -358,10 +359,21 @@ async function syncItemTransactions(
   }
 
   if (cursor) {
-    await supabase
-      .from('plaid_items')
-      .update({ plaid_cursor: cursor })
-      .eq('id', item.id);
+    // Compare-and-swap instead of an unconditional overwrite (FINDING-E,
+    // race-condition audit 2026-08-17): a manual "Sync" click and a
+    // plaid-webhook-triggered sync_item for the same item.id can run
+    // concurrently (separate HTTP invocations, no shared lock), both
+    // reading the same startCursor. An unconditional UPDATE lets whichever
+    // finishes last silently overwrite the other's more-advanced cursor.
+    // Only write if the row's cursor still matches what we started from —
+    // if someone else already advanced it, skip (their sync already
+    // covered this range; the transaction upserts above are already
+    // idempotent on plaid_transaction_id regardless).
+    const cursorUpdate = supabase.from('plaid_items').update({ plaid_cursor: cursor }).eq('id', item.id);
+    const { error: cursorErr } = startCursor === null
+      ? await cursorUpdate.is('plaid_cursor', null)
+      : await cursorUpdate.eq('plaid_cursor', startCursor);
+    if (cursorErr) console.error('plaid_cursor CAS update error:', cursorErr);
   }
 
   return {
