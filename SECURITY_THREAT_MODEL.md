@@ -294,6 +294,46 @@ it stops being true."
   CLAUDE.md — "if policy already accepted for one service, apply automatically to
   new integrations, don't reopen the decision each time").
 
+### I6. `savings_reminders.goal_id` — missing FK-ownership check, exploitable via `push-notify`'s service-role read — **Fixed 2026-08-16**
+- **Entry point:** `src/components/Savings.jsx:83-86` (client upsert into
+  `savings_reminders`), read by `supabase/functions/push-notify/index.ts:225-241`
+  (service-role batch cron, RLS bypassed by definition).
+- **Attack vector:** `savings_reminders`' RLS policy validated `auth.uid() =
+  user_id` on the reminder row itself, but never checked that `goal_id` (FK to
+  `savings.id`) actually belonged to that same user — Postgres FKs only enforce
+  referential existence, not ownership. An authenticated attacker could bypass
+  the UI and directly upsert `{ user_id: <themselves>, goal_id: <another user's
+  real savings.id> }` — RLS's `WITH CHECK` passed it, since the row's own
+  `user_id` matched the caller. `push-notify`'s batch mode then runs
+  `.select('user_id, goal_id, amount, day_of_week, savings(name)')` under the
+  service role (RLS bypassed entirely for the embedded `savings(name)` join),
+  and pushes a notification containing the victim's real goal name to the
+  attacker's own device (looked up via `r.user_id`, which is the attacker's own
+  ID). Found during the IDOR audit driven by this threat model (2026-08-16) —
+  discovered by tracing every client-supplied ID through to any service-role
+  read that could resolve it without a re-check, not by guessing.
+- **Impact (pre-fix):** narrow — leaks only the `name` field of another user's
+  savings goal (not amount/balance), and requires the attacker to already know a
+  specific victim's `savings.id` UUID (not exposed anywhere else in the app, so
+  not trivially discoverable) — rated MEDIUM, not HIGH, for that reason.
+- **Fix:** `supabase/migrations/20260816000000_savings_reminders_goal_ownership.sql`
+  — `WITH CHECK` now also requires
+  `EXISTS (SELECT 1 FROM savings WHERE savings.id = goal_id AND savings.user_id
+  = auth.uid())`. Applied live via `mcp__supabase__apply_migration` (the
+  `supabase db push` CLI path failed with a pre-existing, unrelated remote
+  migration-history/local-directory drift — 26 versions the CLI expected
+  locally and didn't find — left uninvestigated and unrepaired rather than
+  force a `migration repair` on history this change didn't create). Verified
+  live post-deploy via a direct `pg_policy` query — `with_check_expr` confirmed
+  to contain the `EXISTS` clause, not just "the deploy command said success".
+- **Recommendation:** none further open. Worth a periodic grep for this same
+  shape elsewhere — any table with `user_id` scoping plus a second FK into
+  another user-owned table is a candidate for the same gap (checked
+  `transactions.category_id` for the same pattern during this audit — not
+  exploitable, since no service-role function embeds `categories(name)`
+  anywhere; category display uses a denormalized `category_name` column set
+  independently by the client at insert time).
+
 ---
 
 ## D — Denial of Service
@@ -454,19 +494,26 @@ passes (documented at length in CLAUDE.md) and they held up under a fresh,
 code-grounded STRIDE pass rather than revealing large new holes. The genuinely open
 items, in priority order:
 
-1. **E1** — `config.toml` doesn't list all 23 functions' `verify_jwt` state,
-   creating a documentation/deployment-drift risk even though current live state
-   is correct.
-2. **D4** — login-lockout-as-targeted-DoS not verified in depth.
-3. **I2** — `ai-chat` warm-isolate cross-request state leakage of
+1. **D4** — login-lockout-as-targeted-DoS not verified in depth.
+2. **I2** — `ai-chat` warm-isolate cross-request state leakage of
    `financialContext` (not just Sentry tags) not re-verified line-by-line.
-4. **T2, T3, E4** — three "confirm the obvious-seeming thing is actually true"
+3. **T2, T3, E4** — three "confirm the obvious-seeming thing is actually true"
    checks, not known gaps.
-5. **I4** — 18 functions on single-static-origin CORS: real, but already correctly
+4. **I4** — 18 functions on single-static-origin CORS: real, but already correctly
    triaged as a functionality gap, not a security hole.
-6. **R1** — no durable audit trail for successful account deletion (only failures
+5. **R1** — no durable audit trail for successful account deletion (only failures
    are logged) — a genuine gap if compliance/support ever needs to answer "did
    this happen and when" after the row is gone.
+
+**Fixed since the initial pass:**
+- **E1** — `config.toml` now explicitly lists `check-bank-connection` and
+  `delete-account` as `verify_jwt: true` (`f0ceeb2`, 2026-08-15).
+- **I6** — `savings_reminders.goal_id` FK-ownership gap, found by a dedicated
+  IDOR audit across all 23 edge functions + frontend direct-table CRUD driven
+  by this document (2026-08-16), closed same day
+  (`20260816000000_savings_reminders_goal_ownership.sql`). That audit also
+  confirmed no equivalent gap exists elsewhere — see I6 for the full writeup
+  and what else was checked and ruled out.
 
 **E3** (column-level GRANT audit on the 4 post-2026-07-18 tables) was checked in
 full for this document, not left open — see E3 above. All 4 read line-by-line;
