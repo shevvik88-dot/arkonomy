@@ -1,0 +1,18 @@
+-- Extends FINDING-C's checkout_pending_at guard (SECURITY_THREAT_MODEL.md,
+-- delete-account race chain follow-up, 2026-08-18): checkout_pending_at
+-- has its own 15-minute TTL for rate-limiting duplicate checkout attempts,
+-- but the actual Stripe Checkout Session it guards stays completable for
+-- up to 24h (Stripe's default expiry) — well past that 15 minutes. If
+-- delete-account runs anywhere in that 24h window, the session could still
+-- be completed afterward with no app-side record to receive it (see
+-- stripe-webhook's checkout.session.completed rowcount-check finding).
+--
+-- checkout_session_id lets delete-account actively expire the real Stripe
+-- session (stripe.checkout.sessions.expire()) instead of just hoping the
+-- 24h window passes uneventfully.
+--
+-- Deliberately NOT added to profiles' client-writable column grant list
+-- (20260730000000/20260730000001) — only stripe-checkout/stripe-webhook/
+-- delete-account (service role) ever touch this column, same posture as
+-- checkout_pending_at/plan/stripe_customer_id.
+ALTER TABLE profiles ADD COLUMN checkout_session_id TEXT;
