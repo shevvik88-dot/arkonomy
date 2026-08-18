@@ -102,16 +102,30 @@ Deno.serve(async (req) => {
     const PENDING_POLL_MS = 1000;
     const PENDING_MAX_ATTEMPTS = 8;
     for (let attempt = 0; attempt < PENDING_MAX_ATTEMPTS; attempt++) {
-      const { data: pendingInvestments } = await supabase
+      const { data: pendingInvestments, error: pendingCheckErr } = await supabase
         .from('investments')
         .select('id')
         .eq('user_id', user.id)
         .eq('status', 'pending')
         .limit(1);
 
-      if (!pendingInvestments || pendingInvestments.length === 0) break;
+      // A query error means we don't actually know whether a trade is in
+      // flight — NOT the same as a confirmed "no pending investments".
+      // Treating an error as "clear to proceed" (the previous, buggy
+      // behavior) is exactly the fail-open this guard exists to prevent:
+      // it would silently skip straight to deleting investments/profiles/
+      // auth.users while a real Alpaca trade might still be mid-confirm.
+      // Only break on a genuinely successful, error-free check.
+      if (!pendingCheckErr && (!pendingInvestments || pendingInvestments.length === 0)) break;
 
       if (attempt === PENDING_MAX_ATTEMPTS - 1) {
+        if (pendingCheckErr) {
+          console.error('[delete-account] pending-investment check failed after retries:', pendingCheckErr);
+          await captureAndFlush(pendingCheckErr, { function_name: 'delete-account', stage: 'pending_investment_check' });
+          return new Response(JSON.stringify({
+            error: 'Could not verify account state. Please try again in a moment.',
+          }), { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } });
+        }
         return new Response(JSON.stringify({
           error: 'An investment is still processing. Please wait a moment and try deleting your account again.',
         }), { status: 409, headers: { ...CORS, 'Content-Type': 'application/json' } });
