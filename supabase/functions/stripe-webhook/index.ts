@@ -86,12 +86,27 @@ Deno.serve(async (req) => {
 
       if (userId) {
         const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-        const { error } = await supabase
+        // A real Stripe charge/subscription was just created above (Stripe
+        // itself, before this handler ever runs) — if this UPDATE matches 0
+        // rows, the profile was deleted out from under it (delete-account
+        // race — a Checkout Session stays completable up to 24h after
+        // creation, well past delete-account's own short-lived guards) and
+        // Arkonomy has been paid for a service it can no longer grant to
+        // anyone. Alert on it rather than let it stay silent (previously:
+        // `if (error)` never fired because a 0-row-match isn't an error).
+        const { data: updatedRows, error } = await supabase
           .from('profiles')
           .update({ plan: 'pro', stripe_customer_id: customerId, trial_ends_at: trialEndsAt, checkout_pending_at: null })
-          .eq('id', userId);
+          .eq('id', userId)
+          .select('id');
 
         if (error) console.error('Failed to update profile to trial:', error);
+        if (error || !updatedRows?.length) {
+          await captureAndFlush(
+            new Error('stripe-webhook: checkout.session.completed update matched 0 rows — possible delete-account race'),
+            { function_name: 'stripe-webhook', event_id: event.id, user_id: userId },
+          );
+        }
       }
     }
 

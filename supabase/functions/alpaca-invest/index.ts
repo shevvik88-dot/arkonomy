@@ -236,10 +236,24 @@ Deno.serve(async (req) => {
     }
 
     // ── Confirm the reserved row — update, not a new insert ──────
-    await supabase
+    // A real Alpaca order was just placed above (money already moved) — if
+    // this UPDATE matches 0 rows, the row was deleted out from under it
+    // (delete-account race, T6-adjacent finding) and the order is now
+    // untracked in investments with no other signal anywhere. Alert on it
+    // rather than let it stay silent (previously: no error thrown for a
+    // 0-row match, so nothing surfaced this at all).
+    const { data: confirmedRow, error: confirmErr } = await supabase
       .from('investments')
       .update({ order_id: order.id, status: order.status })
-      .eq('id', pendingRowId);
+      .eq('id', pendingRowId)
+      .select('id');
+
+    if (confirmErr || !confirmedRow?.length) {
+      await captureAndFlush(
+        new Error('alpaca-invest: confirm-update matched 0 rows — possible delete-account race'),
+        { function_name: 'alpaca-invest', pendingRowId, order_id: order.id },
+      );
+    }
 
     return new Response(JSON.stringify({
       success:  true,
