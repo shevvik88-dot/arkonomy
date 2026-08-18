@@ -90,6 +90,36 @@ Deno.serve(async (req) => {
       }), { headers: { ...CORS, 'Content-Type': 'application/json' } });
     }
 
+    // ── Alpaca race guard: don't delete while a trade is mid-flight ────────────
+    // A 'pending' investments row means alpaca-invest already placed a real
+    // order with Alpaca and is about to write order_id/status back onto it
+    // (see the delete-account race chain finding) — deleting the row now
+    // would race that confirm-update and leave a real trade with no record
+    // anywhere. The window is normally sub-second to a couple seconds (one
+    // Alpaca API round trip), so a short poll resolves almost every real
+    // case for free; still pending after ~7s means something's actually
+    // stuck, not just in flight, so reject rather than guess.
+    const PENDING_POLL_MS = 1000;
+    const PENDING_MAX_ATTEMPTS = 8;
+    for (let attempt = 0; attempt < PENDING_MAX_ATTEMPTS; attempt++) {
+      const { data: pendingInvestments } = await supabase
+        .from('investments')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .limit(1);
+
+      if (!pendingInvestments || pendingInvestments.length === 0) break;
+
+      if (attempt === PENDING_MAX_ATTEMPTS - 1) {
+        return new Response(JSON.stringify({
+          error: 'An investment is still processing. Please wait a moment and try deleting your account again.',
+        }), { status: 409, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+
+      await new Promise(resolve => setTimeout(resolve, PENDING_POLL_MS));
+    }
+
     let stripeError: string | null = null;
     let plaidError: string | null = null;
     const failedPlaidItemIds: string[] = [];
