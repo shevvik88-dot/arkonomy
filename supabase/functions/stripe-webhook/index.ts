@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         // `if (error)` never fired because a 0-row-match isn't an error).
         const { data: updatedRows, error } = await supabase
           .from('profiles')
-          .update({ plan: 'pro', stripe_customer_id: customerId, trial_ends_at: trialEndsAt, checkout_pending_at: null })
+          .update({ plan: 'pro', stripe_customer_id: customerId, trial_ends_at: trialEndsAt, checkout_pending_at: null, checkout_session_id: null })
           .eq('id', userId)
           .select('id');
 
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
       if (userId) {
         const { error } = await supabase
           .from('profiles')
-          .update({ checkout_pending_at: null })
+          .update({ checkout_pending_at: null, checkout_session_id: null })
           .eq('id', userId);
         if (error) console.error('Failed to clear checkout_pending_at on expiry:', error);
       }

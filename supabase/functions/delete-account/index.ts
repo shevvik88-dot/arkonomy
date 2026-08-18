@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     // ── Gather what we need to revoke BEFORE deleting any rows ────────────────
     const { data: profile } = await supabase
       .from('profiles')
-      .select('stripe_customer_id')
+      .select('stripe_customer_id, checkout_session_id')
       .eq('id', user.id)
       .single();
 
@@ -60,6 +60,7 @@ Deno.serve(async (req) => {
       .eq('user_id', user.id);
 
     const stripeCustomerId = profile?.stripe_customer_id ?? null;
+    const checkoutSessionId = profile?.checkout_session_id ?? null;
 
     // ── Dry run: report what WOULD happen, no mutating calls at all ────────────
     if (dryRun) {
@@ -151,6 +152,24 @@ Deno.serve(async (req) => {
       } catch (err) {
         stripeError = err instanceof Error ? err.message : String(err);
         console.error(`[delete-account] Stripe cancel failed for user ${user.id}:`, err);
+      }
+    }
+
+    // ── Expire any abandoned Checkout Session ──────────────────────────────────
+    // A Checkout Session stays completable for up to 24h after creation
+    // (Stripe's default) — far longer than checkout_pending_at's own
+    // 15-minute TTL. Actively expiring it here closes that window instead
+    // of just hoping it passes uneventfully (see the delete-account race
+    // chain finding / stripe-webhook's rowcount-check on
+    // checkout.session.completed). Expected and non-fatal for this to
+    // fail: the session may already be completed or expired naturally —
+    // logged, never blocks account deletion.
+    if (checkoutSessionId) {
+      try {
+        const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, { apiVersion: '2024-06-20' });
+        await stripe.checkout.sessions.expire(checkoutSessionId);
+      } catch (err) {
+        console.error(`[delete-account] Checkout Session expire failed for user ${user.id}:`, err);
       }
     }
 

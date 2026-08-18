@@ -133,6 +133,16 @@ Deno.serve(async (req) => {
       cancel_url:  `${APP_URL}?trial_cancelled=true`,
     });
 
+    // Recorded alongside checkout_pending_at (not instead of it) so
+    // delete-account can actively expire this specific Stripe session —
+    // checkout_pending_at's own 15-min TTL doesn't reflect how long the
+    // real session stays completable (up to 24h, Stripe's default).
+    const { error: sessionIdErr } = await supabase
+      .from('profiles')
+      .update({ checkout_session_id: session.id })
+      .eq('id', user.id);
+    if (sessionIdErr) console.error('stripe-checkout: failed to store checkout_session_id:', sessionIdErr);
+
     return new Response(JSON.stringify({ url: session.url }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
