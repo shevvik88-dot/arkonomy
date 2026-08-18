@@ -1248,10 +1248,25 @@ export default function App() {
     );
   })();
 
-  const spendingByCategory = {};
-  thisMonth.filter(isRealExpense).forEach(t => { const k = resolveCategory(t); spendingByCategory[k] = (spendingByCategory[k] || 0) + Math.abs(Number(t.amount) || 0); });
-  const prevSpendingByCategory = {};
-  lastMonth.filter(isRealExpense).forEach(t => { const k = resolveCategory(t); prevSpendingByCategory[k] = (prevSpendingByCategory[k] || 0) + Number(t.amount); });
+  // Groups transactions by category, then sums each group through the same
+  // sumAmounts() every other total on this screen uses — was previously two
+  // separate hand-rolled reduces, one wrapped in Math.abs() (this month) and
+  // one not (last month), an inconsistency sumAmounts()'s own comment warns
+  // about ("a stray negative-amount expense has previously flipped Net/
+  // Budget math inconsistently across screens").
+  function groupSpendingByCategory(txs) {
+    const groups = {};
+    txs.forEach(t => {
+      const k = resolveCategory(t);
+      groups[k] = groups[k] || [];
+      groups[k].push(t);
+    });
+    const totals = {};
+    for (const k in groups) totals[k] = sumAmounts(groups[k]);
+    return totals;
+  }
+  const spendingByCategory = groupSpendingByCategory(thisMonth.filter(isRealExpense));
+  const prevSpendingByCategory = groupSpendingByCategory(lastMonth.filter(isRealExpense));
 
   const insightScreen =
     screen === "dashboard"    ? "home" :
