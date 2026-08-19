@@ -55,7 +55,21 @@ Deno.serve(async (req) => {
     }
 
     // ── Parse request ────────────────────────────────────────────
-    const { amount, symbol = 'SPY' } = await req.json();
+    // A malformed body (e.g. a raw `Infinity` token, invalid per RFC 8259)
+    // makes req.json() throw a SyntaxError — caught here specifically so it
+    // returns a clean 400 instead of falling through to the general catch
+    // below, which would report it to Sentry as a real server error
+    // (PENETRATION_TEST_PLAN.md 3.5).
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid request body' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const { amount, symbol = 'SPY' } = body as { amount: unknown; symbol?: string };
     const numAmount = Number(amount);
     if (!Number.isFinite(numAmount) || numAmount < 1) {
       return new Response(JSON.stringify({ error: 'Minimum amount is $1' }), {
