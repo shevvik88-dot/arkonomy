@@ -3,14 +3,30 @@ import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 
 initSentry('alpaca-portfolio');
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Same allow-list pattern as auth-login/check-bank-connection/market-data/
+// plaid-get-accounts/get-insights — preview deployments get a fresh random
+// subdomain hash on every push, so a single static origin can't cover them.
+const PROD_ORIGIN = Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com';
+const ALLOWED_ORIGINS: (string | RegExp)[] = [
+  PROD_ORIGIN,
+  /^https:\/\/arkonomy-[a-z0-9-]+-shevvik88-dots-projects\.vercel\.app$/,
+];
+
+function resolveCorsHeaders(req: Request) {
+  const origin = req.headers.get('origin') ?? '';
+  const allowedOrigin = ALLOWED_ORIGINS.some(o => typeof o === 'string' ? o === origin : o.test(origin))
+    ? origin
+    : PROD_ORIGIN;
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  };
+}
 
 const BASE_URL = 'https://api.alpaca.markets';
 
 Deno.serve(async (req) => {
+  const corsHeaders = resolveCorsHeaders(req);
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
