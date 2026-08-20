@@ -948,169 +948,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
     <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingBottom: 80 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2 style={{ margin: 0, fontSize: 26, fontWeight: 700 }}>{t("markets.title")}</h2>
-        <button onClick={() => { setEditMode(e => !e); setDragList([...watchlist]); }}
-          style={{ padding: "6px 14px", background: editMode ? DC.gold + "22" : DC.card, border: `1px solid ${editMode ? DC.gold + "55" : `${DC.faint}33`}`, borderRadius: RADIUS.sm, color: editMode ? DC.gold : DC.muted, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
-          {editMode ? t("markets.done") : t("markets.edit")}
-        </button>
       </div>
-
-      {/* ── WATCHLIST ──────────────────────────────────────── */}
-      <GlassCard style={{ padding: "14px 16px", background: DC.card, border: `1px solid ${DC.faint}33` }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <span style={{ fontWeight: 600, fontSize: 14 }}>{t("markets.watchlist")}</span>
-          <span style={{ fontSize: 11, color: DC.faint }}>{watchlist.length}/{MAX_WATCHLIST}</span>
-        </div>
-
-        {editMode ? (
-          <>
-            <div
-              onMouseMove={onDragMove} onMouseUp={onDragEnd}
-              onTouchMove={onDragMove} onTouchEnd={onDragEnd}
-              style={{ touchAction: "none" }}
-            >
-              {dragList.map((sym, idx) => {
-                const meta = MARKET_META[sym] ?? { label: sym, color: DC.gold, icon: "activity" };
-                return (
-                  <div key={sym}
-                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: idx < dragList.length - 1 ? `1px solid ${DC.faint}22` : "none", userSelect: "none", opacity: dragging?.idx === idx ? 0.5 : 1 }}>
-                    <div
-                      onMouseDown={e => onDragStart(e, idx)}
-                      onTouchStart={e => onDragStart(e, idx)}
-                      style={{ cursor: "grab", padding: "4px 6px", color: DC.faint, fontSize: 14 }}>⋮⋮</div>
-                    <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Icon name={meta.icon} size={13} color={meta.color} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: 13 }}>{meta.label || sym}</div>
-                      <div style={{ fontSize: 11, color: DC.faint }}>{sym}</div>
-                    </div>
-                    <button onClick={() => removeFromWatchlist(sym)}
-                      style={{ background: DC.ruby + "18", border: `1px solid ${DC.ruby}33`, borderRadius: RADIUS.xs, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                      <Icon name="x" size={12} color={DC.ruby} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-
-            {watchlist.length < MAX_WATCHLIST && (
-              <div style={{ marginTop: 14 }}>
-                <div style={{ position: "relative" }}>
-                  <Icon name="search" size={14} color={DC.faint} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
-                  <input
-                    value={addQuery}
-                    onChange={e => onAddQueryChange(e.target.value)}
-                    placeholder={t("markets.search_ticker")}
-                    style={{ width: "100%", padding: "10px 12px 10px 34px", background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, color: DC.text, fontSize: 13, boxSizing: "border-box", fontFamily: FONT }}
-                  />
-                </div>
-                {searchingAdd && <div style={{ color: DC.faint, fontSize: 12, marginTop: 8 }}>{t("markets.searching")}</div>}
-                {addResults.map(r => (
-                  <div key={r.symbol} onClick={() => addToWatchlist(r.symbol)}
-                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${DC.faint}22`, cursor: "pointer" }}>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 13 }}>{r.symbol}</div>
-                      <div style={{ fontSize: 11, color: DC.faint }}>{r.description}</div>
-                    </div>
-                    <div style={{ background: DC.emerald + "18", border: `1px solid ${DC.emerald}33`, borderRadius: RADIUS.xs, padding: "3px 10px", fontSize: 12, color: DC.emerald, fontWeight: 600 }}>
-                      {watchlist.includes(r.symbol) ? t("markets.added") : t("markets.add")}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        ) : (
-          <div>
-            {watchlist.map((sym, i) => {
-              const meta = MARKET_META[sym] ?? { label: sym, color: DC.gold, icon: "activity", isCrypto: false };
-              const q    = quotes[sym];
-              const pos  = (q?.changePct ?? 0) >= 0;
-              return (
-                <div key={sym} onClick={() => setSelectedSymbol(sym)}
-                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${DC.faint}22` : "none", cursor: "pointer" }}>
-                  <StockLogo symbol={sym} color={meta.color} icon={meta.icon} size={32} borderRadius={9} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{sym}</div>
-                    <div style={{ fontSize: 11, color: DC.faint }}>{meta.label || sym}</div>
-                  </div>
-                  {loadingQuotes ? (
-                    <div style={{ height: 20, width: 70, background: `${DC.faint}33`, borderRadius: RADIUS.xs }} />
-                  ) : (
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{fmtPrice(q?.price, meta.isCrypto)}</div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end", marginTop: 2 }}>
-                        <Icon name={pos ? "trending-up" : "trending-down"} size={10} color={pos ? DC.emerald : DC.ruby} strokeWidth={2.5} />
-                        <span style={{ fontSize: 11, fontWeight: 600, color: pos ? DC.emerald : DC.ruby }}>{fmtPct(q?.changePct)}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </GlassCard>
-
-      {/* ── PORTFOLIO / CONNECT ────────────────────────────── */}
-      {alpacaConnected ? (
-        <GlassCard style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12 }}>{t("markets.portfolio_title")}</div>
-          {loadingPortfolio ? (
-            <div style={{ color: DC.faint, fontSize: 13, textAlign: "center", padding: "12px 0" }}>{t("markets.loading_portfolio")}</div>
-          ) : portfolio ? (
-            <>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-                <div style={{ background: DC.bg, borderRadius: RADIUS.sm, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 10, color: DC.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.portfolio_value")}</div>
-                  <div className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.text }}>{fmtPrice(portfolio.portfolio_value)}</div>
-                </div>
-                <div style={{ background: DC.bg, borderRadius: RADIUS.sm, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 10, color: DC.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.buying_power")}</div>
-                  <div className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.gold }}>{fmtPrice(portfolio.buying_power)}</div>
-                </div>
-              </div>
-              {portfolio.positions.length > 0 ? (
-                <>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: DC.faint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>{t("markets.holdings")}</div>
-                  {portfolio.positions.map((p, i) => {
-                    const pl  = p.unrealized_pl;
-                    const pos = pl >= 0;
-                    const meta = MARKET_META[p.symbol] ?? {};
-                    return (
-                      <div key={p.symbol} onClick={() => setSelectedSymbol(p.symbol)}
-                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${DC.faint}22` : "none", cursor: "pointer" }}>
-                        <StockLogo symbol={p.symbol} color={meta.color ?? DC.gold} icon={meta.icon ?? "activity"} size={32} borderRadius={9} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{p.symbol}</div>
-                          <div style={{ fontSize: 11, color: DC.faint }}>{t("markets.qty_shares", { qty: p.qty.toFixed(4) })}</div>
-                        </div>
-                        <div style={{ textAlign: "right" }}>
-                          <div className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{fmtPrice(p.market_value)}</div>
-                          <div className="ph-mask" style={{ fontSize: 11, fontWeight: 600, color: pos ? DC.emerald : DC.ruby }}>{pos ? "+" : "-"}{fmtPrice(Math.abs(pl))}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </>
-              ) : (
-                <div style={{ fontSize: 13, color: DC.faint, textAlign: "center", padding: "8px 0" }}>{t("markets.no_holdings")}</div>
-              )}
-            </>
-          ) : null}
-        </GlassCard>
-      ) : (
-        <GlassCard style={{ textAlign: "center", padding: "24px 20px", background: DC.card, border: `1px solid ${DC.faint}33` }}>
-          <div style={{ width: 44, height: 44, borderRadius: RADIUS.md, background: DC.gold + "18", border: `1px solid ${DC.gold}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
-            <Icon name="trending-up" size={18} color={DC.gold} />
-          </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: DC.text, marginBottom: 6 }}>{t("markets.connect_alpaca_title")}</div>
-          <div style={{ fontSize: 13, color: DC.muted, lineHeight: 1.6, marginBottom: 16 }}>{t("markets.connect_alpaca_body")}</div>
-          <button onClick={onConnectAlpaca} style={{ width: "100%", padding: "12px 0", background: DC.gold, border: "none", borderRadius: RADIUS.sm, color: DC.bg, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
-            {t("markets.connect_alpaca_btn")}
-          </button>
-        </GlassCard>
-      )}
 
       {/* ── EXPLORE ────────────────────────────────────────── */}
       <GlassCard style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
@@ -1228,6 +1066,183 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
               )}
             </div>
           </>
+        )}
+      </GlassCard>
+
+      {/* ── PORTFOLIO / CONNECT ────────────────────────────── */}
+      {alpacaConnected ? (
+        <GlassCard style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12 }}>{t("markets.portfolio_title")}</div>
+          {loadingPortfolio ? (
+            <div style={{ color: DC.faint, fontSize: 13, textAlign: "center", padding: "12px 0" }}>{t("markets.loading_portfolio")}</div>
+          ) : portfolio ? (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                <div style={{ background: DC.bg, borderRadius: RADIUS.sm, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 10, color: DC.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.portfolio_value")}</div>
+                  <div className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.text }}>{fmtPrice(portfolio.portfolio_value)}</div>
+                </div>
+                <div style={{ background: DC.bg, borderRadius: RADIUS.sm, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 10, color: DC.faint, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{t("markets.buying_power")}</div>
+                  <div className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.gold }}>{fmtPrice(portfolio.buying_power)}</div>
+                </div>
+              </div>
+              {/* Reuses the same Alpaca funding deep-link already used
+                  elsewhere (App.jsx's insufficient-buying-power toast) —
+                  Arkonomy's OAuth scope (account:write trading) has no
+                  funding/ACH permission, so this always has to be an
+                  external hand-off to Alpaca's own app. */}
+              <a
+                href="https://app.alpaca.markets/brokerage/funding/deposit"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: "block", width: "100%", boxSizing: "border-box", textAlign: "center", padding: "12px 0", background: DC.gold, borderRadius: RADIUS.sm, color: DC.bg, fontWeight: 700, fontSize: 14, textDecoration: "none", fontFamily: FONT, marginBottom: 16 }}
+              >
+                {t("markets.add_funds_btn")}
+              </a>
+              {portfolio.positions.length > 0 ? (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: DC.faint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>{t("markets.holdings")}</div>
+                  {portfolio.positions.map((p, i) => {
+                    const pl  = p.unrealized_pl;
+                    const pos = pl >= 0;
+                    const meta = MARKET_META[p.symbol] ?? {};
+                    return (
+                      <div key={p.symbol} onClick={() => setSelectedSymbol(p.symbol)}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${DC.faint}22` : "none", cursor: "pointer" }}>
+                        <StockLogo symbol={p.symbol} color={meta.color ?? DC.gold} icon={meta.icon ?? "activity"} size={32} borderRadius={9} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{p.symbol}</div>
+                          <div style={{ fontSize: 11, color: DC.faint }}>{t("markets.qty_shares", { qty: p.qty.toFixed(4) })}</div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{fmtPrice(p.market_value)}</div>
+                          <div className="ph-mask" style={{ fontSize: 11, fontWeight: 600, color: pos ? DC.emerald : DC.ruby }}>{pos ? "+" : "-"}{fmtPrice(Math.abs(pl))}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              ) : (
+                <div style={{ fontSize: 13, color: DC.faint, textAlign: "center", padding: "8px 0" }}>{t("markets.no_holdings")}</div>
+              )}
+            </>
+          ) : null}
+        </GlassCard>
+      ) : (
+        <GlassCard style={{ textAlign: "center", padding: "24px 20px", background: DC.card, border: `1px solid ${DC.faint}33` }}>
+          <div style={{ width: 44, height: 44, borderRadius: RADIUS.md, background: DC.gold + "18", border: `1px solid ${DC.gold}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+            <Icon name="trending-up" size={18} color={DC.gold} />
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: DC.text, marginBottom: 6 }}>{t("markets.connect_alpaca_title")}</div>
+          <div style={{ fontSize: 13, color: DC.muted, lineHeight: 1.6, marginBottom: 16 }}>{t("markets.connect_alpaca_body")}</div>
+          <button onClick={onConnectAlpaca} style={{ width: "100%", padding: "12px 0", background: DC.gold, border: "none", borderRadius: RADIUS.sm, color: DC.bg, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: FONT }}>
+            {t("markets.connect_alpaca_btn")}
+          </button>
+        </GlassCard>
+      )}
+
+      {/* ── WATCHLIST ──────────────────────────────────────── */}
+      <GlassCard style={{ padding: "14px 16px", background: DC.card, border: `1px solid ${DC.faint}33` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>{t("markets.watchlist")}</span>
+            <span style={{ fontSize: 11, color: DC.faint }}>{watchlist.length}/{MAX_WATCHLIST}</span>
+          </div>
+          <button onClick={() => { setEditMode(e => !e); setDragList([...watchlist]); }}
+            style={{ padding: "6px 14px", background: editMode ? DC.gold + "22" : DC.card, border: `1px solid ${editMode ? DC.gold + "55" : `${DC.faint}33`}`, borderRadius: RADIUS.sm, color: editMode ? DC.gold : DC.muted, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
+            {editMode ? t("markets.done") : t("markets.edit")}
+          </button>
+        </div>
+
+        {editMode ? (
+          <>
+            <div
+              onMouseMove={onDragMove} onMouseUp={onDragEnd}
+              onTouchMove={onDragMove} onTouchEnd={onDragEnd}
+              style={{ touchAction: "none" }}
+            >
+              {dragList.map((sym, idx) => {
+                const meta = MARKET_META[sym] ?? { label: sym, color: DC.gold, icon: "activity" };
+                return (
+                  <div key={sym}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: idx < dragList.length - 1 ? `1px solid ${DC.faint}22` : "none", userSelect: "none", opacity: dragging?.idx === idx ? 0.5 : 1 }}>
+                    <div
+                      onMouseDown={e => onDragStart(e, idx)}
+                      onTouchStart={e => onDragStart(e, idx)}
+                      style={{ cursor: "grab", padding: "4px 6px", color: DC.faint, fontSize: 14 }}>⋮⋮</div>
+                    <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: meta.color + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Icon name={meta.icon} size={13} color={meta.color} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{meta.label || sym}</div>
+                      <div style={{ fontSize: 11, color: DC.faint }}>{sym}</div>
+                    </div>
+                    <button onClick={() => removeFromWatchlist(sym)}
+                      style={{ background: DC.ruby + "18", border: `1px solid ${DC.ruby}33`, borderRadius: RADIUS.xs, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                      <Icon name="x" size={12} color={DC.ruby} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {watchlist.length < MAX_WATCHLIST && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ position: "relative" }}>
+                  <Icon name="search" size={14} color={DC.faint} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
+                  <input
+                    value={addQuery}
+                    onChange={e => onAddQueryChange(e.target.value)}
+                    placeholder={t("markets.search_ticker")}
+                    style={{ width: "100%", padding: "10px 12px 10px 34px", background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, color: DC.text, fontSize: 13, boxSizing: "border-box", fontFamily: FONT }}
+                  />
+                </div>
+                {searchingAdd && <div style={{ color: DC.faint, fontSize: 12, marginTop: 8 }}>{t("markets.searching")}</div>}
+                {addResults.map(r => (
+                  <div key={r.symbol} onClick={() => addToWatchlist(r.symbol)}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${DC.faint}22`, cursor: "pointer" }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{r.symbol}</div>
+                      <div style={{ fontSize: 11, color: DC.faint }}>{r.description}</div>
+                    </div>
+                    <div style={{ background: DC.emerald + "18", border: `1px solid ${DC.emerald}33`, borderRadius: RADIUS.xs, padding: "3px 10px", fontSize: 12, color: DC.emerald, fontWeight: 600 }}>
+                      {watchlist.includes(r.symbol) ? t("markets.added") : t("markets.add")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div>
+            {watchlist.map((sym, i) => {
+              const meta = MARKET_META[sym] ?? { label: sym, color: DC.gold, icon: "activity", isCrypto: false };
+              const q    = quotes[sym];
+              const pos  = (q?.changePct ?? 0) >= 0;
+              return (
+                <div key={sym} onClick={() => setSelectedSymbol(sym)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${DC.faint}22` : "none", cursor: "pointer" }}>
+                  <StockLogo symbol={sym} color={meta.color} icon={meta.icon} size={32} borderRadius={9} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{sym}</div>
+                    <div style={{ fontSize: 11, color: DC.faint }}>{meta.label || sym}</div>
+                  </div>
+                  {loadingQuotes ? (
+                    <div style={{ height: 20, width: 70, background: `${DC.faint}33`, borderRadius: RADIUS.xs }} />
+                  ) : (
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{fmtPrice(q?.price, meta.isCrypto)}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end", marginTop: 2 }}>
+                        <Icon name={pos ? "trending-up" : "trending-down"} size={10} color={pos ? DC.emerald : DC.ruby} strokeWidth={2.5} />
+                        <span style={{ fontSize: 11, fontWeight: 600, color: pos ? DC.emerald : DC.ruby }}>{fmtPct(q?.changePct)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </GlassCard>
 

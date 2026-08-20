@@ -438,6 +438,7 @@
     "portfolio_title": "Мой портфель",
     "portfolio_value": "Стоимость портфеля",
     "buying_power": "Доступные средства",
+    "add_funds_btn": "Пополнить счёт",
     "holdings": "Активы",
     "qty_shares": "{{qty}} акций",
     "no_holdings": "Позиций пока нет — купите первые акции",

@@ -431,6 +431,7 @@
     "portfolio_title": "My Portfolio",
     "portfolio_value": "Portfolio Value",
     "buying_power": "Buying Power",
+    "add_funds_btn": "Add Funds",
     "holdings": "Holdings",
     "qty_shares": "{{qty}} shares",
     "no_holdings": "No positions yet — buy your first shares",
