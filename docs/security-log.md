@@ -1,0 +1,24 @@
+# Arkonomy — Security decisions, full rationale
+
+Extracted from CLAUDE.md on 2026-08-19 to keep the root file short. The
+compressed one-line version of each rule lives in CLAUDE.md's "Hard
+rules" section; this is the full original wording with the "why" and the
+incident/audit that produced each decision. **These are still binding —
+do not change any of them without explicit instruction, regardless of
+which file they live in.**
+
+## Security decisions — DO NOT CHANGE without explicit instruction
+
+- **plaid_items has NO SELECT RLS policy** — intentional. Removed during security audit to prevent `access_token` from being exposed to the client. Never add a SELECT policy back.
+- **checkBankConnection() calls `check-bank-connection` edge function** (supabase/functions/check-bank-connection/) — uses service role key server-side, returns `{ connected, institution_name, count, error_code }`. Never revert to direct `.from("plaid_items").select()` in the frontend.
+- **App Check is currently DISABLED** (see docs/changelog.md) — the two rules below describe the design if/when it's re-enabled; they don't apply to anything live right now, kept so a future re-enable doesn't have to relearn them.
+  - **App Check verification uses JWKS (not the verifyToken REST API)** — the REST API requires a Google service account OAuth token; without credentials it returns 403 and would block all requests. JWKS fetches Google's public keys and verifies the RS256 JWT directly. Never switch to the REST API approach.
+  - **App Check bypasses for service-role paths** — `resync_all`, `sync_item` (plaid-sync-transactions), and cron calls (weekly-report) skip App Check because they originate server-side with no browser context. The outer `if (ENVIRONMENT !== 'development')` guard is intentional; verifyAppCheck itself has no dev bypass so the guard must live at each call site.
+- **Plaid env vars** — Production approval in progress; do not touch.
+- **usePlan.js** — Free/Pro gating is core business logic; never bypass.
+- **`profiles.alpaca_access_token`/`alpaca_refresh_token` must never be SELECTed client-side** — same class of decision as `plaid_items.access_token`. As of 2026-07-30 this is a real DB-level control, not just convention: `authenticated`/`anon` have column-level SELECT revoked on both columns (`20260730000001`), and PostgREST rejects a direct `.select('alpaca_access_token')` with `42501`. Client checks Alpaca-connected status via the `has_alpaca_token()` RPC instead — as of 2026-07-30 this RPC **is `SECURITY DEFINER`** (changed from non-SECURITY DEFINER, `20260730000002` — the SELECT revoke above broke it running as the caller, since it's parameterless and still pinned to `WHERE id = auth.uid()`, so it can only ever report on the caller's own row regardless). Never add these columns back to `App.jsx`'s `profiles` select list.
+- **`profiles` UPDATE is column-restricted for `authenticated`** (`20260730000000`/`20260730000001`) — table-level UPDATE is revoked; only `monthly_budget, savings_goal, roundup_enabled, watchlist, tutorial_completed, last_synced_at, push_subscription` are grantable. `plan`, `stripe_customer_id`, `trial_ends_at`, `trial_web_search_count`, and the Alpaca token columns are service-role-only. This closed a live self-upgrade-to-Pro / subscription-hijack exploit (confirmed via direct PostgREST call before the fix). If a legitimate new client-writable profile field is ever needed, it must be added to the explicit column list in a new migration — RLS row-scoping alone is not enough, Postgres column-level REVOKE cannot subtract a column from an existing table-level GRANT (learned the hard way — see `20260730000000` vs `20260730000001`), so always REVOKE at the table level first, then GRANT the explicit allowed-column list.
+- **Alpaca OAuth `state` is an opaque nonce (`oauth_nonces` table), never the user's Supabase JWT** — the JWT-as-state approach (fixed 2026-07-30) put a live bearer credential in a third party's URL/access-logs/Referer headers. `alpaca-oauth-start` issues a single-use, 5-minute-TTL nonce; `alpaca-oauth-callback` resolves and deletes it. `oauth_nonces` has RLS enabled with no client-facing policies (same pattern as `plaid_items`) — only service-role edge functions touch it.
+- **`check_and_increment_rate_limit` (and any future `SECURITY DEFINER` RPC) must `REVOKE EXECUTE FROM PUBLIC, anon, authenticated` and `GRANT` only to `service_role`** — a `SECURITY DEFINER` function bypasses RLS by design; leaving it at Postgres's default PUBLIC execute grant lets any authenticated client call it directly via PostgREST with attacker-chosen arguments. Follow the `login_attempts.sql` pattern for any new one.
+
+For the full chronological audit history (RLS audit, CORS fixes, race-condition audit, pentest plan) see docs/changelog.md. Live security-testing docs (`SECURITY_THREAT_MODEL.md`, `PENETRATION_TEST_PLAN.md`) are separate top-level files, not part of this extraction.
