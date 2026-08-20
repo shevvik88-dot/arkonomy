@@ -46,11 +46,17 @@ Deno.serve(async (req) => {
     }
 
     // ── Body ──────────────────────────────────────────────────────────────────
-    const body = await req.json() as {
-      public_token:     string;
-      institution_name: string;
-      institution_id:   string;
-    };
+    // req.json() throws a SyntaxError on a malformed body — caught here
+    // specifically so it returns a clean 400 instead of falling through to
+    // the general catch below, which would report it to Sentry as a real
+    // server error (PENETRATION_TEST_PLAN.md 3.6 — same fix as
+    // alpaca-invest's 3.5).
+    let body: { public_token: string; institution_name: string; institution_id: string };
+    try {
+      body = await req.json();
+    } catch {
+      return json({ error: 'Invalid request body' }, 400, corsHeaders);
+    }
 
     if (!body.public_token) {
       return json({ error: 'public_token required' }, 400, corsHeaders);

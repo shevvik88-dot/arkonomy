@@ -38,7 +38,20 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    const { email, password } = await req.json();
+    // req.json() throws a SyntaxError on a malformed body — caught here
+    // specifically so it returns a clean 400 instead of falling through to
+    // the general catch below, which would report it to Sentry as a real
+    // server error (PENETRATION_TEST_PLAN.md 3.6 — same fix as
+    // alpaca-invest's 3.5). This endpoint has no auth check at all (it IS
+    // the login endpoint), making it the most trivially reachable of the
+    // functions with this gap.
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      return json({ error: "Invalid request body" }, 400);
+    }
+    const { email, password } = body as { email?: string; password?: string };
     if (!email || !password) return json({ error: "Email and password required" }, 400);
 
     const ip =

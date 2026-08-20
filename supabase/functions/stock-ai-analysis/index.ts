@@ -51,7 +51,19 @@ Deno.serve(async (req) => {
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
-    const body = await req.json();
+    // req.json() throws a SyntaxError on a malformed body — caught here
+    // specifically so it returns a clean 400 instead of falling through to
+    // the general catch below, which would report it to Sentry as a real
+    // server error (PENETRATION_TEST_PLAN.md 3.6 — same fix as
+    // alpaca-invest's 3.5).
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid request body' }), {
+        status: 400, headers: { ...CORS, 'Content-Type': 'application/json' },
+      });
+    }
     const { symbol, name, price, pe, high52w, low52w, changePct, isCrypto, lang } = body as {
       symbol: string; name: string; price?: number; pe?: number;
       high52w?: number; low52w?: number; changePct?: number; isCrypto?: boolean; lang?: string;
