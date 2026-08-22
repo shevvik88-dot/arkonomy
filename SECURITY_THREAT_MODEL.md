@@ -253,7 +253,7 @@ it stops being true."
   small patch, and doesn't meet the bar to block this fix's release given
   how narrow the trigger window is.
 
-### T7. `push-notify` — client-writable `push_subscription` weaponized into authenticated SSRF — **Fixed 2026-08-21**
+### T7. `push-notify` — client-writable `push_subscription` weaponized into authenticated SSRF — **Fixed: verified 2026-08-21**
 - **Entry point:** `supabase/functions/push-notify/index.ts`'s `sendPushNotification()`,
   reached from Mode 1 (`POST {user_id, title, body}`, self-service, no cron
   wait) and the 3 batch scans (recurring charges, savings reminders,
@@ -288,12 +288,36 @@ it stops being true."
   Deployed (`push-notify` v57→v58), deploy verified independently via
   `mcp__supabase__get_edge_function` returning the actual deployed file
   content, not just trusting the CLI's "Deployed" message.
-- **Recommendation:** not yet live-fired against the deployed function (no
-  real request sent to a non-allow-listed endpoint to observe the block) —
-  worth a follow-up live test. Also worth the same allow-list check on
-  `push_subscription` at write time (client-side hook and/or a DB
-  constraint), not just at send time, as defense-in-depth — not implemented
-  now, flagged for later.
+- **Live-verified 2026-08-21:** test account's `profiles.push_subscription`
+  overwritten via service-role SQL to a webhook.site endpoint (safe external
+  address, not internal/metadata — same effective write a real attacker
+  gets via direct PostgREST, since the column is client-writable regardless
+  of write path), then `push-notify` Mode 1 called with the test account's
+  own JWT (`scripts/test-push-notify-ssrf-blocklist.mjs`), exactly as a real
+  authenticated attacker would. Result: `HTTP 400 {"sent":0,"reason":
+  "invalid_endpoint"}` — blocked before webhook.site was ever reached.
+  Confirmed via 2 independent sources, not just the response body: (1)
+  webhook.site's own request-log API (`GET /token/{uuid}/requests`) showed
+  **0 requests received**, ruling out a false-negative where the block
+  message is right but the request went out anyway; (2) a direct SQL read
+  immediately after showed `push_subscription` still holding the test
+  webhook.site value, unchanged — proving the code took the new
+  `BlockedPushEndpointError` branch, not the pre-existing "410/404 →
+  subscription expired, null it out" branch (which would have wiped the
+  column and could have masked the real behavior). Test subscription
+  restored to the real pre-test value (a genuine `fcm.googleapis.com`
+  endpoint) via SQL afterward. **Not independently confirmed:** the Sentry
+  warning event itself — no Sentry API/MCP access in this session, so the
+  `Sentry.captureMessage()` call is verified by code-read only, not by
+  observing the event land in the Sentry dashboard. If that matters,
+  check the Sentry project for a `warning`-level "push-notify: blocked
+  non-allow-listed subscription endpoint" event around the test's
+  timestamp.
+- **Recommendation:** the send-time allow-list is confirmed working
+  end-to-end. Still open: the same allow-list check at write time
+  (client-side hook and/or a DB constraint on `push_subscription`), as
+  defense-in-depth so a blocked value is never even accepted into the
+  column — not implemented now, flagged for later.
 
 ---
 
@@ -678,7 +702,9 @@ items, in priority order:
   `profiles.push_subscription`) reached an unvalidated `fetch()` inside
   `web-push` — an authenticated SSRF primitive, found by the pentest plan's
   full fetch-URL sweep (2.1, 2026-08-21), fixed same day with a push-service
-  host allow-list (`push-notify` v57→v58).
+  host allow-list (`push-notify` v57→v58), live-verified same day against a
+  real webhook.site target (0 requests received, confirmed via its own
+  request-log API) — see T7 for full detail.
 
 **E3** (column-level GRANT audit on the 4 post-2026-07-18 tables) was checked in
 full for this document, not left open — see E3 above. All 4 read line-by-line;
