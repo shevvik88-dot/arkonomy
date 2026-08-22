@@ -253,6 +253,48 @@ it stops being true."
   small patch, and doesn't meet the bar to block this fix's release given
   how narrow the trigger window is.
 
+### T7. `push-notify` — client-writable `push_subscription` weaponized into authenticated SSRF — **Fixed 2026-08-21**
+- **Entry point:** `supabase/functions/push-notify/index.ts`'s `sendPushNotification()`,
+  reached from Mode 1 (`POST {user_id, title, body}`, self-service, no cron
+  wait) and the 3 batch scans (recurring charges, savings reminders,
+  scheduled payments).
+- **Attack vector:** found during the pentest plan's SSRF sweep (2.1, full
+  `fetch()` audit across all 23 functions). `sendPushNotification()` calls
+  `webpush.sendNotification(subscription, ...)` (the `web-push` npm library),
+  which does its own raw `fetch()` to `subscription.endpoint` — with no host
+  validation of its own. `subscription` is read straight from
+  `profiles.push_subscription`, which is on the client-writable column list
+  (same GRANT audit as T1/E3) — an authenticated user can set it directly via
+  PostgREST (`update({ push_subscription: { endpoint: '<anything>', keys:
+  {...} } })`), bypassing the legitimate browser `PushManager` flow
+  (`src/hooks/usePushNotifications.js`) entirely. Combined with Mode 1's
+  self-service trigger, a user can make the edge function issue a
+  server-side HTTP request to a host/port/path of their choosing, on demand.
+- **Impact (pre-fix):** an authenticated (not anonymous) SSRF primitive —
+  internal network probing from the edge function's own network, or using
+  Arkonomy's infrastructure as a blind outbound proxy. Rated MEDIUM-HIGH:
+  gated behind a real session (not unauthenticated), but genuinely
+  reachable on demand, not a rare timing accident.
+- **Fix:** `sendPushNotification()` now validates `subscription.endpoint`
+  before any `webpush`/`fetch()` call — must be `https:` and its hostname
+  must match a fixed allow-list of real push-service hosts
+  (`fcm.googleapis.com`, `updates.push.services.mozilla.com`,
+  `web.push.apple.com`, `*.notify.windows.com`), else it throws
+  `BlockedPushEndpointError` before reaching `web-push`. All 4 call sites
+  catch this distinctly (`reportIfBlockedEndpoint()`), log a Sentry
+  **warning** (not error — could be a legitimate new push vendor) with the
+  blocked hostname, and return `blocked_endpoint`/`invalid_endpoint` instead
+  of falling through to the generic-failure or subscription-expired paths.
+  Deployed (`push-notify` v57→v58), deploy verified independently via
+  `mcp__supabase__get_edge_function` returning the actual deployed file
+  content, not just trusting the CLI's "Deployed" message.
+- **Recommendation:** not yet live-fired against the deployed function (no
+  real request sent to a non-allow-listed endpoint to observe the block) —
+  worth a follow-up live test. Also worth the same allow-list check on
+  `push_subscription` at write time (client-side hook and/or a DB
+  constraint), not just at send time, as defense-in-depth — not implemented
+  now, flagged for later.
+
 ---
 
 ## R — Repudiation (denying an action was taken; lack of audit trail)
@@ -632,6 +674,11 @@ items, in priority order:
   (`20260816000000_savings_reminders_goal_ownership.sql`). That audit also
   confirmed no equivalent gap exists elsewhere — see I6 for the full writeup
   and what else was checked and ruled out.
+- **T7** — `push-notify`'s `subscription.endpoint` (from client-writable
+  `profiles.push_subscription`) reached an unvalidated `fetch()` inside
+  `web-push` — an authenticated SSRF primitive, found by the pentest plan's
+  full fetch-URL sweep (2.1, 2026-08-21), fixed same day with a push-service
+  host allow-list (`push-notify` v57→v58).
 
 **E3** (column-level GRANT audit on the 4 post-2026-07-18 tables) was checked in
 full for this document, not left open — see E3 above. All 4 read line-by-line;

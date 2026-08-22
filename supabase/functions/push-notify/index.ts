@@ -13,10 +13,59 @@
 //   VAPID_SUBJECT       — e.g. mailto:you@example.com
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+import { initSentry, captureAndFlush, Sentry } from '../_shared/sentry.ts';
 import { getUpcomingCharges } from '../_shared/recurringDetector.ts';
 
 initSentry('push-notify');
+
+// ── SSRF guard on subscription.endpoint (pentest 2.1) ───────────────────────
+// profiles.push_subscription is a client-writable column (see
+// docs/security-log.md's column-level GRANT list) — a user can set it to
+// anything via a direct PostgREST update, bypassing the real browser
+// PushManager flow in src/hooks/usePushNotifications.js entirely. web-push's
+// sendNotification() makes a raw server-side fetch() to subscription.endpoint
+// with no validation of its own, so an unvalidated endpoint is a live SSRF
+// primitive: an authenticated user can trigger it on demand via this
+// function's Mode 1 (direct notification, self-service, no cron wait).
+// Fix: only forward to the fixed, small set of real push-service hosts.
+const ALLOWED_PUSH_ENDPOINT_HOSTS: Array<(hostname: string) => boolean> = [
+  (h) => h === 'fcm.googleapis.com',                                  // Chrome / Edge (Chromium) / Samsung Internet / Opera
+  (h) => h === 'updates.push.services.mozilla.com',                   // Firefox
+  (h) => h === 'web.push.apple.com',                                  // Safari (macOS 13+ / iOS 16.4+)
+  (h) => h === 'notify.windows.com' || h.endsWith('.notify.windows.com'), // legacy EdgeHTML (WNS)
+];
+
+class BlockedPushEndpointError extends Error {
+  constructor(public hostname: string) {
+    super(`Push endpoint host not on allow-list: ${hostname}`);
+    this.name = 'BlockedPushEndpointError';
+  }
+}
+
+function isAllowedPushEndpoint(endpoint: unknown): boolean {
+  if (typeof endpoint !== 'string') return false;
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'https:') return false;
+  return ALLOWED_PUSH_ENDPOINT_HOSTS.some((match) => match(url.hostname));
+}
+
+// Logs a Sentry *warning* (not error — could be a legitimate new push vendor,
+// not necessarily an attack) and reports whether `err` was actually a block,
+// so call sites can branch without duplicating the Sentry/context logic.
+function reportIfBlockedEndpoint(err: unknown, userId: string): boolean {
+  if (!(err instanceof BlockedPushEndpointError)) return false;
+  Sentry.withScope((scope) => {
+    scope.setLevel('warning');
+    scope.setContext('blocked_push_endpoint', { user_id: userId, hostname: err.hostname });
+    Sentry.captureMessage('push-notify: blocked non-allow-listed subscription endpoint');
+  });
+  return true;
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
@@ -41,6 +90,12 @@ async function sendPushNotification(
   vapidPrivateKey: string,
   vapidSubject: string,
 ): Promise<void> {
+  if (!isAllowedPushEndpoint(subscription?.endpoint)) {
+    let hostname = 'unparseable';
+    try { hostname = new URL(subscription?.endpoint ?? '').hostname; } catch { /* keep 'unparseable' */ }
+    throw new BlockedPushEndpointError(hostname);
+  }
+
   // Dynamically import web-push compatible library for Deno
   const { default: webpush } = await import('npm:web-push@3.6.7');
 
@@ -131,6 +186,11 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       } catch (pushErr) {
+        if (reportIfBlockedEndpoint(pushErr, String(reqBody.user_id))) {
+          return new Response(JSON.stringify({ sent: 0, reason: 'invalid_endpoint' }), {
+            status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
         // Subscription expired — clean it up so we don't retry forever
         if (String(pushErr).includes('410') || String(pushErr).includes('404')) {
           await supabase.from('profiles').update({ push_subscription: null }).eq('id', reqBody.user_id);
@@ -214,6 +274,10 @@ Deno.serve(async (req) => {
           );
           results.push({ userId: profile.id, merchant: merchantDisplay, status: 'sent' });
         } catch (err) {
+          if (reportIfBlockedEndpoint(err, profile.id)) {
+            results.push({ userId: profile.id, merchant: merchantDisplay, status: 'blocked_endpoint' });
+            continue;
+          }
           console.error(`Push failed for user ${profile.id}:`, err);
           results.push({ userId: profile.id, merchant: merchantDisplay, status: 'failed', error: "Internal Server Error" });
         }
@@ -256,6 +320,10 @@ Deno.serve(async (req) => {
         );
         results.push({ userId: r.user_id, type: 'savings_reminder', goalId: r.goal_id, status: 'sent' });
       } catch (err) {
+        if (reportIfBlockedEndpoint(err, r.user_id)) {
+          results.push({ userId: r.user_id, type: 'savings_reminder', goalId: r.goal_id, status: 'blocked_endpoint' });
+          continue;
+        }
         console.error(`Savings reminder push failed for user ${r.user_id}:`, err);
         results.push({ userId: r.user_id, type: 'savings_reminder', goalId: r.goal_id, status: 'failed' });
       }
@@ -293,6 +361,10 @@ Deno.serve(async (req) => {
         );
         results.push({ userId: p.user_id, type: 'scheduled_payment', paymentId: p.id, status: 'sent' });
       } catch (err) {
+        if (reportIfBlockedEndpoint(err, p.user_id)) {
+          results.push({ userId: p.user_id, type: 'scheduled_payment', paymentId: p.id, status: 'blocked_endpoint' });
+          continue;
+        }
         console.error(`Scheduled payment push failed for user ${p.user_id}:`, err);
         results.push({ userId: p.user_id, type: 'scheduled_payment', paymentId: p.id, status: 'failed' });
       }
