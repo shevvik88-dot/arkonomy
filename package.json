@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
-    "prepare": "git config core.hooksPath .githooks"
+    "prepare": "node scripts/setup-git-hooks.cjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.0",
