@@ -1091,7 +1091,21 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
                   elsewhere (App.jsx's insufficient-buying-power toast) —
                   Arkonomy's OAuth scope (account:write trading) has no
                   funding/ACH permission, so this always has to be an
-                  external hand-off to Alpaca's own app. */}
+                  external hand-off to Alpaca's own app. The context line +
+                  link to Alpaca's own funding guide (instead of us writing
+                  our own step-by-step) means we never have to keep those
+                  steps in sync with Alpaca's UI. */}
+              <div style={{ fontSize: 11, color: DC.faint, lineHeight: 1.5, marginBottom: 8 }}>
+                {t("markets.add_funds_context")}{" "}
+                <a
+                  href="https://alpaca.markets/learn/fund-live-trading-account"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: C.alpacaAccent, textDecoration: "underline" }}
+                >
+                  {t("markets.add_funds_guide")}
+                </a>
+              </div>
               <a
                 href="https://app.alpaca.markets/brokerage/funding/deposit"
                 target="_blank"

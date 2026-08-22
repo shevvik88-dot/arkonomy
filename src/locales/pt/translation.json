@@ -431,6 +431,8 @@
     "portfolio_title": "Meu Portfólio",
     "portfolio_value": "Valor do Portfólio",
     "buying_power": "Poder de Compra",
+    "add_funds_context": "Você será redirecionado para a Alpaca, nossa parceira de investimentos, para adicionar fundos.",
+    "add_funds_guide": "Precisa de ajuda? Veja o guia de depósito da Alpaca →",
     "add_funds_btn": "Adicionar fundos",
     "holdings": "Posições",
     "qty_shares": "{{qty}} ações",
