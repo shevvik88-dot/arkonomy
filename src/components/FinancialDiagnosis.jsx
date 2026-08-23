@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { usePostHog } from "@posthog/react";
 import { C, FONT, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { callEdgeFunction } from "../lib/callEdgeFunction";
+import { getCardQuestion } from "../utils/cardQuestions";
 import GlassCard from "./shared/GlassCard";
 import Icon from "./shared/Icon";
 
@@ -34,7 +35,7 @@ const ISSUE_ICONS = {
   no_goal: "target",
 };
 
-export default function FinancialDiagnosis({ onBack, lang }) {
+export default function FinancialDiagnosis({ onBack, onNavigate, onOpenChatWithMessage, onRequestAddGoal, lang }) {
   const { t } = useTranslation();
   const posthog = usePostHog();
   const [phase, setPhase] = useState("analyzing"); // analyzing | insufficient | result | error
@@ -88,8 +89,27 @@ export default function FinancialDiagnosis({ onBack, lang }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Phase 2 navigation targets, per decision 2026-08-23:
+  // - high_apr_debt: no dedicated credit-detail screen exists (see
+  //   BACKLOG.md item 3, Level 4 — blocked on Plaid Liabilities) — reuses
+  //   the existing long-press→AI-chat pattern from Dashboard's Credit Cards
+  //   card instead of building a new screen.
+  // - subscription_leak: navigates to the Subscriptions section on the
+  //   Insights screen (already sorted by amount — computeRecurringSummary's
+  //   own behavior, nothing extra needed here).
+  // - no_emergency_fund / no_goal: navigates to Savings AND opens the
+  //   "New goal" modal directly, not just the screen.
   function handleActionTap(issue) {
     posthog?.capture("diagnosis_action_tapped", { issue });
+    if (issue === "high_apr_debt") {
+      const worstCard = result?.metrics?.debts?.[0];
+      const question = getCardQuestion("creditCards", { cardName: worstCard?.name, pct: result?.metrics?.worstUtilization }, t);
+      if (question) onOpenChatWithMessage?.(question);
+    } else if (issue === "subscription_leak") {
+      onNavigate?.("insights");
+    } else if (issue === "no_emergency_fund" || issue === "no_goal") {
+      onRequestAddGoal?.();
+    }
   }
 
   function Header() {

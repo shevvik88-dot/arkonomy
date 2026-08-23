@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
+import { callEdgeFunction } from "../lib/callEdgeFunction";
+import { getCachedDiagnosisLesson, setCachedDiagnosisLesson } from "../utils/diagnosisLessonCache";
 import { getCachedAccounts, setCachedAccounts, sumDepositoryBalance, getCreditAccounts, sumCreditDebt, creditUtilization } from "../utils/accountsCache";
 import { C, FONT, CAT_COLORS, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmt, fmtDate, parseDate, fmtPct, resolveCategory, tCat, sumAmounts } from "../utils/helpers";
@@ -1287,7 +1289,37 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   });
 
   // ── Today's Lesson ────────────────────────────────────────────────────────
-  const todaysLesson = useMemo(() => getTodaysLesson(), []);
+  const staticTodaysLesson = useMemo(() => getTodaysLesson(), []);
+  // Financial Diagnosis Phase 2: if the user has an active diagnosis,
+  // daily-lesson-v2 replaces the static rotation with one personalized to
+  // their real issues + yesterday's transactions. Always called once per
+  // day (decision 2026-08-23: one code path, no separate "does an active
+  // diagnosis exist" pre-check) — the function itself early-returns cheaply
+  // for users with no active diagnosis, and the result (including a
+  // no-op/error outcome) is cached client-side by calendar date so it's
+  // never re-fetched more than once/day regardless of outcome.
+  const [diagnosisLesson, setDiagnosisLesson] = useState(null);
+  useEffect(() => {
+    if (!userId) return;
+    const cached = getCachedDiagnosisLesson(userId);
+    if (cached) {
+      if (cached.lesson) setDiagnosisLesson(cached.lesson);
+      return; // already resolved today (lesson or explicit null) — don't re-fetch
+    }
+
+    let cancelled = false;
+    callEdgeFunction('daily-lesson-v2', { lang: i18n.language })
+      .then(data => {
+        if (cancelled) return;
+        const lesson = data?.status === 'diagnosed_lesson' ? data.lesson : null;
+        setDiagnosisLesson(lesson);
+        setCachedDiagnosisLesson(userId, lesson);
+      })
+      .catch(() => { /* silent — falls back to the static lessons.js rotation below, no error UI for a background enhancement */ });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+  const todaysLesson = diagnosisLesson || staticTodaysLesson;
   const lessonAlreadyDoneToday = computeNextStreak(lessonStreak.last_completed_date, lessonStreak.current_streak).alreadyCompletedToday;
   const lessonPersonalizedNote = useMemo(
     () => getPersonalizedLessonNote({ cashPositionLow, upcomingCharges, spendingByCategory }),
@@ -1659,8 +1691,11 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
                   BACKLOG.md for the full RU/ES/PT translation task. Honest
                   notice instead of silently showing English under a
                   non-English UI, same principle as every other "don't fake
-                  it" call in this codebase. */}
-              {!i18n.language?.startsWith('en') && (
+                  it" call in this codebase. Suppressed when showing a
+                  diagnosisLesson — daily-lesson-v2 generates it in the
+                  user's actual app language (responseLang), so the notice
+                  would be actively false there, not just unnecessary. */}
+              {!diagnosisLesson && !i18n.language?.startsWith('en') && (
                 <div style={{ fontSize: 12, color: C.muted, background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.sm, padding: "8px 12px", marginBottom: 12 }}>
                   {t("dashboard.todays_lesson_english_only")}
                 </div>

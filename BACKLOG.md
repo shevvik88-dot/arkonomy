@@ -161,6 +161,8 @@ push_subscription). Дайджест вида "на этой неделе пот
 
 **Уровень 4 (Plaid Liabilities — реальный APR, due date, точный limit) сознательно НЕ сделан** — отдельная задача, ждёт закрытия Plaid Production approval review (добавление нового продукта в Link token во время активного ревью нужно координировать, не делать по ходу).
 
+**2026-08-23, Financial Diagnosis Phase 2**: `high_apr_debt`-карточка диагностики (`FinancialDiagnosis.jsx`) сознательно НЕ ведёт на отдельный детальный экран — экрана нет, а строить его в рамках diagnosis Phase 2 не стали (отдельный by-design скоуп, привязан именно к этому Уровню 4). Вместо этого action-кнопка переиспользует существующий паттерн long-press→AI-чат с карточки Credit Cards на Dashboard (`card_question_credit_cards` промпт, `getCardQuestion('creditCards', ...)`). Когда Уровень 4 будет сделан — этот action стоит переключить на реальную навигацию.
+
 ```
 Спланируй (только план, не код) фичу отображения и контроля кредитных карт.
 Контекст: plaid_accounts уже хранит credit-счета (type='credit',
