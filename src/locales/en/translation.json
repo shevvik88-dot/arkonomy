@@ -47,6 +47,7 @@
     "todays_lesson_streak_other": "{{count}}-day streak",
     "todays_lesson_tip": "Tip",
     "todays_lesson_english_only": "This lesson is available in English only",
+    "financial_diagnosis_link": "See what's really going on →",
     "longpress_tip": "Tip: long-press any card to ask your coach",
     "card_question_coach": "What should I do about: '{{headline}}'?",
     "card_question_credit_cards": "Why is my {{cardName}} utilization a concern?",
@@ -848,5 +849,24 @@
     "pro_badge": "Pro",
     "free_badge": "Free",
     "user_default": "User"
+  },
+  "diagnosis": {
+    "title": "Your Diagnosis",
+    "step_debt": "Checking your debt load…",
+    "step_subscriptions": "Looking at subscriptions…",
+    "step_income_spending": "Comparing income and spending…",
+    "analyzing_subtitle": "Your coach is looking at your real numbers",
+    "insufficient_title": "Not enough data yet",
+    "insufficient_body": "Connect a bank account and give it a couple weeks of activity, then check back — a real diagnosis needs real history.",
+    "error_title": "Something went wrong",
+    "error_body": "Couldn't complete your diagnosis right now. Try again in a moment.",
+    "retry_btn": "Try again",
+    "issue_high_apr_debt": "Credit card debt",
+    "issue_no_emergency_fund": "Emergency fund",
+    "issue_subscription_leak": "Recurring charges",
+    "issue_overspending": "Overspending",
+    "issue_lifestyle_inflation": "Lifestyle inflation",
+    "issue_unstable_income_no_buffer": "Unstable income",
+    "issue_no_goal": "No savings goal"
   }
 }

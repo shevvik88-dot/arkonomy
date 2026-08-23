@@ -1396,6 +1396,19 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
 
       {/* 3 ── Today's lesson */}
       <TodaysLessonRow lesson={todaysLesson} streak={lessonStreak.current_streak} alreadyCompletedToday={lessonAlreadyDoneToday} onClick={() => { setShowLessonSheet(true); onCompleteLesson?.(); }} />
+      {/* Financial Diagnosis entry point — same gold link/chevron pattern as
+          "View Insights" below (section 9), reusing the visual style rather
+          than inventing a new one. Placed here (not a new standalone card)
+          because Phase 2 wires this exact lesson row to become
+          diagnosis-aware once an active diagnosis exists — same slot, same
+          narrative arc. */}
+      <button
+        onClick={() => onNavigate("financial-diagnosis")}
+        style={{ display: "flex", alignItems: "center", gap: 4, margin: "2px 0 0 4px", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: FONT }}
+      >
+        <span style={{ fontSize: 12, fontWeight: 600, color: DC.gold }}>{t("dashboard.financial_diagnosis_link")}</span>
+        <Icon name="chevron" size={12} color={DC.gold} />
+      </button>
 
       {/* 4 ── Balance / End of month — compact boxes, tap either to open the full Cash Flow Forecast (burn-down bar + 3-stat grid) in a sheet, nothing lost or duplicated on-page */}
       {!bankConnected ? (

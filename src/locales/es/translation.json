@@ -47,6 +47,7 @@
     "todays_lesson_streak_other": "{{count}} días seguidos",
     "todays_lesson_tip": "Consejo",
     "todays_lesson_english_only": "Esta lección solo está disponible en inglés",
+    "financial_diagnosis_link": "Ver qué está pasando realmente →",
     "longpress_tip": "Consejo: mantén pulsada una tarjeta para preguntarle a tu coach",
     "card_question_coach": "¿Qué debería hacer con esto: '{{headline}}'?",
     "card_question_credit_cards": "¿Por qué preocupa la utilización de mi tarjeta {{cardName}}?",
@@ -848,5 +849,24 @@
     "pro_badge": "Pro",
     "free_badge": "Gratis",
     "user_default": "Usuario"
+  },
+  "diagnosis": {
+    "title": "Tu Diagnóstico",
+    "step_debt": "Revisando tus deudas…",
+    "step_subscriptions": "Analizando tus suscripciones…",
+    "step_income_spending": "Comparando ingresos y gastos…",
+    "analyzing_subtitle": "Tu coach está mirando tus números reales",
+    "insufficient_title": "Aún no hay suficientes datos",
+    "insufficient_body": "Conecta una cuenta bancaria y dale un par de semanas de actividad, luego vuelve a revisar — un diagnóstico real necesita historial real.",
+    "error_title": "Algo salió mal",
+    "error_body": "No pudimos completar tu diagnóstico ahora. Intenta de nuevo en un momento.",
+    "retry_btn": "Intentar de nuevo",
+    "issue_high_apr_debt": "Deuda de tarjeta de crédito",
+    "issue_no_emergency_fund": "Fondo de emergencia",
+    "issue_subscription_leak": "Cargos recurrentes",
+    "issue_overspending": "Gasto excesivo",
+    "issue_lifestyle_inflation": "Inflación del estilo de vida",
+    "issue_unstable_income_no_buffer": "Ingreso inestable",
+    "issue_no_goal": "Sin meta de ahorro"
   }
 }
