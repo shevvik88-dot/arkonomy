@@ -15,12 +15,18 @@ import { usePostHog } from "@posthog/react";
 import { C, FONT, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { callEdgeFunction } from "../lib/callEdgeFunction";
 import { getCardQuestion } from "../utils/cardQuestions";
+import { supabase } from "../utils/supabase";
 import GlassCard from "./shared/GlassCard";
 import Icon from "./shared/Icon";
 
 // Artificial minimum per status line so the "coach working" steps are
 // visible even when the edge function responds fast — spec: ~1.2-1.5s/line.
 const STEP_INTERVAL_MS = 1400;
+
+// Matches the weekly re-check cadence used for the cost estimate
+// (2026-08-23) — an existing active diagnosis younger than this is shown
+// straight away, no re-analysis animation, no fresh Claude call.
+const RECENT_MS = 7 * 24 * 60 * 60 * 1000;
 
 // One icon per taxonomy key, purely decorative on the problem card — not
 // used for anything else, so an unrecognized/adapted key still renders fine
@@ -42,6 +48,10 @@ export default function FinancialDiagnosis({ onBack, onNavigate, onOpenChatWithM
   const [stepIndex, setStepIndex] = useState(0);
   const [result, setResult] = useState(null);
   const startedRef = useRef(false);
+  // Holds whichever run (initial mount, or a "Re-check my finances" tap) is
+  // currently in flight, so a single unmount effect can cancel either one —
+  // runFreshAnalysis() can now fire from two different call sites.
+  const activeRunCleanupRef = useRef(null);
 
   const STEPS = [
     t("diagnosis.step_debt"),
@@ -49,13 +59,15 @@ export default function FinancialDiagnosis({ onBack, onNavigate, onOpenChatWithM
     t("diagnosis.step_income_spending"),
   ];
 
-  useEffect(() => {
-    // Guard against double-fire in dev/StrictMode double-invoke — this call
-    // is rate-limited and writes a DB row, not idempotent-safe to fire twice.
-    if (startedRef.current) return;
-    startedRef.current = true;
-
+  // Runs the actual analyzing-animation + financial-diagnosis call. Only
+  // ever called when we've already decided a fresh diagnosis is needed —
+  // callers (the mount effect, and the "Re-check my finances" button) do
+  // that decision themselves.
+  function runFreshAnalysis() {
     posthog?.capture("diagnosis_started");
+    setResult(null);
+    setStepIndex(0);
+    setPhase("analyzing");
 
     let cancelled = false;
     let i = 0;
@@ -85,7 +97,52 @@ export default function FinancialDiagnosis({ onBack, onNavigate, onOpenChatWithM
         setPhase("error");
       });
 
-    return () => { cancelled = true; clearInterval(stepTimer); };
+    activeRunCleanupRef.current = () => { cancelled = true; clearInterval(stepTimer); };
+  }
+
+  useEffect(() => {
+    // Guard against double-fire in dev/StrictMode double-invoke — a fresh
+    // run is rate-limited and writes a DB row, not idempotent-safe to fire
+    // twice.
+    if (startedRef.current) return;
+    startedRef.current = true;
+
+    let cancelled = false;
+
+    // Re-run bug fix (2026-08-24): tapping the entry point used to always
+    // re-run the full analysis, even with a perfectly good recent diagnosis
+    // already on file. Check for one first — same RLS SELECT policy the
+    // result screen itself relies on, no edge function round-trip, no
+    // Claude call, no rate-limit spend — and show it immediately if it's
+    // younger than RECENT_MS. Only fall through to a fresh run if there's
+    // no active row, or it's stale, or (separately) the user explicitly
+    // taps "Re-check my finances" on the result screen.
+    supabase
+      .from('diagnosis_profiles')
+      .select('id, metrics, primary_issues, narrative, created_at')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data: existing, error }) => {
+        if (cancelled) return;
+        const ageMs = existing ? Date.now() - new Date(existing.created_at).getTime() : Infinity;
+        if (!error && existing && ageMs < RECENT_MS) {
+          setResult({
+            healthy: (existing.primary_issues || []).length === 0,
+            primary_issues: existing.primary_issues,
+            narrative: existing.narrative,
+            metrics: existing.metrics,
+            diagnosis_id: existing.id,
+          });
+          setPhase("result");
+          posthog?.capture("diagnosis_viewed_cached", { age_days: Math.floor(ageMs / 86_400_000) });
+          return;
+        }
+        runFreshAnalysis();
+      });
+
+    return () => { cancelled = true; activeRunCleanupRef.current?.(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -196,6 +253,15 @@ export default function FinancialDiagnosis({ onBack, onNavigate, onOpenChatWithM
             </GlassCard>
           ))}
         </>
+      )}
+
+      {phase === "result" && result && (
+        <button
+          onClick={() => { posthog?.capture("diagnosis_recheck_tapped"); runFreshAnalysis(); }}
+          style={{ display: "block", width: "100%", boxSizing: "border-box", textAlign: "center", padding: "12px 0", marginTop: 4, background: "none", border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, color: DC.muted, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT }}
+        >
+          {t("diagnosis.recheck_btn")}
+        </button>
       )}
     </div>
   );

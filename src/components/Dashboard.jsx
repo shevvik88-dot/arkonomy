@@ -1428,18 +1428,30 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
 
       {/* 3 ── Today's lesson */}
       <TodaysLessonRow lesson={todaysLesson} streak={lessonStreak.current_streak} alreadyCompletedToday={lessonAlreadyDoneToday} onClick={() => { setShowLessonSheet(true); onCompleteLesson?.(); }} />
-      {/* Financial Diagnosis entry point — same gold link/chevron pattern as
-          "View Insights" below (section 9), reusing the visual style rather
-          than inventing a new one. Placed here (not a new standalone card)
-          because Phase 2 wires this exact lesson row to become
-          diagnosis-aware once an active diagnosis exists — same slot, same
-          narrative arc. */}
+      {/* Financial Diagnosis entry point — upgraded 2026-08-24 from a bare
+          text link to a small card (discoverability fix: the link alone
+          was too subtle, low visual hierarchy, unclear what tapping it
+          did). Still placed here, not a standalone card elsewhere on the
+          screen — Phase 2 wires this exact lesson row to become
+          diagnosis-aware once an active diagnosis exists, so this stays
+          the same slot, same narrative arc ("check your money" -> "see
+          your personalized lesson here"). Deliberately NOT merged into
+          CoachBlock above: that card is driven by the separate
+          checkInEngine insight-signal system and returns null with no
+          active signal — piggybacking there would make this invisible to
+          exactly the users who already have a live insight showing. */}
       <button
         onClick={() => onNavigate("financial-diagnosis")}
-        style={{ display: "flex", alignItems: "center", gap: 4, margin: "2px 0 0 4px", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: FONT }}
+        style={{ display: "flex", alignItems: "flex-start", gap: 10, width: "100%", boxSizing: "border-box", textAlign: "left", margin: "6px 0 0", padding: "12px 14px", background: DC.card, border: `1px solid ${DC.gold}33`, borderRadius: RADIUS.sm, cursor: "pointer", fontFamily: FONT }}
       >
-        <span style={{ fontSize: 12, fontWeight: 600, color: DC.gold }}>{t("dashboard.financial_diagnosis_link")}</span>
-        <Icon name="chevron" size={12} color={DC.gold} />
+        <div style={{ fontSize: 18, lineHeight: 1, marginTop: 1 }}>✨</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: DC.gold }}>{t("dashboard.financial_diagnosis_link")}</span>
+            <Icon name="chevron" size={12} color={DC.gold} />
+          </div>
+          <div style={{ fontSize: 11, color: DC.muted, marginTop: 2 }}>{t("dashboard.financial_diagnosis_subtitle")}</div>
+        </div>
       </button>
 
       {/* 4 ── Balance / End of month — compact boxes, tap either to open the full Cash Flow Forecast (burn-down bar + 3-stat grid) in a sheet, nothing lost or duplicated on-page */}
