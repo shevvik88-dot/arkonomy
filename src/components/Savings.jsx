@@ -401,12 +401,24 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
 }
 
 // ─── Main Savings Screen ──────────────────────────────────────
-export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelete, totalIncome = 0, totalSpent = 0, transactions, insight, onInsightAction, onInvestAlpaca, isPro, isTrial, onUpgrade, alpacaConnected, onConnectAlpaca, bankConnected, userId, InsightCard, roundupEnabled = false, onToggleRoundup }) {
+export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelete, totalIncome = 0, totalSpent = 0, transactions, insight, onInsightAction, onInvestAlpaca, isPro, isTrial, onUpgrade, alpacaConnected, onConnectAlpaca, bankConnected, userId, InsightCard, roundupEnabled = false, onToggleRoundup, autoOpenAdd = false, onAutoOpenAddConsumed }) {
   const { t } = useTranslation();
   const isUSStorefront = useUSStorefront();
   const showRealUpgrade = !IS_IOS_NATIVE || isUSStorefront;
   const [loadError, setLoadError]           = useState(null);
   const [showAdd, setShowAdd]               = useState(false);
+  // Financial Diagnosis Phase 2: a diagnosis action button ("create a
+  // savings goal") can deep-link straight into this modal, not just onto
+  // this screen — App.jsx sets autoOpenAdd true and flips it back off via
+  // onAutoOpenAddConsumed once we've acted on it, so re-visiting Savings
+  // normally afterward doesn't reopen the modal unexpectedly.
+  useEffect(() => {
+    if (autoOpenAdd) {
+      setShowAdd(true);
+      onAutoOpenAddConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenAdd]);
   const goalFormRef = useRef(null);
   const [selectedPreset, setSelectedPreset] = useState(null);
   const [newName, setNewName]               = useState("");

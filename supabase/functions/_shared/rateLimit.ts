@@ -4,6 +4,14 @@ const RATE_LIMITS: Record<string, number> = {
   'ai-chat':           20,
   'stock-ai-analysis': 10,
   'get-insights':      30,
+  // Deliberate one-time-ish action ("run my diagnosis"), not a chat loop —
+  // same order of magnitude as stock-ai-analysis, which is also a per-tap
+  // Claude call rather than a conversational stream.
+  'financial-diagnosis': 10,
+  // Called once per Dashboard-open-per-day in practice (client caches the
+  // result in localStorage by date) — 5/hr is pure defense-in-depth against
+  // a client bug/bypass calling it in a loop, not a real expected ceiling.
+  'daily-lesson-v2': 5,
   // market-data proxies a single shared FINNHUB_API_KEY (60 req/min app-wide,
   // no batch endpoint — one Finnhub call per ticker). A full Markets home
   // load alone is ~28 calls; this caps one user's hourly total well above

@@ -49,6 +49,7 @@
     "todays_lesson_streak_many": "{{count}} дней подряд",
     "todays_lesson_tip": "Совет",
     "todays_lesson_english_only": "Этот урок доступен только на английском",
+    "financial_diagnosis_link": "Узнать, что происходит на самом деле →",
     "longpress_tip": "Совет: удерживайте карточку, чтобы спросить коуча",
     "card_question_coach": "Что мне делать с этим: «{{headline}}»?",
     "card_question_credit_cards": "Почему использование лимита по карте {{cardName}} — это повод для беспокойства?",
@@ -855,5 +856,24 @@
     "pro_badge": "Pro",
     "free_badge": "Бесплатно",
     "user_default": "Пользователь"
+  },
+  "diagnosis": {
+    "title": "Твоя диагностика",
+    "step_debt": "Проверяю твою долговую нагрузку…",
+    "step_subscriptions": "Смотрю на подписки…",
+    "step_income_spending": "Сравниваю доходы и расходы…",
+    "analyzing_subtitle": "Твой коуч изучает реальные цифры",
+    "insufficient_title": "Пока недостаточно данных",
+    "insufficient_body": "Подключи банковский счёт и дай накопиться паре недель активности, потом загляни снова — для реальной диагностики нужна реальная история.",
+    "error_title": "Что-то пошло не так",
+    "error_body": "Не получилось завершить диагностику прямо сейчас. Попробуй ещё раз через минуту.",
+    "retry_btn": "Повторить",
+    "issue_high_apr_debt": "Долг по кредитной карте",
+    "issue_no_emergency_fund": "Финансовая подушка",
+    "issue_subscription_leak": "Регулярные списания",
+    "issue_overspending": "Перерасход",
+    "issue_lifestyle_inflation": "Рост расходов быстрее дохода",
+    "issue_unstable_income_no_buffer": "Нестабильный доход",
+    "issue_no_goal": "Нет цели накоплений"
   }
 }

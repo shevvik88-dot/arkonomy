@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "./utils/supabase";
 import { callEdgeFunction } from "./lib/callEdgeFunction";
 import { getCachedAccounts, setCachedAccounts, clearAccountsCache, sumDepositoryBalance, getCreditAccounts } from "./utils/accountsCache";
+import { clearDiagnosisLessonCache } from "./utils/diagnosisLessonCache";
 import { App as CapApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
 import { usePlaidOAuth, PLAID_REDIRECT_URI } from "./hooks/usePlaidOAuth";
@@ -39,6 +40,7 @@ import Savings from "./components/Savings";
 import Transactions, { AddTransactionModal, useToasts, ToastStack, fmtMoney } from "./components/Transactions";
 import { cleanMerchantName, sumAmounts } from "./utils/helpers";
 import Insights, { InsightCard } from "./components/Insights";
+import FinancialDiagnosis from "./components/FinancialDiagnosis";
 import Dashboard from "./components/Dashboard";
 
 // ─── AI Brain: useInsights hook ───────────────────────────────
@@ -360,6 +362,10 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [screen, setScreen] = useState("dashboard");
+  // Financial Diagnosis Phase 2: lets a diagnosis action button land the
+  // user directly in Savings' "New goal" modal, not just on the screen —
+  // see Savings.jsx's autoOpenAdd/onAutoOpenAddConsumed.
+  const [savingsAutoOpenAdd, setSavingsAutoOpenAdd] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
   const [savings, setSavings] = useState([]);
@@ -874,6 +880,7 @@ export default function App() {
     try {
       posthog?.reset();
       clearAccountsCache();
+      clearDiagnosisLessonCache();
       localStorage.removeItem('arkonomy_autopilot');
       await supabase.auth.signOut({ scope: 'global' });
     } catch (err) {
@@ -902,6 +909,7 @@ export default function App() {
       if (import.meta.env.DEV) logger.error("[deleteAccount]", e);
     }
     clearAccountsCache();
+    clearDiagnosisLessonCache();
     sessionStorage.removeItem('arkonomy_chat_history');
     await supabase.auth.signOut();
     setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]); setMerchantAliases([]); setScheduledPayments([]); setChatMessages([]);
@@ -1821,8 +1829,9 @@ export default function App() {
             {screen === "dashboard" && <Dashboard {...shared} onNavigate={setScreen} onCatClick={cat => { setCatFilter(cat); setMerchantFilter(null); setDateFilter(null); setScreen("transactions"); }} onMerchantClick={tx => { setMerchantFilter(tx.description); setCatFilter(null); setDateFilter(null); setScreen("transactions"); }} onDayClick={date => { setDateFilter(date); setCatFilter(null); setMerchantFilter(null); setScreen("transactions"); }} onDayCategoryClick={(date, cat) => { setDateFilter(date); setCatFilter(cat); setMerchantFilter(null); setScreen("transactions"); }} insight={insight} onInsightAction={handleInsightAction} upcomingCharges={upcomingCharges} onOpenMarket={openMarket} bankConnected={bankConnected} userId={user?.id} lastSyncedAt={lastSyncedAt} hideWelcomeBanner={proToast} merchantAliasMap={merchantAliasMap} scheduledPayments={scheduledPayments} onAddScheduledPayment={addScheduledPayment} onCancelScheduledPayment={cancelScheduledPayment} onOpenChat={openChatWithContext} lessonStreak={lessonStreak} onCompleteLesson={completeLesson} onOpenChatWithMessage={openChatWithMessage} />}
             {screen === "markets"   && <Markets profile={profile} user={user} onSaveProfile={saveProfile} initialSymbol={marketInitSymbol} onClearInit={() => setMarketInitSymbol(null)} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} onToast={showAlert} />}
             {screen === "transactions" && <Transactions transactions={transactions} categories={categories} onAdd={() => setShowAddTx(true)} onDuplicateTransaction={addTransaction} onDelete={deleteTransaction} onEdit={setEditTx} activeCatFilter={catFilter} onClearCatFilter={() => setCatFilter(null)} activeMerchantFilter={merchantFilter} onClearMerchantFilter={() => setMerchantFilter(null)} activeDateFilter={dateFilter} onClearDateFilter={() => setDateFilter(null)} insight={insight} onInsightAction={handleInsightAction} onToast={showAlert} bankConnected={bankConnected} onNavigate={setScreen} />}
-            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} InsightCard={InsightCard} roundupEnabled={roundupEnabled} onToggleRoundup={v => { setRoundupEnabled(v); saveProfile({ roundup_enabled: v }); }} />}
+            {screen === "savings" && <Savings savings={savings} onAdd={addSaving} onUpdate={updateSaving} onEdit={editSaving} onDelete={deleteSaving} totalIncome={totalIncome} totalSpent={totalSpent} transactions={transactions} insight={insight} onInsightAction={handleInsightAction} onInvestAlpaca={investAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} alpacaConnected={alpacaConnected} onConnectAlpaca={connectAlpaca} bankConnected={bankConnected} userId={user.id} InsightCard={InsightCard} roundupEnabled={roundupEnabled} onToggleRoundup={v => { setRoundupEnabled(v); saveProfile({ roundup_enabled: v }); }} autoOpenAdd={savingsAutoOpenAdd} onAutoOpenAddConsumed={() => setSavingsAutoOpenAdd(false)} />}
             {screen === "insights" && <Insights {...shared} onOpenChat={msg => { const budget = Number(profile?.monthly_budget)||3000; const sub = ['Subscriptions','Bills','Utilities','Phone','Internet','Insurance'].reduce((s,c)=>s+(spendingByCategory[c]||0),0); const {score:hs}=calculateHealthScore({totalIncome:effectiveIncome,totalSpent,lastIncome,lastSpent,budget,subscriptionSpend:sub}); const greeting=buildContextGreeting('insights',{totalIncome:effectiveIncome,totalSpent,spendingByCategory,savings,transactions,profile,allInsights,healthScore:hs}); const base=[{role:"assistant",text:greeting}]; setChatMessages(base); setShowChat(true); sendChat(msg,base); }} allInsights={allInsights} onInsightAction={handleInsightAction} isPro={isPro} onUpgrade={onUpgrade} merchantAliasMap={merchantAliasMap} merchantAliases={merchantAliases} onDecideMerchantAlias={decideMerchantAlias} bankConnected={bankConnected} onNavigate={setScreen} />}
+            {screen === "financial-diagnosis" && <FinancialDiagnosis onBack={() => setScreen("dashboard")} onNavigate={setScreen} onOpenChatWithMessage={openChatWithMessage} onRequestAddGoal={() => { setSavingsAutoOpenAdd(true); setScreen("savings"); }} lang={i18n.language} />}
             {screen === "profile" && <Profile profile={profile} user={user} onSave={saveProfile} onSignOut={signOut} onDeleteAccount={deleteAccount} onBack={() => setScreen("dashboard")} autopilot={autopilot} setAutopilot={setAutopilot} bankConnected={bankConnected} bankName={bankName} bankCount={bankCount} linkToken={linkToken} getLinkToken={getLinkToken} getReconnectToken={getReconnectToken} onPlaidSuccess={onPlaidSuccess} syncBankTransactions={syncBankTransactions} syncingBank={syncingBank} lastSyncedAt={lastSyncedAt} backgroundSyncing={backgroundSyncing} onRefreshBalance={refreshBalanceNow} refreshingBalance={refreshingBalance} lastBalanceRefreshAt={profile?.last_balance_refresh_at} isPro={isPro} onUpgrade={onUpgrade} transactions={transactions} />}
           </>
         )}

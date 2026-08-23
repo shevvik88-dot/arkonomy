@@ -34,6 +34,20 @@ verify_jwt = false
 [functions.stock-ai-analysis]
 verify_jwt = false
 
+# Explicit, not left to default — matches the house convention every other
+# client-facing function here uses (manual JWT check inside the function,
+# not the platform gateway check). Without this entry it silently inherited
+# Supabase's own default (true), which happened to still work (verified live
+# via a real OPTIONS preflight + the auth smoke test) but was undeclared
+# config drift from day one, the exact class of gap E1 already fixed once
+# for check-bank-connection/delete-account (security-auditor finding,
+# 2026-08-23).
+[functions.financial-diagnosis]
+verify_jwt = false
+
+[functions.daily-lesson-v2]
+verify_jwt = false
+
 [functions.alpaca-invest]
 verify_jwt = false
 
