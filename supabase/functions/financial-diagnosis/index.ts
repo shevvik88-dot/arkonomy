@@ -411,7 +411,16 @@ Respond in ${responseLang}. Respond with ONLY valid JSON, no markdown, no extra 
         }
       } catch (aiErr) {
         console.error('financial-diagnosis: Claude call/parse failed, using fallback narrative:', aiErr);
-        await captureAndFlush(aiErr, { function_name: 'financial-diagnosis', stage: 'narrative_generation' });
+        // Same gap as the insertErr fix below (2026-08-23 pass) missed in
+        // this catch specifically — a JSON.parse SyntaxError's own .message
+        // embeds a snippet of the unparseable text (here, the user's real
+        // financial narrative), which scrubSensitive() doesn't redact
+        // (key-based only). Found auditing daily-lesson-v2, backported here
+        // (security-auditor finding, 2026-08-23).
+        await captureAndFlush(
+          new Error(`financial-diagnosis ${aiErr instanceof SyntaxError ? 'parse' : 'call'} failed`),
+          { function_name: 'financial-diagnosis', stage: 'narrative_generation' },
+        );
         narrative = fallbackNarrative();
       }
     }

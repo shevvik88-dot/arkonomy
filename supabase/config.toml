@@ -45,6 +45,9 @@ verify_jwt = false
 [functions.financial-diagnosis]
 verify_jwt = false
 
+[functions.daily-lesson-v2]
+verify_jwt = false
+
 [functions.alpaca-invest]
 verify_jwt = false
 
