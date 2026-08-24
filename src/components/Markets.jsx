@@ -813,6 +813,14 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
   // reveals the rest inline — same pattern as Dashboard's credit-cards
   // list, just inline instead of a sheet since this is already a full page.
   const [showAllHoldings, setShowAllHoldings] = useState(false);
+  // Same unbounded-growth fix, applied to the two other lists on this
+  // screen that had no cap (2026-08-24 follow-up): Pending Orders (no
+  // backend limit besides Alpaca's own default page size) and the
+  // read-only Watchlist view (grows up to MAX_WATCHLIST=20). Edit-mode
+  // Watchlist stays uncapped on purpose — that's the "manage everything"
+  // view, truncating it there would fight the drag-to-reorder/remove flow.
+  const [showAllPendingOrders, setShowAllPendingOrders] = useState(false);
+  const [showAllWatchlist, setShowAllWatchlist] = useState(false);
   const [exploreQuery, setExploreQuery] = useState("");
   const [exploreResults, setExploreResults] = useState([]);
   const [searchingExplore, setSearchingExplore] = useState(false);
@@ -1205,38 +1213,56 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
               {portfolio.open_orders?.length > 0 && (
                 <>
                   <div style={{ fontSize: 11, fontWeight: 700, color: DC.faint, letterSpacing: 1, textTransform: "uppercase", marginTop: 16, marginBottom: 10 }}>{t("markets.pending_orders")}</div>
-                  {portfolio.open_orders.map((o, i) => {
-                    const meta = MARKET_META[o.symbol] ?? {};
+                  {(() => {
+                    // Scale fix (2026-08-24 follow-up), same pattern as
+                    // Holdings above — most-recently-submitted first, since
+                    // that's the one the user just placed and most likely
+                    // wants to check on.
+                    const sorted = [...portfolio.open_orders].sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
+                    const visible = showAllPendingOrders ? sorted : sorted.slice(0, 3);
+                    const remaining = sorted.length - visible.length;
                     return (
-                      <div key={o.order_id ?? i} onClick={() => setSelectedSymbol(o.symbol)}
-                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${DC.faint}22` : "none", cursor: "pointer" }}>
-                        <StockLogo symbol={o.symbol} color={meta.color ?? DC.gold} icon={meta.icon ?? "activity"} size={32} borderRadius={9} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{o.symbol}</div>
-                          <div style={{ fontSize: 11, color: DC.faint }}>{t("markets.order_pending_note")}</div>
-                        </div>
-                        <div style={{ textAlign: "right" }}>
-                          {/* Security-auditor findings, 2026-08-24:
-                              (1) Number(o.notional) turned Alpaca's real
-                              null (an order placed by qty instead of
-                              notional — e.g. from Alpaca's own app/web, not
-                              just this one) into a fabricated "$0.00" —
-                              fmtPrice's own null-guard never got a chance
-                              to fire. Now shows the real share qty instead
-                              when notional is absent, never a made-up $0.
-                              (2) side was hardcoded "Buy" — this app only
-                              ever places buys itself, but the account is a
-                              real Alpaca connection, so a pending sell
-                              placed elsewhere would've been mislabeled on
-                              a money screen. Now reads the real o.side. */}
-                          <div className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>
-                            {o.notional != null ? fmtPrice(Number(o.notional)) : t("markets.qty_shares", { qty: Number(o.qty ?? 0).toFixed(4) })}
-                          </div>
-                          <div style={{ fontSize: 11, color: DC.faint }}>{o.side === "sell" ? t("markets.order_side_sell") : t("markets.order_side_buy")}</div>
-                        </div>
-                      </div>
+                      <>
+                        {visible.map((o, i) => {
+                          const meta = MARKET_META[o.symbol] ?? {};
+                          return (
+                            <div key={o.order_id ?? i} onClick={() => setSelectedSymbol(o.symbol)}
+                              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${DC.faint}22` : "none", cursor: "pointer" }}>
+                              <StockLogo symbol={o.symbol} color={meta.color ?? DC.gold} icon={meta.icon ?? "activity"} size={32} borderRadius={9} />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{o.symbol}</div>
+                                <div style={{ fontSize: 11, color: DC.faint }}>{t("markets.order_pending_note")}</div>
+                              </div>
+                              <div style={{ textAlign: "right" }}>
+                                {/* Security-auditor findings, 2026-08-24:
+                                    (1) Number(o.notional) turned Alpaca's real
+                                    null (an order placed by qty instead of
+                                    notional — e.g. from Alpaca's own app/web, not
+                                    just this one) into a fabricated "$0.00" —
+                                    fmtPrice's own null-guard never got a chance
+                                    to fire. Now shows the real share qty instead
+                                    when notional is absent, never a made-up $0.
+                                    (2) side was hardcoded "Buy" — this app only
+                                    ever places buys itself, but the account is a
+                                    real Alpaca connection, so a pending sell
+                                    placed elsewhere would've been mislabeled on
+                                    a money screen. Now reads the real o.side. */}
+                                <div className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>
+                                  {o.notional != null ? fmtPrice(Number(o.notional)) : t("markets.qty_shares", { qty: Number(o.qty ?? 0).toFixed(4) })}
+                                </div>
+                                <div style={{ fontSize: 11, color: DC.faint }}>{o.side === "sell" ? t("markets.order_side_sell") : t("markets.order_side_buy")}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {remaining > 0 && (
+                          <button onClick={() => setShowAllPendingOrders(true)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 0 0", cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold }}>
+                            {t("markets.pending_orders_more", { count: remaining })}
+                          </button>
+                        )}
+                      </>
                     );
-                  })}
+                  })()}
                 </>
               )}
             </>
@@ -1262,7 +1288,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
             <span style={{ fontWeight: 600, fontSize: 14 }}>{t("markets.watchlist")}</span>
             <span style={{ fontSize: 11, color: DC.faint }}>{watchlist.length}/{MAX_WATCHLIST}</span>
           </div>
-          <button onClick={() => { setEditMode(e => !e); setDragList([...watchlist]); }}
+          <button onClick={() => { setEditMode(e => !e); setDragList([...watchlist]); setShowAllWatchlist(false); }}
             style={{ padding: "6px 14px", background: editMode ? DC.gold + "22" : DC.card, border: `1px solid ${editMode ? DC.gold + "55" : `${DC.faint}33`}`, borderRadius: RADIUS.sm, color: editMode ? DC.gold : DC.muted, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}>
             {editMode ? t("markets.done") : t("markets.edit")}
           </button>
@@ -1329,7 +1355,15 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
           </>
         ) : (
           <div>
-            {watchlist.map((sym, i) => {
+            {/* Scale fix (2026-08-24 follow-up): same top-3 + "+N more"
+                pattern as Holdings, applied here only to the read-only
+                view. Deliberately keeps the user's own drag-to-reorder
+                order (not re-sorted alphabetically or by recency) — this
+                list is order they set on purpose in edit mode, and
+                collapsing it shouldn't silently override that. Edit mode
+                itself (branch above) stays fully uncapped since that's
+                the dedicated "manage everything" view. */}
+            {(showAllWatchlist ? watchlist : watchlist.slice(0, 3)).map((sym, i) => {
               const meta = MARKET_META[sym] ?? { label: sym, color: DC.gold, icon: "activity", isCrypto: false };
               const q    = quotes[sym];
               const pos  = (q?.changePct ?? 0) >= 0;
@@ -1355,6 +1389,11 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
                 </div>
               );
             })}
+            {watchlist.length > 3 && !showAllWatchlist && (
+              <button onClick={() => setShowAllWatchlist(true)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 0 0", cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold }}>
+                {t("markets.watchlist_more", { count: watchlist.length - 3 })}
+              </button>
+            )}
           </div>
         )}
       </GlassCard>

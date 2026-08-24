@@ -454,6 +454,12 @@
     "order_pending_note": "Ордер в ожидании",
     "order_side_buy": "Покупка",
     "order_side_sell": "Продажа",
+    "pending_orders_more_one": "Ещё {{count}} ордер →",
+    "pending_orders_more_few": "Ещё {{count}} ордера →",
+    "pending_orders_more_many": "Ещё {{count}} ордеров →",
+    "watchlist_more_one": "Ещё {{count}} →",
+    "watchlist_more_few": "Ещё {{count}} →",
+    "watchlist_more_many": "Ещё {{count}} →",
     "your_position": "Твоя позиция",
     "avg_cost": "Средняя цена {{price}}"
   },
