@@ -1,4 +1,4 @@
-import importPlugin from 'eslint-plugin-import'
+import { importX } from 'eslint-plugin-import-x'
 import tsParser from '@typescript-eslint/parser'
 
 export default [
@@ -48,14 +48,20 @@ export default [
       sourceType: 'module',
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
-    plugins: { import: importPlugin },
+    plugins: { 'import-x': importX },
     // eslint-import-resolver-node only resolves .js/.json/.node by default —
     // without this, imports of .jsx files silently fail to resolve and the
     // rule below skips them without reporting anything (verified: this is
     // exactly what made rule 4 falsely show 0 violations before this line).
-    settings: { 'import/resolver': { node: { extensions: ['.js', '.jsx'] } } },
+    // Migrated from eslint-plugin-import to eslint-plugin-import-x
+    // (2026-08-24, ESLint 10 compat — eslint-plugin-import's peerDeps cap at
+    // ^9, never got a v10-compatible release): unlike the old plugin,
+    // eslint-import-resolver-node is only an *optional* peer here, not a
+    // transitive dependency, so it's now an explicit devDependency — without
+    // that, this exact false-negative would silently come back.
+    settings: { 'import-x/resolver': { node: { extensions: ['.js', '.jsx'] } } },
     rules: {
-      'import/no-restricted-paths': ['error', {
+      'import-x/no-restricted-paths': ['error', {
         zones: [
           { target: './src/lib', from: './src/components' },
         ],
@@ -71,10 +77,10 @@ export default [
       ecmaVersion: 'latest',
       sourceType: 'module',
     },
-    plugins: { import: importPlugin },
-    settings: { 'import/resolver': { node: { extensions: ['.js', '.jsx', '.ts'] } } },
+    plugins: { 'import-x': importX },
+    settings: { 'import-x/resolver': { node: { extensions: ['.js', '.jsx', '.ts'] } } },
     rules: {
-      'import/no-restricted-paths': ['error', {
+      'import-x/no-restricted-paths': ['error', {
         zones: [
           { target: './supabase/functions/_shared', from: './src' },
         ],
@@ -93,10 +99,10 @@ export default [
       sourceType: 'module',
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
-    plugins: { import: importPlugin },
-    settings: { 'import/resolver': { node: { extensions: ['.js', '.jsx'] } } },
+    plugins: { 'import-x': importX },
+    settings: { 'import-x/resolver': { node: { extensions: ['.js', '.jsx'] } } },
     rules: {
-      'import/no-restricted-paths': ['warn', {
+      'import-x/no-restricted-paths': ['warn', {
         zones: [
           {
             target: [
