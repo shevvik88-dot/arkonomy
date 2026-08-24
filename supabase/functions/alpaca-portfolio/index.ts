@@ -20,6 +20,11 @@ function resolveCorsHeaders(req: Request) {
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    // Security-auditor findings, 2026-08-24 (hardening, no active hole
+    // found — client uses POST and the service worker skips supabase.co,
+    // so nothing was actually caching this today).
+    'Vary': 'Origin',
+    'Cache-Control': 'no-store',
   };
 }
 
@@ -69,16 +74,36 @@ Deno.serve(async (req) => {
 
     const alpacaToken = profile.alpaca_access_token;
 
-    const [accountRes, positionsRes] = await Promise.all([
+    const [accountRes, positionsRes, openOrdersRes] = await Promise.all([
       fetch(`${BASE_URL}/v2/account`, {
         headers: { Authorization: `Bearer ${alpacaToken}` },
       }),
       fetch(`${BASE_URL}/v2/positions`, {
         headers: { Authorization: `Bearer ${alpacaToken}` },
       }),
+      // Visibility fix (2026-08-24): a submitted-but-unfilled order (e.g.
+      // placed after hours, waiting for the next market open) previously
+      // never showed up anywhere in the app — /v2/positions only returns
+      // real filled positions, so the only way to see a pending order
+      // existed was a direct Alpaca API call. status=open covers every
+      // non-terminal order state (new/accepted/pending_new/partially_filled/...).
+      // NOTE (security-auditor, 2026-08-24): Alpaca defaults this endpoint
+      // to limit=50 with no explicit param here — a user with >50 open
+      // orders gets a silently truncated list. Not paginating for v1 by
+      // design (this app only ever places a handful of small fractional
+      // buys), but flagging so a future increase in usage doesn't quietly
+      // hide orders forever.
+      fetch(`${BASE_URL}/v2/orders?status=open`, {
+        headers: { Authorization: `Bearer ${alpacaToken}` },
+      }),
     ]);
 
     if (!accountRes.ok) {
+      // The other two fetches already went out (Promise.all) — draining
+      // their bodies before returning avoids leaking the underlying
+      // connections in the Deno isolate now that there are 3 requests
+      // instead of 2 (security-auditor finding, 2026-08-24).
+      await Promise.allSettled([positionsRes.body?.cancel(), openOrdersRes.body?.cancel()]);
       if (accountRes.status === 401 || accountRes.status === 403) {
         await supabase.from('profiles').update({
           alpaca_access_token:  null,
@@ -98,7 +123,17 @@ Deno.serve(async (req) => {
     }
 
     const account = await accountRes.json();
-    const positions = positionsRes.ok ? await positionsRes.json() : [];
+    // .catch(() => []) on the parse itself, not just the .ok check — a 200
+    // with a malformed/truncated body would otherwise throw here, escape
+    // to the outer catch, and turn the whole portfolio response into a 500
+    // + Sentry event instead of gracefully degrading (security-auditor
+    // finding, 2026-08-24 — applies equally to positions and open_orders).
+    const positions = positionsRes.ok ? await positionsRes.json().catch(() => []) : [];
+    // Best-effort — a failure here shouldn't break the whole portfolio
+    // screen, it just means pending orders silently don't show this load
+    // (same graceful-degradation shape as positions above).
+    const openOrders = openOrdersRes.ok ? await openOrdersRes.json().catch(() => []) : [];
+    if (!openOrdersRes.ok) console.error('alpaca-portfolio: /v2/orders?status=open error:', openOrdersRes.status);
 
     return new Response(JSON.stringify({
       portfolio_value: parseFloat(account.portfolio_value ?? '0'),
@@ -111,6 +146,17 @@ Deno.serve(async (req) => {
         avg_entry_price: parseFloat(p.avg_entry_price),
         unrealized_pl:   parseFloat(p.unrealized_pl),
         unrealized_plpc: parseFloat(p.unrealized_plpc),
+      })),
+      // Minimal, deliberately not the raw Alpaca order object — only what
+      // the Pending Orders UI actually needs.
+      open_orders: (Array.isArray(openOrders) ? openOrders : []).map(o => ({
+        order_id:     o.id,
+        symbol:       o.symbol,
+        side:         o.side,
+        notional:     o.notional,
+        qty:          o.qty,
+        status:       o.status,
+        submitted_at: o.submitted_at,
       })),
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

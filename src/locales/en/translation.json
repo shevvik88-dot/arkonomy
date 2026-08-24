@@ -437,7 +437,15 @@
     "holdings": "Holdings",
     "qty_shares": "{{qty}} shares",
     "no_holdings": "No positions yet — buy your first shares",
-    "loading_portfolio": "Loading portfolio..."
+    "loading_portfolio": "Loading portfolio...",
+    "holdings_more_one": "+{{count}} more position →",
+    "holdings_more_other": "+{{count}} more positions →",
+    "pending_orders": "Pending Orders",
+    "order_pending_note": "Order pending",
+    "order_side_buy": "Buy",
+    "order_side_sell": "Sell",
+    "your_position": "Your Position",
+    "avg_cost": "Avg cost {{price}}"
   },
   "savings": {
     "asset_allocation": "Asset Allocation",

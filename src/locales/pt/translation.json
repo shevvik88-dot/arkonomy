@@ -437,7 +437,15 @@
     "holdings": "Posições",
     "qty_shares": "{{qty}} ações",
     "no_holdings": "Sem posições ainda — compre suas primeiras ações",
-    "loading_portfolio": "Carregando portfólio..."
+    "loading_portfolio": "Carregando portfólio...",
+    "holdings_more_one": "+{{count}} posição a mais →",
+    "holdings_more_other": "+{{count}} posições a mais →",
+    "pending_orders": "Ordens pendentes",
+    "order_pending_note": "Ordem pendente",
+    "order_side_buy": "Compra",
+    "order_side_sell": "Venda",
+    "your_position": "Sua posição",
+    "avg_cost": "Custo médio {{price}}"
   },
   "savings": {
     "asset_allocation": "Alocação de Ativos",

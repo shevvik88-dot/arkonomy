@@ -444,7 +444,16 @@
     "holdings": "Активы",
     "qty_shares": "{{qty}} акций",
     "no_holdings": "Позиций пока нет — купите первые акции",
-    "loading_portfolio": "Загрузка портфеля..."
+    "loading_portfolio": "Загрузка портфеля...",
+    "holdings_more_one": "Ещё {{count}} позиция →",
+    "holdings_more_few": "Ещё {{count}} позиции →",
+    "holdings_more_many": "Ещё {{count}} позиций →",
+    "pending_orders": "Ожидающие ордера",
+    "order_pending_note": "Ордер в ожидании",
+    "order_side_buy": "Покупка",
+    "order_side_sell": "Продажа",
+    "your_position": "Твоя позиция",
+    "avg_cost": "Средняя цена {{price}}"
   },
   "savings": {
     "asset_allocation": "Распределение активов",

@@ -248,7 +248,7 @@ function PriceChart({ candles = [], color, height = 130 }) {
 
 // ─── Stock Detail Screen ──────────────────────────────────────
 
-function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, isPro, isTrial, onUpgrade, watchlist = [], addToWatchlist, removeFromWatchlist, onToast }) {
+function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, isPro, isTrial, onUpgrade, watchlist = [], addToWatchlist, removeFromWatchlist, onToast, ownedPosition = null }) {
   const { t } = useTranslation();
   const meta    = MARKET_META[symbol] ?? { label: symbol, color: DC.gold, icon: "activity", isCrypto: false };
   const [tab, setTab]         = useState("overview");
@@ -409,7 +409,14 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
         </button>
         <StockLogo symbol={symbol} color={meta.color} icon={meta.icon} size={38} borderRadius={12} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 16 }}>{cleanCompanyName(meta.label) || symbol}</div>
+          {/* Real bug fix (2026-08-24): MARKET_META only curates ~18
+              symbols (SPY, QQQ, BTC...) — for anything else (any ticker
+              actually bought via search, e.g. MP/WST/SPCX) meta.label
+              fell back to the bare symbol, so this line and the one below
+              it both just showed the ticker twice, no real company name
+              anywhere. stats.name (market-data, already fetched for the
+              AI-analysis call below) has the real name for any symbol. */}
+          <div style={{ fontWeight: 700, fontSize: 16 }}>{cleanCompanyName(stats?.name || meta.label) || symbol}</div>
           <div style={{ fontSize: 12, color: DC.muted }}>{symbol}</div>
         </div>
         <button onClick={toggleWatchlist} aria-label={t("markets.watchlist")} style={{ background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
@@ -422,6 +429,32 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
           </div>
         )}
       </div>
+
+      {/* Your Position — the actual gap this whole investigation started
+          from: clicking a Holdings row (or any other list) opened this
+          same generic market screen with zero owned-position context, even
+          though avg_entry_price/qty/unrealized P&L were already fetched by
+          alpaca-portfolio and displayed inline in the Holdings row itself
+          — just never passed down. No purchase date here (deliberately,
+          2026-08-24) — investments.created_at can't be trusted as "this
+          was actually filled" without a live /v2/orders check first (see
+          the WST/SPCX pending-order investigation), out of scope for this
+          pass. */}
+      {ownedPosition && (
+        <div style={{ background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, padding: "14px 16px", marginBottom: 18 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: DC.faint, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10 }}>{t("markets.your_position")}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ fontSize: 12, color: DC.muted }}>{t("markets.qty_shares", { qty: ownedPosition.qty.toFixed(4) })}</span>
+            <span className="ph-mask" style={{ fontSize: 12, color: DC.muted }}>{t("markets.avg_cost", { price: fmtPrice(ownedPosition.avg_entry_price) })}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span className="ph-mask" style={{ fontSize: 15, fontWeight: 700, color: DC.text }}>{fmtPrice(ownedPosition.market_value)}</span>
+            <span className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: ownedPosition.unrealized_pl >= 0 ? DC.emerald : DC.ruby }}>
+              {ownedPosition.unrealized_pl >= 0 ? "+" : "-"}{fmtPrice(Math.abs(ownedPosition.unrealized_pl))} ({ownedPosition.unrealized_pl >= 0 ? "+" : ""}{(ownedPosition.unrealized_plpc * 100).toFixed(2)}%)
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 16, background: DC.card, borderRadius: RADIUS.sm, padding: 4 }}>
@@ -776,6 +809,10 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
   const [quotes, setQuotes]             = useState({});
   const [loadingQuotes, setLoadingQuotes] = useState(true);
   const [selectedSymbol, setSelectedSymbol] = useState(initialSymbol ?? null);
+  // Holdings scale fix (2026-08-24): show top 3 by market value, "+N more"
+  // reveals the rest inline — same pattern as Dashboard's credit-cards
+  // list, just inline instead of a sheet since this is already a full page.
+  const [showAllHoldings, setShowAllHoldings] = useState(false);
   const [exploreQuery, setExploreQuery] = useState("");
   const [exploreResults, setExploreResults] = useState([]);
   const [searchingExplore, setSearchingExplore] = useState(false);
@@ -939,7 +976,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
   if (selectedSymbol) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <StockDetail symbol={selectedSymbol} onBack={() => setSelectedSymbol(null)} user={user} alpacaConnected={alpacaConnected} onConnectAlpaca={onConnectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} watchlist={watchlist} addToWatchlist={addToWatchlist} removeFromWatchlist={removeFromWatchlist} onToast={onToast} />
+        <StockDetail symbol={selectedSymbol} onBack={() => setSelectedSymbol(null)} user={user} alpacaConnected={alpacaConnected} onConnectAlpaca={onConnectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} watchlist={watchlist} addToWatchlist={addToWatchlist} removeFromWatchlist={removeFromWatchlist} onToast={onToast} ownedPosition={portfolio?.positions?.find(p => p.symbol === selectedSymbol) ?? null} />
       </div>
     );
   }
@@ -1103,28 +1140,90 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
               {portfolio.positions.length > 0 ? (
                 <>
                   <div style={{ fontSize: 11, fontWeight: 700, color: DC.faint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>{t("markets.holdings")}</div>
-                  {portfolio.positions.map((p, i) => {
-                    const pl  = p.unrealized_pl;
-                    const pos = pl >= 0;
-                    const meta = MARKET_META[p.symbol] ?? {};
+                  {(() => {
+                    // Sorted by market value descending — not Alpaca's own
+                    // (arbitrary) order — so "top 3" actually means the 3
+                    // biggest positions, not just the first 3 the API
+                    // happened to return.
+                    const sorted = [...portfolio.positions].sort((a, b) => b.market_value - a.market_value);
+                    const visible = showAllHoldings ? sorted : sorted.slice(0, 3);
+                    const remaining = sorted.length - visible.length;
                     return (
-                      <div key={p.symbol} onClick={() => setSelectedSymbol(p.symbol)}
+                      <>
+                        {visible.map((p, i) => {
+                          const pl  = p.unrealized_pl;
+                          const pos = pl >= 0;
+                          const meta = MARKET_META[p.symbol] ?? {};
+                          return (
+                            <div key={p.symbol} onClick={() => setSelectedSymbol(p.symbol)}
+                              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${DC.faint}22` : "none", cursor: "pointer" }}>
+                              <StockLogo symbol={p.symbol} color={meta.color ?? DC.gold} icon={meta.icon ?? "activity"} size={32} borderRadius={9} />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{p.symbol}</div>
+                                <div style={{ fontSize: 11, color: DC.faint }}>{t("markets.qty_shares", { qty: p.qty.toFixed(4) })}</div>
+                              </div>
+                              <div style={{ textAlign: "right" }}>
+                                <div className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{fmtPrice(p.market_value)}</div>
+                                <div className="ph-mask" style={{ fontSize: 11, fontWeight: 600, color: pos ? DC.emerald : DC.ruby }}>{pos ? "+" : "-"}{fmtPrice(Math.abs(pl))}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {remaining > 0 && (
+                          <button onClick={() => setShowAllHoldings(true)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "10px 0 0", cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold }}>
+                            {t("markets.holdings_more", { count: remaining })}
+                          </button>
+                        )}
+                      </>
+                    );
+                  })()}
+                </>
+              ) : (
+                <div style={{ fontSize: 13, color: DC.faint, textAlign: "center", padding: "8px 0" }}>{t("markets.no_holdings")}</div>
+              )}
+              {/* Pending Orders — visibility fix (2026-08-24): before this,
+                  a submitted-but-unfilled order (e.g. waiting for market
+                  open) was completely invisible anywhere in the app; the
+                  only way to see it existed was a direct Alpaca API call.
+                  alpaca-portfolio now also returns open_orders. Not
+                  claiming a specific reason/ETA (e.g. "opens Monday") —
+                  just honest visibility that something is pending. */}
+              {portfolio.open_orders?.length > 0 && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: DC.faint, letterSpacing: 1, textTransform: "uppercase", marginTop: 16, marginBottom: 10 }}>{t("markets.pending_orders")}</div>
+                  {portfolio.open_orders.map((o, i) => {
+                    const meta = MARKET_META[o.symbol] ?? {};
+                    return (
+                      <div key={o.order_id ?? i} onClick={() => setSelectedSymbol(o.symbol)}
                         style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${DC.faint}22` : "none", cursor: "pointer" }}>
-                        <StockLogo symbol={p.symbol} color={meta.color ?? DC.gold} icon={meta.icon ?? "activity"} size={32} borderRadius={9} />
+                        <StockLogo symbol={o.symbol} color={meta.color ?? DC.gold} icon={meta.icon ?? "activity"} size={32} borderRadius={9} />
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{p.symbol}</div>
-                          <div style={{ fontSize: 11, color: DC.faint }}>{t("markets.qty_shares", { qty: p.qty.toFixed(4) })}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{o.symbol}</div>
+                          <div style={{ fontSize: 11, color: DC.faint }}>{t("markets.order_pending_note")}</div>
                         </div>
                         <div style={{ textAlign: "right" }}>
-                          <div className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{fmtPrice(p.market_value)}</div>
-                          <div className="ph-mask" style={{ fontSize: 11, fontWeight: 600, color: pos ? DC.emerald : DC.ruby }}>{pos ? "+" : "-"}{fmtPrice(Math.abs(pl))}</div>
+                          {/* Security-auditor findings, 2026-08-24:
+                              (1) Number(o.notional) turned Alpaca's real
+                              null (an order placed by qty instead of
+                              notional — e.g. from Alpaca's own app/web, not
+                              just this one) into a fabricated "$0.00" —
+                              fmtPrice's own null-guard never got a chance
+                              to fire. Now shows the real share qty instead
+                              when notional is absent, never a made-up $0.
+                              (2) side was hardcoded "Buy" — this app only
+                              ever places buys itself, but the account is a
+                              real Alpaca connection, so a pending sell
+                              placed elsewhere would've been mislabeled on
+                              a money screen. Now reads the real o.side. */}
+                          <div className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>
+                            {o.notional != null ? fmtPrice(Number(o.notional)) : t("markets.qty_shares", { qty: Number(o.qty ?? 0).toFixed(4) })}
+                          </div>
+                          <div style={{ fontSize: 11, color: DC.faint }}>{o.side === "sell" ? t("markets.order_side_sell") : t("markets.order_side_buy")}</div>
                         </div>
                       </div>
                     );
                   })}
                 </>
-              ) : (
-                <div style={{ fontSize: 13, color: DC.faint, textAlign: "center", padding: "8px 0" }}>{t("markets.no_holdings")}</div>
               )}
             </>
           ) : null}
