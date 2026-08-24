@@ -444,6 +444,10 @@
     "order_pending_note": "Order pending",
     "order_side_buy": "Buy",
     "order_side_sell": "Sell",
+    "pending_orders_more_one": "+{{count}} more order →",
+    "pending_orders_more_other": "+{{count}} more orders →",
+    "watchlist_more_one": "+{{count}} more →",
+    "watchlist_more_other": "+{{count}} more →",
     "your_position": "Your Position",
     "avg_cost": "Avg cost {{price}}"
   },
