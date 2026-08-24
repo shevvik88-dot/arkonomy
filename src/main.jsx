@@ -51,6 +51,91 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   });
 }
 
+// Sentry issue ARKONOMY-WEB-3 (2026-08-23): a dynamically-imported chunk
+// 404'd 21s after a prod deploy went live — not app-level lazy routing
+// (there is none in src/), but @capacitor/core's own registerPlugin(...,
+// {web: () => import('./web-*.js')}) fallback, fetched on-demand the first
+// time a Capacitor web-plugin call fires (App/Browser/etc.), not at page
+// load. Landed as an unhandled promise rejection because nothing owned it.
+//
+// Confirmed against the installed Vite (8.1.5) source, not assumed
+// (node_modules/vite/dist/node/chunks/node.js): the error object is on
+// event.payload, not event.detail, and Vite re-throws (`if
+// (!e.defaultPrevented) throw err`) unless preventDefault() is called —
+// without it this would still double-report as an unhandled rejection on
+// top of the handling below.
+//
+// Recovery is fail-safe, not fail-open: one silent auto-reload per tab
+// (covers the transient CDN-propagation-race case this issue actually
+// was), then if it happens AGAIN in the same tab — a real broken
+// deployment, not a one-off race — stop reloading and show an explicit
+// message instead of looping the user through silent reloads forever. The
+// flag lives in sessionStorage on purpose: it needs no timeout/reset logic
+// since the tab closing already clears it.
+//
+// Safe against two near-simultaneous failures (e.g. two lazy Capacitor
+// calls firing close together): window.dispatchEvent(e) runs every
+// listener synchronously to completion — including the sessionStorage
+// write below — before control returns to Vite's own `throw err` check.
+// JS's single-threaded execution means a second failure's handler can't
+// start until the first one (guard check + write) has already finished,
+// regardless of how close together the two underlying import() calls
+// actually failed.
+const PRELOAD_RETRY_FLAG = 'ark_preload_error_reloaded';
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault();
+  const alreadyRetried = sessionStorage.getItem(PRELOAD_RETRY_FLAG);
+
+  Sentry.withScope((scope) => {
+    scope.setTag('preload_error_stage', alreadyRetried ? 'gave_up' : 'auto_reload');
+    Sentry.captureException(event.payload);
+  });
+
+  if (!alreadyRetried) {
+    sessionStorage.setItem(PRELOAD_RETRY_FLAG, '1');
+    window.location.reload();
+    return;
+  }
+
+  showPreloadErrorMessage();
+});
+
+function showPreloadErrorMessage() {
+  if (document.getElementById('ark-preload-error')) return; // already showing
+
+  // Built via safe DOM methods (createElement + textContent), not
+  // innerHTML — nothing here is interpolated from event.payload or any
+  // other untrusted source today, but this avoids the footgun for whoever
+  // touches it next.
+  const overlay = document.createElement('div');
+  overlay.id = 'ark-preload-error';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:999999;background:#0B1426;display:flex;align-items:center;justify-content:center;font-family:"DM Sans",sans-serif;';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'text-align:center;color:#E8EDF5;padding:24px;';
+
+  const icon = document.createElement('div');
+  icon.style.cssText = 'font-size:48px;margin-bottom:16px;';
+  icon.textContent = '🔄';
+
+  const title = document.createElement('h1');
+  title.style.cssText = 'margin:0 0 8px;font-size:20px;';
+  title.textContent = 'Update needed';
+
+  const body = document.createElement('p');
+  body.style.cssText = 'color:#7A8BA8;font-size:14px;margin:0 0 20px;';
+  body.textContent = 'A new version is available. Please refresh the page.';
+
+  const button = document.createElement('button');
+  button.style.cssText = 'padding:12px 24px;background:linear-gradient(90deg,#38B6FF,#60A5FA);border:none;border-radius:10px;color:#fff;font-weight:600;cursor:pointer;';
+  button.textContent = 'Refresh';
+  button.addEventListener('click', () => window.location.reload());
+
+  box.append(icon, title, body, button);
+  overlay.append(box);
+  document.body.appendChild(overlay);
+}
+
 class ErrorBoundary extends React.Component {
   state = { hasError: false };
   static getDerivedStateFromError() { return { hasError: true }; }
