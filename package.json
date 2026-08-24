@@ -42,7 +42,7 @@
     "eslint": "^9.39.5",
     "eslint-plugin-import": "^2.32.0",
     "pdfkit": "^0.19.1",
-    "playwright": "^1.61.1",
+    "playwright": "^1.62.1",
     "sharp": "^0.35.2",
     "supabase": "^2.105.0",
     "typescript": "^6.0.3",
