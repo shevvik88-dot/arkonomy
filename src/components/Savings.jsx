@@ -429,6 +429,14 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
   const [plaidAccounts, setPlaidAccounts]   = useState([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [accountsError, setAccountsError]   = useState(null);
+  // Asset Allocation fix (2026-08-24): "Stocks" used to be Plaid
+  // investment-accounts only — Alpaca holdings (round-up buys, manual buys
+  // from Markets.jsx) never fed into it, so the tile stayed at $0/0% no
+  // matter how much was actually invested. Same fetch as Markets.jsx's
+  // portfolio card (alpaca-portfolio), fetched independently here rather
+  // than lifted to a shared parent state — mirrors the existing per-screen
+  // fetch pattern already used for Plaid accounts on this same screen.
+  const [alpacaPortfolio, setAlpacaPortfolio] = useState(null);
   const [roundupMultiplier, setRoundupMultiplier] = useState(1);
   const [showAlpacaSheet, setShowAlpacaSheet]     = useState(false);
   const [showRoundupTooltip, setShowRoundupTooltip] = useState(false);
@@ -470,6 +478,14 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
     if (bankConnected) fetchPlaidAccounts();
   }, [bankConnected]);
 
+  useEffect(() => {
+    if (!alpacaConnected) return;
+    supabase.functions.invoke("alpaca-portfolio")
+      .then(({ data, error }) => {
+        if (!error && data && !data.error) setAlpacaPortfolio(data);
+      });
+  }, [alpacaConnected]);
+
   const savingsAccounts = plaidAccounts.filter(a => a.subtype === "savings" || a.type === "savings");
 
   // Sum actual spare change (cents to next dollar) across this month's expense transactions
@@ -502,8 +518,27 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
   const safetyBuffer = Math.min(500, availableBalance * 0.5);
   const safeToMove = Math.max(0, availableBalance - safetyBuffer);
 
-  const cashTotal   = plaidAccounts.filter(a => a.type === "depository").reduce((s, a) => s + Number(a.balance_available ?? a.balance_current ?? 0), 0);
-  const investTotal = plaidAccounts.filter(a => a.type === "investment").reduce((s, a) => s + Number(a.balance_available ?? a.balance_current ?? 0), 0);
+  const cashTotal = plaidAccounts.filter(a => a.type === "depository").reduce((s, a) => s + Number(a.balance_available ?? a.balance_current ?? 0), 0);
+
+  // Double-count guard: if a Plaid-linked "investment" account is actually
+  // the same Alpaca account this app already holds a direct OAuth
+  // connection to (Plaid does support linking Alpaca as an institution),
+  // its balance would otherwise be counted twice — once via Plaid, once via
+  // the direct alpaca-portfolio fetch below. Matched by institution name
+  // since Plaid's account object has no other Alpaca-account-identity field
+  // to cross-reference against our own alpaca_account_id.
+  const isAlpacaViaPlaid = (a) => /alpaca/i.test(a.institution_name ?? "");
+  const plaidInvestTotal = plaidAccounts
+    .filter(a => a.type === "investment" && !isAlpacaViaPlaid(a))
+    .reduce((s, a) => s + Number(a.balance_available ?? a.balance_current ?? 0), 0);
+  // market_value sum, not portfolio_value — portfolio_value is Alpaca's
+  // account-level equity (positions + uninvested cash sitting in the
+  // brokerage account), which would inflate "Stocks" with cash that isn't
+  // actually invested. Summing positions keeps this tile representing only
+  // what's really held in stocks/ETFs, same meaning as the Plaid side.
+  const alpacaStocksValue = (alpacaPortfolio?.positions ?? [])
+    .reduce((s, p) => s + Number(p.market_value ?? 0), 0);
+  const investTotal = plaidInvestTotal + alpacaStocksValue;
   const totalAssets = cashTotal + investTotal + totalSaved;
   // Desaturated via the same HSL formula already applied to CAT_COLORS/
   // INCOME_CATS (S -> 35+S*0.22, L -> L*0.92, hue unchanged) rather than
