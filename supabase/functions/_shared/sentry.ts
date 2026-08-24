@@ -15,7 +15,13 @@
 // leak onto the shared global scope for the next invocation.
 import * as Sentry from "npm:@sentry/deno@^8";
 
-const SENSITIVE_KEYS = /^(balance|amount|amounts|description|descriptions|email)$/i;
+// Extended 2026-08-24 (security-auditor finding on alpaca-portfolio): the
+// original list predates the Alpaca-money-path functions and didn't cover
+// brokerage field names or credential-shaped keys — no live leak found
+// through this list today (every current captureAndFlush call in those
+// functions passes only {function_name, stage}), but it's a defense-in-
+// depth gap for whatever gets logged through this shared helper next.
+const SENSITIVE_KEYS = /^(balance|amount|amounts|description|descriptions|email|token|access_token|refresh_token|notional|qty|cash|buying_power|portfolio_value|market_value|account_number)$/i;
 function scrubSensitive(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(scrubSensitive);
   if (value && typeof value === "object") {

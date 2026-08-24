@@ -186,7 +186,14 @@ Deno.serve(async (req) => {
         });
       }
 
-      console.error('Alpaca account error:', JSON.stringify(account));
+      // Not the raw stringified body — on a non-401/403 error this is
+      // normally just Alpaca's {code,message} error shape, not real
+      // account data, but logging any raw third-party response body
+      // verbatim is the exact pattern already fixed elsewhere in this
+      // codebase (financial-diagnosis/daily-lesson-v2's aiErr fixes) —
+      // same hygiene applied here defensively (security-auditor finding
+      // on the sibling alpaca-portfolio function, 2026-08-24).
+      console.error('Alpaca account error:', accountRes.status, account?.code, account?.message);
       await releasePending();
       return new Response(JSON.stringify({ error: 'brokerage_account_error' }), {
         status: 400,
