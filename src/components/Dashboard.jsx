@@ -1347,10 +1347,10 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       .limit(1)
       .maybeSingle()
       .then(async ({ data: existing, error }) => {
-        if (cancelled || error || !existing) { console.log('[DEBUG diagnosis]', { error, existing }); return; }
+        if (cancelled || error || !existing) { console.log('[DEBUG diagnosis] ' + JSON.stringify({ cancelled, error, existing })); return; }
         const ageMs = Date.now() - new Date(existing.created_at).getTime();
         const eventStale = await hasSignificantEventSince(existing.created_at);
-        console.log('[DEBUG diagnosis]', { createdAt: existing.created_at, ageMs, eventStale });
+        console.log('[DEBUG diagnosis] ' + JSON.stringify({ createdAt: existing.created_at, ageMs, eventStale, cancelled }));
         if (cancelled) return;
         setDiagnosisCardState({
           type: eventStale ? 'stale_event' : ageMs >= DIAGNOSIS_RECENT_MS ? 'stale_time' : 'fresh',
