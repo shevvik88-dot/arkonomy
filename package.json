@@ -12,7 +12,7 @@
     "prepare": "node scripts/setup-git-hooks.cjs"
   },
   "dependencies": {
-    "@capacitor/android": "^8.4.0",
+    "@capacitor/android": "^8.5.0",
     "@capacitor/app": "^8.1.0",
     "@capacitor/browser": "^8.0.4",
     "@capacitor/cli": "^8.4.0",
