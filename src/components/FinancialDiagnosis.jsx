@@ -16,17 +16,13 @@ import { C, FONT, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { callEdgeFunction } from "../lib/callEdgeFunction";
 import { getCardQuestion } from "../utils/cardQuestions";
 import { supabase } from "../utils/supabase";
+import { isDiagnosisFresh } from "../utils/diagnosisFreshness";
 import GlassCard from "./shared/GlassCard";
 import Icon from "./shared/Icon";
 
 // Artificial minimum per status line so the "coach working" steps are
 // visible even when the edge function responds fast — spec: ~1.2-1.5s/line.
 const STEP_INTERVAL_MS = 1400;
-
-// Matches the weekly re-check cadence used for the cost estimate
-// (2026-08-23) — an existing active diagnosis younger than this is shown
-// straight away, no re-analysis animation, no fresh Claude call.
-const RECENT_MS = 7 * 24 * 60 * 60 * 1000;
 
 // One icon per taxonomy key, purely decorative on the problem card — not
 // used for anything else, so an unrecognized/adapted key still renders fine
@@ -114,9 +110,11 @@ export default function FinancialDiagnosis({ onBack, onNavigate, onOpenChatWithM
     // already on file. Check for one first — same RLS SELECT policy the
     // result screen itself relies on, no edge function round-trip, no
     // Claude call, no rate-limit spend — and show it immediately if it's
-    // younger than RECENT_MS. Only fall through to a fresh run if there's
-    // no active row, or it's stale, or (separately) the user explicitly
-    // taps "Re-check my finances" on the result screen.
+    // still fresh (isDiagnosisFresh — see src/utils/diagnosisFreshness.js:
+    // younger than 7 days AND no significant financial event since). Only
+    // fall through to a fresh run if there's no active row, or it's stale
+    // by either signal, or (separately) the user explicitly taps "Re-check
+    // my finances" on the result screen.
     supabase
       .from('diagnosis_profiles')
       .select('id, metrics, primary_issues, narrative, created_at')
@@ -124,10 +122,12 @@ export default function FinancialDiagnosis({ onBack, onNavigate, onOpenChatWithM
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-      .then(({ data: existing, error }) => {
+      .then(async ({ data: existing, error }) => {
         if (cancelled) return;
-        const ageMs = existing ? Date.now() - new Date(existing.created_at).getTime() : Infinity;
-        if (!error && existing && ageMs < RECENT_MS) {
+        const fresh = !error && existing && await isDiagnosisFresh(existing.created_at);
+        if (cancelled) return;
+        if (fresh) {
+          const ageMs = Date.now() - new Date(existing.created_at).getTime();
           setResult({
             healthy: (existing.primary_issues || []).length === 0,
             primary_issues: existing.primary_issues,
@@ -186,7 +186,14 @@ export default function FinancialDiagnosis({ onBack, onNavigate, onOpenChatWithM
 
       {phase === "analyzing" && (
         <GlassCard style={{ background: DC.card, border: `1px solid ${DC.gold}33`, textAlign: "center", padding: "40px 24px" }}>
-          <div style={{ fontSize: 32, marginBottom: 16 }}>✨</div>
+          {/* Icon consistency fix (2026-08-24): was a raw "✨" emoji — the
+              only place in this component not using the shared stroke-based
+              Icon.jsx set. Swapped for the existing "star" icon (same one
+              Watchlist already uses), not a new bespoke sparkle. Icon's svg
+              is display:block, so unlike the emoji text node it replaces,
+              it needs an explicit flex-center wrapper — the parent's
+              textAlign:"center" only centers inline content. */}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}><Icon name="star" size={32} color={DC.gold} strokeWidth={1.8} /></div>
           <div className="ph-mask" style={{ fontSize: 15, fontWeight: 600, color: DC.gold, marginBottom: 6 }}>
             {STEPS[stepIndex]}
           </div>
