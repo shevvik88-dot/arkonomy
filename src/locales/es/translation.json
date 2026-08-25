@@ -451,7 +451,13 @@
     "order_side_buy": "Compra",
     "order_side_sell": "Venta",
     "your_position": "Tu posición",
-    "avg_cost": "Costo prom. {{price}}"
+    "avg_cost": "Costo prom. {{price}}",
+    "roundup_investment_title": "Inversión de redondeo",
+    "roundup_investment_body": "Elige esto como lo que compra tu cambio suelto",
+    "already_roundup_symbol": "Esta es tu inversión de redondeo actual",
+    "roundup_current": "Actual",
+    "set_as_roundup": "Usar para redondeo",
+    "roundup_symbol_set": "Tus redondeos ahora invertirán en {{symbol}}"
   },
   "savings": {
     "asset_allocation": "Distribución de activos",
@@ -562,6 +568,7 @@
     "edit_goal_title": "Editar meta",
     "to_invest": "para invertir",
     "roundup_body": "Este monto proviene de tus redondeos, basados en tus compras. El dinero permanece en tu cuenta hasta que confirmes — no movemos nada automáticamente.",
+    "change_roundup_symbol": "Cambiar →",
     "roundup_tooltip": "Calculamos el cambio de tus compras. Lo inviertes tú mismo, a través de tu propia cuenta de corretaje.",
     "roundup_learn_more": "Saber más",
     "roundup_explainer_intro": "Round-up rastrea el cambio de tus compras cotidianas.",

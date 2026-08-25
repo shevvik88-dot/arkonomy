@@ -461,7 +461,13 @@
     "watchlist_more_few": "Ещё {{count}} →",
     "watchlist_more_many": "Ещё {{count}} →",
     "your_position": "Твоя позиция",
-    "avg_cost": "Средняя цена {{price}}"
+    "avg_cost": "Средняя цена {{price}}",
+    "roundup_investment_title": "Инвестирование округлений",
+    "roundup_investment_body": "Сделать активом, в который инвестируются округления",
+    "already_roundup_symbol": "Сейчас округления инвестируются сюда",
+    "roundup_current": "Текущий",
+    "set_as_roundup": "Инвестировать округления сюда",
+    "roundup_symbol_set": "Округления теперь инвестируются в {{symbol}}"
   },
   "savings": {
     "asset_allocation": "Распределение активов",
@@ -572,6 +578,7 @@
     "edit_goal_title": "Редактировать цель",
     "to_invest": "для инвестирования",
     "roundup_body": "Эта сумма из ваших округлений, отслеживается по покупкам. Деньги остаются на счёте, пока вы не подтвердите — ничего не перемещается автоматически.",
+    "change_roundup_symbol": "Изменить →",
     "roundup_tooltip": "Мы считаем сдачу с ваших покупок. Инвестируете её вы сами — через свой брокерский счёт.",
     "roundup_learn_more": "Подробнее",
     "roundup_explainer_intro": "Round-up отслеживает сдачу с ваших повседневных покупок.",
