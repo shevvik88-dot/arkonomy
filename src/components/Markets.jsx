@@ -248,7 +248,7 @@ function PriceChart({ candles = [], color, height = 130 }) {
 
 // ─── Stock Detail Screen ──────────────────────────────────────
 
-function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, isPro, isTrial, onUpgrade, watchlist = [], addToWatchlist, removeFromWatchlist, onToast, ownedPosition = null }) {
+function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, isPro, isTrial, onUpgrade, watchlist = [], addToWatchlist, removeFromWatchlist, onToast, ownedPosition = null, roundupSymbol = "SPY", onSetRoundupSymbol }) {
   const { t } = useTranslation();
   const meta    = MARKET_META[symbol] ?? { label: symbol, color: DC.gold, icon: "activity", isCrypto: false };
   const [tab, setTab]         = useState("overview");
@@ -780,6 +780,45 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
           </GlassCard>
           )}
 
+          {/* Spare Change Investing asset selection (2026-08-24): reuses
+              this same Markets/StockDetail flow instead of building a
+              second ticker-picker inside Savings.jsx — one source of truth
+              for "what does round-up investing buy", Savings only displays
+              the current choice. Gated the same as the Buy button above
+              (isPro && !isTrial) — setting this doesn't move money by
+              itself, but round-up investing itself is a Pro feature, so
+              letting a free/trial user pre-configure something they can't
+              use yet would be inconsistent with that gate. */}
+          {alpacaConnected && (
+          <GlassCard style={{ marginBottom: 12, background: DC.card, border: `1px solid ${DC.faint}33` }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: DC.text, marginBottom: 2 }}>{t("markets.roundup_investment_title")}</div>
+                <div style={{ fontSize: 11, color: DC.muted }}>
+                  {roundupSymbol === symbol ? t("markets.already_roundup_symbol") : t("markets.roundup_investment_body")}
+                </div>
+              </div>
+              {roundupSymbol === symbol ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, color: DC.emerald, fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                  <Icon name="check" size={14} color={DC.emerald} />
+                  {t("markets.roundup_current")}
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    if (!isPro || isTrial) { onUpgrade?.(); return; }
+                    onSetRoundupSymbol?.(symbol);
+                    onToast?.(t("markets.roundup_symbol_set", { symbol }), "success");
+                  }}
+                  style={{ padding: "8px 14px", background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, color: DC.gold, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: FONT, flexShrink: 0, whiteSpace: "nowrap" }}
+                >
+                  {t("markets.set_as_roundup")}
+                </button>
+              )}
+            </div>
+          </GlassCard>
+          )}
+
           {alpacaConnected && (
           <div style={{ padding: "0 2px" }}>
             <div style={{ fontSize: 10, color: DC.faint, lineHeight: 1.7 }}>
@@ -984,7 +1023,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
   if (selectedSymbol) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <StockDetail symbol={selectedSymbol} onBack={() => setSelectedSymbol(null)} user={user} alpacaConnected={alpacaConnected} onConnectAlpaca={onConnectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} watchlist={watchlist} addToWatchlist={addToWatchlist} removeFromWatchlist={removeFromWatchlist} onToast={onToast} ownedPosition={portfolio?.positions?.find(p => p.symbol === selectedSymbol) ?? null} />
+        <StockDetail symbol={selectedSymbol} onBack={() => setSelectedSymbol(null)} user={user} alpacaConnected={alpacaConnected} onConnectAlpaca={onConnectAlpaca} isPro={isPro} isTrial={isTrial} onUpgrade={onUpgrade} watchlist={watchlist} addToWatchlist={addToWatchlist} removeFromWatchlist={removeFromWatchlist} onToast={onToast} ownedPosition={portfolio?.positions?.find(p => p.symbol === selectedSymbol) ?? null} roundupSymbol={profile?.roundup_symbol ?? "SPY"} onSetRoundupSymbol={sym => onSaveProfile({ roundup_symbol: sym })} />
       </div>
     );
   }

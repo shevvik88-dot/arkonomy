@@ -451,7 +451,13 @@
     "watchlist_more_one": "+{{count}} more →",
     "watchlist_more_other": "+{{count}} more →",
     "your_position": "Your Position",
-    "avg_cost": "Avg cost {{price}}"
+    "avg_cost": "Avg cost {{price}}",
+    "roundup_investment_title": "Round-up investing",
+    "roundup_investment_body": "Set this as what your spare change buys",
+    "already_roundup_symbol": "This is your current round-up investment",
+    "roundup_current": "Current",
+    "set_as_roundup": "Set as round-up investment",
+    "roundup_symbol_set": "Round-ups will now invest in {{symbol}}"
   },
   "savings": {
     "asset_allocation": "Asset Allocation",
@@ -562,6 +568,7 @@
     "edit_goal_title": "Edit Goal",
     "to_invest": "to invest",
     "roundup_body": "This amount comes from your round-ups, tracked based on your purchases. Money stays in your account until you confirm — we don't move anything automatically.",
+    "change_roundup_symbol": "Change →",
     "roundup_tooltip": "We calculate the spare change from your purchases. You invest it yourself, through your own connected brokerage account.",
     "roundup_learn_more": "Learn more",
     "roundup_explainer_intro": "Round-up tracks the spare change from your everyday purchases.",

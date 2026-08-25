@@ -401,7 +401,7 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
 }
 
 // ─── Main Savings Screen ──────────────────────────────────────
-export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelete, totalIncome = 0, totalSpent = 0, transactions, insight, onInsightAction, onInvestAlpaca, isPro, isTrial, onUpgrade, alpacaConnected, onConnectAlpaca, bankConnected, userId, InsightCard, roundupEnabled = false, onToggleRoundup, autoOpenAdd = false, onAutoOpenAddConsumed }) {
+export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelete, totalIncome = 0, totalSpent = 0, transactions, insight, onInsightAction, onInvestAlpaca, isPro, isTrial, onUpgrade, alpacaConnected, onConnectAlpaca, bankConnected, userId, InsightCard, roundupEnabled = false, onToggleRoundup, autoOpenAdd = false, onAutoOpenAddConsumed, profile, onOpenMarket }) {
   const { t } = useTranslation();
   const isUSStorefront = useUSStorefront();
   const showRealUpgrade = !IS_IOS_NATIVE || isUSStorefront;
@@ -925,9 +925,22 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
                 <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 6 }}>{t("savings.confirm_investment")}</div>
                 <div style={{ fontSize: 14, color: DC.muted }}>{t("savings.to_invest")}</div>
              </div>
+             {/* Real selected symbol (2026-08-24), not the hardcoded "SPDR
+                 S&P 500 ETF (SPY)" text this used to be — StockDetail's
+                 "Set as round-up investment" is the one source of truth for
+                 the choice, this just displays it + a way back there.
+                 Ticker only, no fetched company name (see Markets.jsx's
+                 own comment on this same tradeoff) — not worth a second
+                 market-data call just for this cosmetic detail. */}
              <div style={{ background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.md, padding: 20, marginBottom: 24, textAlign: "center" }}>
                 <div className="ph-mask" style={{ fontSize: 42, fontWeight: 800, color: DC.text, marginBottom: 4 }}>{fmtMoney(roundupMonth)}</div>
-                <div style={{ fontSize: 13, color: DC.muted, fontWeight: 600 }}>SPDR S&P 500 ETF (SPY)</div>
+                <div style={{ fontSize: 13, color: DC.muted, fontWeight: 600 }}>{profile?.roundup_symbol ?? "SPY"}</div>
+                <button
+                  onClick={() => { setShowAlpacaSheet(false); onOpenMarket?.(profile?.roundup_symbol ?? "SPY"); }}
+                  style={{ marginTop: 6, background: "none", border: "none", padding: 0, color: DC.gold, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}
+                >
+                  {t("savings.change_roundup_symbol")}
+                </button>
              </div>
              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <button onClick={() => { onInvestAlpaca({ roundUpMonthly: roundupMonth }); setShowAlpacaSheet(false); }} style={{ width: "100%", padding: 18, background: DC.emerald, border: "none", borderRadius: RADIUS.md, color: DC.bg, fontSize: 16, fontWeight: 800, cursor: "pointer" }}>

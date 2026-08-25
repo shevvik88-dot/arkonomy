@@ -451,7 +451,13 @@
     "order_side_buy": "Compra",
     "order_side_sell": "Venda",
     "your_position": "Sua posição",
-    "avg_cost": "Custo médio {{price}}"
+    "avg_cost": "Custo médio {{price}}",
+    "roundup_investment_title": "Investimento de arredondamento",
+    "roundup_investment_body": "Defina isto como o que seu troco compra",
+    "already_roundup_symbol": "Este é seu investimento de arredondamento atual",
+    "roundup_current": "Atual",
+    "set_as_roundup": "Usar para arredondamento",
+    "roundup_symbol_set": "Seus arredondamentos agora investirão em {{symbol}}"
   },
   "savings": {
     "asset_allocation": "Alocação de Ativos",
@@ -562,6 +568,7 @@
     "edit_goal_title": "Editar Meta",
     "to_invest": "para investir",
     "roundup_body": "Esse valor vem dos seus arredondamentos, acompanhados com base nas suas compras. O dinheiro fica na sua conta até você confirmar — não movimentamos nada automaticamente.",
+    "change_roundup_symbol": "Alterar →",
     "roundup_tooltip": "Calculamos o troco das suas compras. Você mesmo investe, pela sua própria conta de corretagem.",
     "roundup_learn_more": "Saiba mais",
     "roundup_explainer_intro": "Round-up rastreia o troco das suas compras do dia a dia.",
