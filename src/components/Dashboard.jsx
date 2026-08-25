@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
 import { callEdgeFunction } from "../lib/callEdgeFunction";
 import { getCachedDiagnosisLesson, setCachedDiagnosisLesson } from "../utils/diagnosisLessonCache";
+import { DIAGNOSIS_RECENT_MS, hasSignificantEventSince } from "../utils/diagnosisFreshness";
 import { getCachedAccounts, setCachedAccounts, sumDepositoryBalance, getCreditAccounts, sumCreditDebt, creditUtilization } from "../utils/accountsCache";
 import { C, FONT, CAT_COLORS, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmt, fmtDate, parseDate, fmtPct, resolveCategory, tCat, sumAmounts } from "../utils/helpers";
@@ -1326,6 +1327,44 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
     [cashPositionLow, upcomingCharges, spendingByCategory]
   );
 
+  // ── Financial Diagnosis entry-card state (2026-08-24) ────────────────────
+  // Was a static link every time — now diagnosis-aware, same "Phase 2 wires
+  // this row up" plan noted in the button's own comment below. null = no
+  // active diagnosis (or not yet resolved) -> keep the original invite
+  // framing. Otherwise one of 'fresh' / 'stale_time' / 'stale_event' — two
+  // deliberately separate stale reasons (see diagnosisFreshness.js), not
+  // collapsed into one generic "recheck" message, so the copy never claims
+  // something happened when it's really just time passing.
+  const [diagnosisCardState, setDiagnosisCardState] = useState(null);
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    supabase
+      .from('diagnosis_profiles')
+      .select('id, narrative, created_at')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(async ({ data: existing, error }) => {
+        if (cancelled || error || !existing) return;
+        const ageMs = Date.now() - new Date(existing.created_at).getTime();
+        const eventStale = await hasSignificantEventSince(existing.created_at);
+        if (cancelled) return;
+        setDiagnosisCardState({
+          type: eventStale ? 'stale_event' : ageMs >= DIAGNOSIS_RECENT_MS ? 'stale_time' : 'fresh',
+          headline: existing.narrative?.headline || '',
+          ageDays: Math.floor(ageMs / 86_400_000),
+        });
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+  // 'fresh' reads calm/already-seen (muted); no active diagnosis or either
+  // stale reason keeps the original gold "worth a look" emphasis.
+  const diagnosisNeedsAttention = !diagnosisCardState || diagnosisCardState.type !== 'fresh';
+  const diagnosisAccentColor = diagnosisNeedsAttention ? DC.gold : DC.muted;
+
   // ── Health Score ──────────────────────────────────────────────────────────
   const SUB_CATS = ['Subscriptions', 'Bills', 'Utilities', 'Phone', 'Internet', 'Insurance'];
   const subscriptionSpend = SUB_CATS.reduce((s, cat) => s + (spendingByCategory[cat] || 0), 0);
@@ -1442,15 +1481,44 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           exactly the users who already have a live insight showing. */}
       <button
         onClick={() => onNavigate("financial-diagnosis")}
-        style={{ display: "flex", alignItems: "flex-start", gap: 10, width: "100%", boxSizing: "border-box", textAlign: "left", margin: "6px 0 0", padding: "12px 14px", background: DC.card, border: `1px solid ${DC.gold}33`, borderRadius: RADIUS.sm, cursor: "pointer", fontFamily: FONT }}
+        style={{ display: "flex", alignItems: "flex-start", gap: 10, width: "100%", boxSizing: "border-box", textAlign: "left", margin: "6px 0 0", padding: "12px 14px", background: DC.card, border: `1px solid ${diagnosisAccentColor}33`, borderRadius: RADIUS.sm, cursor: "pointer", fontFamily: FONT }}
       >
-        <div style={{ fontSize: 18, lineHeight: 1, marginTop: 1 }}>✨</div>
+        {/* Icon consistency fix (2026-08-24): was a raw "✨" emoji, the only
+            spot on this card not using the shared stroke-based Icon.jsx set
+            — swapped for the existing "star" icon (same one Watchlist
+            already uses), not a new bespoke sparkle. */}
+        <div style={{ marginTop: 1 }}><Icon name="star" size={18} color={diagnosisAccentColor} strokeWidth={1.8} /></div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: DC.gold }}>{t("dashboard.financial_diagnosis_link")}</span>
-            <Icon name="chevron" size={12} color={DC.gold} />
+            <span style={{ fontSize: 13, fontWeight: 700, color: diagnosisAccentColor }}>{t("dashboard.financial_diagnosis_link")}</span>
+            <Icon name="chevron" size={12} color={diagnosisAccentColor} />
           </div>
-          <div style={{ fontSize: 11, color: DC.muted, marginTop: 2 }}>{t("dashboard.financial_diagnosis_subtitle")}</div>
+          {!diagnosisCardState && (
+            <div style={{ fontSize: 11, color: DC.muted, marginTop: 2 }}>{t("dashboard.financial_diagnosis_subtitle")}</div>
+          )}
+          {diagnosisCardState?.type === 'stale_event' && (
+            <div style={{ fontSize: 11, color: DC.muted, marginTop: 2 }}>{t("dashboard.diagnosis_stale_event")}</div>
+          )}
+          {diagnosisCardState?.type === 'stale_time' && (
+            <div style={{ fontSize: 11, color: DC.muted, marginTop: 2 }}>{t("dashboard.diagnosis_stale_time")}</div>
+          )}
+          {diagnosisCardState?.type === 'fresh' && (
+            <>
+              <div style={{ fontSize: 11, color: DC.muted, marginTop: 2 }}>
+                {diagnosisCardState.ageDays === 0 ? t("dashboard.diagnosis_checked_today")
+                  : diagnosisCardState.ageDays === 1 ? t("dashboard.diagnosis_checked_yesterday")
+                  : t("dashboard.diagnosis_last_checked", { count: diagnosisCardState.ageDays })}
+              </div>
+              {/* Headline preview — real financial narrative text, same
+                  ph-mask convention FinancialDiagnosis.jsx's own headline
+                  already uses for session-replay privacy. */}
+              {diagnosisCardState.headline && (
+                <div className="ph-mask" style={{ fontSize: 11, color: DC.faint, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {diagnosisCardState.headline}
+                </div>
+              )}
+            </>
+          )}
         </div>
       </button>
 
