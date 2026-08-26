@@ -808,7 +808,22 @@
     "faq_health_score": "What is Health Score?",
     "faq_savings_goal": "How do I set a savings goal?",
     "faq_cash_flow": "What is Cash Flow Forecast?",
-    "faq_cancel_subscription": "How do I cancel a subscription?"
+    "faq_cancel_subscription": "How do I cancel a subscription?",
+    "greeting_default": "Hi! I'm your Arkonomy AI assistant. Ask me anything about your finances.",
+    "greeting_dashboard": "I can see you're on the Dashboard — your cash flow this month is {{balance}}. What would you like to dig into?",
+    "greeting_dashboard_with_category": "I can see you're on the Dashboard — your cash flow this month is {{balance}}, with {{category}} as your biggest category at {{amount}}. What would you like to dig into?",
+    "greeting_transactions_intro_one": "I can see you're on the Transactions screen — you have {{count}} expense this month totaling {{total}}.",
+    "greeting_transactions_intro_other": "I can see you're on the Transactions screen — you have {{count}} expenses this month totaling {{total}}.",
+    "greeting_transactions_top_category": "Top category: {{category}} ({{amount}}).",
+    "greeting_transactions_cta": "Want me to help analyze your spending?",
+    "greeting_markets": "I can see you're on the Markets screen — you're watching {{watchlist}}. Ask me about any ticker, get a market outlook, or I can help you decide what to invest in.",
+    "greeting_savings_empty": "I can see you're on the Savings screen — you haven't set up any goals yet. Want me to help you create a savings plan?",
+    "greeting_savings_single": "I can see you're on the Savings screen — you have {{current}} saved toward your {{name}} goal of {{target}} ({{pct}}% there). Want me to help you make a plan?",
+    "greeting_savings_multiple": "I can see you're on the Savings screen — you have {{count}} goals with {{total}} saved in total, {{onTrack}} of them at least halfway there. Want help prioritizing or accelerating any goal?",
+    "greeting_insights_with_score": "I can see you're on the Insights screen — your financial health score is {{score}}/100.",
+    "greeting_insights_no_score": "I can see you're on the Insights screen — your financial insights are ready.",
+    "greeting_insights_top_insight": "Your top insight: \"{{title}}\".",
+    "greeting_insights_cta": "What would you like to understand or improve?"
   },
   "health": {
     "label_excellent": "Excellent",
