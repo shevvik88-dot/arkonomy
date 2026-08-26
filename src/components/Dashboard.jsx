@@ -1341,7 +1341,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
     let cancelled = false;
     supabase
       .from('diagnosis_profiles')
-      .select('id, narrative, created_at')
+      .select('id, narrative, primary_issues, created_at')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(1)
@@ -1354,6 +1354,13 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         setDiagnosisCardState({
           type: eventStale ? 'stale_event' : ageMs >= DIAGNOSIS_RECENT_MS ? 'stale_time' : 'fresh',
           headline: existing.narrative?.headline || '',
+          // Same healthy/not-healthy determination FinancialDiagnosis.jsx's
+          // own mount effect already uses, so both screens agree on the
+          // same diagnosis row. Drives which color highlightNumbers() falls
+          // back to below for unsigned dollar/percent figures in the
+          // headline preview (2026-08-25) — ruby for a problem diagnosis,
+          // emerald for a healthy one.
+          healthy: (existing.primary_issues || []).length === 0,
           ageDays: Math.floor(ageMs / 86_400_000),
         });
       });
@@ -1486,8 +1493,14 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         {/* Icon consistency fix (2026-08-24): was a raw "✨" emoji, the only
             spot on this card not using the shared stroke-based Icon.jsx set
             — swapped for the existing "star" icon (same one Watchlist
-            already uses), not a new bespoke sparkle. */}
-        <div style={{ marginTop: 1 }}><Icon name="star" size={18} color={diagnosisAccentColor} strokeWidth={1.8} /></div>
+            already uses), not a new bespoke sparkle.
+            Always DC.gold (2026-08-25), not diagnosisAccentColor — same
+            "constant visual anchor" precedent as TodaysLessonRow's zap icon
+            (also always DC.gold regardless of state) — the card was
+            blending into the background next to the more colorful cards
+            around it (Coach block, Spending by Category dots, Health Score
+            deltas). Title/subtitle text still vary by state below. */}
+        <div style={{ marginTop: 1 }}><Icon name="star" size={18} color={DC.gold} strokeWidth={1.8} /></div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: diagnosisAccentColor }}>{t("dashboard.financial_diagnosis_link")}</span>
@@ -1511,10 +1524,24 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
               </div>
               {/* Headline preview — real financial narrative text, same
                   ph-mask convention FinancialDiagnosis.jsx's own headline
-                  already uses for session-replay privacy. */}
+                  already uses for session-replay privacy.
+                  Dollar/percent figures color-coded via the same
+                  highlightNumbers() helper Insights.jsx already uses for
+                  this exact purpose (2026-08-25) — ruby fallback for a
+                  problem diagnosis, emerald for a healthy one, since the
+                  headline text itself has no literal +/- sign for
+                  highlightNumbers to key off (e.g. "spending $212 more
+                  than you earn" has no minus sign, but is clearly bad
+                  news). Deliberately scoped to ONLY this Dashboard teaser
+                  — FinancialDiagnosis.jsx's own headline/explanation text
+                  stays ruby-free, per that file's own Phase 1 decision
+                  ("gold and ruby never share a UI signal" on that calm,
+                  full-explanation screen); this is a different, scannable
+                  teaser surface, not a rule change to the full result
+                  screen. */}
               {diagnosisCardState.headline && (
                 <div className="ph-mask" style={{ fontSize: 11, color: DC.faint, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {diagnosisCardState.headline}
+                  {highlightNumbers(diagnosisCardState.headline, diagnosisCardState.healthy ? DC.emerald : DC.ruby)}
                 </div>
               )}
             </>
