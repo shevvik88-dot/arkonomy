@@ -25,6 +25,7 @@ import { usePlan } from "./hooks/usePlan";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "./healthScore";
 import { BUFFER, isRealExpense, isTransferCategory } from "./shared/financialConstants";
+import { getCurrentMonthWindow, monthTransactions } from "./shared/dateWindows";
 import { IS_IOS_NATIVE } from "./lib/platform";
 import { useUSStorefront } from "./lib/storefront";
 import { computeRecurringSummary, findDuplicateSubscriptions, getUpcomingCharges, getUpcomingCardPayments } from "./utils/recurringSummary";
@@ -1234,18 +1235,16 @@ export default function App() {
     });
   }
 
-  const now = new Date();
-  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-
-  // Если текущий месяц пустой — показываем последний активный месяц
-  const rawThisMonth = transactions.filter(t => { const d = parseDate(t.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
-  const lastMonthTxs = transactions.filter(t => { const d = parseDate(t.date); return d.getMonth() === prevMonth.getMonth() && d.getFullYear() === prevMonth.getFullYear(); });
-
-  const thisMonth = rawThisMonth.length > 0 ? rawThisMonth : lastMonthTxs;
-  const lastMonth = rawThisMonth.length > 0 ? lastMonthTxs : (() => {
-    const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-    return transactions.filter(t => { const d = parseDate(t.date); return d.getMonth() === twoMonthsAgo.getMonth() && d.getFullYear() === twoMonthsAgo.getFullYear(); });
-  })();
+  // getCurrentMonthWindow/monthTransactions from ./shared/dateWindows —
+  // single source of truth for "what counts as the current month" (budget/
+  // overspending-signals investigation, Step 3, 2026-08-27), shared with
+  // Transactions.jsx and (mirrored, Deno can't import from src/)
+  // get-insights/financial-diagnosis. Same fallback-to-last-month rule this
+  // block already implemented by hand — now the canonical version instead
+  // of an independent copy.
+  const { year: curYear, month: curMonth, prevYear, prevMonth: prevMonthIdx, isFallback } = getCurrentMonthWindow(transactions);
+  const thisMonth = monthTransactions(transactions, curYear, curMonth);
+  const lastMonth = monthTransactions(transactions, prevYear, prevMonthIdx);
 
   // isRealExpense/isTransferCategory imported from ./shared/financialConstants —
   // single source of truth for the Transfer/Transfers exclusion rule, shared
@@ -1425,7 +1424,7 @@ export default function App() {
     />
   );
 
-  const isShowingLastMonth = rawThisMonth.length === 0 && lastMonthTxs.length > 0;
+  const isShowingLastMonth = isFallback;
   const onUpgrade = () => {
     posthog?.capture('upgrade_modal_viewed');
     if (IS_IOS_NATIVE && isUSStorefront) { setShowLeavingAppSheet(true); return; }

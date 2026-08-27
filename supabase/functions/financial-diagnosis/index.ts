@@ -16,6 +16,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { enforceRateLimit } from '../_shared/rateLimit.ts';
 import { computeRecurringSummary } from '../_shared/recurringDetector.ts';
 import { isRealExpense } from '../_shared/financialConstants.ts';
+import { getCurrentMonthWindow, monthKey } from '../_shared/dateWindows.ts';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 
 initSentry('financial-diagnosis');
@@ -77,10 +78,6 @@ function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
 // same abs-sum primitive, not an independent reinvention.
 function sumAmounts(txs: any[]): number {
   return (txs || []).reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0);
-}
-
-function monthKey(dateStr: string): string {
-  return dateStr.slice(0, 7);
 }
 
 function clamp01(n: number): number {
@@ -240,7 +237,14 @@ Deno.serve(async (req) => {
     const subscriptionTotal = recurring.subTotal + recurring.regularTotal;
 
     // ── Trend: current month vs the 3-month average before it. ──
-    const currentMonthKey = monthKey(todayStr);
+    // getCurrentMonthWindow (Step 3, 2026-08-27): same fallback rule as
+    // App.jsx/Transactions.jsx/get-insights — if the real current month has
+    // no transactions yet, treat last month as "current" so trend90d
+    // doesn't compare a real 3-month average against a false "$0 this
+    // month" (which would read as trend90d: 'declining' by construction).
+    // `transactions` (not isRealExpense-filtered) matches every other
+    // consumer's "any transaction this month" fallback check.
+    const currentMonthKey = getCurrentMonthWindow(transactions, now).monthKey;
     const priorMonths = expenseMonths.filter(m => m !== currentMonthKey);
     const priorExpenseAvg = priorMonths.length > 0
       ? priorMonths.reduce((s, m) => s + monthlyExpense[m], 0) / priorMonths.length

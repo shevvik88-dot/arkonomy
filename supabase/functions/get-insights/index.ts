@@ -3,6 +3,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { enforceRateLimit } from '../_shared/rateLimit.ts';
 import { BUFFER, SAVE_CAP_SMALL, SAVE_CAP_MEDIUM, SAVE_CAP_LARGE, REC_MIN, REC_MAX, isRealExpense } from '../_shared/financialConstants.ts';
+import { getCurrentMonthWindow, monthTransactions, monthKey } from '../_shared/dateWindows.ts';
 import { getUpcomingCharges } from '../_shared/recurringDetector.ts';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 
@@ -197,9 +198,26 @@ async function buildFinancialInput(supabase: any, userId: string) {
   if (e4) console.error('recentIncome error:', e4);
   if (e5) console.error('merchantAliases error:', e5);
 
-  const current      = currentTxns      || [];
-  const historical   = historicalTxns   || [];
+  const rawCurrent   = currentTxns      || [];
+  const rawHistorical = historicalTxns  || [];
   const recentIncome = recentIncomeTxns || [];
+
+  // getCurrentMonthWindow/monthTransactions from ../_shared/dateWindows —
+  // single source of truth for "what counts as the current month" (budget/
+  // overspending-signals investigation, Step 3, 2026-08-27), shared with
+  // App.jsx/Transactions.jsx (mirrored, Deno can't import from src/). Before
+  // this, get-insights had NO fallback at all: on day 1-2 of a new month
+  // (real current month genuinely empty, not yet synced) it showed honest
+  // zeros for currentMonthSpend/categories while the frontend was already
+  // quietly showing last month's numbers as "this month" — same class of
+  // cross-screen inconsistency as the Transfer/Transfers exclusion rule this
+  // function already fixed in Step 2. rawHistorical already covers the
+  // fallback month (query range is `.lt(startOfMonth)`), so no extra query
+  // is needed — just re-slice the two already-fetched pools.
+  const combinedPool = [...rawHistorical, ...rawCurrent];
+  const { monthKey: effectiveMonthKey, prevMonthKey, isFallback } = getCurrentMonthWindow(combinedPool, now);
+  const current    = monthTransactions(combinedPool, effectiveMonthKey);
+  const historical = combinedPool.filter((t: any) => monthKey(t.date) !== effectiveMonthKey);
 
   // aliasMap: raw alias_key -> canonical_key, confirmed only — mirrors
   // App.jsx's merchantAliasMap useMemo exactly, so server and client agree
@@ -348,11 +366,12 @@ async function buildFinancialInput(supabase: any, userId: string) {
     historyCategoryMap[cat] = (historyCategoryMap[cat] || 0) + Number(t.amount);
   });
 
-  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    .toISOString().split('T')[0];
+  // prevMonthKey is the month before the EFFECTIVE current month (from
+  // getCurrentMonthWindow above) — shifts back one extra month automatically
+  // when isFallback is true, same as App.jsx's twoMonthsAgo comparison.
   const lastMonthCategoryMap: Record<string, number> = {};
-  historical
-    .filter((t: any) => isRealExpense(t) && t.date >= startOfLastMonth)
+  monthTransactions(historical, prevMonthKey)
+    .filter(isRealExpense)
     .forEach((t: any) => {
       const cat = t.category_name || 'Other';
       lastMonthCategoryMap[cat] = (lastMonthCategoryMap[cat] || 0) + Number(t.amount);
@@ -375,8 +394,13 @@ async function buildFinancialInput(supabase: any, userId: string) {
     monthlyActual: Number(g.current) || 0,
   }));
 
-  const dayOfMonth  = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  // A fallback month (isFallback) is already fully over — "3 days left to
+  // adjust" would be nonsensical for a closed month, so it's treated as its
+  // own last day (daysLeft: 0, monthPhase: 'late' downstream) rather than
+  // real today's day-of-month, which belongs to a different, empty month.
+  const [effYear, effMonthNum] = effectiveMonthKey.split('-').map(Number);
+  const daysInMonth = new Date(effYear, effMonthNum, 0).getDate();
+  const dayOfMonth  = isFallback ? daysInMonth : now.getDate();
   const daysLeft    = daysInMonth - dayOfMonth;
 
   // Real upcoming bills due in the next 7 days — same recurring-charge
@@ -400,6 +424,7 @@ async function buildFinancialInput(supabase: any, userId: string) {
     historicalTransactions: historical,
     dayOfMonth,
     daysLeft,
+    isFallback,
     creditUtilizationPct,
     totalCreditDebt,
     worstCreditCardName,
@@ -429,6 +454,13 @@ interface RenderContext {
   dayOfMonth: number;
   daysLeft:   number;
   monthPhase: 'early' | 'mid' | 'late';
+  // True when "current month" is actually last calendar month, shown in
+  // place of a real current month that has no transactions yet
+  // (getCurrentMonthWindow, Step 3, 2026-08-27) — narrative copy that
+  // literally says "this month" needs to say "last month" instead here, or
+  // it recreates the exact "different period, same label" issue the
+  // budget/overspending-signals investigation started by fixing (Step 1).
+  isFallback: boolean;
 }
 
 function buildRenderContext(input: any): RenderContext {
@@ -438,6 +470,7 @@ function buildRenderContext(input: any): RenderContext {
     dayOfMonth: day,
     daysLeft:   left,
     monthPhase: day <= 10 ? 'early' : day <= 20 ? 'mid' : 'late',
+    isFallback: !!input.isFallback,
   };
 }
 
@@ -912,19 +945,26 @@ function renderInsight(signal: any, ctx: RenderContext, lang: 'en' | 'ru' | 'es'
         ? (ctx.monthPhase === 'early' ? 'Es temprano — aún hay tiempo para corregir el rumbo.' : ctx.monthPhase === 'mid' ? `Quedan ${ctx.daysLeft} días para reducirlo.` : 'Vale la pena revisar qué generó el gasto extra.')
         : (ctx.monthPhase === 'early' ? "It's early — there's still time to course-correct." : ctx.monthPhase === 'mid' ? `${ctx.daysLeft} days left to bring it down.` : 'Worth reviewing what drove the extra spend.');
       const momNoteOver = d.lastMonthTotalSpend ? '\n' + momLine(d.currentMonthSpend, d.lastMonthTotalSpend, lang) : '';
+      // "This month" would mislabel a fallback month (real current month
+      // still empty, showing last month's already-closed numbers instead —
+      // getCurrentMonthWindow, Step 3) as if it were in progress. Same
+      // honesty fix as Step 1's financial-diagnosis TIME WINDOW HONESTY.
+      const periodWord = ctx.isFallback
+        ? (ru ? 'в прошлом месяце' : es ? 'el mes pasado' : 'last month')
+        : (ru ? 'в этом месяце' : es ? 'este mes' : 'this month');
       return ru ? {
         headline: `Расходы на $${fmt(d.delta)} выше обычного темпа`,
-        body:     `$${fmt(d.currentMonthSpend)} в этом месяце против среднего $${fmt(d.avg3mSpend)}.${momNoteOver}\n\n→ ${timeNote}`,
+        body:     `$${fmt(d.currentMonthSpend)} ${periodWord} против среднего $${fmt(d.avg3mSpend)}.${momNoteOver}\n\n→ ${timeNote}`,
         cta:      'Просмотреть расходы',
         range:    null, action: 'review_spending',
       } : es ? {
         headline: `El gasto está $${fmt(d.delta)} sobre tu ritmo habitual`,
-        body:     `$${fmt(d.currentMonthSpend)} este mes vs tu promedio de $${fmt(d.avg3mSpend)}.${momNoteOver}\n\n→ ${timeNote}`,
+        body:     `$${fmt(d.currentMonthSpend)} ${periodWord} vs tu promedio de $${fmt(d.avg3mSpend)}.${momNoteOver}\n\n→ ${timeNote}`,
         cta:      'Revisar gastos',
         range:    null, action: 'review_spending',
       } : {
         headline: `Spending is $${fmt(d.delta)} above your usual pace`,
-        body:     `$${fmt(d.currentMonthSpend)} this month vs your $${fmt(d.avg3mSpend)} average.${momNoteOver}\n\n→ ${timeNote}`,
+        body:     `$${fmt(d.currentMonthSpend)} ${periodWord} vs your $${fmt(d.avg3mSpend)} average.${momNoteOver}\n\n→ ${timeNote}`,
         cta:      'Review Spending',
         range:    null, action: 'review_spending',
       };
@@ -1055,7 +1095,7 @@ function renderInsight(signal: any, ctx: RenderContext, lang: 'en' | 'ru' | 'es'
         cta:      'Ver progreso',
         range:    null, action: 'view_progress',
       } : {
-        headline: `You're $${fmt(approx)} under budget this month`,
+        headline: `You're $${fmt(approx)} under budget ${ctx.isFallback ? 'last month' : 'this month'}`,
         body:     `Spending is tracking below your 3-month average.${momNotePos}\n\n→ ${endNote}`,
         cta:      'View Progress',
         range:    null, action: 'view_progress',
