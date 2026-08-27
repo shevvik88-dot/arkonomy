@@ -163,12 +163,27 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
   const incomeCtx     = hasIncPrev ? fmtPct(summary.incomeVsPrev) + " " + t("transactions.ctx_vs_last_mo") : null;
   const incomeCtxClr  = hasIncPrev ? ((summary.incomeVsPrev ?? 0) >= 0 ? DC.emerald : DC.ruby) : DC.faint;
 
-  const expVsBudgetPct = summary.income > 0 ? Math.round((summary.expense / summary.income) * 100) : null;
-  const isOverBudget  = hasExpPrev ? (summary.expenseVsPrev ?? 0) > 10 : (expVsBudgetPct !== null && expVsBudgetPct > 80);
+  // Renamed from expVsBudgetPct/isOverBudget — this never read profile.
+  // monthly_budget at all, it's month-over-month expense growth (when a
+  // previous month exists) or expense-as-%-of-income (when it doesn't).
+  // The old names + "vs budget"/"WITHIN BUDGET" copy implied a comparison
+  // against the user's actual budget setting that was never happening
+  // (budget/overspending-signals investigation, 2026-08-26 — copy-only
+  // fix here, thresholds/gating logic unchanged).
+  const expVsIncomePct    = summary.income > 0 ? Math.round((summary.expense / summary.income) * 100) : null;
+  const isSpendingElevated = hasExpPrev ? (summary.expenseVsPrev ?? 0) > 10 : (expVsIncomePct !== null && expVsIncomePct > 80);
   const expenseCtx    = hasExpPrev
-    ? fmtPct(summary.expenseVsPrev) + " " + t("transactions.ctx_vs_budget")
-    : expVsBudgetPct !== null ? t("transactions.ctx_of_income", { pct: expVsBudgetPct }) : null;
-  const expenseCtxClr = isOverBudget ? DC.ruby : DC.emerald;
+    ? fmtPct(summary.expenseVsPrev) + " " + t("transactions.ctx_vs_last_mo")
+    : expVsIncomePct !== null ? t("transactions.ctx_of_income", { pct: expVsIncomePct }) : null;
+  const expenseCtxClr = isSpendingElevated ? DC.ruby : DC.emerald;
+  // Badge text branches on which underlying signal actually fired — a MoM
+  // spike and a high income-share are different facts, so they get
+  // different honest labels instead of one shared "over/within budget".
+  const expenseBadge = summary.income === 0
+    ? t("transactions.badge_no_income")
+    : isSpendingElevated
+      ? (hasExpPrev ? t("transactions.badge_spending_up") : t("transactions.badge_high_income_share"))
+      : summary.net < 0 ? null : t("transactions.badge_steady");
 
   const netCtx    = hasNetPrev
     ? fmtMoney(summary.netVsPrev, true) + " " + t("transactions.ctx_vs_last_mo")
@@ -177,7 +192,7 @@ function SummaryCards({ summary, onIncomeClick, onExpenseClick, onNetClick }) {
 
   const cards = [
     { label: t("transactions.income"),   value: fmtMoney(summary.income),        valColor: DC.emerald,                                     ctx: incomeCtx,  ctxColor: incomeCtxClr,  badge: null,                                                           onClick: onIncomeClick },
-    { label: t("transactions.filter_expense"), value: fmtMoney(summary.expense), valColor: DC.ruby,                                     ctx: expenseCtx, ctxColor: expenseCtxClr, badge: summary.income === 0 ? t("transactions.badge_no_income") : isOverBudget ? t("transactions.badge_over_budget") : summary.net < 0 ? null : t("transactions.badge_within_budget"), badgeOk: summary.income === 0 ? null : !isOverBudget, onClick: onExpenseClick },
+    { label: t("transactions.filter_expense"), value: fmtMoney(summary.expense), valColor: DC.ruby,                                     ctx: expenseCtx, ctxColor: expenseCtxClr, badge: expenseBadge, badgeOk: summary.income === 0 ? null : !isSpendingElevated, onClick: onExpenseClick },
     { label: t("dashboard.net"),         value: fmtMoney(summary.net, true),     valColor: summary.net > 0 ? DC.emerald : summary.net < 0 ? DC.ruby : DC.gold, ctx: netCtx,     ctxColor: netCtxClr,     badge: summary.net > 0 ? t("transactions.badge_surplus") : summary.net < 0 ? t("transactions.badge_deficit") : t("transactions.badge_balanced"), badgeOk: summary.net > 0 ? true : summary.net < 0 ? false : null, highlight: true, highlightColor: summary.net > 0 ? DC.emerald : summary.net < 0 ? DC.ruby : DC.gold, onClick: onNetClick },
   ];
   return (

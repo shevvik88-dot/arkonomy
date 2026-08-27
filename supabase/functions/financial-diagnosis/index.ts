@@ -341,6 +341,19 @@ refer ONLY to credit utilization percentage and dollar balance — e.g. "your
 card is at 45% utilization" is correct, "your 22% APR card" is NOT and must
 never appear.
 
+TIME WINDOW HONESTY: "Average monthly income"/"Average monthly expenses"
+above are 3-month averages, not this calendar month's actual numbers — this
+app shows the user other, separately-computed CURRENT-month figures
+elsewhere (Dashboard, budget bar, AI chat), and a diagnosis headline that
+reads as a this-month claim will look like it contradicts those numbers.
+Any time you reference either average, or a gap derived from them (e.g. "you're
+spending $X more than you earn"), you MUST make the 3-month-average framing
+explicit in the sentence itself — e.g. "on average over the past 3 months,
+you're spending $X more than you earn" or "you've earned $X/mo on average
+over the last 3 months." Never phrase it as if it describes this month
+specifically (e.g. never "you're spending $X more than you earn this
+month" or "...every month" without the "on average" qualifier attached).
+
 ${healthy ? `Return ONLY this JSON shape:
 {"headline": "1 sentence, references a real number from the data above, encouraging", "encouragement": "2-3 sentences explaining why their finances look healthy right now and one small optional next step"}` : `For each detected issue above, write a JSON object. Return ONLY this JSON shape:
 {"headline": "1 sentence, references a real number from the data above", "problems": [{"issue": "<taxonomy key exactly as given above>", "explanation": "2-3 sentences, human, specific, references actual numbers from the data above", "action": "1 concrete recommended action with a specific dollar amount"}]}`}
@@ -362,7 +375,7 @@ Respond in ${responseLang}. Respond with ONLY valid JSON, no markdown, no extra 
         high_apr_debt: { explanation: `Your highest-utilization card is at ${(worstUtilization * 100).toFixed(0)}% of its limit — that's above the 30% guideline and likely costing you in interest.`, action: `Put any extra cash toward paying that card down first.` },
         no_emergency_fund: { explanation: `You have about ${emergencyFundMonths.toFixed(1)} months of expenses in liquid savings — under the 1-month minimum buffer.`, action: `Set aside $25-50 this week toward a starter emergency fund.` },
         subscription_leak: { explanation: `You're paying about $${subscriptionTotal.toFixed(0)}/month in recurring charges — worth a review.`, action: `Check your recurring charges list and cancel anything you don't actively use.` },
-        overspending: { explanation: `You're spending more than you're bringing in — a ${(savingsRate * 100).toFixed(0)}% savings rate.`, action: `Review your biggest spending category this month and cut back by $50.` },
+        overspending: { explanation: `On average over the past 3 months, you're spending $${(monthlyExpenseAvg - monthlyIncomeAvg).toFixed(2)} more than you earn — a ${(savingsRate * 100).toFixed(0)}% savings rate.`, action: `Review your biggest spending category this month and cut back by $50.` },
         lifestyle_inflation: { explanation: `Your spending has grown faster than your income over the last few months.`, action: `Pick one growing category and cap it at last month's level.` },
         unstable_income_no_buffer: { explanation: `Your income varies month to month and your buffer is thin — a rough month could hurt.`, action: `Prioritize building 1 month of buffer before anything else.` },
         no_goal: { explanation: `You're saving money but don't have an active goal for it.`, action: `Create one savings goal for where this money should go.` },

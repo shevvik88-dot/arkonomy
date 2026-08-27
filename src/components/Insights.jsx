@@ -551,7 +551,14 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
             )}
           </div>
           {cashPositionLow && (
-            <div style={{ fontSize: 11, color: DC.gold, fontWeight: 600, marginBottom: 2 }}>{t("health.cash_position_low")}</div>
+            // Same distinct icon+copy as Dashboard.jsx's HealthScoreBar —
+            // liquidity signal (balance vs $1,000 buffer), not a budget
+            // verdict; this card's own "budget" breakdown row sits right
+            // above it (budget/overspending-signals investigation, 2026-08-26).
+            <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
+              <Icon name="bank" size={11} color={DC.gold} strokeWidth={2} />
+              <span style={{ fontSize: 11, color: DC.gold, fontWeight: 600 }}>{t("health.cash_buffer_low")}</span>
+            </div>
           )}
           <div style={{ fontSize: 12, color: DC.muted, lineHeight: 1.5 }}>
             {comment ? (comment.rawCat ? t(comment.key, { cat: tCat(comment.rawCat, t), ...comment.params }) : t(comment.key)) : (score >= 75 ? t("insights.score_great") : score >= 50 ? t("insights.score_decent") : t("insights.score_focus"))}

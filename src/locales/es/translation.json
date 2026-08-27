@@ -195,13 +195,13 @@
     "yesterday": "Ayer",
     "this_month": "este mes",
     "badge_no_income": "sin ingresos",
-    "badge_over_budget": "sobre el presupuesto",
-    "badge_within_budget": "dentro del presupuesto",
+    "badge_spending_up": "gasto en aumento",
+    "badge_high_income_share": "alto vs ingresos",
+    "badge_steady": "estable",
     "badge_surplus": "superávit",
     "badge_deficit": "déficit",
     "badge_balanced": "equilibrado",
     "ctx_vs_last_mo": "vs mes ant.",
-    "ctx_vs_budget": "vs presupuesto",
     "ctx_of_income": "{{pct}}% de ingresos",
     "ctx_net_balance": "saldo neto",
     "income_breakdown": "Desglose de ingresos",
@@ -840,7 +840,7 @@
     "comment_solid": "Buen resultado — pequeños aumentos en el ahorro te llevarán a la zona verde.",
     "comment_making_progress": "Progresando — trata de ahorrar un poco más cada mes.",
     "comment_getting_started": "Recién empezando — pequeños pasos constantes suman mucho.",
-    "cash_position_low": "⚠ Saldo bajo"
+    "cash_buffer_low": "Colchón de efectivo bajo"
   },
   "cat": {
     "housing": "Vivienda",
