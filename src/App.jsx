@@ -24,7 +24,7 @@ import UpcomingChargesCard from "./components/UpcomingChargesCard";
 import { usePlan } from "./hooks/usePlan";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "./healthScore";
-import { BUFFER } from "./shared/financialConstants";
+import { BUFFER, isRealExpense, isTransferCategory } from "./shared/financialConstants";
 import { IS_IOS_NATIVE } from "./lib/platform";
 import { useUSStorefront } from "./lib/storefront";
 import { computeRecurringSummary, findDuplicateSubscriptions, getUpcomingCharges, getUpcomingCardPayments } from "./utils/recurringSummary";
@@ -332,7 +332,7 @@ function buildContextGreeting(t, screen, { totalIncome, totalSpent, spendingByCa
       const now = new Date();
       const monthExpenses = transactions.filter(t2 => {
         const d = new Date(t2.date);
-        return t2.type === 'expense' && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && t2.category_name !== 'Transfer';
+        return t2.type === 'expense' && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && !isTransferCategory(t2);
       });
       const count = monthExpenses.length;
       const intro = t('chat.greeting_transactions_intro', { count, total: `$${fmt(totalSpent, 0)}` });
@@ -963,11 +963,7 @@ export default function App() {
           // Use current transactions + newly saved one for accurate totals
           const allTx = [data, ...transactions];
           const monthlyExpenses = sumAmounts(
-            allTx.filter(t => {
-              if (t.type !== "expense" || new Date(t.date) < monthStart) return false;
-              const cat = resolveCategory(t);
-              return cat !== "Transfer" && cat !== "Transfers";
-            })
+            allTx.filter(t => t.type === "expense" && new Date(t.date) >= monthStart && !isTransferCategory(t))
           );
           const budget = profile?.monthly_budget || 3000;
           const remaining = budget - monthlyExpenses;
@@ -1012,7 +1008,7 @@ export default function App() {
             sendPush({ title: "Low Balance", body: `${fmtMoney(remaining)} remaining in your monthly budget`, icon: "/icon-192.png", tag: "low-balance" });
           }
           // 4. Unusual Spending Alert
-          if (ap.unusualSpending && tx.category_name && tx.category_name !== "Transfer") {
+          if (ap.unusualSpending && tx.category_name && !isTransferCategory(tx)) {
             const cat = tx.category_name;
             const now = new Date();
             const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
@@ -1251,14 +1247,17 @@ export default function App() {
     return transactions.filter(t => { const d = parseDate(t.date); return d.getMonth() === twoMonthsAgo.getMonth() && d.getFullYear() === twoMonthsAgo.getFullYear(); });
   })();
 
-  const isRealExpense = t => {
-    if (t.type !== "expense") return false;
-    const cat = resolveCategory(t);
-    return cat !== "Transfer" && cat !== "Transfers";
-  };
+  // isRealExpense/isTransferCategory imported from ./shared/financialConstants —
+  // single source of truth for the Transfer/Transfers exclusion rule, shared
+  // with Transactions.jsx and (mirrored, Deno can't import from src/)
+  // get-insights/financial-diagnosis (budget/overspending-signals
+  // investigation, Step 2, 2026-08-27). resolveCategory() below is
+  // untouched — its guessCategory-based re-categorization for unrelated
+  // categories is a separate, still-open duplication issue (see
+  // docs/known-issues.md), not part of transfer detection.
   const totalSpent = sumAmounts(thisMonth.filter(isRealExpense));
   const totalIncome = sumAmounts(thisMonth.filter(t => t.type === "income"));
-  const totalTransfers = sumAmounts(thisMonth.filter(t => t.category_name === "Transfer"));
+  const totalTransfers = sumAmounts(thisMonth.filter(isTransferCategory));
   const lastSpent = sumAmounts(lastMonth.filter(isRealExpense));
   const lastIncome = sumAmounts(lastMonth.filter(t => t.type === "income"));
 

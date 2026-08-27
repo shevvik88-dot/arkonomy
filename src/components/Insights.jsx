@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { usePostHog } from "@posthog/react";
 import { C, FONT, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmt, parseDate, tCat, cleanMerchantName, sumAmounts } from "../utils/helpers";
+import { isTransferCategory } from "../shared/financialConstants";
 import Icon from "./shared/Icon";
 import GlassCard from "./shared/GlassCard";
 import { ConnectBankPrompt } from "./shared/ConnectBankPrompt";
@@ -620,7 +621,7 @@ function WeeklySummary({ transactions }) {
   // Daily totals Mon–Sun
   const dailyTotals = Array(7).fill(0);
   const thisWeekTxs = transactions.filter(t =>
-    t.type === "expense" && t.category_name !== "Transfer" && parseDate(t.date) >= startOfWeek
+    t.type === "expense" && !isTransferCategory(t) && parseDate(t.date) >= startOfWeek
   );
   thisWeekTxs.forEach(t => {
     const d = parseDate(t.date);
@@ -632,7 +633,7 @@ function WeeklySummary({ transactions }) {
   if (thisWeek === 0) return null;
 
   const lastWeek = sumAmounts(
-    transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer" && parseDate(t.date) >= startOfLastWeek && parseDate(t.date) < startOfWeek)
+    transactions.filter(t => t.type === "expense" && !isTransferCategory(t) && parseDate(t.date) >= startOfLastWeek && parseDate(t.date) < startOfWeek)
   );
 
   const change = lastWeek > 0 ? ((thisWeek - lastWeek) / lastWeek) * 100 : null;
@@ -1019,7 +1020,10 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
   const insights = [];
 
   Object.entries(spendingByCategory).forEach(([cat, amount]) => {
-    if (cat === "Transfer") return; // Transfer не анализируем
+    // Defensive — spendingByCategory (App.jsx) is already isRealExpense-
+    // filtered upstream, so a transfer category key can't actually reach
+    // here anymore, but keep this in sync with isTransferCategory anyway.
+    if (isTransferCategory({ category_name: cat })) return;
     const prev = prevSpendingByCategory[cat] || 0;
     if (prev > 0) {
       const change = ((amount - prev) / prev) * 100;

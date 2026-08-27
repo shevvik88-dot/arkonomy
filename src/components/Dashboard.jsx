@@ -17,7 +17,7 @@ import { getUpcomingCharges, getUpcomingCardPayments } from '../utils/recurringS
 import { getTodaysLesson, getPersonalizedLessonNote, computeNextStreak } from '../utils/lessons';
 import { getCardQuestion } from '../utils/cardQuestions';
 import { useLongPress } from '../hooks/useLongPress';
-import { BUFFER } from "../shared/financialConstants";
+import { BUFFER, isTransferCategory } from "../shared/financialConstants";
 
 
 // ─── Health Score Gauge ──────────────────────────────────────────────────────
@@ -355,7 +355,7 @@ function Sparkline({ transactions, width = 62, height = 30 }) {
       if (!(key in days)) return;
       const amt = Number(t.amount);
       if (t.type === 'income') days[key] += amt;
-      else if (t.type === 'expense' && t.category_name !== 'Transfer') days[key] -= amt;
+      else if (t.type === 'expense' && !isTransferCategory(t)) days[key] -= amt;
     });
     let run = 0;
     return Object.keys(days).sort().map(k => { run += days[k]; return run; });
@@ -584,7 +584,7 @@ function CashFlowForecast({ accountBalance, transactions, balanceVisible, mercha
 function groupExpensesByDay(transactions, year, month) {
   const byDay = {};
   transactions
-    .filter(t => t.type === "expense" && t.category_name !== "Transfer")
+    .filter(t => t.type === "expense" && !isTransferCategory(t))
     .forEach(t => {
       const d = parseDate(t.date);
       if (d.getFullYear() !== year || d.getMonth() !== month) return;
@@ -598,18 +598,14 @@ function groupExpensesByDay(transactions, year, month) {
 
 // Signed net (income - expense) per day — separate from groupExpensesByDay,
 // which is expense-only (drives the Level 2 day-detail category breakdown
-// list, not cell color anymore). Deliberately excludes ONLY "Transfer"
-// (singular), same as groupExpensesByDay — NOT also "Transfers" (plural),
-// even though the plural is the one that actually shows up in real data and
-// arguably should be excluded too. Matching groupExpensesByDay's filter
-// exactly, bug-for-bug, is intentional here rather than letting this
-// function quietly diverge from it. The singular/plural inconsistency
-// itself is real and tracked in BACKLOG — fix it there (in
-// groupExpensesByDay, once, for both consumers).
+// list, not cell color anymore). Now shares the same isTransferCategory
+// exclusion as groupExpensesByDay (both forms) — was singular-"Transfer"-
+// only here, tracked as tech debt in BACKLOG.md until the budget/
+// overspending-signals investigation's Step 2 (2026-08-27) unified it.
 function getDailyNet(transactions, year, month) {
   const net = {};
   transactions.forEach(t => {
-    if (t.category_name === "Transfer") return;
+    if (isTransferCategory(t)) return;
     const d = parseDate(t.date);
     if (d.getFullYear() !== year || d.getMonth() !== month) return;
     const day = d.getDate();

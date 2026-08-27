@@ -10,6 +10,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 import { getUpcomingCharges } from '../_shared/recurringDetector.ts';
+import { isTransferCategory } from '../_shared/financialConstants.ts';
 import { getMarketSnapshot, type MarketQuote } from '../_shared/marketSnapshot.ts';
 
 initSentry('weekly-report');
@@ -222,11 +223,19 @@ async function buildReport(supabase: any, userId: string): Promise<WeekReport> {
   const fmt = (d: Date) => d.toISOString().split('T')[0];
 
   const [{ data: thisTxns }, { data: lastTxns }, { data: allTxns }, { data: merchantAliases }] = await Promise.all([
+    // .neq(...).neq(...) was missing the plural "Transfers" Zelle/Venmo form
+    // (budget/overspending-signals investigation, Step 2, 2026-08-27) — no
+    // `description` column selected here, so the isTransferCategory()
+    // description-based fallback isn't reachable at this DB-filter layer;
+    // this covers the category_name-already-"Transfers" case, which is the
+    // vast majority since plaid-sync-transactions writes it at sync time.
     supabase.from('transactions').select('amount, category_name, type, date')
-      .eq('user_id', userId).eq('type', 'expense').neq('category_name', 'Transfer')
+      .eq('user_id', userId).eq('type', 'expense')
+      .neq('category_name', 'Transfer').neq('category_name', 'Transfers')
       .gte('date', fmt(thisStart)).lte('date', fmt(now)),
     supabase.from('transactions').select('amount, category_name, type, date')
-      .eq('user_id', userId).eq('type', 'expense').neq('category_name', 'Transfer')
+      .eq('user_id', userId).eq('type', 'expense')
+      .neq('category_name', 'Transfer').neq('category_name', 'Transfers')
       .gte('date', fmt(lastStart)).lt('date', fmt(thisStart)),
     supabase.from('transactions').select('amount, type, date, category_name, description')
       .eq('user_id', userId)
@@ -277,7 +286,7 @@ function computeHealthScore(txns: any[]): { score: number; color: string } {
   const lastMonthTxns = txns.filter((t: any) => t.date >= prevStart && t.date < monthStart);
 
   const sum   = (list: any[], type: string) =>
-    list.filter((t: any) => t.type === type && t.category_name !== 'Transfer')
+    list.filter((t: any) => t.type === type && !isTransferCategory(t))
         .reduce((s: number, t: any) => s + Number(t.amount), 0);
 
   const income    = sum(thisMonthTxns, 'income');

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { FONT, CAT_COLORS, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmt, fmtDate, parseDate, guessCategory, tCat, cleanMerchantName, localDateString, sumAmounts } from "../utils/helpers";
+import { isRealExpense, isTransferCategory } from "../shared/financialConstants";
 import Icon from "./shared/Icon";
 import { ConnectBankPrompt } from "./shared/ConnectBankPrompt";
 import { InsightCard } from "./Insights";
@@ -31,7 +32,12 @@ function normalizeTxName(t) {
 }
 
 function calcSummary(txs, prevTxs = []) {
-  const realExpense = arr => sumAmounts(arr.filter(t => t.type === "expense" && t.category_name !== "Transfer"));
+  // isRealExpense (shared/financialConstants) — was category_name !== "Transfer"
+  // only, missing the plural "Transfers" Zelle/Venmo form App.jsx/ai-chat/
+  // Insights' budget bar already excluded, inflating this screen's total
+  // relative to every other surface (budget/overspending-signals
+  // investigation, Step 2, 2026-08-27).
+  const realExpense = arr => sumAmounts(arr.filter(isRealExpense));
   const byIncome = arr => sumAmounts(arr.filter(t => t.type === "income"));
   const income  = byIncome(txs);
   const expense = realExpense(txs);
@@ -503,7 +509,7 @@ export default function Transactions({ transactions, categories, onAdd, onDuplic
     income:  monthTxs.filter(t => t.type === "income").length,
   };
 
-  const expenseMap  = effectiveCurTxs.filter(t => t.type === "expense" && t.category_name !== "Transfer").reduce((a, t) => { const k = t.category_name || "Other"; a[k] = (a[k] || 0) + Number(t.amount); return a; }, {});
+  const expenseMap  = effectiveCurTxs.filter(isRealExpense).reduce((a, t) => { const k = t.category_name || "Other"; a[k] = (a[k] || 0) + Number(t.amount); return a; }, {});
   const expenseRows = Object.entries(expenseMap).sort((a, b) => b[1] - a[1]).map(([name, total], _, arr) => ({
     name, amount: fmtMoney(total), color: CAT_COLORS[name] || DC.gold, icon: CAT_ICONS_MAP[name] || "credit",
     pct: Math.round((total / arr.reduce((s, [, v]) => s + v, 0)) * 100),
@@ -575,7 +581,7 @@ export default function Transactions({ transactions, categories, onAdd, onDuplic
 
       {/* Top expense this month */}
       {(() => {
-        const topTx = curTxs.filter(t => t.type === "expense" && t.category_name !== "Transfer").sort((a, b) => Number(b.amount) - Number(a.amount))[0];
+        const topTx = curTxs.filter(isRealExpense).sort((a, b) => Number(b.amount) - Number(a.amount))[0];
         if (!topTx) return null;
         return (
           <div
@@ -671,7 +677,7 @@ export default function Transactions({ transactions, categories, onAdd, onDuplic
 
         {/* Category filter chip */}
         {(() => {
-          const cats = [...new Set(transactions.filter(t => t.category_name && t.category_name !== 'Transfer').map(t => t.category_name))].sort();
+          const cats = [...new Set(transactions.filter(t => t.category_name && !isTransferCategory(t)).map(t => t.category_name))].sort();
           const active = localCatFilter;
           return (
             <div style={{ position: "relative" }}>
@@ -737,7 +743,7 @@ export default function Transactions({ transactions, categories, onAdd, onDuplic
         return (
           <div style={{ display: "flex", flexDirection: "column" }}>
             {groups.map(group => {
-              const dayNet = group.txs.filter(t => t.category_name !== 'Transfer').reduce((s, t) => s + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0);
+              const dayNet = group.txs.filter(t => !isTransferCategory(t)).reduce((s, t) => s + (t.type === 'income' ? Number(t.amount) : -Number(t.amount)), 0);
               const dayNetStr = dayNet === 0 ? null : dayNet < 0 ? `-$${fmt(Math.abs(dayNet))}` : `+$${fmt(dayNet)}`;
               const dayNetColor = dayNet < 0 ? DC.ruby : DC.emerald;
               return (

@@ -21,6 +21,7 @@
 // are suggested (never auto-merged).
 
 import { parseDate, cleanMerchantName } from "./helpers";
+import { isTransferCategory } from "../shared/financialConstants";
 
 const STALE_MULTIPLIER = 2;
 const MIN_STALE_DAYS = 45;
@@ -101,7 +102,12 @@ function groupTransactionsByMerchant(transactions, aliasMap = new Map()) {
   // constructor function instead of undefined, corrupting the group).
   const map = new Map();
   transactions
-    .filter(t => t.type === "expense" && t.category_name !== "Transfer")
+    // Was category_name !== "Transfer" only — missed the plural "Transfers"
+    // Zelle/Venmo form, which could surface a P2P payment as a fake
+    // "recurring subscription/bill" if it happened to repeat monthly
+    // (budget/overspending-signals investigation, Step 2, 2026-08-27).
+    // Mirrored in supabase/functions/_shared/recurringDetector.ts.
+    .filter(t => t.type === "expense" && !isTransferCategory(t))
     .forEach(t => {
       const raw = (t.description || t.category_name || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40);
       if (!raw || raw.length < 3) return;

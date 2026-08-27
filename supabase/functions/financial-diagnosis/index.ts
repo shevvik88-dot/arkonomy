@@ -15,6 +15,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { enforceRateLimit } from '../_shared/rateLimit.ts';
 import { computeRecurringSummary } from '../_shared/recurringDetector.ts';
+import { isRealExpense } from '../_shared/financialConstants.ts';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 
 initSentry('financial-diagnosis');
@@ -179,12 +180,17 @@ Deno.serve(async (req) => {
     // ══════════════════════════════════════════════════════════════════════
 
     // Bucket by month for income/expense averages and trend classification.
+    // isRealExpense excludes Transfer/Transfers — this loop previously
+    // counted every expense-type transaction, including transfers, inflating
+    // monthlyExpenseAvg (and the "spending $X more than you earn" gap
+    // derived from it) relative to every other surface (budget/overspending-
+    // signals investigation, Step 2, 2026-08-27).
     const monthlyIncome: Record<string, number> = {};
     const monthlyExpense: Record<string, number> = {};
     for (const t of transactions) {
       const key = monthKey(t.date);
       if (t.type === 'income') monthlyIncome[key] = (monthlyIncome[key] || 0) + Math.abs(Number(t.amount) || 0);
-      if (t.type === 'expense') monthlyExpense[key] = (monthlyExpense[key] || 0) + Math.abs(Number(t.amount) || 0);
+      if (isRealExpense(t)) monthlyExpense[key] = (monthlyExpense[key] || 0) + Math.abs(Number(t.amount) || 0);
     }
     const incomeMonths = Object.keys(monthlyIncome).sort();
     const expenseMonths = Object.keys(monthlyExpense).sort();

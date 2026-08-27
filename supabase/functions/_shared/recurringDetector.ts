@@ -7,15 +7,18 @@
 // HAND whenever recurringSummary.js changes — that's a hard platform
 // constraint, not an oversight.
 //
-// Intentionally left out of this port (not needed by get-insights, the only
-// current consumer of this file):
-//   - cleanMerchantName — client-only display-formatting helper; get-insights
-//     only ever consumes `.amount`, never surfaces `.merchant` to the user.
+// Intentionally left out of this port (not needed by either current
+// consumer — get-insights and financial-diagnosis):
+//   - cleanMerchantName — client-only display-formatting helper; neither
+//     consumer surfaces `.merchant` to the user (get-insights only consumes
+//     `.amount`; financial-diagnosis only consumes `.subTotal`/`.regularTotal`).
 //   - findDuplicateSubscriptions / findMerchantAliasCandidates /
 //     getUpcomingCardPayments — not consumed here.
 //
 // Expected transaction shape: { date, amount, type, description, category_name }
 // Output shape (getUpcomingCharges): [{ merchant, amount, daysUntil, expectedDate, category }]
+
+import { isTransferCategory } from './financialConstants.ts';
 
 const STALE_MULTIPLIER = 2;
 const MIN_STALE_DAYS = 45;
@@ -111,7 +114,11 @@ function groupTransactionsByMerchant(transactions: any[], aliasMap: Map<string, 
   // constructor function instead of undefined, corrupting the group).
   const map = new Map<string, MerchantGroup>();
   transactions
-    .filter(t => t.type === "expense" && t.category_name !== "Transfer")
+    // Was category_name !== "Transfer" only — missed the plural "Transfers"
+    // Zelle/Venmo form, which could surface a P2P payment as a fake
+    // "recurring subscription/bill" if it happened to repeat monthly
+    // (budget/overspending-signals investigation, Step 2, 2026-08-27).
+    .filter(t => t.type === "expense" && !isTransferCategory(t))
     .forEach(t => {
       const raw = (t.description || t.category_name || "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40);
       if (!raw || raw.length < 3) return;
