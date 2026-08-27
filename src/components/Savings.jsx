@@ -7,7 +7,8 @@ import GlassCard from "./shared/GlassCard";
 import { fmtMoney } from "./Transactions";
 import { parseDate, sumAmounts } from "../utils/helpers";
 import { logger } from "../utils/logger";
-import { getCachedAccounts, setCachedAccounts } from "../utils/accountsCache";
+import { getCachedAccounts, setCachedAccounts, sumDepositoryBalance, sumInvestmentBalance, sumAlpacaPositionsValue, sumCreditDebt } from "../utils/accountsCache";
+import { calculateNetWorth } from "../shared/financialConstants";
 import { IS_IOS_NATIVE } from "../lib/platform";
 import { useUSStorefront } from "../lib/storefront";
 
@@ -518,28 +519,20 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
   const safetyBuffer = Math.min(500, availableBalance * 0.5);
   const safeToMove = Math.max(0, availableBalance - safetyBuffer);
 
-  const cashTotal = plaidAccounts.filter(a => a.type === "depository").reduce((s, a) => s + Number(a.balance_available ?? a.balance_current ?? 0), 0);
-
-  // Double-count guard: if a Plaid-linked "investment" account is actually
-  // the same Alpaca account this app already holds a direct OAuth
-  // connection to (Plaid does support linking Alpaca as an institution),
-  // its balance would otherwise be counted twice — once via Plaid, once via
-  // the direct alpaca-portfolio fetch below. Matched by institution name
-  // since Plaid's account object has no other Alpaca-account-identity field
-  // to cross-reference against our own alpaca_account_id.
-  const isAlpacaViaPlaid = (a) => /alpaca/i.test(a.institution_name ?? "");
-  const plaidInvestTotal = plaidAccounts
-    .filter(a => a.type === "investment" && !isAlpacaViaPlaid(a))
-    .reduce((s, a) => s + Number(a.balance_available ?? a.balance_current ?? 0), 0);
-  // market_value sum, not portfolio_value — portfolio_value is Alpaca's
-  // account-level equity (positions + uninvested cash sitting in the
-  // brokerage account), which would inflate "Stocks" with cash that isn't
-  // actually invested. Summing positions keeps this tile representing only
-  // what's really held in stocks/ETFs, same meaning as the Plaid side.
-  const alpacaStocksValue = (alpacaPortfolio?.positions ?? [])
-    .reduce((s, p) => s + Number(p.market_value ?? 0), 0);
-  const investTotal = plaidInvestTotal + alpacaStocksValue;
-  const totalAssets = cashTotal + investTotal + totalSaved;
+  const cashTotal = sumDepositoryBalance(plaidAccounts) ?? 0;
+  const investTotal = sumInvestmentBalance(plaidAccounts) + sumAlpacaPositionsValue(alpacaPortfolio);
+  // grossAssets (cash+investments+savings, no debt) drives the segmented
+  // allocation bar below — that bar only has 4 asset tiles, no debt tile, so
+  // its percentages must stay denominated in gross assets, not net worth.
+  const grossAssets = cashTotal + investTotal + totalSaved;
+  // netWorth (Step 2.5, 2026-08-27) is the actual headline figure shown
+  // under the "Net Worth" caption — this widget used to show grossAssets
+  // there with no debt subtracted at all (not really net worth), while
+  // Dashboard's own "Net Worth" label made the opposite mistake (cash minus
+  // debt only, ignoring investments/savings). Both now share one real
+  // formula via calculateNetWorth().
+  const creditDebt = sumCreditDebt(plaidAccounts) ?? 0;
+  const netWorth = calculateNetWorth({ cash: cashTotal, investments: investTotal, savingsGoals: totalSaved, creditDebt });
   // Desaturated via the same HSL formula already applied to CAT_COLORS/
   // INCOME_CATS (S -> 35+S*0.22, L -> L*0.92, hue unchanged) rather than
   // collapsed into DC.gold/emerald — this is a 4-way categorical legend
@@ -605,20 +598,23 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
       </div>
 
       {/* Asset Allocation Widget */}
-      {totalAssets > 0 && (
+      {grossAssets > 0 && (
         <GlassCard style={{ padding: 20, marginBottom: 24, background: DC.card, border: `1px solid ${DC.faint}33` }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: DC.muted, letterSpacing: 1, marginBottom: 8 }}>
             {t("savings.asset_allocation").toUpperCase()}
           </div>
           <div className="ph-mask" style={{ fontSize: 34, fontWeight: 800, color: DC.text, letterSpacing: -0.5, marginBottom: 2 }}>
-            {fmtMoney(totalAssets)}
+            {fmtMoney(netWorth)}
           </div>
           <div style={{ fontSize: 12, color: DC.muted, marginBottom: 18 }}>{t("savings.net_worth")}</div>
 
-          {/* Segmented bar */}
+          {/* Segmented bar — denominated in gross assets (cash+investments+
+              savings), not net worth: there's no debt tile in this bar, so
+              dividing by net worth would make percentages go negative or
+              over 100% whenever there's any credit card debt. */}
           <div style={{ height: 8, borderRadius: RADIUS.full, overflow: "hidden", display: "flex", gap: 2, marginBottom: 20 }}>
             {ASSET_TILES.filter(r => r.amount > 0).map(r => {
-              const pct = Math.round((r.amount / totalAssets) * 100);
+              const pct = Math.round((r.amount / grossAssets) * 100);
               return <div key={r.key} style={{ flex: pct, background: r.color, height: "100%" }} />;
             })}
           </div>
@@ -626,7 +622,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
           {/* 2×2 compact grid */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {ASSET_TILES.map(r => {
-              const pct = totalAssets > 0 ? Math.round((r.amount / totalAssets) * 100) : 0;
+              const pct = grossAssets > 0 ? Math.round((r.amount / grossAssets) * 100) : 0;
               return (
                 <div key={r.key} style={{ background: DC.bg, border: `1px solid ${DC.faint}22`, borderRadius: RADIUS.sm, padding: "9px 11px", display: "flex", alignItems: "center", gap: 7 }}>
                   <div style={{ width: 7, height: 7, borderRadius: RADIUS.full, background: r.color, flexShrink: 0 }} />

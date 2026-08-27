@@ -4,7 +4,7 @@ import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
 import { callEdgeFunction } from "../lib/callEdgeFunction";
 import { getCachedDiagnosisLesson, setCachedDiagnosisLesson } from "../utils/diagnosisLessonCache";
 import { DIAGNOSIS_RECENT_MS, hasSignificantEventSince } from "../utils/diagnosisFreshness";
-import { getCachedAccounts, setCachedAccounts, sumDepositoryBalance, getCreditAccounts, sumCreditDebt, creditUtilization } from "../utils/accountsCache";
+import { getCachedAccounts, setCachedAccounts, sumDepositoryBalance, getCreditAccounts, sumCreditDebt, creditUtilization, sumInvestmentBalance, sumAlpacaPositionsValue } from "../utils/accountsCache";
 import { C, FONT, CAT_COLORS, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmt, fmtDate, parseDate, fmtPct, resolveCategory, tCat, sumAmounts } from "../utils/helpers";
 import Icon from "./shared/Icon";
@@ -17,7 +17,7 @@ import { getUpcomingCharges, getUpcomingCardPayments } from '../utils/recurringS
 import { getTodaysLesson, getPersonalizedLessonNote, computeNextStreak } from '../utils/lessons';
 import { getCardQuestion } from '../utils/cardQuestions';
 import { useLongPress } from '../hooks/useLongPress';
-import { BUFFER, isTransferCategory } from "../shared/financialConstants";
+import { BUFFER, isTransferCategory, calculateNetWorth } from "../shared/financialConstants";
 
 
 // ─── Health Score Gauge ──────────────────────────────────────────────────────
@@ -1165,11 +1165,17 @@ function MiniMarkets({ onOpenMarket }) {
   );
 }
 
-export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, onOpenChat, lessonStreak = { current_streak: 0, last_completed_date: null }, onCompleteLesson, onOpenChatWithMessage }) {
+export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, onOpenChat, lessonStreak = { current_streak: 0, last_completed_date: null }, onCompleteLesson, onOpenChatWithMessage, alpacaConnected = false }) {
   const { t, i18n } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
   const [creditAccounts, setCreditAccounts] = useState([]); // credit-card accounts from the same fetch
+  // Net worth (Step 2.5, 2026-08-27) — Plaid investment accounts, from the
+  // same accounts fetch below (no extra Plaid call), plus Alpaca stock
+  // positions, fetched independently the same way Savings.jsx already does
+  // (per-screen fetch, not lifted to a shared parent state).
+  const [investTotal, setInvestTotal] = useState(0);
+  const [alpacaPortfolio, setAlpacaPortfolio] = useState(null);
   const [otherBreakdown, setOtherBreakdown] = useState(false);
   const [allCreditCards, setAllCreditCards] = useState(false);
   const [showCashFlowSheet, setShowCashFlowSheet] = useState(false);
@@ -1244,9 +1250,20 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         const bal = sumDepositoryBalance(accounts);
         if (bal != null && fetchId === balanceFetchIdRef.current) setAccountBalance(bal);
         if (fetchId === balanceFetchIdRef.current) setCreditAccounts(getCreditAccounts(accounts));
+        if (fetchId === balanceFetchIdRef.current) setInvestTotal(sumInvestmentBalance(accounts));
       } catch {}
     })();
   }, [bankConnected, userId, lastSyncedAt]);
+
+  // Alpaca stock positions for net worth (Step 2.5, 2026-08-27) — same
+  // per-screen fetch pattern as Savings.jsx, not lifted to a shared parent
+  // state (see that file's identical effect).
+  useEffect(() => {
+    if (!alpacaConnected) return;
+    supabase.functions.invoke("alpaca-portfolio").then(({ data, error }) => {
+      if (!error && data && !data.error) setAlpacaPortfolio(data);
+    });
+  }, [alpacaConnected]);
   // Hottest cards first (highest utilization) — cards with no computable
   // utilization (institution didn't return balance_available) sort last.
   // Shared by the compact Dashboard card and the "+N more" sheet below.
@@ -1625,7 +1642,15 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       {/* 7 ── Credit Cards */}
       {creditAccounts.length > 0 && (() => {
         const totalDebt = sumCreditDebt(creditAccounts);
-        const netWorth = accountBalance != null ? accountBalance - totalDebt : null;
+        // Step 2.5 (2026-08-27): was accountBalance - totalDebt (cash minus
+        // debt only, ignored investments/savings entirely) — see
+        // calculateNetWorth()'s own comment for why that was wrong, not just
+        // a different label from Savings.jsx's number.
+        const totalSaved = (savings || []).reduce((s, sv) => s + Number(sv.current), 0);
+        const investmentsTotal = investTotal + sumAlpacaPositionsValue(alpacaPortfolio);
+        const netWorth = accountBalance != null
+          ? calculateNetWorth({ cash: accountBalance, investments: investmentsTotal, savingsGoals: totalSaved, creditDebt: totalDebt })
+          : null;
         const topCards = sortedCreditAccounts.slice(0, 3);
         const remaining = sortedCreditAccounts.length - topCards.length;
         const utilColorDC = (pct) => pct == null ? DC.faint : pct >= 0.70 ? DC.ruby : pct >= 0.30 ? DC.gold : DC.emerald;

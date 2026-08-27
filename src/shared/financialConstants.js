@@ -47,3 +47,18 @@ export function isTransferCategory(t) {
 export function isRealExpense(t) {
   return t.type === 'expense' && !isTransferCategory(t);
 }
+
+// ── Net Worth — single source of truth ───────────────────────────────────────
+// Budget/overspending-signals investigation, Step 2.5 (2026-08-27): Dashboard
+// and Savings both showed a number labeled "Net Worth" for the same account,
+// same session, and they disagreed ($-165.41 vs $294.39) — not a copy/
+// labeling issue like Cash Buffer vs Health Score, a real calculation bug on
+// BOTH screens. Dashboard computed cash minus credit debt only (ignored
+// investments/savings entirely); Savings computed cash plus investments plus
+// savings goals only (never subtracted debt). Neither was a complete net
+// worth — this is the actual, complete formula both screens now share.
+// Frontend-only (no Deno consumer today), so no _shared/financialConstants.ts
+// mirror needed, unlike isTransferCategory/isRealExpense above.
+export function calculateNetWorth({ cash = 0, investments = 0, savingsGoals = 0, creditDebt = 0 }) {
+  return cash + investments + savingsGoals - creditDebt;
+}
