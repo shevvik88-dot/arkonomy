@@ -1,5 +1,6 @@
 ﻿// arkonomy v1
 import { logger } from "./utils/logger";
+import * as Sentry from "@sentry/react";
 // Single source of truth for colors — src/utils/colors.js, same as the
 // other 6 screens. Local C (below) is now built by spreading this, plus
 // one deliberately App.jsx-local field (trialEndedAccent) — no hardcoded
@@ -9,6 +10,7 @@ import { C as sharedC, RADIUS, DASHBOARD_C as DC } from "./utils/colors";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { usePostHog } from "@posthog/react";
 import { useTranslation } from "react-i18next";
+import { detectBrowserLanguage } from "./i18n";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "./utils/supabase";
 import { callEdgeFunction } from "./lib/callEdgeFunction";
 import { getCachedAccounts, setCachedAccounts, clearAccountsCache, sumDepositoryBalance, getCreditAccounts } from "./utils/accountsCache";
@@ -299,7 +301,20 @@ function buildFirstDashboardSuggestion({ spendingByCategory, prevSpendingByCateg
 }
 
 // ─── Context-aware chat greeting ─────────────────────────────
-function buildContextGreeting(screen, { totalIncome, totalSpent, spendingByCategory, savings, transactions, profile, allInsights, healthScore }) {
+// Localized via t() (chat.greeting_* keys) — this used to be raw English
+// template strings regardless of app locale, so every chat session opened
+// with an English assistant turn even on a Russian-locale account. That
+// English turn sat immediately before the user's first real message in the
+// array sent to ai-chat, undermining its per-message language override
+// (see ai-chat language-matching investigation, 2026-08-25). t() is passed
+// in explicitly — this is a module-level function, not a component, so it
+// has no hook access of its own.
+//
+// Sentence fragments that change grammatical shape per language (e.g. "with
+// X as your biggest category") are kept as separate, independently-localized
+// sentences rather than spliced mid-sentence into a template — word order
+// for a clause like that isn't guaranteed to match across languages.
+function buildContextGreeting(t, screen, { totalIncome, totalSpent, spendingByCategory, savings, transactions, profile, allInsights, healthScore }) {
   const balance    = totalIncome - totalSpent;
   const balSign    = balance >= 0 ? '+' : '-';
   const balStr     = `${balSign}$${fmt(Math.abs(balance), 0)}`;
@@ -307,49 +322,54 @@ function buildContextGreeting(screen, { totalIncome, totalSpent, spendingByCateg
 
   switch (screen) {
     case 'dashboard': {
-      const catPart = topCat ? `, with ${topCat[0]} as your biggest category at $${fmt(topCat[1], 0)}` : '';
-      return `I can see you're on the Dashboard — your cash flow this month is ${balStr}${catPart}. What would you like to dig into?`;
+      if (topCat) {
+        return t('chat.greeting_dashboard_with_category', { balance: balStr, category: topCat[0], amount: `$${fmt(topCat[1], 0)}` });
+      }
+      return t('chat.greeting_dashboard', { balance: balStr });
     }
 
     case 'transactions': {
       const now = new Date();
-      const monthExpenses = transactions.filter(t => {
-        const d = new Date(t.date);
-        return t.type === 'expense' && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && t.category_name !== 'Transfer';
+      const monthExpenses = transactions.filter(t2 => {
+        const d = new Date(t2.date);
+        return t2.type === 'expense' && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && t2.category_name !== 'Transfer';
       });
       const count = monthExpenses.length;
-      const catPart = topCat ? ` Top category: ${topCat[0]} ($${fmt(topCat[1], 0)}).` : '';
-      return `I can see you're on the Transactions screen — you have ${count} expense${count !== 1 ? 's' : ''} this month totaling $${fmt(totalSpent, 0)}.${catPart} Want me to help analyze your spending?`;
+      const intro = t('chat.greeting_transactions_intro', { count, total: `$${fmt(totalSpent, 0)}` });
+      const catPart = topCat ? ' ' + t('chat.greeting_transactions_top_category', { category: topCat[0], amount: `$${fmt(topCat[1], 0)}` }) : '';
+      return `${intro}${catPart} ${t('chat.greeting_transactions_cta')}`;
     }
 
     case 'markets': {
       const watchlist = (profile?.watchlist ?? ['SPY', 'QQQ', 'BTC', 'ETH']).slice(0, 4);
-      return `I can see you're on the Markets screen — you're watching ${watchlist.join(', ')}. Ask me about any ticker, get a market outlook, or I can help you decide what to invest in.`;
+      return t('chat.greeting_markets', { watchlist: watchlist.join(', ') });
     }
 
     case 'savings': {
       const totalSaved = savings.reduce((s, sv) => s + Number(sv.current), 0);
       if (savings.length === 0) {
-        return `I can see you're on the Savings screen — you haven't set up any goals yet. Want me to help you create a savings plan?`;
+        return t('chat.greeting_savings_empty');
       }
       if (savings.length === 1) {
         const sv = savings[0];
         const pct = sv.target > 0 ? Math.round((sv.current / sv.target) * 100) : 0;
-        return `I can see you're on the Savings screen — you have $${fmt(sv.current, 0)} saved toward your ${sv.name} goal of $${fmt(sv.target, 0)} (${pct}% there). Want me to help you make a plan?`;
+        return t('chat.greeting_savings_single', { current: `$${fmt(sv.current, 0)}`, name: sv.name, target: `$${fmt(sv.target, 0)}`, pct });
       }
       const onTrack = savings.filter(sv => sv.target > 0 && Number(sv.current) / Number(sv.target) >= 0.5).length;
-      return `I can see you're on the Savings screen — you have ${savings.length} goals with $${fmt(totalSaved, 0)} saved in total, ${onTrack} of them at least halfway there. Want help prioritizing or accelerating any goal?`;
+      return t('chat.greeting_savings_multiple', { count: savings.length, total: `$${fmt(totalSaved, 0)}`, onTrack });
     }
 
     case 'insights': {
-      const scoreStr = healthScore != null ? `your financial health score is ${healthScore}/100` : 'your financial insights are ready';
+      const scorePart = healthScore != null
+        ? t('chat.greeting_insights_with_score', { score: healthScore })
+        : t('chat.greeting_insights_no_score');
       const topInsight = allInsights?.[0];
-      const insightPart = topInsight?.title ? ` Your top insight: "${topInsight.title}".` : '';
-      return `I can see you're on the Insights screen — ${scoreStr}.${insightPart} What would you like to understand or improve?`;
+      const insightPart = topInsight?.title ? ' ' + t('chat.greeting_insights_top_insight', { title: topInsight.title }) : '';
+      return `${scorePart}${insightPart} ${t('chat.greeting_insights_cta')}`;
     }
 
     default:
-      return `Hi! I'm your Arkonomy AI assistant. Ask me anything about your finances.`;
+      return t('chat.greeting_default');
   }
 }
 
@@ -386,7 +406,7 @@ export default function App() {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {}
-    return [{ role: "assistant", text: "Hi! I'm your Arkonomy AI assistant. Ask me anything about your finances." }];
+    return [{ role: "assistant", text: t('chat.greeting_default') }];
   });
   const [chatInput, setChatInput] = useState("");
   const [autopilot, setAutopilot] = useState(() => {
@@ -603,7 +623,7 @@ export default function App() {
     if (!silent) setLoading(true);
     try {
       const [p, t, c, sv, ma, sp, ls, alpacaCheck] = await Promise.all([
-        supabase.from("profiles").select("id, email, full_name, avatar_url, monthly_budget, savings_goal, roundup_enabled, roundup_symbol, created_at, plan, push_subscription, watchlist, stripe_customer_id, tutorial_completed, last_synced_at, trial_ends_at, trial_web_search_count").eq("id", user.id).single(),
+        supabase.from("profiles").select("id, email, full_name, avatar_url, monthly_budget, savings_goal, roundup_enabled, roundup_symbol, created_at, plan, push_subscription, watchlist, stripe_customer_id, tutorial_completed, last_synced_at, trial_ends_at, trial_web_search_count, preferred_language").eq("id", user.id).single(),
         supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }).limit(5000),
         supabase.from("categories").select("*").eq("user_id", user.id),
         supabase.from("savings").select("*").eq("user_id", user.id),
@@ -623,7 +643,7 @@ export default function App() {
         }
         const lang = p.data.preferred_language
           || (() => { try { return localStorage.getItem("arkonomy_language"); } catch { return null; } })()
-          || "en";
+          || detectBrowserLanguage();
         if (i18n.language !== lang) {
           i18n.changeLanguage(lang);
           try { localStorage.setItem("arkonomy_language", lang); } catch {}
@@ -1530,7 +1550,7 @@ export default function App() {
     const SUB_CATS_HS = ['Subscriptions', 'Bills', 'Utilities', 'Phone', 'Internet', 'Insurance'];
     const subSpend = SUB_CATS_HS.reduce((s, c) => s + (spendingByCategory[c] || 0), 0);
     const { score: hs } = calculateHealthScore({ totalIncome: effectiveIncome, totalSpent, lastIncome, lastSpent, budget, subscriptionSpend: subSpend });
-    return buildContextGreeting(screen, {
+    return buildContextGreeting(t, screen, {
       totalIncome: effectiveIncome, totalSpent, spendingByCategory, savings,
       transactions, profile, allInsights, healthScore: hs,
     });
@@ -1731,11 +1751,22 @@ export default function App() {
                   return (
                     <button
                       key={lang.code}
-                      onClick={() => {
+                      onClick={async () => {
                         i18n.changeLanguage(lang.code);
                         try { localStorage.setItem('arkonomy_language', lang.code); } catch {}
-                        if (user) supabase.from('profiles').update({ preferred_language: lang.code }).eq('id', user.id);
                         setLangOpen(false);
+                        if (user) {
+                          const { error } = await supabase.from('profiles').update({ preferred_language: lang.code }).eq('id', user.id);
+                          if (error) {
+                            // Persistence failure only — the UI-visible language switch
+                            // (i18n.changeLanguage + localStorage) already happened above
+                            // and is not rolled back. Without this the failure was
+                            // previously silent (fire-and-forget update, no error path at
+                            // all) — the exact bug that left preferred_language unpersisted
+                            // for every user until this fix.
+                            Sentry.captureException(error, { tags: { context: 'preferred_language_update' } });
+                          }
+                        }
                       }}
                       style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "12px 16px", background: active ? DC.gold + "14" : "transparent", border: "none", borderBottom: idx < arr.length - 1 ? `1px solid ${DC.faint}22` : "none", color: active ? DC.gold : DC.text, fontSize: 14, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: FONT, textAlign: "left" }}
                     >

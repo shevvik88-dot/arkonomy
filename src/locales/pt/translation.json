@@ -808,7 +808,22 @@
     "faq_health_score": "O que é o Índice de Saúde?",
     "faq_savings_goal": "Como defino uma meta de poupança?",
     "faq_cash_flow": "O que é a Previsão de Fluxo de Caixa?",
-    "faq_cancel_subscription": "Como cancelo uma assinatura?"
+    "faq_cancel_subscription": "Como cancelo uma assinatura?",
+    "greeting_default": "Oi! Sou seu assistente de IA da Arkonomy. Pergunte qualquer coisa sobre suas finanças.",
+    "greeting_dashboard": "Vejo que você está no Painel — seu fluxo de caixa deste mês é {{balance}}. O que você gostaria de explorar?",
+    "greeting_dashboard_with_category": "Vejo que você está no Painel — seu fluxo de caixa deste mês é {{balance}}, com {{category}} como sua maior categoria em {{amount}}. O que você gostaria de explorar?",
+    "greeting_transactions_intro_one": "Vejo que você está em Transações — você tem {{count}} despesa este mês totalizando {{total}}.",
+    "greeting_transactions_intro_other": "Vejo que você está em Transações — você tem {{count}} despesas este mês totalizando {{total}}.",
+    "greeting_transactions_top_category": "Categoria principal: {{category}} ({{amount}}).",
+    "greeting_transactions_cta": "Quer que eu analise seus gastos?",
+    "greeting_markets": "Vejo que você está em Mercados — você está acompanhando {{watchlist}}. Pergunte sobre qualquer ativo, peça uma perspectiva de mercado, ou posso ajudar a decidir onde investir.",
+    "greeting_savings_empty": "Vejo que você está em Poupança — você ainda não criou nenhuma meta. Quer que eu ajude a criar um plano de poupança?",
+    "greeting_savings_single": "Vejo que você está em Poupança — você já guardou {{current}} para sua meta \"{{name}}\" de {{target}} ({{pct}}% alcançado). Quer que eu ajude a montar um plano?",
+    "greeting_savings_multiple": "Vejo que você está em Poupança — você tem {{count}} metas com {{total}} guardados no total, {{onTrack}} delas pelo menos na metade do caminho. Quer ajuda para priorizar ou acelerar alguma meta?",
+    "greeting_insights_with_score": "Vejo que você está em Análises — sua pontuação de saúde financeira é {{score}}/100.",
+    "greeting_insights_no_score": "Vejo que você está em Análises — suas análises financeiras já estão prontas.",
+    "greeting_insights_top_insight": "Seu principal insight: \"{{title}}\".",
+    "greeting_insights_cta": "O que você gostaria de entender ou melhorar?"
   },
   "health": {
     "label_excellent": "Excelente",

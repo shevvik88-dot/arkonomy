@@ -808,7 +808,22 @@
     "faq_health_score": "¿Qué es la Salud financiera?",
     "faq_savings_goal": "¿Cómo establezco una meta de ahorro?",
     "faq_cash_flow": "¿Qué es el pronóstico de flujo de efectivo?",
-    "faq_cancel_subscription": "¿Cómo cancelo una suscripción?"
+    "faq_cancel_subscription": "¿Cómo cancelo una suscripción?",
+    "greeting_default": "¡Hola! Soy tu asistente de IA de Arkonomy. Pregúntame lo que quieras sobre tus finanzas.",
+    "greeting_dashboard": "Veo que estás en el Panel — tu flujo de caja este mes es {{balance}}. ¿Qué te gustaría revisar?",
+    "greeting_dashboard_with_category": "Veo que estás en el Panel — tu flujo de caja este mes es {{balance}}, con {{category}} como tu categoría principal en {{amount}}. ¿Qué te gustaría revisar?",
+    "greeting_transactions_intro_one": "Veo que estás en Transacciones — tienes {{count}} gasto este mes por un total de {{total}}.",
+    "greeting_transactions_intro_other": "Veo que estás en Transacciones — tienes {{count}} gastos este mes por un total de {{total}}.",
+    "greeting_transactions_top_category": "Categoría principal: {{category}} ({{amount}}).",
+    "greeting_transactions_cta": "¿Quieres que analice tus gastos?",
+    "greeting_markets": "Veo que estás en Mercados — estás siguiendo {{watchlist}}. Pregúntame por cualquier ticker, pide una perspectiva del mercado, o te ayudo a decidir en qué invertir.",
+    "greeting_savings_empty": "Veo que estás en Ahorros — aún no tienes metas configuradas. ¿Te ayudo a crear un plan de ahorro?",
+    "greeting_savings_single": "Veo que estás en Ahorros — has ahorrado {{current}} para tu meta «{{name}}» de {{target}} ({{pct}}% completado). ¿Te ayudo a hacer un plan?",
+    "greeting_savings_multiple": "Veo que estás en Ahorros — tienes {{count}} metas con {{total}} ahorrados en total, {{onTrack}} de ellas al menos a la mitad. ¿Te ayudo a priorizar o acelerar alguna meta?",
+    "greeting_insights_with_score": "Veo que estás en Análisis — tu puntaje de salud financiera es {{score}}/100.",
+    "greeting_insights_no_score": "Veo que estás en Análisis — tus análisis financieros ya están listos.",
+    "greeting_insights_top_insight": "Tu análisis principal: \"{{title}}\".",
+    "greeting_insights_cta": "¿Qué te gustaría entender o mejorar?"
   },
   "health": {
     "label_excellent": "Excelente",
