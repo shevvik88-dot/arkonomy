@@ -716,7 +716,14 @@
     "excel_freq_quarterly": "Ежеквартально",
     "excel_freq_off": "Выкл.",
     "saving": "Сохранение…",
-    "save_preferences": "Сохранить настройки"
+    "save_preferences": "Сохранить настройки",
+    "budget_summary": "Бюджет: ${{amount}}/мес",
+    "autopilot_summary": "Активно {{count}} из 4 оповещений",
+    "notif_digest_summary": "Дайджест: {{freq}} · {{count}} пунктов",
+    "notif_digest_off": "Дайджест выключен",
+    "budget_gap_title": "Бюджет не соответствует реальным тратам",
+    "budget_gap_body": "В среднем вы тратите ${{avg}}/мес за последнее время — на ${{gap}} больше бюджета в ${{budget}}. Именно поэтому вы постоянно видите «превышение бюджета» в других местах приложения.",
+    "budget_gap_cta": "Установить бюджет ${{amount}}"
   },
   "onboarding": {
     "welcome_title": "Добро пожаловать в Arkonomy, {{name}}!",
