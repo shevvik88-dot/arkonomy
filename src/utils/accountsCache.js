@@ -54,3 +54,34 @@ export function sumCreditDebt(accounts) {
   if (credit.length === 0) return null;
   return credit.reduce((sum, a) => sum + Number(a.balance_current ?? 0), 0);
 }
+
+// Extracted from Savings.jsx's Asset Allocation fix (2026-08-24) so
+// Dashboard's net worth calc (Step 2.5, 2026-08-27) can share the exact same
+// definition of "Plaid investment total" instead of a second copy.
+//
+// Double-count guard: if a Plaid-linked "investment" account is actually the
+// same Alpaca account this app already holds a direct OAuth connection to
+// (Plaid does support linking Alpaca as an institution), its balance would
+// otherwise be counted twice — once via Plaid, once via the direct
+// alpaca-portfolio fetch (sumAlpacaPositionsValue below). Matched by
+// institution name since Plaid's account object has no other Alpaca-
+// account-identity field to cross-reference against our own alpaca_account_id.
+function isAlpacaViaPlaid(a) {
+  return /alpaca/i.test(a.institution_name ?? "");
+}
+
+export function sumInvestmentBalance(accounts) {
+  if (!accounts) return 0;
+  return accounts
+    .filter(a => a.type === "investment" && !isAlpacaViaPlaid(a))
+    .reduce((sum, a) => sum + Number(a.balance_available ?? a.balance_current ?? 0), 0);
+}
+
+// market_value sum, not portfolio_value — portfolio_value is Alpaca's
+// account-level equity (positions + uninvested cash sitting in the brokerage
+// account), which would inflate this with cash that isn't actually invested.
+// Summing positions keeps this representing only what's really held in
+// stocks/ETFs, same meaning as the Plaid side (sumInvestmentBalance above).
+export function sumAlpacaPositionsValue(alpacaPortfolio) {
+  return (alpacaPortfolio?.positions ?? []).reduce((sum, p) => sum + Number(p.market_value ?? 0), 0);
+}

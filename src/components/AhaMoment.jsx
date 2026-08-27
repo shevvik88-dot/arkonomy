@@ -9,6 +9,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { C, FONT, CAT_COLORS } from "../utils/colors";
 import { fmt, tCat, resolveCategory, cleanMerchantName } from "../utils/helpers";
+import { isTransferCategory } from "../shared/financialConstants";
 import Icon from "./shared/Icon";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
 import { getCachedAccounts, setCachedAccounts, sumDepositoryBalance } from "../utils/accountsCache";
@@ -45,7 +46,7 @@ function estimateIncome(transactions) {
 // top spending category over the FULL available history (not just this
 // month, which could be nearly empty on day 1).
 function computeFacts(transactions, accountBalance) {
-  const expenseCount = transactions.filter(t => t.type === "expense" && t.category_name !== "Transfer").length;
+  const expenseCount = transactions.filter(t => t.type === "expense" && !isTransferCategory(t)).length;
   if (expenseCount === 0) return [];
 
   const facts = [];

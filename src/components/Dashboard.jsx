@@ -4,7 +4,7 @@ import { supabase, SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
 import { callEdgeFunction } from "../lib/callEdgeFunction";
 import { getCachedDiagnosisLesson, setCachedDiagnosisLesson } from "../utils/diagnosisLessonCache";
 import { DIAGNOSIS_RECENT_MS, hasSignificantEventSince } from "../utils/diagnosisFreshness";
-import { getCachedAccounts, setCachedAccounts, sumDepositoryBalance, getCreditAccounts, sumCreditDebt, creditUtilization } from "../utils/accountsCache";
+import { getCachedAccounts, setCachedAccounts, sumDepositoryBalance, getCreditAccounts, sumCreditDebt, creditUtilization, sumInvestmentBalance, sumAlpacaPositionsValue } from "../utils/accountsCache";
 import { C, FONT, CAT_COLORS, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmt, fmtDate, parseDate, fmtPct, resolveCategory, tCat, sumAmounts } from "../utils/helpers";
 import Icon from "./shared/Icon";
@@ -17,7 +17,7 @@ import { getUpcomingCharges, getUpcomingCardPayments } from '../utils/recurringS
 import { getTodaysLesson, getPersonalizedLessonNote, computeNextStreak } from '../utils/lessons';
 import { getCardQuestion } from '../utils/cardQuestions';
 import { useLongPress } from '../hooks/useLongPress';
-import { BUFFER } from "../shared/financialConstants";
+import { BUFFER, isTransferCategory, calculateNetWorth } from "../shared/financialConstants";
 
 
 // ─── Health Score Gauge ──────────────────────────────────────────────────────
@@ -355,7 +355,7 @@ function Sparkline({ transactions, width = 62, height = 30 }) {
       if (!(key in days)) return;
       const amt = Number(t.amount);
       if (t.type === 'income') days[key] += amt;
-      else if (t.type === 'expense' && t.category_name !== 'Transfer') days[key] -= amt;
+      else if (t.type === 'expense' && !isTransferCategory(t)) days[key] -= amt;
     });
     let run = 0;
     return Object.keys(days).sort().map(k => { run += days[k]; return run; });
@@ -584,7 +584,7 @@ function CashFlowForecast({ accountBalance, transactions, balanceVisible, mercha
 function groupExpensesByDay(transactions, year, month) {
   const byDay = {};
   transactions
-    .filter(t => t.type === "expense" && t.category_name !== "Transfer")
+    .filter(t => t.type === "expense" && !isTransferCategory(t))
     .forEach(t => {
       const d = parseDate(t.date);
       if (d.getFullYear() !== year || d.getMonth() !== month) return;
@@ -598,18 +598,14 @@ function groupExpensesByDay(transactions, year, month) {
 
 // Signed net (income - expense) per day — separate from groupExpensesByDay,
 // which is expense-only (drives the Level 2 day-detail category breakdown
-// list, not cell color anymore). Deliberately excludes ONLY "Transfer"
-// (singular), same as groupExpensesByDay — NOT also "Transfers" (plural),
-// even though the plural is the one that actually shows up in real data and
-// arguably should be excluded too. Matching groupExpensesByDay's filter
-// exactly, bug-for-bug, is intentional here rather than letting this
-// function quietly diverge from it. The singular/plural inconsistency
-// itself is real and tracked in BACKLOG — fix it there (in
-// groupExpensesByDay, once, for both consumers).
+// list, not cell color anymore). Now shares the same isTransferCategory
+// exclusion as groupExpensesByDay (both forms) — was singular-"Transfer"-
+// only here, tracked as tech debt in BACKLOG.md until the budget/
+// overspending-signals investigation's Step 2 (2026-08-27) unified it.
 function getDailyNet(transactions, year, month) {
   const net = {};
   transactions.forEach(t => {
-    if (t.category_name === "Transfer") return;
+    if (isTransferCategory(t)) return;
     const d = parseDate(t.date);
     if (d.getFullYear() !== year || d.getMonth() !== month) return;
     const day = d.getDate();
@@ -1169,11 +1165,17 @@ function MiniMarkets({ onOpenMarket }) {
   );
 }
 
-export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, onOpenChat, lessonStreak = { current_streak: 0, last_completed_date: null }, onCompleteLesson, onOpenChatWithMessage }) {
+export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastIncome, transactions, spendingByCategory, prevSpendingByCategory, profile, savings, onNavigate, onCatClick, onMerchantClick, onDayClick, onDayCategoryClick, insight, onInsightAction, isShowingLastMonth, isPro, onUpgrade, upcomingCharges = [], onOpenMarket, bankConnected, userId, lastSyncedAt, hideWelcomeBanner = false, merchantAliasMap, scheduledPayments = [], onAddScheduledPayment, onCancelScheduledPayment, onOpenChat, lessonStreak = { current_streak: 0, last_completed_date: null }, onCompleteLesson, onOpenChatWithMessage, alpacaConnected = false }) {
   const { t, i18n } = useTranslation();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [accountBalance, setAccountBalance] = useState(null); // primary checking balance from Plaid
   const [creditAccounts, setCreditAccounts] = useState([]); // credit-card accounts from the same fetch
+  // Net worth (Step 2.5, 2026-08-27) — Plaid investment accounts, from the
+  // same accounts fetch below (no extra Plaid call), plus Alpaca stock
+  // positions, fetched independently the same way Savings.jsx already does
+  // (per-screen fetch, not lifted to a shared parent state).
+  const [investTotal, setInvestTotal] = useState(0);
+  const [alpacaPortfolio, setAlpacaPortfolio] = useState(null);
   const [otherBreakdown, setOtherBreakdown] = useState(false);
   const [allCreditCards, setAllCreditCards] = useState(false);
   const [showCashFlowSheet, setShowCashFlowSheet] = useState(false);
@@ -1248,9 +1250,20 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         const bal = sumDepositoryBalance(accounts);
         if (bal != null && fetchId === balanceFetchIdRef.current) setAccountBalance(bal);
         if (fetchId === balanceFetchIdRef.current) setCreditAccounts(getCreditAccounts(accounts));
+        if (fetchId === balanceFetchIdRef.current) setInvestTotal(sumInvestmentBalance(accounts));
       } catch {}
     })();
   }, [bankConnected, userId, lastSyncedAt]);
+
+  // Alpaca stock positions for net worth (Step 2.5, 2026-08-27) — same
+  // per-screen fetch pattern as Savings.jsx, not lifted to a shared parent
+  // state (see that file's identical effect).
+  useEffect(() => {
+    if (!alpacaConnected) return;
+    supabase.functions.invoke("alpaca-portfolio").then(({ data, error }) => {
+      if (!error && data && !data.error) setAlpacaPortfolio(data);
+    });
+  }, [alpacaConnected]);
   // Hottest cards first (highest utilization) — cards with no computable
   // utilization (institution didn't return balance_available) sort last.
   // Shared by the compact Dashboard card and the "+N more" sheet below.
@@ -1629,7 +1642,15 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
       {/* 7 ── Credit Cards */}
       {creditAccounts.length > 0 && (() => {
         const totalDebt = sumCreditDebt(creditAccounts);
-        const netWorth = accountBalance != null ? accountBalance - totalDebt : null;
+        // Step 2.5 (2026-08-27): was accountBalance - totalDebt (cash minus
+        // debt only, ignored investments/savings entirely) — see
+        // calculateNetWorth()'s own comment for why that was wrong, not just
+        // a different label from Savings.jsx's number.
+        const totalSaved = (savings || []).reduce((s, sv) => s + Number(sv.current), 0);
+        const investmentsTotal = investTotal + sumAlpacaPositionsValue(alpacaPortfolio);
+        const netWorth = accountBalance != null
+          ? calculateNetWorth({ cash: accountBalance, investments: investmentsTotal, savingsGoals: totalSaved, creditDebt: totalDebt })
+          : null;
         const topCards = sortedCreditAccounts.slice(0, 3);
         const remaining = sortedCreditAccounts.length - topCards.length;
         const utilColorDC = (pct) => pct == null ? DC.faint : pct >= 0.70 ? DC.ruby : pct >= 0.30 ? DC.gold : DC.emerald;

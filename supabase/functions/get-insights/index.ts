@@ -2,7 +2,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { enforceRateLimit } from '../_shared/rateLimit.ts';
-import { BUFFER, SAVE_CAP_SMALL, SAVE_CAP_MEDIUM, SAVE_CAP_LARGE, REC_MIN, REC_MAX } from '../_shared/financialConstants.ts';
+import { BUFFER, SAVE_CAP_SMALL, SAVE_CAP_MEDIUM, SAVE_CAP_LARGE, REC_MIN, REC_MAX, isRealExpense } from '../_shared/financialConstants.ts';
 import { getUpcomingCharges } from '../_shared/recurringDetector.ts';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 
@@ -238,18 +238,32 @@ async function buildFinancialInput(supabase: any, userId: string) {
   }
 
   // ── Spending ──────────────────────────────────────────────────────────────
+  // isRealExpense excludes Transfer/Transfers (money movement, not spending)
+  // — this function previously excluded nothing at all, the widest gap found
+  // in the budget/overspending-signals investigation (2026-08-26): it made
+  // "Cut Transfer by $X" a real, live insight (Transfer treated as an
+  // ordinary spending category) and inflated currentMonthSpend/availableSafe
+  // relative to every other surface. Now matches App.jsx/ai-chat/Insights'
+  // budget bar (Step 2, 2026-08-27).
   const currentMonthSpend = current
-    .filter((t: any) => t.type === 'expense')
+    .filter(isRealExpense)
     .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
 
   const historicalExpenses = historical
-    .filter((t: any) => t.type === 'expense')
+    .filter(isRealExpense)
     .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
 
   const historicalMonths = getDistinctMonths(historical);
   const monthsOfHistory  = historicalMonths.size;
   const avg3mSpend       = monthsOfHistory > 0 ? historicalExpenses / monthsOfHistory : 0;
 
+  // allIncome/allExpenses feed ONLY the synthetic currentBalance fallback
+  // below (used when there's no real Plaid balance) — deliberately NOT
+  // filtered through isRealExpense. A Transfer really did leave the checking
+  // account, so it belongs in a balance reconstruction even though it isn't
+  // "spending" for budget/overspending purposes. Don't unify this one with
+  // the spending totals above — it's a different question (real cash
+  // movement vs. spending-against-plan).
   const allIncome = [...historical, ...current]
     .filter((t: any) => t.type === 'income')
     .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
@@ -318,14 +332,18 @@ async function buildFinancialInput(supabase: any, userId: string) {
   const availableSafe   = Math.max(0, Math.min(incomeBasedSafe, currentBalance - BUFFER));
 
   // ── Categories ────────────────────────────────────────────────────────────
+  // isRealExpense here (not just t.type === 'expense') means Transfer/
+  // Transfers can no longer appear as a category candidate at all — this is
+  // what previously let "Cut Transfer by $X" surface as a real category-
+  // spike insight (Step 2, 2026-08-27).
   const categoryMap: Record<string, number> = {};
-  current.filter((t: any) => t.type === 'expense').forEach((t: any) => {
+  current.filter(isRealExpense).forEach((t: any) => {
     const cat = t.category_name || 'Other';
     categoryMap[cat] = (categoryMap[cat] || 0) + Number(t.amount);
   });
 
   const historyCategoryMap: Record<string, number> = {};
-  historical.filter((t: any) => t.type === 'expense').forEach((t: any) => {
+  historical.filter(isRealExpense).forEach((t: any) => {
     const cat = t.category_name || 'Other';
     historyCategoryMap[cat] = (historyCategoryMap[cat] || 0) + Number(t.amount);
   });
@@ -334,7 +352,7 @@ async function buildFinancialInput(supabase: any, userId: string) {
     .toISOString().split('T')[0];
   const lastMonthCategoryMap: Record<string, number> = {};
   historical
-    .filter((t: any) => t.type === 'expense' && t.date >= startOfLastMonth)
+    .filter((t: any) => isRealExpense(t) && t.date >= startOfLastMonth)
     .forEach((t: any) => {
       const cat = t.category_name || 'Other';
       lastMonthCategoryMap[cat] = (lastMonthCategoryMap[cat] || 0) + Number(t.amount);
