@@ -201,13 +201,13 @@
     "yesterday": "Вчера",
     "this_month": "в этом месяце",
     "badge_no_income": "нет дохода",
-    "badge_over_budget": "превышение",
-    "badge_within_budget": "в бюджете",
+    "badge_spending_up": "траты растут",
+    "badge_high_income_share": "много от дохода",
+    "badge_steady": "стабильно",
     "badge_surplus": "профицит",
     "badge_deficit": "дефицит",
     "badge_balanced": "баланс",
     "ctx_vs_last_mo": "vs пр. мес.",
-    "ctx_vs_budget": "vs бюджет",
     "ctx_of_income": "{{pct}}% от дохода",
     "ctx_net_balance": "чистый баланс",
     "income_breakdown": "Структура доходов",
@@ -852,7 +852,7 @@
     "comment_solid": "Хороший результат — небольшое увеличение накоплений выведет вас в зелёную зону.",
     "comment_making_progress": "Прогресс есть — старайтесь откладывать немного больше каждый месяц.",
     "comment_getting_started": "Только начало — маленькие шаги складываются в большой результат.",
-    "cash_position_low": "⚠ Баланс ниже нормы"
+    "cash_buffer_low": "Финансовая подушка на исходе"
   },
   "cat": {
     "housing": "Жильё",

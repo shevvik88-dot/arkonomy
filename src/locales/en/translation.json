@@ -195,13 +195,13 @@
     "yesterday": "Yesterday",
     "this_month": "this month",
     "badge_no_income": "no income",
-    "badge_over_budget": "over budget",
-    "badge_within_budget": "within budget",
+    "badge_spending_up": "spending up",
+    "badge_high_income_share": "high vs income",
+    "badge_steady": "steady",
     "badge_surplus": "surplus",
     "badge_deficit": "deficit",
     "badge_balanced": "balanced",
     "ctx_vs_last_mo": "vs last mo.",
-    "ctx_vs_budget": "vs budget",
     "ctx_of_income": "{{pct}}% of income",
     "ctx_net_balance": "net balance",
     "income_breakdown": "Income breakdown",
@@ -840,7 +840,7 @@
     "comment_solid": "Solid score — small savings increases could push you into green.",
     "comment_making_progress": "Making progress — focus on saving a bit more each month.",
     "comment_getting_started": "Just getting started — small consistent steps add up fast.",
-    "cash_position_low": "⚠ Cash position low"
+    "cash_buffer_low": "Low cash buffer"
   },
   "cat": {
     "housing": "Housing",

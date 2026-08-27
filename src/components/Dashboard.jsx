@@ -146,8 +146,17 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
       </div>
 
       {cashPositionLow && (
-        <div style={{ fontSize: 11, color: DC.gold, fontWeight: 600, marginTop: 4, marginLeft: 16 }}>
-          {t("health.cash_position_low")}
+        // Icon + wording deliberately distinct from the Health Score's own
+        // "budget" breakdown row directly above this — this signal is real
+        // bank balance vs a $1,000 safety buffer (liquidity risk right now),
+        // not a spending-vs-plan verdict, and previously read as one more
+        // budget-overrun flag sitting next to the score (budget/overspending-
+        // signals investigation, 2026-08-26).
+        <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4, marginLeft: 16 }}>
+          <Icon name="bank" size={11} color={DC.gold} strokeWidth={2} />
+          <span style={{ fontSize: 11, color: DC.gold, fontWeight: 600 }}>
+            {t("health.cash_buffer_low")}
+          </span>
         </div>
       )}
 

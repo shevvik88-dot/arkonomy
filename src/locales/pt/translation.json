@@ -195,13 +195,13 @@
     "yesterday": "Ontem",
     "this_month": "este mês",
     "badge_no_income": "sem receita",
-    "badge_over_budget": "acima do orçamento",
-    "badge_within_budget": "dentro do orçamento",
+    "badge_spending_up": "gastos em alta",
+    "badge_high_income_share": "alto vs renda",
+    "badge_steady": "estável",
     "badge_surplus": "superávit",
     "badge_deficit": "déficit",
     "badge_balanced": "equilibrado",
     "ctx_vs_last_mo": "vs mês ant.",
-    "ctx_vs_budget": "vs orçamento",
     "ctx_of_income": "{{pct}}% da renda",
     "ctx_net_balance": "saldo líquido",
     "income_breakdown": "Detalhamento de receitas",
@@ -840,7 +840,7 @@
     "comment_solid": "Boa pontuação — pequenos aumentos de poupança podem levar você ao verde.",
     "comment_making_progress": "Progredindo — foque em poupar um pouco mais a cada mês.",
     "comment_getting_started": "Só começando — pequenos passos consistentes se acumulam rapidamente.",
-    "cash_position_low": "⚠ Saldo baixo"
+    "cash_buffer_low": "Reserva de caixa baixa"
   },
   "cat": {
     "housing": "Moradia",
