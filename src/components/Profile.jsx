@@ -35,6 +35,40 @@ function pwError(pw, t) {
   return missing.length ? t("profile.pw_needs_prefix") + " " + missing.join(", ") : null;
 }
 
+// Reuses the same expand/collapse visual language as InsightCard
+// (Insights.jsx's "Cut Transfer by $X" banner) — header row toggles on
+// click, chevron flips, content revealed below a divider — rather than
+// inventing a second collapsible pattern for the app. header is a full
+// ReactNode (not a fixed icon/title/summary shape) so sections whose
+// collapsed row is already rich (Bank & Sync's name/status/badge) don't
+// need to squeeze into a generic layout.
+//
+// Defined at module scope, not nested inside Profile() (unlike the
+// pre-existing Toggle below) — a component with its own useState defined
+// inside a parent's render body gets recreated as a new component identity
+// on every parent re-render, which would remount it and silently reset
+// `expanded` back to defaultExpanded on every keystroke in the budget
+// input, every toggle flip, etc. Toggle has no internal state, so nesting
+// it was harmless; AccordionSection does, so it can't follow that pattern.
+function AccordionSection({ header, defaultExpanded = false, borderColor, children }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  return (
+    <GlassCard style={{ background: DC.card, border: `1px solid ${borderColor || `${DC.faint}33`}` }}>
+      <div onClick={() => setExpanded(e => !e)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+        {header}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={DC.faint} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+          {expanded ? <polyline points="18 15 12 9 6 15" /> : <polyline points="6 9 12 15 18 9" />}
+        </svg>
+      </div>
+      {expanded && (
+        <div style={{ marginTop: 16, borderTop: `1px solid ${DC.faint}18`, paddingTop: 16 }}>
+          {children}
+        </div>
+      )}
+    </GlassCard>
+  );
+}
+
 export default function Profile({ profile, user, onSave, onSignOut, onDeleteAccount, onBack, autopilot, setAutopilot, bankConnected, bankName, bankCount, linkToken, getLinkToken, getReconnectToken, onPlaidSuccess, syncBankTransactions, syncingBank, lastSyncedAt, backgroundSyncing, onRefreshBalance, refreshingBalance, lastBalanceRefreshAt, isPro, onUpgrade, transactions = [] }) {
   const { t } = useTranslation();
   const isUSStorefront = useUSStorefront();
@@ -173,6 +207,29 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
     return Math.round(avg);
   }, [transactions]);
 
+  // Settings restructure (2026-08-27): budget-vs-actual gap needs to be
+  // visually loud, not a small "Use this" hint next to a budget that's
+  // being blown every month — this is the same real number Insights/
+  // Dashboard's "Budget Used %" already compares against, just surfaced
+  // here with the actual dollar gap spelled out instead of implied.
+  const budgetGapAmount = budgetSuggestion !== null ? budgetSuggestion - Number(budget) : null;
+  const isOverBudgetVsHistory = budgetGapAmount !== null && budgetGapAmount > 0;
+
+  // Autopilot's collapsed-row summary — real toggle count, not a static
+  // "Active" badge that used to show regardless of how many rules were
+  // actually on.
+  const autopilotActiveCount = ["overspendAlerts", "largeTxAlerts", "lowBalanceAlerts", "unusualSpending"]
+    .filter(k => autopilot[k]).length;
+
+  // Notifications & Reports collapsed-row summary — large_transaction_alerts
+  // is its own independent channel (see its own toggle below), not counted
+  // as a "digest item".
+  const digestItemCount = ["include_spending", "include_balance", "include_upcoming_bills", "include_ai_tip", "include_market_update"]
+    .filter(k => notifPrefs[k]).length;
+  const digestSummary = notifPrefs.frequency === "off"
+    ? t("profile.notif_digest_off")
+    : t("profile.notif_digest_summary", { freq: t("profile.freq_" + notifPrefs.frequency), count: digestItemCount });
+
   function Toggle({ value, onChange }) {
     return (
       <div onClick={() => onChange(!value)} style={{ width: 44, height: 26, borderRadius: RADIUS.full, background: value ? DC.gold + "33" : DC.bg, border: `1px solid ${value ? DC.gold + "66" : `${DC.faint}33`}`, position: "relative", cursor: "pointer", transition: "all 0.2s", flexShrink: 0 }}>
@@ -293,33 +350,37 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
       )}
 
       {/* ── PLAID BANK CONNECTION ── */}
-      <GlassCard style={{ background: DC.card, border: `1px solid ${bankConnected ? DC.emerald + "44" : C.bankConnectBlue + "44"}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <div style={{ width: 40, height: 40, borderRadius: RADIUS.sm, background: bankConnected ? DC.emerald + "22" : C.bankConnectBlue + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name="bank" size={18} color={bankConnected ? DC.emerald : C.bankConnectBlue} />
+      <AccordionSection
+        defaultExpanded
+        borderColor={bankConnected ? DC.emerald + "44" : C.bankConnectBlue + "44"}
+        header={
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+            <div style={{ width: 40, height: 40, borderRadius: RADIUS.sm, background: bankConnected ? DC.emerald + "22" : C.bankConnectBlue + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Icon name="bank" size={18} color={bankConnected ? DC.emerald : C.bankConnectBlue} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className={bankConnected && bankName ? "ph-mask" : undefined} style={{ fontWeight: 700, fontSize: 15 }}>
+                {bankConnected ? bankName || t("profile.bank_connected_name") : t("profile.connect_bank")}
+              </div>
+              <div style={{ fontSize: 12, color: DC.muted, marginTop: 2 }}>
+                {bankConnected
+                  ? backgroundSyncing
+                    ? t("profile.syncing")
+                    : lastSyncedAt
+                      ? t("profile.last_synced", { time: timeAgo(lastSyncedAt) })
+                      : t("profile.auto_sync")
+                  : t("profile.sync_via_plaid")
+                }
+              </div>
+            </div>
+            {bankConnected && (
+              <div style={{ background: DC.emerald + "22", border: `1px solid ${DC.emerald}44`, borderRadius: RADIUS.full, padding: "3px 10px", flexShrink: 0 }}>
+                <span style={{ fontSize: 11, color: DC.emerald, fontWeight: 600 }}>{t("profile.active")}</span>
+              </div>
+            )}
           </div>
-          <div style={{ flex: 1 }}>
-            <div className={bankConnected && bankName ? "ph-mask" : undefined} style={{ fontWeight: 700, fontSize: 15 }}>
-              {bankConnected ? bankName || t("profile.bank_connected_name") : t("profile.connect_bank")}
-            </div>
-            <div style={{ fontSize: 12, color: DC.muted, marginTop: 2 }}>
-              {bankConnected
-                ? backgroundSyncing
-                  ? t("profile.syncing")
-                  : lastSyncedAt
-                    ? t("profile.last_synced", { time: timeAgo(lastSyncedAt) })
-                    : t("profile.auto_sync")
-                : t("profile.sync_via_plaid")
-              }
-            </div>
-          </div>
-          {bankConnected && (
-            <div style={{ background: DC.emerald + "22", border: `1px solid ${DC.emerald}44`, borderRadius: RADIUS.full, padding: "3px 10px" }}>
-              <span style={{ fontSize: 11, color: DC.emerald, fontWeight: 600 }}>{t("profile.active")}</span>
-            </div>
-          )}
-        </div>
-
+        }
+      >
         {bankConnected && linkToken ? (
           <PlaidLinkButton linkToken={linkToken} onSuccess={onPlaidSuccess} onExit={() => {}} autoOpen />
         ) : bankConnected ? (
@@ -369,10 +430,26 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             <span style={{ fontSize: 11, color: DC.faint }}>{t("profile.encryption")}</span>
           </div>
         )}
-      </GlassCard>
+      </AccordionSection>
 
-      <GlassCard style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
-        <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16 }}>{t("profile.financial_settings")}</div>
+      {/* ── BUDGET & GOALS ── */}
+      <AccordionSection
+        defaultExpanded
+        borderColor={isOverBudgetVsHistory ? DC.ruby + "33" : `${DC.faint}33`}
+        header={
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+            <div style={{ width: 38, height: 38, borderRadius: RADIUS.sm, background: (isOverBudgetVsHistory ? DC.ruby : DC.gold) + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Icon name="target" size={17} color={isOverBudgetVsHistory ? DC.ruby : DC.gold} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>{t("profile.financial_settings")}</div>
+              <div style={{ fontSize: 12, color: isOverBudgetVsHistory ? DC.ruby : DC.muted, marginTop: 1, fontWeight: isOverBudgetVsHistory ? 600 : 400 }}>
+                {t("profile.budget_summary", { amount: Number(budget).toLocaleString() })}
+              </div>
+            </div>
+          </div>
+        }
+      >
         <div style={{ color: DC.muted, fontSize: 12, fontWeight: 500, marginBottom: 6 }}>{t("profile.monthly_budget")}</div>
         <input style={{ ...inp, marginBottom: budgetError ? 4 : 8, border: budgetError ? `1px solid ${DC.ruby}` : inp.border }} type="number" value={budget} onChange={e => { setBudget(e.target.value); setBudgetError(""); }} />
         {budgetError && <div style={{ color: DC.ruby, fontSize: 12, fontWeight: 500, marginBottom: 8 }}>{budgetError}</div>}
@@ -382,16 +459,40 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           </div>
         )}
         {budgetSuggestion !== null ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: DC.gold + "12", border: `1px solid ${DC.gold}33`, borderRadius: RADIUS.sm, padding: "9px 12px", marginBottom: 14, gap: 8 }}>
-            <div style={{ fontSize: 12, color: DC.gold, fontWeight: 500 }}>
-              {t("profile.budget_suggestion", { amount: budgetSuggestion.toLocaleString() })}
+          isOverBudgetVsHistory ? (
+            // Escalated from a small gold hint to a real warning block when
+            // the budget is genuinely being blown, not just off by a little —
+            // this was easy to miss next to a $3,000 budget getting exceeded
+            // every month (Settings restructure, 2026-08-27). Same real
+            // budgetSuggestion figure Insights/Dashboard's "Budget Used %"
+            // already compares against — the point is to explain WHY those
+            // screens keep saying "over budget", not a new/different number.
+            <div style={{ background: DC.ruby + "14", border: `1px solid ${DC.ruby}44`, borderRadius: RADIUS.sm, padding: "12px 14px", marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <Icon name="alert-circle" size={14} color={DC.ruby} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: DC.ruby }}>{t("profile.budget_gap_title")}</span>
+              </div>
+              <div style={{ fontSize: 12, color: DC.muted, lineHeight: 1.5, marginBottom: 10 }}>
+                {t("profile.budget_gap_body", { avg: budgetSuggestion.toLocaleString(), gap: budgetGapAmount.toLocaleString(), budget: Number(budget).toLocaleString() })}
+              </div>
+              <button
+                onClick={() => setBudget(budgetSuggestion)}
+                style={{ width: "100%", padding: "9px 0", background: DC.ruby + "22", border: `1px solid ${DC.ruby}55`, borderRadius: RADIUS.xs, color: DC.ruby, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: FONT }}>
+                {t("profile.budget_gap_cta", { amount: budgetSuggestion.toLocaleString() })}
+              </button>
             </div>
-            <button
-              onClick={() => setBudget(budgetSuggestion)}
-              style={{ flexShrink: 0, padding: "5px 11px", background: DC.gold + "22", border: `1px solid ${DC.gold}55`, borderRadius: RADIUS.xs, color: DC.gold, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT, whiteSpace: "nowrap" }}>
-              {t("profile.use_this")}
-            </button>
-          </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: DC.gold + "12", border: `1px solid ${DC.gold}33`, borderRadius: RADIUS.sm, padding: "9px 12px", marginBottom: 14, gap: 8 }}>
+              <div style={{ fontSize: 12, color: DC.gold, fontWeight: 500 }}>
+                {t("profile.budget_suggestion", { amount: budgetSuggestion.toLocaleString() })}
+              </div>
+              <button
+                onClick={() => setBudget(budgetSuggestion)}
+                style={{ flexShrink: 0, padding: "5px 11px", background: DC.gold + "22", border: `1px solid ${DC.gold}55`, borderRadius: RADIUS.xs, color: DC.gold, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT, whiteSpace: "nowrap" }}>
+                {t("profile.use_this")}
+              </button>
+            </div>
+          )
         ) : (
           <div style={{ fontSize: 11, color: DC.faint, marginBottom: 14, padding: "7px 10px", background: DC.bg, borderRadius: RADIUS.sm }}>
             {t("profile.not_enough_data")}
@@ -418,19 +519,22 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           style={{ width: "100%", padding: 14, background: saved ? DC.emerald : DC.gold, border: "none", borderRadius: RADIUS.sm, color: saved ? DC.bg : DC.bg, fontWeight: 700, cursor: "pointer", transition: "background 0.3s", fontFamily: FONT }}>
           {saved ? t("profile.saved") : t("profile.save_settings")}
         </button>
-      </GlassCard>
+      </AccordionSection>
 
-      <GlassCard style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 15 }}>{t("profile.autopilot_title")}</div>
-            <div style={{ fontSize: 12, color: DC.muted, marginTop: 2 }}>{t("profile.autopilot_subtitle")}</div>
+      {/* ── AUTOPILOT (collapsed by default) ── */}
+      <AccordionSection
+        header={
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+            <div style={{ width: 38, height: 38, borderRadius: RADIUS.sm, background: DC.gold + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Icon name="zap" size={17} color={DC.gold} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>{t("profile.autopilot_title")}</div>
+              <div style={{ fontSize: 12, color: DC.muted, marginTop: 1 }}>{t("profile.autopilot_summary", { count: autopilotActiveCount })}</div>
+            </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, background: DC.emerald + "18", border: `1px solid ${DC.emerald}33`, borderRadius: RADIUS.full, padding: "4px 12px" }}>
-            <div style={{ width: 6, height: 6, borderRadius: RADIUS.full, background: DC.emerald }} />
-            <span style={{ fontSize: 11, color: DC.emerald, fontWeight: 600 }}>{t("profile.autopilot_active")}</span>
-          </div>
-        </div>
+        }
+      >
         {[
           { key: "overspendAlerts",  icon: "bell",         color: DC.gold,    title: t("profile.overspend_alerts"),   sub: t("profile.overspend_alerts_sub") },
           { key: "largeTxAlerts",   icon: "alert-circle", color: DC.ruby,    title: t("profile.large_tx_alerts"),    sub: t("profile.autopilot_large_tx_alerts_sub", { threshold: autopilot.largeTxThreshold }) },
@@ -453,20 +557,22 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             </div>
           </div>
         ))}
-      </GlassCard>
+      </AccordionSection>
 
-      {/* ── NOTIFICATIONS & REPORTS ── */}
-      <GlassCard style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-          <div style={{ width: 38, height: 38, borderRadius: RADIUS.sm, background: DC.gold + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Icon name="bell" size={17} color={DC.gold} />
+      {/* ── NOTIFICATIONS & REPORTS (collapsed by default) ── */}
+      <AccordionSection
+        header={
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+            <div style={{ width: 38, height: 38, borderRadius: RADIUS.sm, background: DC.gold + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Icon name="bell" size={17} color={DC.gold} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>{t("profile.notifications_reports_title")}</div>
+              <div style={{ fontSize: 12, color: DC.muted, marginTop: 1 }}>{digestSummary}</div>
+            </div>
           </div>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 15 }}>{t("profile.notifications_reports_title")}</div>
-            <div style={{ fontSize: 12, color: DC.muted, marginTop: 1 }}>{t("profile.notifications_reports_subtitle")}</div>
-          </div>
-        </div>
-
+        }
+      >
         {/* Email digest frequency */}
         <div style={{ fontSize: 12, color: DC.muted, fontWeight: 500, marginBottom: 2 }}>{t("profile.email_digest_frequency")}</div>
         <div style={{ fontSize: 11, color: DC.faint, marginBottom: 8 }}>{t("profile.email_digest_frequency_sub")}</div>
@@ -554,7 +660,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
         >
           {notifSaved ? t("profile.saved") : notifSaving ? t("profile.saving") : t("profile.save_preferences")}
         </button>
-      </GlassCard>
+      </AccordionSection>
 
       <GlassCard style={{ background: DC.card, border: `1px solid ${DC.gold}22` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -591,6 +697,23 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
         </div>
       </GlassCard>
 
+      {/* Raw hex, not migrated - treated as its own documented Pro-branding
+          accent (same principle as C.proAccent/C.bankConnectBlue), not a
+          generic old-palette duplicate. Not touched, per explicit decision. */}
+      <button
+        onClick={() => { if (!isPro) { onUpgrade(); return; } handleExport(); }}
+        disabled={isPro && exporting}
+        style={{ width: '100%', padding: '14px', background: '#1E293B', color: isPro ? '#7C3AED' : DC.faint, border: `1px solid ${isPro ? '#334155' : `${DC.faint}33`}`, borderRadius: RADIUS.sm, fontSize: 15, fontWeight: 600, cursor: (isPro && exporting) ? 'not-allowed' : 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: FONT }}
+      >
+        {!isPro && <span>🔒</span>}
+        {isPro && exporting ? t("profile.generating") : t("profile.export_report")}
+      </button>
+
+      {/* Settings restructure (2026-08-27): moved below Export Report, out
+          from between the functional settings blocks — a "Coming Soon" list
+          doesn't belong sitting in the middle of accordion sections the
+          user actually configures. Not an accordion itself (nothing to
+          expand — every row is already just a label + "SOON" badge). */}
       <GlassCard style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
         <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>{t("profile.coming_next")}</div>
         {/* Desaturated via the same HSL formula as CAT_COLORS/ASSET_TILES/
@@ -610,18 +733,6 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           </div>
         ))}
       </GlassCard>
-
-      {/* Raw hex, not migrated - treated as its own documented Pro-branding
-          accent (same principle as C.proAccent/C.bankConnectBlue), not a
-          generic old-palette duplicate. Not touched, per explicit decision. */}
-      <button
-        onClick={() => { if (!isPro) { onUpgrade(); return; } handleExport(); }}
-        disabled={isPro && exporting}
-        style={{ width: '100%', padding: '14px', background: '#1E293B', color: isPro ? '#7C3AED' : DC.faint, border: `1px solid ${isPro ? '#334155' : `${DC.faint}33`}`, borderRadius: RADIUS.sm, fontSize: 15, fontWeight: 600, cursor: (isPro && exporting) ? 'not-allowed' : 'pointer', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: FONT }}
-      >
-        {!isPro && <span>🔒</span>}
-        {isPro && exporting ? t("profile.generating") : t("profile.export_report")}
-      </button>
 
       <button
         onClick={onSignOut}

@@ -705,7 +705,14 @@
     "excel_freq_quarterly": "Trimestral",
     "excel_freq_off": "Desativado",
     "saving": "Salvando…",
-    "save_preferences": "Salvar Preferências"
+    "save_preferences": "Salvar Preferências",
+    "budget_summary": "Orçamento: ${{amount}}/mês",
+    "autopilot_summary": "{{count}} de 4 alertas ativos",
+    "notif_digest_summary": "Resumo {{freq}} · {{count}} itens",
+    "notif_digest_off": "Resumo desativado",
+    "budget_gap_title": "Seu orçamento não corresponde aos seus gastos",
+    "budget_gap_body": "Você gastou em média ${{avg}}/mês recentemente — ${{gap}} a mais que seu orçamento de ${{budget}}. É por isso que você continua vendo \"acima do orçamento\" em outras partes do app.",
+    "budget_gap_cta": "Atualizar orçamento para ${{amount}}"
   },
   "onboarding": {
     "welcome_title": "Bem-vindo ao Arkonomy, {{name}}!",

@@ -705,7 +705,14 @@
     "excel_freq_quarterly": "Quarterly",
     "excel_freq_off": "Off",
     "saving": "Saving…",
-    "save_preferences": "Save Preferences"
+    "save_preferences": "Save Preferences",
+    "budget_summary": "${{amount}}/mo budget",
+    "autopilot_summary": "{{count}} of 4 alerts active",
+    "notif_digest_summary": "{{freq}} digest · {{count}} items",
+    "notif_digest_off": "Digest off",
+    "budget_gap_title": "Your budget doesn't match your spending",
+    "budget_gap_body": "You've averaged ${{avg}}/month over your recent history — ${{gap}} more than your ${{budget}} budget. This is why you keep seeing \"over budget\" elsewhere in the app.",
+    "budget_gap_cta": "Update budget to ${{amount}}"
   },
   "onboarding": {
     "welcome_title": "Welcome to Arkonomy, {{name}}!",
