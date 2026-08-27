@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { FONT, CAT_COLORS, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmt, fmtDate, parseDate, guessCategory, tCat, cleanMerchantName, localDateString, sumAmounts } from "../utils/helpers";
 import { isRealExpense, isTransferCategory } from "../shared/financialConstants";
+import { getCurrentMonthWindow, monthTransactions } from "../shared/dateWindows";
 import Icon from "./shared/Icon";
 import { ConnectBankPrompt } from "./shared/ConnectBankPrompt";
 import { InsightCard } from "./Insights";
@@ -464,20 +465,19 @@ export default function Transactions({ transactions, categories, onAdd, onDuplic
   const toast = onToast || _localToast;
   const catFilter = activeCatFilter || localCatFilter || null;
 
-  const [monthOffset, setMonthOffset] = useState(() => {
-    const now = new Date();
-    const hasCurrentMonth = transactions.some(t => {
-      const d = new Date(t.date + 'T00:00:00');
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    });
-    if (!hasCurrentMonth && transactions.length > 0) return -1;
-    return 0;
-  });
+  // Initial value only — the shared fallback rule (dateWindows.js, Step 3,
+  // 2026-08-27) decides where to START when the real current month is
+  // still empty; paging via the ‹/› buttons below is separate product
+  // behavior, not part of that rule, and isn't re-derived from it on every
+  // render (a user who pages away shouldn't get yanked back).
+  const [monthOffset, setMonthOffset] = useState(() =>
+    getCurrentMonthWindow(transactions).isFallback ? -1 : 0
+  );
   const realNow = new Date();
   const now     = new Date(realNow.getFullYear(), realNow.getMonth() + monthOffset, 1);
   const prevMo  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const curTxs  = transactions.filter(t => { const d = parseDate(t.date); return d.getMonth() === now.getMonth()    && d.getFullYear() === now.getFullYear(); });
-  const prevTxs = transactions.filter(t => { const d = parseDate(t.date); return d.getMonth() === prevMo.getMonth() && d.getFullYear() === prevMo.getFullYear(); });
+  const curTxs  = monthTransactions(transactions, now.getFullYear(), now.getMonth());
+  const prevTxs = monthTransactions(transactions, prevMo.getFullYear(), prevMo.getMonth());
 
   const hasCurrentIncome = curTxs.some(t => t.type === "income");
   const effectiveCurTxs = hasCurrentIncome ? curTxs : (() => {
@@ -489,7 +489,7 @@ export default function Transactions({ transactions, categories, onAdd, onDuplic
 
   const summary = calcSummary(effectiveCurTxs, prevTxs);
 
-  const monthTxs = transactions.filter(t => { const d = parseDate(t.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
+  const monthTxs = monthTransactions(transactions, now.getFullYear(), now.getMonth());
   let filtered = filter === "all" ? monthTxs : monthTxs.filter(t => t.type === filter);
   if (catFilter) filtered = filtered.filter(t => t.category_name === catFilter);
   if (activeMerchantFilter) filtered = filtered.filter(t => t.description === activeMerchantFilter);
