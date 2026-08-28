@@ -96,6 +96,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
   const [goalError, setGoalError] = useState("");
   const [saved, setSaved] = useState(false);
   const [showChangePw, setShowChangePw] = useState(false);
+  const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [pwMsg, setPwMsg] = useState(null); // { type: "success"|"error", text }
@@ -166,16 +167,27 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
 
   async function handleChangePassword() {
     setPwMsg(null);
-    if (!newPw || !confirmPw) { setPwMsg({ type: "error", text: t("profile.error_fill_both") }); return; }
+    if (!currentPw || !newPw || !confirmPw) { setPwMsg({ type: "error", text: t("profile.error_fill_all") }); return; }
     if (newPw !== confirmPw) { setPwMsg({ type: "error", text: t("profile.error_passwords_match") }); return; }
     const pwErr = pwError(newPw, t);
     if (pwErr) { setPwMsg({ type: "error", text: pwErr }); return; }
     setPwLoading(true);
-    const { error } = await supabase.auth.updateUser({ password: newPw });
+    // current_password is required here — this project's Supabase Auth has
+    // secure-password-change enforcement on (GOTRUE_SECURITY_UPDATE_PASSWORD_
+    // REQUIRE_CURRENT_PASSWORD), confirmed live 2026-08-27
+    // (PENETRATION_TEST_PLAN.md 1.3): omitting it fails every call with
+    // current_password_required, which is what this form did before.
+    const { error } = await supabase.auth.updateUser({ password: newPw, current_password: currentPw });
     setPwLoading(false);
-    if (error) { setPwMsg({ type: "error", text: error.message }); return; }
+    if (error) {
+      const text = error.code === "current_password_invalid" ? t("profile.error_current_password_invalid")
+        : error.code === "same_password" ? t("profile.error_same_password")
+        : error.message;
+      setPwMsg({ type: "error", text });
+      return;
+    }
     setPwMsg({ type: "success", text: t("profile.success_password") });
-    setNewPw(""); setConfirmPw("");
+    setCurrentPw(""); setNewPw(""); setConfirmPw("");
     setTimeout(() => { setShowChangePw(false); setPwMsg(null); }, 2000);
   }
   const inp = { width: "100%", padding: "13px 14px", background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, color: DC.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT };
@@ -276,7 +288,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             <div style={{ color: DC.muted, fontSize: 13 }}>{maskEmail(user.email)}</div>
           </div>
           <button
-            onClick={() => { setShowChangePw(v => !v); setPwMsg(null); setNewPw(""); setConfirmPw(""); }}
+            onClick={() => { setShowChangePw(v => !v); setPwMsg(null); setCurrentPw(""); setNewPw(""); setConfirmPw(""); }}
             style={{ flexShrink: 0, background: "none", border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.xs, padding: "5px 10px", color: DC.muted, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: FONT, whiteSpace: "nowrap" }}
           >
             {showChangePw ? t("profile.cancel") : t("profile.change_password")}
@@ -287,6 +299,15 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <input
               type="password"
+              autoComplete="current-password"
+              placeholder={t("profile.current_password")}
+              value={currentPw}
+              onChange={e => setCurrentPw(e.target.value)}
+              style={{ width: "100%", padding: "11px 14px", background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, color: DC.text, fontSize: 14, boxSizing: "border-box", fontFamily: FONT }}
+            />
+            <input
+              type="password"
+              autoComplete="new-password"
               placeholder={t("profile.new_password")}
               value={newPw}
               onChange={e => setNewPw(e.target.value)}
@@ -294,6 +315,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             />
             <input
               type="password"
+              autoComplete="new-password"
               placeholder={t("profile.confirm_password")}
               value={confirmPw}
               onChange={e => setConfirmPw(e.target.value)}
