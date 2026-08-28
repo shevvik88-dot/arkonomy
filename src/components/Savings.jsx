@@ -525,6 +525,14 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
   // allocation bar below — that bar only has 4 asset tiles, no debt tile, so
   // its percentages must stay denominated in gross assets, not net worth.
   const grossAssets = cashTotal + investTotal + totalSaved;
+  // Race-condition fix (found 2026-08-27, fixed here): before
+  // fetchPlaidAccounts() resolves, plaidAccounts is still its initial []
+  // and sumDepositoryBalance([]) legitimately returns null -> `?? 0` above,
+  // which is indistinguishable from a real confirmed $0 balance. loadingAccounts
+  // already tracks exactly this window (set in fetchPlaidAccounts) but wasn't
+  // wired to this card at all — only to an unrelated dropdown spinner further
+  // down. Used below to show a loading placeholder instead of a false "$0".
+  const cashLoading = bankConnected && loadingAccounts;
   // netWorth (Step 2.5, 2026-08-27) is the actual headline figure shown
   // under the "Net Worth" caption — this widget used to show grossAssets
   // there with no debt subtracted at all (not really net worth), while
@@ -540,7 +548,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
   // a semantic status color like the rest of this file's blue/green->gold/
   // emerald mapping.
   const ASSET_TILES = [
-    { key: "cash",    label: t("savings.cash"),          amount: cashTotal,   color: "#477ACD" },
+    { key: "cash",    label: t("savings.cash"),          amount: cashTotal,   color: "#477ACD", loading: cashLoading },
     { key: "stocks",  label: t("savings.stocks"),        amount: investTotal, color: "#31A079" },
     { key: "crypto",  label: t("savings.crypto"),        amount: 0,           color: "#C37137" },
     { key: "savings", label: t("savings.savings_goals"), amount: totalSaved,  color: "#9781DA" },
@@ -598,13 +606,22 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
       </div>
 
       {/* Asset Allocation Widget */}
-      {grossAssets > 0 && (
+      {/* Also shown while cashLoading even if grossAssets is momentarily 0
+          (e.g. a freshly-connected bank with no savings/stocks yet either) —
+          otherwise the card would flicker in only once the fetch resolves,
+          which is a smaller version of the same "hide the uncertainty"
+          problem this fix is for. */}
+      {(grossAssets > 0 || cashLoading) && (
         <GlassCard style={{ padding: 20, marginBottom: 24, background: DC.card, border: `1px solid ${DC.faint}33` }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: DC.muted, letterSpacing: 1, marginBottom: 8 }}>
             {t("savings.asset_allocation").toUpperCase()}
           </div>
           <div className="ph-mask" style={{ fontSize: 34, fontWeight: 800, color: DC.text, letterSpacing: -0.5, marginBottom: 2 }}>
-            {fmtMoney(netWorth)}
+            {/* netWorth is built from cashTotal, which is a false 0 during
+                cashLoading (see cashLoading's own comment above) — showing
+                it as-is would just move the same flash from the tile below
+                up into the headline number instead of fixing it. */}
+            {cashLoading ? "···" : fmtMoney(netWorth)}
           </div>
           <div style={{ fontSize: 12, color: DC.muted, marginBottom: 18 }}>{t("savings.net_worth")}</div>
 
@@ -613,7 +630,7 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
               dividing by net worth would make percentages go negative or
               over 100% whenever there's any credit card debt. */}
           <div style={{ height: 8, borderRadius: RADIUS.full, overflow: "hidden", display: "flex", gap: 2, marginBottom: 20 }}>
-            {ASSET_TILES.filter(r => r.amount > 0).map(r => {
+            {ASSET_TILES.filter(r => r.amount > 0 && !r.loading).map(r => {
               const pct = Math.round((r.amount / grossAssets) * 100);
               return <div key={r.key} style={{ flex: pct, background: r.color, height: "100%" }} />;
             })}
@@ -627,9 +644,9 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
                 <div key={r.key} style={{ background: DC.bg, border: `1px solid ${DC.faint}22`, borderRadius: RADIUS.sm, padding: "9px 11px", display: "flex", alignItems: "center", gap: 7 }}>
                   <div style={{ width: 7, height: 7, borderRadius: RADIUS.full, background: r.color, flexShrink: 0 }} />
                   <span style={{ fontSize: 12, color: DC.muted, fontWeight: 600, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
-                  <span className="ph-mask" style={{ fontSize: r.amount > 0 ? 13 : 11, fontWeight: 700, color: r.amount > 0 ? DC.text : DC.faint, whiteSpace: "nowrap" }}>{fmtMoney(r.amount)}</span>
+                  <span className="ph-mask" style={{ fontSize: r.amount > 0 ? 13 : 11, fontWeight: 700, color: r.amount > 0 ? DC.text : DC.faint, whiteSpace: "nowrap" }}>{r.loading ? "···" : fmtMoney(r.amount)}</span>
                   <div style={{ background: pct > 0 ? DC.emerald + "25" : DC.faint + "30", borderRadius: RADIUS.lg, padding: "2px 6px", flexShrink: 0 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: pct > 0 ? DC.emerald : DC.faint }}>{pct}%</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: pct > 0 ? DC.emerald : DC.faint }}>{r.loading ? "" : `${pct}%`}</span>
                   </div>
                 </div>
               );
