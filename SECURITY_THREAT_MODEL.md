@@ -107,6 +107,62 @@ it stops being true."
   claim to have exhaustively audited every current call site, only that the CSP
   baseline is real and enforced.
 
+### S5. Password-reset 8-digit `email_otp` — throttle on `/auth/v1/verify` confirmed live — **found 2026-08-27, closed same day (was misreported as open)**
+- **Entry point:** GoTrue's native `POST {SUPABASE_URL}/auth/v1/verify`,
+  reachable directly with the public anon key — not an Arkonomy edge
+  function, so none of Arkonomy's own rate-limit code (`check_login_lockout`,
+  `enforceRateLimit`) applies to it.
+- **Attack vector:** `supabase.auth.resetPasswordForEmail()`
+  (`AuthScreen.jsx:200`) and the equivalent Admin API `generate_link`
+  both produce, alongside the long `hashed_token` used in the emailed
+  link, a short 8-digit numeric `email_otp` — GoTrue's standard alternate
+  "enter this code" flow, shipped by Supabase's default email template,
+  not something Arkonomy added. Confirmed live (disposable account,
+  `scripts/test-password-reset-token.mjs`) that `POST /auth/v1/verify
+  {type:'recovery', email, token:<8-digit code>}` independently issues a
+  full session with no `token_hash` involved — not a cosmetic/unused
+  field. 15 wrong guesses against a real, still-valid code were all
+  correctly rejected, but the real code still worked immediately after —
+  no lockout, no increasing delay, no throttle observed on this endpoint
+  specifically (as distinct from `auth-login`'s lockout, which never
+  fires here).
+- **Impact (initial read, before follow-up):** 8 digits = 10^8
+  combinations. The original test only sent 15 wrong guesses and saw no
+  429 — but 15 is under Supabase's documented 30-request IP-based token-
+  bucket burst for `/auth/v1/verify` (confirmed via `search_docs`,
+  `guides/auth/rate-limits`: "Verification requests" are limited **by IP
+  address**, token-bucket algorithm, burst capacity 30, refilled at
+  `auth.rate_limits.verification.requests_per_hour` — listed
+  **"Customizable: No"**, a fixed platform default, distinct from the
+  customizable `rate_limit_otp`/`rate_limit_email_sent`/etc. limits).
+  15 requests could never have crossed that threshold — the original
+  "no throttle observed" conclusion was a sample-size artifact, not a
+  real gap.
+- **Follow-up, live-verified 2026-08-27** (`scripts/test-verify-endpoint-rate-limit.mjs`,
+  disposable account): sent 45 wrong-guess requests against a real,
+  still-valid recovery code. Requests #1–30 got the expected `403`
+  (wrong code, normally rejected); **request #31 onward got `429
+  {"error_code":"over_request_rate_limit","msg":"Request rate limit
+  reached"}`**, 15/15 for the remainder — exactly matching the
+  documented 30-request burst. The real code itself was also `429`'d
+  immediately after (rate limit applies regardless of whether the guess
+  would've been correct). Confirms the throttle is real, active, and
+  per-source-IP, not merely documented.
+- **Severity: LOW, closed.** A single source IP gets ~30 guesses before
+  being cut off for the refill window — serial brute force of 10^8
+  combinations from one IP is not remotely practical. Residual risk is
+  the same accepted trade-off already documented for D4/1.1 (a
+  genuinely distributed attacker with many real source IPs gets an
+  independent 30-guess budget per IP) — not a new gap, and not
+  something Arkonomy's own code could add on top of a platform-level,
+  non-customizable control anyway.
+- **Recommendation:** none open. Checked the Dashboard
+  (`/project/_/auth/rate-limits`) to see whether this specific limit has
+  a UI toggle — it doesn't (confirmed both by the docs' "Customizable:
+  No" and by the fact the page requires its own login the assistant
+  correctly declined to perform on the user's behalf) — nothing to
+  configure, the fixed platform default is already doing its job.
+
 ---
 
 ## T — Tampering (unauthorized modification of data in transit or at rest)
@@ -689,6 +745,14 @@ items, in priority order:
    are logged) — a genuine gap if compliance/support ever needs to answer "did
    this happen and when" after the row is gone.
 
+**Process note, 2026-08-27:** `90eb11c3-c1e9-4241-8362-9e15ce231c33`
+(`shevvik88@gmail.com`) was labeled "the test account" throughout this
+document and `PENETRATION_TEST_PLAN.md` — that was wrong, it's the
+maintainer's real personal account. Going forward, any test mutating auth
+state or account data uses a disposable Supabase Auth user instead (see
+`scripts/_lib-disposable-account.mjs`). Prior sessions' checks against it
+were read-only/dry-run and stand as recorded.
+
 **Fixed since the initial pass:**
 - **E1** — `config.toml` now explicitly lists `check-bank-connection` and
   `delete-account` as `verify_jwt: true` (`f0ceeb2`, 2026-08-15).
@@ -705,6 +769,12 @@ items, in priority order:
   host allow-list (`push-notify` v57→v58), live-verified same day against a
   real webhook.site target (0 requests received, confirmed via its own
   request-log API) — see T7 for full detail.
+- **S5** — password-reset 8-digit `email_otp` on `/auth/v1/verify` initially
+  looked unthrottled (pentest plan 1.4, 2026-08-27) because the test sample
+  (15 requests) was under Supabase's documented 30-request IP burst; a
+  45-request follow-up confirmed the real, active, non-customizable
+  platform-level rate limit (`429 over_request_rate_limit` from request #31
+  on) — no code change needed, see S5 for full detail.
 
 **E3** (column-level GRANT audit on the 4 post-2026-07-18 tables) was checked in
 full for this document, not left open — see E3 above. All 4 read line-by-line;
