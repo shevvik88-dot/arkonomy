@@ -22,6 +22,7 @@
 
 import { useEffect, useState } from 'react';
 import { App } from '@capacitor/app';
+import { IS_NATIVE } from '../lib/platform';
 
 // The redirect URI registered in the Plaid Dashboard and sent to plaid-link-token.
 // Must be an HTTPS URL. Plaid does not accept custom URL schemes (arkonomy://)
@@ -48,8 +49,16 @@ export function usePlaidOAuth() {
   });
 
   useEffect(() => {
-    // Only wire up listener in native Capacitor environment
-    if (typeof window === 'undefined' || !window.Capacitor) return;
+    // Only wire up listener in native Capacitor environment. NOT
+    // `!window.Capacitor` — @capacitor/core sets that global unconditionally
+    // at import time on every platform (same JS bundle runs on web too), so
+    // that check never actually returns early on web. It didn't here either:
+    // this ran App.addListener() unguarded on web in production, throwing
+    // '"App" plugin is not implemented on web' as an unhandled rejection on
+    // every <PlaidLinkButton> mount (Sentry caught the same error from
+    // App.jsx's backButton listener first, 2026-08-27 — this was the same
+    // bug, just quieter because it's fire-and-forget with no .catch()).
+    if (!IS_NATIVE) return;
 
     let handle;
     const setup = async () => {

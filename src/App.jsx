@@ -26,7 +26,7 @@ import { usePushNotifications } from "./hooks/usePushNotifications";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "./healthScore";
 import { BUFFER, isRealExpense, isTransferCategory } from "./shared/financialConstants";
 import { getCurrentMonthWindow, monthTransactions } from "./shared/dateWindows";
-import { IS_IOS_NATIVE } from "./lib/platform";
+import { IS_IOS_NATIVE, IS_NATIVE } from "./lib/platform";
 import { useUSStorefront } from "./lib/storefront";
 import { computeRecurringSummary, findDuplicateSubscriptions, getUpcomingCharges, getUpcomingCardPayments } from "./utils/recurringSummary";
 import { computeNextStreak } from "./utils/lessons";
@@ -517,8 +517,13 @@ export default function App() {
 
   useEffect(() => { if (user) { clearAccountsCache(); loadAll(); checkBankConnection(); } }, [user]);
 
-  // Android back button: navigate to dashboard instead of closing the app
+  // Android back button: navigate to dashboard instead of closing the app.
+  // @capacitor/app has no web implementation — calling addListener() on web
+  // throws '"App" plugin is not implemented on web' (Sentry, 2026-08-27),
+  // and this same JS bundle runs on web (app.arkonomy.com) as well as the
+  // native shells, so this must stay behind an explicit native check.
   useEffect(() => {
+    if (!IS_NATIVE) return;
     let handler;
     CapApp.addListener("backButton", ({ canGoBack }) => {
       if (showChat) { setShowChat(false); return; }
