@@ -61,7 +61,21 @@ function computeGoalForecast(remaining, monthlySurplus, numGoals) {
 // Splits a string on $amounts and X% percentages and wraps them in bold
 // colored spans: explicit negative (−$X / −X%) → red, positive → green,
 // unsigned → accent color passed in (falls back to white).
-export function highlightNumbers(text, accentColor = "#FFFFFF") {
+//
+// primaryValue (optional, 2026-08-30): when the body text repeats several
+// numbers (spent $147 — $109 above your usual $37/month...), every match
+// used to get the identical bold+1.05em treatment, so the one figure that
+// actually matters (the headline's own number, e.g. the $109 overspend)
+// had no more visual weight than the supporting detail around it — found
+// on the "Cut Entertainment" card, applies to any insight body with the
+// same multi-number layout. When provided (exact string match, e.g.
+// "$109"), that one match gets bumped further (800/1.25em) and every
+// other match steps down from the old uniform 700/1.05em to a plainer
+// 600/1em — still colored and legible as a real number, just no longer
+// competing with the headline figure for attention. Omitting primaryValue
+// keeps the original uniform behavior (used for the headline itself,
+// where there's no "supporting" number to de-emphasize against).
+export function highlightNumbers(text, accentColor = "#FFFFFF", primaryValue = null) {
   if (!text) return text;
   const parts = String(text).split(/([-+]?\$[\d,]+(?:\.\d+)?|[-+]?\d+(?:\.\d+)?%)/g);
   return parts.map((part, i) => {
@@ -69,10 +83,22 @@ export function highlightNumbers(text, accentColor = "#FFFFFF") {
     const isNeg = part.startsWith("-");
     const isPos = part.startsWith("+");
     const color = isNeg ? DC.ruby : isPos ? DC.emerald : accentColor;
+    const isPrimary = primaryValue != null && part === primaryValue;
+    const fontWeight = isPrimary ? 800 : primaryValue != null ? 600 : 700;
+    const fontSize   = isPrimary ? "1.25em" : primaryValue != null ? "1em" : "1.05em";
     return (
-      <span key={i} className="ph-mask" style={{ color, fontWeight: 700, fontSize: "1.05em" }}>{part}</span>
+      <span key={i} className="ph-mask" style={{ color, fontWeight, fontSize }}>{part}</span>
     );
   });
+}
+
+// Pulls the first $amount or X% out of a string — used to find "the
+// headline's own number" so the body's highlightNumbers call knows which
+// match to treat as primary vs supporting (see highlightNumbers above).
+function extractPrimaryNumber(text) {
+  if (!text) return null;
+  const m = String(text).match(/[-+]?\$[\d,]+(?:\.\d+)?|[-+]?\d+(?:\.\d+)?%/);
+  return m ? m[0] : null;
 }
 
 // Санитизация AI текста — убираем misleading фразы глобально
@@ -329,7 +355,7 @@ export function InsightCard({ insight, onAction, expanded: expandedProp, onToggl
             );
           })() : (
             <p style={{ color: DC.muted + "D9", fontSize: 13, lineHeight: 1.6, margin: "0 0 12px" }}>
-              {highlightNumbers(body, accent)}
+              {highlightNumbers(body, accent, extractPrimaryNumber(cleanHeadline))}
             </p>
           )}
 
@@ -592,10 +618,31 @@ function HealthScore({ score, color, breakdown: rawBreakdown, comment, totalSpen
           // Bad/medium/good status triad — cyan/purple here mean "good", not
           // brand accent, so this maps to DC.emerald, not DC.gold (see plan).
           const savingsColor = rawRate < 0 ? DC.ruby : rawRate < 10 ? DC.gold : DC.emerald;
+          // recurringPct computed once and reused for both the displayed
+          // "25%" text and the color decision — previously the color used
+          // the raw unrounded ratio (rawBreakdown.recurring.ratio > 0.25)
+          // while the tile displayed the rounded value, so a raw 25.4%
+          // rounded down to a displayed "25%" could still show red: the
+          // number on screen and the number driving its own color
+          // disagreed. Savings/Budget already colored off their own
+          // rounded/displayed value; recurring was the one inconsistent
+          // case (2026-08-30 design feedback).
+          //
+          // Red threshold also moved from >25 to >35: healthScore.js's own
+          // recurring point curve gives full marks below 10% and zero
+          // marks at 40%+, linear between — 25% sits almost exactly at the
+          // midpoint of that range (half the points lost), which is
+          // "worth a look," not "genuinely bad." Savings/Budget's own red
+          // cutoffs only trigger deep in their respective bad ranges
+          // (negative savings; fully over budget), so 35% — solidly past
+          // the midpoint, closer to where points bottom out — keeps
+          // Recurring's red threshold at a comparable severity instead of
+          // firing at just-past-halfway like the old >25 did.
+          const recurringPct = Math.min(99, Math.round(rawBreakdown.recurring.ratio * 100));
           return [
             { label: t("insights.savings_rate"), value: savingsDisplay, display: isDeepDeficit ? t("dashboard.deficit") : null, color: savingsColor },
             { label: t("insights.budget_used"), value: budgetUsedPct, color: budgetUsedPct > 100 ? DC.ruby : budgetUsedPct > 70 ? DC.gold : DC.emerald },
-            { label: t("insights.recurring_label"), value: Math.min(99, Math.round(rawBreakdown.recurring.ratio * 100)), color: rawBreakdown.recurring.ratio > 0.25 ? DC.ruby : rawBreakdown.recurring.ratio > 0.1 ? DC.gold : DC.emerald },
+            { label: t("insights.recurring_label"), value: recurringPct, color: recurringPct > 35 ? DC.ruby : recurringPct > 10 ? DC.gold : DC.emerald },
           ];
         })().map(item => (
           <div key={item.label} style={{ flex: 1, background: DC.bg, borderRadius: RADIUS.sm, padding: "10px 8px", textAlign: "center" }}>
