@@ -1387,6 +1387,20 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
     if (pb == null) return -1;
     return pb - pa;
   });
+  // Bank/institution name ("Bank of America") instead of Plaid's own card
+  // product name ("Customized Cash Rewards Visa Platinum Plus") for the
+  // compact row — already fetched per-account, no new call needed
+  // (plaid-get-accounts/index.ts sets institution_name from plaid_items,
+  // same value check-bank-connection already surfaces). Falls back to the
+  // product name if institution_name is ever missing. Appends the last-4
+  // mask when present so two cards from the same bank stay distinguishable
+  // in the accordion list — institution name alone would make them look
+  // identical. 2026-08-29 follow-up to the Dashboard redesign.
+  function creditCardLabel(a) {
+    const productName = a.name || a.official_name || t("dashboard.credit_cards_title");
+    if (!a.institution_name) return productName;
+    return a.mask ? `${a.institution_name} ••${a.mask}` : a.institution_name;
+  }
   const budget = Number(profile?.monthly_budget) || 3000;
   const balance = totalIncome - totalSpent;
   // Same formula as Insights.jsx.availableSafe — for cashPositionLow parity between screens.
@@ -1417,7 +1431,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   const creditCardsLongPress = useLongPress(() => {
     const top = sortedCreditAccounts[0];
     if (!top) return;
-    handleCardLongPress('creditCards', { cardName: top.name || top.official_name || t("dashboard.credit_cards_title"), pct: creditUtilization(top) });
+    handleCardLongPress('creditCards', { cardName: creditCardLabel(top), pct: creditUtilization(top) });
   });
   const spendingLongPress = useLongPress(() => {
     const top = Object.entries(spendingByCategory).sort((a, b) => b[1] - a[1])[0];
@@ -1691,7 +1705,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
 
         const cardRow = (a, i) => (
           <div key={a.account_id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: i === 0 ? 0 : "8px 0 0" }}>
-            <span style={{ fontSize: 13, color: DC.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name || a.official_name || t("dashboard.credit_cards_title")}</span>
+            <span style={{ fontSize: 13, color: DC.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creditCardLabel(a)}</span>
             <span className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: DC.text }}>{m(Number(a.balance_current ?? 0))}</span>
             <span style={{ fontSize: 11, fontWeight: 700, color: utilColorDC(creditUtilization(a)), minWidth: 34, textAlign: "right" }}>{(() => { const p = creditUtilization(a); return p != null ? `${Math.round(p * 100)}%` : "—"; })()}</span>
           </div>
