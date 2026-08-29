@@ -943,6 +943,11 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
           next to it, on the same row, so it doesn't add a whole new line
           of visual weight. */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+        {compactWeek && (
+          <button onClick={() => setExpanded(v => !v)} style={{ display: "block", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold, flexShrink: 0 }}>
+            {expanded ? t("dashboard.show_less") : t("dashboard.view_full_month")}
+          </button>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11, color: DC.muted }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: DC.ruby, flexShrink: 0 }} />
@@ -953,11 +958,6 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
             {t("dashboard.calendar_legend_income")}
           </span>
         </div>
-        {compactWeek && (
-          <button onClick={() => setExpanded(v => !v)} style={{ display: "block", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold, flexShrink: 0 }}>
-            {expanded ? t("dashboard.show_less") : t("dashboard.view_full_month")}
-          </button>
-        )}
       </div>
 
       {selectedDay && (
