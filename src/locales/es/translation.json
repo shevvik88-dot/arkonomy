@@ -68,6 +68,8 @@
     "card_question_cash_flow": "¿Voy bien encaminado para tener suficiente a fin de mes?",
     "card_question_next_up": "¿Puedo permitirme el próximo cargo de {{merchant}} el {{date}}?",
     "view_full_month": "Ver mes completo",
+    "calendar_legend_bill": "Factura",
+    "calendar_legend_income": "Ingreso",
     "show_less": "Ver menos",
     "balance_short": "Saldo",
     "end_of_month_short": "Fin de mes",

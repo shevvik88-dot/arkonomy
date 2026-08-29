@@ -71,6 +71,8 @@
     "card_question_cash_flow": "Хватит ли мне денег до конца месяца?",
     "card_question_next_up": "Смогу ли я позволить себе предстоящий платёж {{merchant}} {{date}}?",
     "view_full_month": "Весь месяц",
+    "calendar_legend_bill": "Счёт",
+    "calendar_legend_income": "Доход",
     "show_less": "Свернуть",
     "balance_short": "Баланс",
     "end_of_month_short": "Конец месяца",

@@ -930,11 +930,35 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
       </div>
       )}
 
-      {compactWeek && (
-        <button onClick={() => setExpanded(v => !v)} style={{ display: "block", background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold }}>
-          {expanded ? t("dashboard.show_less") : t("dashboard.view_full_month")}
-        </button>
-      )}
+      {/* Color-key legend — persistent, not a one-time dismissible tip
+          (2026-08-29 design feedback): the red/green day-number coloring
+          itself was already correct (red = a bill charged/due that day,
+          green = income landed/expected), the actual gap was a first-time
+          user having no way to learn what the colors mean. A dismissible
+          tip (same pattern as the "long-press any card" banner) would
+          only teach the user who happens to see it before dismissing —
+          this needs to be answerable every time someone glances at the
+          grid, so it stays on rather than earning a one-time-only slot.
+          Kept to the same small/muted scale as "View full month" right
+          next to it, on the same row, so it doesn't add a whole new line
+          of visual weight. */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11, color: DC.muted }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: DC.ruby, flexShrink: 0 }} />
+            {t("dashboard.calendar_legend_bill")}
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: DC.emerald, flexShrink: 0 }} />
+            {t("dashboard.calendar_legend_income")}
+          </span>
+        </div>
+        {compactWeek && (
+          <button onClick={() => setExpanded(v => !v)} style={{ display: "block", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold, flexShrink: 0 }}>
+            {expanded ? t("dashboard.show_less") : t("dashboard.view_full_month")}
+          </button>
+        )}
+      </div>
 
       {selectedDay && (
         <div onClick={() => { setSelectedDay(null); setTooltipDay(null); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 180, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
@@ -1703,11 +1727,21 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           ? `${t("dashboard.credit_cards_net_worth")}: ${balanceVisible ? (netWorth < 0 ? `-$${fmt(Math.abs(netWorth))}` : `$${fmt(netWorth)}`) : "••••"}`
           : null;
 
-        const cardRow = (a, i) => (
+        // hidePct: the coach card above already states this exact card's
+        // utilization as a specific fact (debt_utilization insight,
+        // "{{card}} is at {{pct}}% of its limit") — repeating the same
+        // number here read as pure duplication when it's the only card,
+        // 2026-08-29 design feedback. Only ever true for the 1-card case
+        // (computed below, right before the <=2-card branch); 2+ cards
+        // always show the full row, since this block becomes the only
+        // place a per-card percentage is visible at all.
+        const cardRow = (a, i, hidePct = false) => (
           <div key={a.account_id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: i === 0 ? 0 : "8px 0 0" }}>
             <span className="ph-mask" style={{ fontSize: 13, color: DC.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creditCardLabel(a)}</span>
             <span className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: DC.text }}>{m(Number(a.balance_current ?? 0))}</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: utilColorDC(creditUtilization(a)), minWidth: 34, textAlign: "right" }}>{(() => { const p = creditUtilization(a); return p != null ? `${Math.round(p * 100)}%` : "—"; })()}</span>
+            {!hidePct && (
+              <span style={{ fontSize: 11, fontWeight: 700, color: utilColorDC(creditUtilization(a)), minWidth: 34, textAlign: "right" }}>{(() => { const p = creditUtilization(a); return p != null ? `${Math.round(p * 100)}%` : "—"; })()}</span>
+            )}
           </div>
         );
 
@@ -1744,12 +1778,19 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         // coach card's "Review Credit Cards" CTA (creditCardsHighlight)
         // so that CTA actually reveals every card, not just a flash on
         // an already-collapsed summary.
+        // Coach-card/Credit-Cards duplication fix, 2026-08-29: only
+        // relevant with exactly 1 card AND the coach card currently
+        // stating a fact about that same card (debt_utilization) — with
+        // 2+ cards this block is the only place any per-card percentage
+        // shows, so it never applies there.
+        const dedupeSingleCardPct = sortedCreditAccounts.length === 1 && insight?.type === 'debt_utilization';
+
         if (sortedCreditAccounts.length <= 2) {
           return (
             <div ref={creditCardsRef} {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", outline: creditCardsHighlight ? `2px solid ${DC.gold}` : "2px solid transparent", outlineOffset: 2, transition: "outline-color 0.3s", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
               {sortedCreditAccounts.length > 1 ? header : <div style={{ marginBottom: 8 }}>{plainLabel}</div>}
               <div style={{ marginTop: sortedCreditAccounts.length > 1 ? (netWorthLabel ? 10 : 8) : 0 }}>
-                {sortedCreditAccounts.map(cardRow)}
+                {sortedCreditAccounts.map((a, i) => cardRow(a, i, dedupeSingleCardPct))}
               </div>
             </div>
           );
