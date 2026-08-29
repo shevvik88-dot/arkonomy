@@ -120,8 +120,16 @@ export function generateHealthComment({ score, breakdown, spendingByCategory, pr
  * Returns an i18n key for the score range. Callers must wrap with t().
  */
 export function getScoreLabel(score) {
+  // Below 31 used to always read "Getting started" regardless of exact
+  // value — but hasData already gates the true "no data yet" case into a
+  // completely separate render branch upstream (HealthScoreBar's own
+  // !hasData early return), so by the time this function is ever called
+  // the user already has real income/spending history. A score in this
+  // bucket (floor is 20, see calculateHealthScore) is an established-but-
+  // poor score, not a new account — "Getting started" undersold how bad a
+  // near-floor score actually is. Dashboard redesign, 2026-08-28.
   if (score >= 81) return "health.label_excellent";
   if (score >= 61) return "health.label_doing_well";
   if (score >= 31) return "health.label_making_progress";
-  return "health.label_getting_started";
+  return "health.label_needs_attention";
 }

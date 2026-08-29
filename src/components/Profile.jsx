@@ -50,7 +50,7 @@ function pwError(pw, t) {
 // `expanded` back to defaultExpanded on every keystroke in the budget
 // input, every toggle flip, etc. Toggle has no internal state, so nesting
 // it was harmless; AccordionSection does, so it can't follow that pattern.
-function AccordionSection({ header, defaultExpanded = false, borderColor, children }) {
+export function AccordionSection({ header, defaultExpanded = false, borderColor, children }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   return (
     <GlassCard style={{ background: DC.card, border: `1px solid ${borderColor || `${DC.faint}33`}` }}>
