@@ -815,6 +815,8 @@
   },
   "chat": {
     "ask_placeholder": "Pergunte sobre suas finanças...",
+    "error_too_long": "Esta conversa ficou muito longa — inicie um novo chat para continuar.",
+    "start_new_chat_action": "Iniciar novo chat",
     "help_faq": "Ajuda e FAQ ?",
     "choose_topic": "Escolha um tópico",
     "disclaimer": "Os insights de IA são apenas para fins informativos e não devem ser considerados aconselhamento financeiro.",

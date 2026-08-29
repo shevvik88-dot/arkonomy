@@ -51,7 +51,7 @@ const FAQ_ANSWERS = {
     "Arkonomy shows your recurring charges but can't cancel them — that has to be done through the service directly.\n\nTo find subscriptions: check Dashboard → Upcoming Charges, or go to Transactions and filter by Subscriptions. Then cancel via that service's website or app settings.",
 };
 
-export default function Chat({ messages, input, setInput, onSend, onClose, suggestions = CHAT_SUGGESTIONS_BY_SCREEN.dashboard, onHelpAnswer }) {
+export default function Chat({ messages, input, setInput, onSend, onClose, suggestions = CHAT_SUGGESTIONS_BY_SCREEN.dashboard, onHelpAnswer, onStartNewChat }) {
   const { t } = useTranslation();
   const bottomRef = useRef(null);
   const [showFaqMenu, setShowFaqMenu] = useState(false);
@@ -71,13 +71,26 @@ export default function Chat({ messages, input, setInput, onSend, onClose, sugge
     <div style={{ display: "flex", flexDirection: "column", height: onClose ? "100%" : "auto", paddingBottom: onClose ? 0 : 80 }}>
       <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, marginTop: 10, marginBottom: 10 }}>
         {messages.map((m, i) => (
-          <div key={i} className="ph-mask" style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", background: m.role === "user" ? `linear-gradient(90deg,${C.cyan},${C.blue})` : C.card, color: m.role === "user" ? "#fff" : C.text, padding: "12px 16px", borderRadius: m.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px", maxWidth: "82%", fontSize: 14, border: m.role === "assistant" ? `1px solid ${C.border}` : "none", lineHeight: 1.65, fontWeight: m.role === "user" ? 500 : 400, whiteSpace: "pre-line" }}>
-            {m.loading
-              ? <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
-                  {[0,1,2].map(j => <span key={j} style={{ width: 6, height: 6, borderRadius: "50%", background: C.muted, display: "inline-block", animation: `bop 1.2s ease-in-out ${j*0.2}s infinite` }} />)}
-                  <style>{`@keyframes bop{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}`}</style>
-                </span>
-              : m.text}
+          <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", gap: 6 }}>
+            <div className="ph-mask" style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", background: m.role === "user" ? `linear-gradient(90deg,${C.cyan},${C.blue})` : C.card, color: m.role === "user" ? "#fff" : C.text, padding: "12px 16px", borderRadius: m.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px", maxWidth: "82%", fontSize: 14, border: m.role === "assistant" ? `1px solid ${C.border}` : "none", lineHeight: 1.65, fontWeight: m.role === "user" ? 500 : 400, whiteSpace: "pre-line" }}>
+              {m.loading
+                ? <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                    {[0,1,2].map(j => <span key={j} style={{ width: 6, height: 6, borderRadius: "50%", background: C.muted, display: "inline-block", animation: `bop 1.2s ease-in-out ${j*0.2}s infinite` }} />)}
+                    <style>{`@keyframes bop{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}}`}</style>
+                  </span>
+                : m.text}
+            </div>
+            {/* ai-chat's 50-message server cap (App.jsx sendChat) — direct
+                action instead of making the user hunt for the header's
+                "New chat" button themselves. */}
+            {m.action === 'start_new_chat' && onStartNewChat && (
+              <button
+                onClick={onStartNewChat}
+                style={{ background: C.bgTertiary, border: `1px solid ${C.cyan}66`, borderRadius: 20, padding: "8px 14px", color: C.cyan, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}
+              >
+                {t("chat.start_new_chat_action")}
+              </button>
+            )}
           </div>
         ))}
         {isWelcomeOnly && (
