@@ -109,7 +109,7 @@ const SYNC_CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // chat" themselves — silent, no error shown, since aging out is normal
 // behavior here, not a failure. Adjust this one constant, not scattered
 // magic numbers, if the threshold ever needs to change.
-const CHAT_HISTORY_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+const CHAT_HISTORY_EXPIRY_MS = 30 * 1000; // TEMP for live E2E verification — revert to 60 * 60 * 1000 (1 hour) before merging
 
 function isSyncStale(lastSyncedAt) {
   if (!lastSyncedAt) return true;
