@@ -1155,7 +1155,16 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
 
       {/* ── PORTFOLIO / CONNECT ────────────────────────────── */}
       {alpacaConnected ? (
-        <GlassCard style={{ background: DC.card, border: `1px solid ${DC.faint}33` }}>
+        // Thin gold accent border (2026-08-30 design feedback) — was the
+        // same generic DC.faint border as any other card on this screen,
+        // blending into Explore Stocks/market-browsing sections above it
+        // even though this one is "your money," not general browsing.
+        // Same border treatment already used for Balance on Dashboard
+        // (Dashboard.jsx's asymmetric Balance card, 1.5px solid gold at
+        // 40% opacity), reused here rather than inventing a new accent —
+        // this is a visual-only fix, section order (Explore Stocks above
+        // My Portfolio) is unchanged per the request.
+        <GlassCard style={{ background: DC.card, border: `1.5px solid ${DC.gold}66` }}>
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12 }}>{t("markets.portfolio_title")}</div>
           {loadingPortfolio ? (
             <div style={{ color: DC.faint, fontSize: 13, textAlign: "center", padding: "12px 0" }}>{t("markets.loading_portfolio")}</div>
