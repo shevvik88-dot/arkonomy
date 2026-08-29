@@ -1707,22 +1707,33 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           </div>
         );
 
+        // Plain section label, no value beside it — matches BALANCE/NEXT
+        // BILL/THIS MONTH's own label style. Shown for the 1-card case
+        // (which skips the fuller `header` below to avoid duplicating
+        // that one card's own total), added 2026-08-28 per a follow-up
+        // request after this card was the only one on Dashboard missing
+        // any section label at all.
+        const plainLabel = (
+          <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.credit_cards_title")}</span>
+        );
+
         // 2 or fewer: shown directly, no accordion, and — production bug
         // found 2026-08-28 — a single card skips the generic "Credit
         // Cards: $total" header entirely instead of duplicating that
         // one card's own row below it (the previous "exactly 1 card"
         // branch was accidentally left as the old pre-redesign block,
         // full name + separate UTILIZATION/Net Worth lines, never
-        // updated to the compact cardRow format below). More than 2:
-        // collapsed by default behind the same AccordionSection Settings
-        // uses (Profile.jsx) — forced open when reached via the coach
-        // card's "Review Credit Cards" CTA (creditCardsHighlight) so
-        // that CTA actually reveals every card, not just a flash on an
-        // already-collapsed summary.
+        // updated to the compact cardRow format below) — but still gets
+        // the plain label above it, same as every other section. More
+        // than 2: collapsed by default behind the same AccordionSection
+        // Settings uses (Profile.jsx) — forced open when reached via the
+        // coach card's "Review Credit Cards" CTA (creditCardsHighlight)
+        // so that CTA actually reveals every card, not just a flash on
+        // an already-collapsed summary.
         if (sortedCreditAccounts.length <= 2) {
           return (
             <div ref={creditCardsRef} {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", outline: creditCardsHighlight ? `2px solid ${DC.gold}` : "2px solid transparent", outlineOffset: 2, transition: "outline-color 0.3s", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
-              {sortedCreditAccounts.length > 1 && header}
+              {sortedCreditAccounts.length > 1 ? header : <div style={{ marginBottom: 8 }}>{plainLabel}</div>}
               <div style={{ marginTop: sortedCreditAccounts.length > 1 ? (netWorthLabel ? 10 : 8) : 0 }}>
                 {sortedCreditAccounts.map(cardRow)}
               </div>
