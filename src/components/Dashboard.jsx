@@ -1727,21 +1727,18 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           ? `${t("dashboard.credit_cards_net_worth")}: ${balanceVisible ? (netWorth < 0 ? `-$${fmt(Math.abs(netWorth))}` : `$${fmt(netWorth)}`) : "••••"}`
           : null;
 
-        // hidePct: the coach card above already states this exact card's
-        // utilization as a specific fact (debt_utilization insight,
-        // "{{card}} is at {{pct}}% of its limit") — repeating the same
-        // number here read as pure duplication when it's the only card,
-        // 2026-08-29 design feedback. Only ever true for the 1-card case
-        // (computed below, right before the <=2-card branch); 2+ cards
-        // always show the full row, since this block becomes the only
-        // place a per-card percentage is visible at all.
-        const cardRow = (a, i, hidePct = false) => (
+        // Was briefly made conditional on the coach card also mentioning
+        // this same card's utilization (2026-08-29, hidePct) — reverted
+        // same day: that dependency is fragile, since the coach's message
+        // can change to an unrelated topic, or a second card can get
+        // added, at which point this block becomes the only reliable
+        // place to see the utilization number at all. Always shown now,
+        // regardless of what the coach card currently says.
+        const cardRow = (a, i) => (
           <div key={a.account_id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: i === 0 ? 0 : "8px 0 0" }}>
             <span className="ph-mask" style={{ fontSize: 13, color: DC.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creditCardLabel(a)}</span>
             <span className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: DC.text }}>{m(Number(a.balance_current ?? 0))}</span>
-            {!hidePct && (
-              <span style={{ fontSize: 11, fontWeight: 700, color: utilColorDC(creditUtilization(a)), minWidth: 34, textAlign: "right" }}>{(() => { const p = creditUtilization(a); return p != null ? `${Math.round(p * 100)}%` : "—"; })()}</span>
-            )}
+            <span style={{ fontSize: 11, fontWeight: 700, color: utilColorDC(creditUtilization(a)), minWidth: 34, textAlign: "right" }}>{(() => { const p = creditUtilization(a); return p != null ? `${Math.round(p * 100)}%` : "—"; })()}</span>
           </div>
         );
 
@@ -1778,19 +1775,12 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         // coach card's "Review Credit Cards" CTA (creditCardsHighlight)
         // so that CTA actually reveals every card, not just a flash on
         // an already-collapsed summary.
-        // Coach-card/Credit-Cards duplication fix, 2026-08-29: only
-        // relevant with exactly 1 card AND the coach card currently
-        // stating a fact about that same card (debt_utilization) — with
-        // 2+ cards this block is the only place any per-card percentage
-        // shows, so it never applies there.
-        const dedupeSingleCardPct = sortedCreditAccounts.length === 1 && insight?.type === 'debt_utilization';
-
         if (sortedCreditAccounts.length <= 2) {
           return (
             <div ref={creditCardsRef} {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", outline: creditCardsHighlight ? `2px solid ${DC.gold}` : "2px solid transparent", outlineOffset: 2, transition: "outline-color 0.3s", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
               {sortedCreditAccounts.length > 1 ? header : <div style={{ marginBottom: 8 }}>{plainLabel}</div>}
               <div style={{ marginTop: sortedCreditAccounts.length > 1 ? (netWorthLabel ? 10 : 8) : 0 }}>
-                {sortedCreditAccounts.map((a, i) => cardRow(a, i, dedupeSingleCardPct))}
+                {sortedCreditAccounts.map(cardRow)}
               </div>
             </div>
           );
