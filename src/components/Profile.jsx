@@ -50,8 +50,18 @@ function pwError(pw, t) {
 // `expanded` back to defaultExpanded on every keystroke in the budget
 // input, every toggle flip, etc. Toggle has no internal state, so nesting
 // it was harmless; AccordionSection does, so it can't follow that pattern.
-export function AccordionSection({ header, defaultExpanded = false, borderColor, children }) {
+// forceExpanded (optional): when it flips to true, forces the section
+// open — used by Dashboard.jsx's Credit Cards accordion so the coach
+// card's "Review Credit Cards" CTA actually reveals every card instead
+// of just flashing a highlight on a still-collapsed summary (2026-08-28).
+// One-directional on purpose: flipping back to false does NOT
+// re-collapse it — a user who just opened it to look shouldn't have it
+// snap shut under them once the CTA's own highlight timer expires.
+export function AccordionSection({ header, defaultExpanded = false, borderColor, children, forceExpanded = false }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  useEffect(() => {
+    if (forceExpanded) setExpanded(true);
+  }, [forceExpanded]);
   return (
     <GlassCard style={{ background: DC.card, border: `1px solid ${borderColor || `${DC.faint}33`}` }}>
       <div onClick={() => setExpanded(e => !e)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
