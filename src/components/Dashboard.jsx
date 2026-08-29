@@ -849,17 +849,12 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
 
   return (
     <GlassCard style={compactWeek ? { padding: "14px 16px", background: DC.card, border: "none" } : { padding: "14px 16px" }}>
-      {/* "This Month" label stripped for the Dashboard's compact-week usage
-          (Dashboard redesign, 2026-08-28) — the bill-clustering alert now
-          lives as its own separate compact line above this card, so the
-          grid itself only needs to be the grid + "View full month" link.
-          compactWeek is Dashboard's only current caller, so this
-          effectively always hides it there; kept conditional rather than
-          deleted in case a future non-compact caller wants the title
-          back. */}
-      {!compactWeek && (
-        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10, color: C.text }}>{t("dashboard.month_calendar_title")}</div>
-      )}
+      {/* "This Month" label — briefly stripped during the Dashboard
+          redesign (2026-08-28) on the theory that the new separate
+          bill-clustering line above this card made it redundant;
+          restored same day per explicit request — the label stays
+          regardless of compactWeek. */}
+      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10, color: compactWeek ? DC.text : C.text }}>{t("dashboard.month_calendar_title")}</div>
       <div style={showCompact ? { display: "flex", justifyContent: "space-between", marginBottom: 6 } : { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
         {WEEKDAY_KEYS.map(key => (
           <div key={key} style={showCompact ? { width: 30, textAlign: "center", fontSize: 10, color: DC.muted, fontWeight: 600 } : { textAlign: "center", fontSize: 10, color: C.muted, fontWeight: 600 }}>{t(`dashboard.${key}`)}</div>
@@ -1694,32 +1689,6 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           ? `${t("dashboard.credit_cards_net_worth")}: ${balanceVisible ? (netWorth < 0 ? `-$${fmt(Math.abs(netWorth))}` : `$${fmt(netWorth)}`) : "••••"}`
           : null;
 
-        // Exactly one card: the generic "Credit Cards" label + total-debt
-        // header duplicated the single card's own name/balance below it.
-        // Use the card's real name as the header instead, and fold Net
-        // Worth into a small line next to utilization% rather than its own
-        // prominent row — one card doesn't need two header lines.
-        if (creditAccounts.length === 1) {
-          const only = sortedCreditAccounts[0];
-          const pct = creditUtilization(only);
-          const color = utilColorDC(pct);
-          return (
-            <div ref={creditCardsRef} {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", outline: creditCardsHighlight ? `2px solid ${DC.gold}` : "2px solid transparent", outlineOffset: 2, transition: "outline-color 0.3s", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: DC.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{only.name || only.official_name || t("dashboard.credit_cards_title")}</span>
-                <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.text }}>{m(Number(only.balance_current ?? 0))}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
-                <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 0.5, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.credit_cards_utilization")}</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color }}>{pct != null ? `${Math.round(pct * 100)}%` : "—"}</span>
-              </div>
-              {netWorthLabel && (
-                <div className="ph-mask" style={{ fontSize: 11, color: DC.faint, marginTop: 6 }}>{netWorthLabel}</div>
-              )}
-            </div>
-          );
-        }
-
         const cardRow = (a, i) => (
           <div key={a.account_id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: i === 0 ? 0 : "8px 0 0" }}>
             <span style={{ fontSize: 13, color: DC.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name || a.official_name || t("dashboard.credit_cards_title")}</span>
@@ -1738,15 +1707,23 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           </div>
         );
 
-        // 2 or fewer: shown directly, no accordion needed. More than 2:
+        // 2 or fewer: shown directly, no accordion, and — production bug
+        // found 2026-08-28 — a single card skips the generic "Credit
+        // Cards: $total" header entirely instead of duplicating that
+        // one card's own row below it (the previous "exactly 1 card"
+        // branch was accidentally left as the old pre-redesign block,
+        // full name + separate UTILIZATION/Net Worth lines, never
+        // updated to the compact cardRow format below). More than 2:
         // collapsed by default behind the same AccordionSection Settings
-        // uses (Profile.jsx) — header is the summary row above, body is
-        // every card, no more truncating to a top-3 + separate sheet.
+        // uses (Profile.jsx) — forced open when reached via the coach
+        // card's "Review Credit Cards" CTA (creditCardsHighlight) so
+        // that CTA actually reveals every card, not just a flash on an
+        // already-collapsed summary.
         if (sortedCreditAccounts.length <= 2) {
           return (
             <div ref={creditCardsRef} {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", outline: creditCardsHighlight ? `2px solid ${DC.gold}` : "2px solid transparent", outlineOffset: 2, transition: "outline-color 0.3s", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
-              {header}
-              <div style={{ marginTop: netWorthLabel ? 10 : 8 }}>
+              {sortedCreditAccounts.length > 1 && header}
+              <div style={{ marginTop: sortedCreditAccounts.length > 1 ? (netWorthLabel ? 10 : 8) : 0 }}>
                 {sortedCreditAccounts.map(cardRow)}
               </div>
             </div>
@@ -1755,7 +1732,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
 
         return (
           <div ref={creditCardsRef} {...creditCardsLongPress} style={{ userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
-            <AccordionSection header={header} borderColor={creditCardsHighlight ? DC.gold : undefined}>
+            <AccordionSection header={header} borderColor={creditCardsHighlight ? DC.gold : undefined} forceExpanded={creditCardsHighlight}>
               {sortedCreditAccounts.map(cardRow)}
             </AccordionSection>
           </div>
