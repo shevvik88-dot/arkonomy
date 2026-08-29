@@ -815,6 +815,8 @@
   },
   "chat": {
     "ask_placeholder": "Ask about your finances...",
+    "error_too_long": "This conversation has gotten long — start a new chat to continue.",
+    "start_new_chat_action": "Start new chat",
     "help_faq": "Help & FAQ ?",
     "choose_topic": "Choose a topic",
     "disclaimer": "AI insights are for informational purposes only and should not be considered financial advice.",
