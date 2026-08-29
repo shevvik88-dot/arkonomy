@@ -1705,7 +1705,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
 
         const cardRow = (a, i) => (
           <div key={a.account_id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: i === 0 ? 0 : "8px 0 0" }}>
-            <span style={{ fontSize: 13, color: DC.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creditCardLabel(a)}</span>
+            <span className="ph-mask" style={{ fontSize: 13, color: DC.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creditCardLabel(a)}</span>
             <span className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: DC.text }}>{m(Number(a.balance_current ?? 0))}</span>
             <span style={{ fontSize: 11, fontWeight: 700, color: utilColorDC(creditUtilization(a)), minWidth: 34, textAlign: "right" }}>{(() => { const p = creditUtilization(a); return p != null ? `${Math.round(p * 100)}%` : "—"; })()}</span>
           </div>
