@@ -61,6 +61,39 @@ function fmtPrice(n, isCrypto = false) {
   return "$" + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// ─── Stock logo cache (client-side, matches _shared/logoCache.ts's TTL) ──
+// Logos essentially never change, so a week-long localStorage cache means
+// a returning user re-visiting Markets with the same holdings never even
+// calls market-data's "logos" type again, let alone Finnhub.
+const LOGO_CACHE_NAME = "arkonomy_stock_logos_v1";
+const LOGO_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+function getCachedLogos() {
+  try {
+    const raw = localStorage.getItem(LOGO_CACHE_NAME);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    const now = Date.now();
+    const fresh = {};
+    for (const [sym, entry] of Object.entries(parsed)) {
+      if (entry && entry.expiresAt > now) fresh[sym] = entry.logo;
+    }
+    return fresh;
+  } catch { return {}; }
+}
+
+function setCachedLogos(newEntries) {
+  try {
+    const raw = localStorage.getItem(LOGO_CACHE_NAME);
+    const existing = raw ? JSON.parse(raw) : {};
+    const now = Date.now();
+    for (const [sym, logo] of Object.entries(newEntries)) {
+      existing[sym] = { logo, expiresAt: now + LOGO_CACHE_TTL_MS };
+    }
+    localStorage.setItem(LOGO_CACHE_NAME, JSON.stringify(existing));
+  } catch {}
+}
+
 async function callMarketData(body) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -82,13 +115,23 @@ async function callMarketData(body) {
 }
 // ─── Stock Logo ───────────────────────────────────────────────
 
-function StockLogo({ symbol, color, icon, size = 36, borderRadius = 10 }) {
+// logoUrl (optional, 2026-08-30): a real company logo (Finnhub profile2,
+// fetched/cached via _shared/logoCache.ts + market-data's "logos" type —
+// see the Holdings effect above) takes priority over the icon/letter
+// fallback. onError swaps back to that same fallback in-place (via local
+// state, not a prop the parent has to manage) — covers a 404/broken URL
+// without ever showing a broken-image icon.
+function StockLogo({ symbol, color, icon, logoUrl, size = 36, borderRadius = 10 }) {
+  const [imgFailed, setImgFailed] = useState(false);
   const bg = (color ?? DC.gold) + "22";
   const border = `1px solid ${(color ?? DC.gold)}33`;
-  const circleRadius = icon ? borderRadius : "50%";
+  const showImg = logoUrl && !imgFailed;
+  const circleRadius = showImg ? borderRadius : icon ? borderRadius : "50%";
   return (
-    <div style={{ width: size, height: size, borderRadius: circleRadius, background: bg, border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-      {icon
+    <div style={{ width: size, height: size, borderRadius: circleRadius, background: bg, border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+      {showImg
+        ? <img src={logoUrl} alt="" width={size} height={size} style={{ objectFit: "cover", display: "block" }} onError={() => setImgFailed(true)} />
+        : icon
         ? <Icon name={icon} size={Math.round(size * 0.42)} color={color ?? DC.gold} strokeWidth={2.5} />
         : <span style={{ fontSize: Math.round(size * 0.44), fontWeight: 800, color: color ?? DC.gold, letterSpacing: -0.5 }}>{(symbol || "?")[0]}</span>
       }
@@ -873,6 +916,7 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
   const [loadingSectorStocks, setLoadingSectorStocks] = useState(false);
   const [portfolio, setPortfolio]               = useState(null);
   const [loadingPortfolio, setLoadingPortfolio] = useState(false);
+  const [logos, setLogos] = useState({}); // { SYMBOL: logoUrl }
 
   useEffect(() => {
     if (initialSymbol) { setSelectedSymbol(initialSymbol); onClearInit?.(); }
@@ -887,6 +931,30 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
         setLoadingPortfolio(false);
       });
   }, [alpacaConnected]);
+
+  // Real company logos for Holdings (2026-08-30 design feedback — was a
+  // plain colored letter for any symbol not in the small hardcoded
+  // MARKET_META set, i.e. every actual stock holding). Cached client-side
+  // for a week (matches _shared/logoCache.ts's server-side TTL) so a
+  // returning user doesn't even hit the network for symbols they already
+  // held last visit — checked first, only genuinely-missing symbols go
+  // into the one batched market-data call.
+  useEffect(() => {
+    const symbols = [...new Set((portfolio?.positions ?? []).map(p => p.symbol))];
+    if (symbols.length === 0) return;
+    const cached = getCachedLogos();
+    const missing = symbols.filter(s => !(s in cached));
+    if (Object.keys(cached).length > 0) {
+      setLogos(prev => ({ ...cached, ...prev }));
+    }
+    if (missing.length === 0) return;
+    callMarketData({ type: "logos", symbols: missing }).then(res => {
+      if (res?.logos) {
+        setCachedLogos(res.logos);
+        setLogos(prev => ({ ...prev, ...res.logos }));
+      }
+    });
+  }, [portfolio]);
 
   useEffect(() => {
     const syms = [...new Set([...TRENDING.map(t => t.symbol), ...SECTORS.map(s => s.etf)])];
@@ -1227,14 +1295,24 @@ export default function Markets({ profile, user, onSaveProfile, initialSymbol, o
                           return (
                             <div key={p.symbol} onClick={() => setSelectedSymbol(p.symbol)}
                               style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderTop: i > 0 ? `1px solid ${DC.faint}22` : "none", cursor: "pointer" }}>
-                              <StockLogo symbol={p.symbol} color={meta.color ?? DC.gold} icon={meta.icon ?? "activity"} size={32} borderRadius={9} />
+                              <StockLogo symbol={p.symbol} color={meta.color ?? DC.gold} icon={meta.icon ?? "activity"} logoUrl={logos[p.symbol]} size={32} borderRadius={9} />
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{p.symbol}</div>
                                 <div style={{ fontSize: 11, color: DC.faint }}>{t("markets.qty_shares", { qty: p.qty.toFixed(4) })}</div>
                               </div>
                               <div style={{ textAlign: "right" }}>
                                 <div className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.text }}>{fmtPrice(p.market_value)}</div>
-                                <div className="ph-mask" style={{ fontSize: 11, fontWeight: 600, color: pos ? DC.emerald : DC.ruby }}>{pos ? "+" : "-"}{fmtPrice(Math.abs(pl))}</div>
+                                {/* unrealized_plpc — Alpaca's own computed
+                                    percentage, already parsed through by
+                                    alpaca-portfolio (index.ts), not
+                                    estimated here. A raw fraction (e.g.
+                                    0.0234), so *100 before fmtPct. 2026-08-30
+                                    design feedback: dollar-only change was
+                                    hard to judge without knowing position
+                                    size. */}
+                                <div className="ph-mask" style={{ fontSize: 11, fontWeight: 600, color: pos ? DC.emerald : DC.ruby }}>
+                                  {pos ? "+" : "-"}{fmtPrice(Math.abs(pl))} · {fmtPct(p.unrealized_plpc * 100)}
+                                </div>
                               </div>
                             </div>
                           );
