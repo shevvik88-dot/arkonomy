@@ -210,16 +210,38 @@ Deno.serve(async (req) => {
           }
         }
 
-        // ── Fetch all transactions ──────────────────────────────────────────
-        const { data: txns, error: txErr } = await supabase
-          .from('transactions')
-          .select('date, amount, category_name, type')
-          .eq('user_id', user.id)
-          .order('date', { ascending: true });
+        // ── Fetch all transactions (paginated) ───────────────────────────────
+        // Bug fix (2026-09-02): this used to be a single unbounded .select()
+        // with no .limit(), silently capped at PostgREST's default 1000-row
+        // "Max Rows" project setting. Confirmed live: this account has 1,328
+        // transactions, and the 1000th row (ordered ascending) lands on
+        // 2026-05-11 — an exact match for the report stopping at May while
+        // real activity continued through August. Not a date-calculation
+        // bug — `now` is never used to bound this fetch at all, only for the
+        // email's report-month label below, which is why the email said
+        // "August 2026" while the actual sheets stopped in May: two
+        // unrelated pieces of the function agreeing on nothing.
+        //
+        // Paginate with .range() until a page comes back short — scales to
+        // any transaction count instead of re-capping at the next
+        // round-number threshold.
+        const PAGE_SIZE = 1000;
+        const txns: Tx[] = [];
+        for (let from = 0; ; from += PAGE_SIZE) {
+          const { data: page, error: txErr } = await supabase
+            .from('transactions')
+            .select('date, amount, category_name, type')
+            .eq('user_id', user.id)
+            .order('date', { ascending: true })
+            .range(from, from + PAGE_SIZE - 1);
 
-        if (txErr) throw new Error(`DB error: ${txErr.message}`);
+          if (txErr) throw new Error(`DB error: ${txErr.message}`);
+          if (!page || page.length === 0) break;
+          txns.push(...(page as Tx[]));
+          if (page.length < PAGE_SIZE) break;
+        }
 
-        if (!txns || txns.length === 0) {
+        if (txns.length === 0) {
           results.push({ userId: user.id, status: 'skipped', error: 'No transactions found' });
           continue;
         }
