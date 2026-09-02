@@ -170,14 +170,20 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
           </div>
         </div>
         <div style={{ display: "flex", gap: 4 }}>
+          {/* Bug fix (2026-09-02): both buttons rendered as an identical "$"
+              — Icon.jsx has no "arrow-up-right" or "edit-3" entry, so
+              icons[name] || icons["dollar"] silently fell back to the same
+              glyph for both, masking two genuinely different actions.
+              "plus" and "edit" already exist in Icon.jsx's own map; this is
+              a name fix only, openMoveMoney/setShowEdit behavior unchanged. */}
           <button onClick={openMoveMoney} style={{ background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-            <Icon name="arrow-up-right" size={16} color={DC.gold} />
+            <Icon name="plus" size={16} color={DC.gold} strokeWidth={2.5} />
           </button>
           <button onClick={openReminderDirectly} style={{ background: reminder ? DC.gold + "18" : DC.card, border: `1px solid ${reminder ? DC.gold + "44" : `${DC.faint}33`}`, borderRadius: RADIUS.sm, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <Icon name="bell" size={15} color={reminder ? DC.gold : DC.muted} />
           </button>
           <button onClick={() => setShowEdit(true)} style={{ background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-            <Icon name="edit-3" size={15} color={DC.muted} />
+            <Icon name="edit" size={15} color={DC.muted} />
           </button>
         </div>
       </div>
@@ -628,8 +634,17 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
           {/* Segmented bar — denominated in gross assets (cash+investments+
               savings), not net worth: there's no debt tile in this bar, so
               dividing by net worth would make percentages go negative or
-              over 100% whenever there's any credit card debt. */}
-          <div style={{ height: 8, borderRadius: RADIUS.full, overflow: "hidden", display: "flex", gap: 2, marginBottom: 20 }}>
+              over 100% whenever there's any credit card debt.
+
+              Color fix (2026-09-02): each segment already pulled its color
+              from the same ASSET_TILES.color the chips below use — never
+              actually a separate gradient — but the 2px gap had no explicit
+              background, so it inherited the surrounding transparency and
+              was barely visible, making two adjacent hues (blue/green) read
+              as one smooth blend instead of distinct, chip-matching blocks.
+              Explicit DC.bg fill + a slightly wider gap makes the boundary
+              actually visible. */}
+          <div style={{ height: 8, borderRadius: RADIUS.full, overflow: "hidden", display: "flex", gap: 3, marginBottom: 20, background: DC.bg }}>
             {ASSET_TILES.filter(r => r.amount > 0 && !r.loading).map(r => {
               const pct = Math.round((r.amount / grossAssets) * 100);
               return <div key={r.key} style={{ flex: pct, background: r.color, height: "100%" }} />;
