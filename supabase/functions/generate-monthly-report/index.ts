@@ -39,7 +39,12 @@ const ARGB = {
   totalBg:     'FF111E33',
   sep:         'FF1E2D4A',
   textPrimary: 'FFE8EDF5',
-  textMuted:   'FF9AA4B2',
+  // Brightened 2026-09-02 per design feedback (day-by-day expense numbers
+  // hard to read) — same hue/saturation as the original FF9AA4B2, lightness
+  // raised from 65% to 75% (contrast ratio against ARGB.totalBg goes from
+  // 6.6:1 to 8.9:1). Only consumer is the populated expense day-cell font,
+  // so this doesn't touch anything else's "muted" tone in the sheet.
+  textMuted:   'FFB7BEC8',
   textFaint:   'FF4A5E7A',
   green:       'FF2FB37D', // DC.emerald, exact
   greenBg:     'FF082017', // DC.emerald, same H/S, L→8%
@@ -59,6 +64,17 @@ const FILL = {
   rowGreen: { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB.greenBgLight } },
   rowRed:   { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB.redBgLight   } },
 } as const;
+
+// Design-feedback fix (2026-09-02): the boundary between daily data and the
+// Total/Budget/Difference summary columns only had a 'thin' border in
+// ARGB.sep (the same muted tone used for every other internal separator in
+// the sheet), so it didn't actually read as a boundary — same weight as
+// every other cell edge. This is deliberately its own distinct style
+// (thick + the header's own bright cyan) so it's visually unmistakable
+// where per-day data ends and the summary begins, applied to every row
+// that crosses it: header, each category row, Income, and the Daily
+// Total/Grand Total row.
+const STRONG_DIVIDER = { style: 'thick', color: { argb: ARGB.headerFg } } as const;
 
 const EXPENSE_CATEGORIES = ['Housing', 'Food', 'Shopping', 'Bills', 'Transport', 'Entertainment', 'Other'];
 const ALL_ROW_LABELS     = [...EXPENSE_CATEGORIES, 'Income'];
@@ -435,7 +451,7 @@ function addMonthSheet(
     value: 'Total', fill: FILL.header,
     font: { bold: true, color: { argb: ARGB.headerFg }, size: 11 },
     alignment: { horizontal: 'right', vertical: 'middle' },
-    border: { bottom: { style: 'medium', color: { argb: ARGB.sep } } },
+    border: { bottom: { style: 'medium', color: { argb: ARGB.sep } }, left: STRONG_DIVIDER },
   });
 
   styleCell(hdrRow.getCell(days + 3), {
@@ -557,7 +573,7 @@ function addMonthSheet(
         fill: FILL.green,
         font: { bold: true, color: { argb: ARGB.green }, size: 11 },
         alignment: { horizontal: 'right', vertical: 'middle' },
-        border: { left: { style: 'thin', color: { argb: ARGB.sep } } },
+        border: { left: STRONG_DIVIDER },
       });
       // No income-target concept exists anywhere in this app — left blank
       // rather than fabricating a number with nothing real behind it.
@@ -578,7 +594,7 @@ function addMonthSheet(
         fill: over ? FILL.red : FILL.green,
         font: { bold: true, color: { argb: over ? ARGB.red : ARGB.green }, size: 11 },
         alignment: { horizontal: 'right', vertical: 'middle' },
-        border: { left: { style: 'thin', color: { argb: ARGB.sep } } },
+        border: { left: STRONG_DIVIDER },
       });
 
       if (hist > 0) {
@@ -588,10 +604,15 @@ function addMonthSheet(
           font: { color: { argb: ARGB.textPrimary }, size: 11 },
           alignment: { horizontal: 'right', vertical: 'middle' },
         });
+        // Design feedback (2026-09-02): Difference is the number that
+        // actually answers "am I over or under" — Total and Budget are
+        // supporting context for it, not equals. Bumped a size above the
+        // other two (13 vs. 11) so it reads as the dominant one of the
+        // three, not just another same-weight column.
         styleCell(diffCell, {
           value: diff, numFmt: '$#,##0.00',
           fill: diff < 0 ? FILL.red : FILL.green,
-          font: { bold: true, color: { argb: diff < 0 ? ARGB.red : ARGB.green }, size: 11 },
+          font: { bold: true, color: { argb: diff < 0 ? ARGB.red : ARGB.green }, size: 13 },
           alignment: { horizontal: 'right', vertical: 'middle' },
         });
       } else {
@@ -658,7 +679,7 @@ function addMonthSheet(
     alignment: { horizontal: 'right', vertical: 'middle' },
     border: {
       top:  { style: 'medium', color: { argb: ARGB.sep } },
-      left: { style: 'medium', color: { argb: ARGB.sep } },
+      left: STRONG_DIVIDER,
     },
   });
 
@@ -673,10 +694,13 @@ function addMonthSheet(
     alignment: { horizontal: 'right', vertical: 'middle' },
     border: { top: { style: 'medium', color: { argb: ARGB.sep } } },
   });
+  // Same dominance treatment as the category rows' Difference cell — one
+  // size above Total/Budget's 12 (here: 14) so it's the visually loudest
+  // of the three at this row too.
   styleCell(totalsRow.getCell(days + 4), {
     value: monthDiff, numFmt: '$#,##0.00',
     fill: monthDiff < 0 ? FILL.red : FILL.green,
-    font: { bold: true, color: { argb: monthDiff < 0 ? ARGB.red : ARGB.green }, size: 12 },
+    font: { bold: true, color: { argb: monthDiff < 0 ? ARGB.red : ARGB.green }, size: 14 },
     alignment: { horizontal: 'right', vertical: 'middle' },
     border: { top: { style: 'medium', color: { argb: ARGB.sep } } },
   });
