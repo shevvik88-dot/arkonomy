@@ -14,6 +14,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import ExcelJS from 'npm:exceljs@4.4.0';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+import { isRealExpense, isTransferCategory } from '../_shared/financialConstants.ts';
 
 initSentry('generate-monthly-report');
 
@@ -260,7 +261,7 @@ Deno.serve(async (req) => {
         for (let from = 0; ; from += PAGE_SIZE) {
           const { data: page, error: txErr } = await supabase
             .from('transactions')
-            .select('date, amount, category_name, type')
+            .select('date, amount, category_name, type, description')
             .eq('user_id', user.id)
             .order('date', { ascending: true })
             .range(from, from + PAGE_SIZE - 1);
@@ -346,7 +347,7 @@ Deno.serve(async (req) => {
 // WORKBOOK BUILDER
 // ═════════════════════════════════════════════════════════════════════════════
 
-interface Tx { date: string; amount: number | string; category_name: string | null; type: string }
+interface Tx { date: string; amount: number | string; category_name: string | null; type: string; description?: string | null }
 
 async function buildWorkbook(txns: Tx[], monthlyBudget: number): Promise<InstanceType<typeof ExcelJS.Workbook>> {
   const wb       = new ExcelJS.Workbook();
@@ -367,11 +368,14 @@ async function buildWorkbook(txns: Tx[], monthlyBudget: number): Promise<Instanc
   if (monthKeys.length === 0) throw new Error('No valid transaction dates');
 
   // Historical average per expense category (across all months)
+  // isRealExpense fix (2026-09-02, see data-matrix loop in addMonthSheet for
+  // full rationale): excludes Transfer/Transfers/Zelle/Venmo, same as every
+  // other consumer of this predicate.
   const catHistAvg: Record<string, number> = {};
   for (const cat of EXPENSE_CATEGORIES) {
     const monthlyTotals = monthKeys.map(k =>
       byMonth[k]
-        .filter(t => t.type === 'expense' && normCat(t.category_name) === cat)
+        .filter(t => isRealExpense(t) && normCat(t.category_name) === cat)
         .reduce((s, t) => s + Number(t.amount), 0)
     );
     catHistAvg[cat] = monthlyTotals.reduce((a, b) => a + b, 0) / (monthlyTotals.length || 1);
@@ -423,6 +427,19 @@ function addMonthSheet(
   for (const t of txns) {
     const day = parseInt((t.date ?? '').slice(8, 10), 10);
     if (!day || day < 1 || day > days) continue;
+    // Transfer exclusion fix (2026-09-02): this used to fall through
+    // normCat() straight into the 'Other' bucket, since "Transfer"/
+    // "Transfers" isn't in CAT_MAP and isn't one of the 7 EXPENSE_CATEGORIES
+    // — same class of bug already fixed everywhere else in the app
+    // (Transactions, AI chat, Dashboard, Insights, financial-diagnosis all
+    // use isRealExpense/isTransferCategory to exclude Transfer/Zelle/Venmo
+    // from "real spending"). This report was the one surface still counting
+    // transfers as expenses, so a user comparing the downloaded report
+    // against the in-app numbers for the same month saw two different
+    // Total Expenses figures. Skipped here (not sent to 'Other') so it
+    // matches every other consumer exactly, rather than inventing a
+    // different bucket for it.
+    if (t.type === 'expense' && isTransferCategory(t)) continue;
     const cat = t.type === 'income' ? 'Income' : normCat(t.category_name);
     if (data[cat] !== undefined) data[cat][day - 1] += Number(t.amount);
   }
@@ -704,6 +721,8 @@ function addMonthSheet(
     alignment: { horizontal: 'right', vertical: 'middle' },
     border: { top: { style: 'medium', color: { argb: ARGB.sep } } },
   });
+
+  extendDarkBackground(ws, totalsRowIdx, days + 4);
 }
 
 // ─── Summary Sheet ────────────────────────────────────────────────────────────
@@ -755,12 +774,15 @@ function addSummarySheet(
     const row  = ws.getRow(idx + 2);
     row.height = 20;
 
-    // Totals per expense category
+    // Totals per expense category — isRealExpense excludes Transfer/
+    // Transfers/Zelle/Venmo (2026-09-02, see addMonthSheet's data-matrix
+    // loop for full rationale), so this sheet's Total Expenses column
+    // agrees with every other surface in the app for the same month.
     const catTotals: Record<string, number> = {};
     let totalExpenses = 0;
     for (const cat of EXPENSE_CATEGORIES) {
       const v = txns
-        .filter(t => t.type === 'expense' && normCat(t.category_name) === cat)
+        .filter(t => isRealExpense(t) && normCat(t.category_name) === cat)
         .reduce((s, t) => s + Number(t.amount), 0);
       catTotals[cat]  = v;
       totalExpenses  += v;
@@ -813,6 +835,8 @@ function addSummarySheet(
       border: { left: { style: 'thin', color: { argb: ARGB.sep } } },
     });
   });
+
+  extendDarkBackground(ws, monthKeys.length + 1, colHeaders.length + 1);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -835,6 +859,38 @@ function styleCell(cell: ExcelJS.Cell, opts: CellStyle) {
   if (opts.alignment) cell.alignment = opts.alignment as ExcelJS.Alignment;
   if (opts.border)    cell.border    = opts.border    as ExcelJS.Borders;
   if (opts.numFmt)    cell.numFmt    = opts.numFmt;
+}
+
+// Fixed 2026-09-02 (design feedback): ExcelJS only styles cells it's told
+// to — anything outside the table's used range keeps the spreadsheet
+// engine's own default white cell background, which read as a jarring
+// white edge below/right of the dark table on typical screen sizes.
+// Neither sheet type in this workbook (month sheets, Summary) had any
+// handling for this before — this is new, applied identically to both so
+// the treatment is consistent everywhere the workbook has a table.
+// ARGB.cellBg (the same tone already used for empty day-cells, the
+// darkest/neutral fill in the palette) is painted across a fixed margin
+// beyond the last used row/column: generous enough that scrolling a
+// couple of screens past the table, or a slightly wider window, still
+// shows dark background rather than default white.
+function extendDarkBackground(ws: ExcelJS.Worksheet, lastRow: number, lastCol: number) {
+  const EXTRA_ROWS = 40;
+  const EXTRA_COLS = 6;
+  const fill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB.cellBg } };
+  const totalCols = lastCol + EXTRA_COLS;
+
+  // Below the table: full width (table columns + the extra margin), so the
+  // bottom edge is never a straight white cutoff either.
+  for (let r = lastRow + 1; r <= lastRow + EXTRA_ROWS; r++) {
+    const row = ws.getRow(r);
+    for (let c = 1; c <= totalCols; c++) row.getCell(c).fill = fill;
+  }
+
+  // Right of the table: every row the table actually uses.
+  for (let r = 1; r <= lastRow; r++) {
+    const row = ws.getRow(r);
+    for (let c = lastCol + 1; c <= totalCols; c++) row.getCell(c).fill = fill;
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -869,10 +925,16 @@ function buildEmailHtml(name: string, reportLabel: string): string {
 
     <div style="background:#111E33;border:1px solid #1E2D4A;border-radius:14px;padding:20px;margin-bottom:20px;">
       <div style="font-size:15px;font-weight:700;margin-bottom:8px;">Your monthly report is attached</div>
+      <!-- Fixed 2026-09-02: this legend text still had the old generic
+           #12D18E/#FF5C7A hex hardcoded — the 2026-09-02 DC.emerald/DC.ruby
+           color-system migration updated the ARGB palette used in the
+           workbook itself but missed this HTML string, so the email body's
+           own color explanation didn't match what the attached spreadsheet
+           actually used. Now #2FB37D/#D64F5E, same as ARGB.green/red. -->
       <div style="font-size:13px;color:#9AA4B2;line-height:1.7;">
         Your <strong style="color:#fff;">${reportLabel}</strong> financial report is attached as an Excel file — open it in Excel, Google Sheets, or Numbers.<br/><br/>
-        <span style="color:#12D18E;font-weight:600;">Green</span> = income. Category and daily totals turn
-        <span style="color:#FF5C7A;font-weight:600;">red</span> when they're over your budget or your usual average for that category —
+        <span style="color:#2FB37D;font-weight:600;">Green</span> = income. Category and daily totals turn
+        <span style="color:#D64F5E;font-weight:600;">red</span> when they're over your budget or your usual average for that category —
         individual day-by-day expense amounts are left neutral, since a single day's spend in one category isn't enough on its own to flag as a problem.
       </div>
     </div>
