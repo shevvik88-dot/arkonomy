@@ -65,7 +65,12 @@ function fmtPrice(n, isCrypto = false) {
 // Logos essentially never change, so a week-long localStorage cache means
 // a returning user re-visiting Markets with the same holdings never even
 // calls market-data's "logos" type again, let alone Finnhub.
-const LOGO_CACHE_NAME = "arkonomy_stock_logos_v1";
+// v2: the "logos" response switched from a raw Finnhub CDN URL to a data:
+// URI (see _shared/logoCache.ts) after the raw URL turned out to 503 when
+// hotlinked directly from the app — bumped so any v1 entries already
+// sitting in a returning user's localStorage (broken URLs) get ignored
+// instead of served stale.
+const LOGO_CACHE_NAME = "arkonomy_stock_logos_v2";
 const LOGO_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 function getCachedLogos() {
