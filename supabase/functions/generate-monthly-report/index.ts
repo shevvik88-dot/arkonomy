@@ -361,6 +361,8 @@ function addMonthSheet(
   ws.getColumn(1).width = 16;                            // Category name
   for (let d = 2; d <= days + 1; d++) ws.getColumn(d).width = 7.5;
   ws.getColumn(days + 2).width = 13;                     // Total
+  ws.getColumn(days + 3).width = 13;                     // Budget
+  ws.getColumn(days + 4).width = 13;                     // Difference
 
   // ── Build data matrix  data[label][day0..dayN-1] ──────────────────────────
   const data: Record<string, number[]> = {};
@@ -395,6 +397,20 @@ function addMonthSheet(
 
   styleCell(hdrRow.getCell(days + 2), {
     value: 'Total', fill: FILL.header,
+    font: { bold: true, color: { argb: ARGB.headerFg }, size: 11 },
+    alignment: { horizontal: 'right', vertical: 'middle' },
+    border: { bottom: { style: 'medium', color: { argb: ARGB.sep } } },
+  });
+
+  styleCell(hdrRow.getCell(days + 3), {
+    value: 'Budget', fill: FILL.header,
+    font: { bold: true, color: { argb: ARGB.headerFg }, size: 11 },
+    alignment: { horizontal: 'right', vertical: 'middle' },
+    border: { bottom: { style: 'medium', color: { argb: ARGB.sep } } },
+  });
+
+  styleCell(hdrRow.getCell(days + 4), {
+    value: 'Difference', fill: FILL.header,
     font: { bold: true, color: { argb: ARGB.headerFg }, size: 11 },
     alignment: { horizontal: 'right', vertical: 'middle' },
     border: { bottom: { style: 'medium', color: { argb: ARGB.sep } } },
@@ -472,12 +488,52 @@ function addMonthSheet(
     totalCell.value  = rowTotal;
     totalCell.numFmt = '$#,##0.00';
 
+    // Budget / Difference (2026-09-02): makes the Total column's red/green
+    // self-explanatory without a legend — the numbers next to it justify
+    // the color instead of the reader having to remember what it means.
+    //
+    // Source for "Budget": checked for a real per-category budget first —
+    // the categories table does have a `budget` column, populated with
+    // real values on this account (Bills $800, Shopping $400, etc.) — but
+    // its category names don't line up with this report's fixed 7-bucket
+    // taxonomy ("Food & Dining" vs. this report's "Food", a "Health"
+    // budget with no matching report row at all, no row for "Housing" or
+    // "Other"), and it's not read anywhere else in the app — no UI exists
+    // to view or edit it today, so it's most likely an orphaned column
+    // from a removed feature, not a live source of truth. Using it here
+    // would also disagree with the Total cell's own color, which is
+    // already decided by catHistAvg — showing a *different* number next
+    // to that color would undermine the "self-explanatory" goal rather
+    // than serve it. catHistAvg is the one already driving the coloring,
+    // already scoped to the exact same 7 categories, so it's what "Budget"
+    // shows here too.
+    //
+    // Difference = Budget − Total (not Total − Budget): a positive
+    // difference means budget left over (underspending), negative means
+    // the category ran over — the standard "remaining" convention most
+    // budget templates use, and the one that actually matches "negative
+    // = overspending" as asked for (Total − Budget would flip that sign).
+    const budgetCell = row.getCell(days + 3);
+    const diffCell   = row.getCell(days + 4);
+
     if (isIncome) {
       styleCell(totalCell, {
         fill: FILL.green,
         font: { bold: true, color: { argb: ARGB.green }, size: 11 },
         alignment: { horizontal: 'right', vertical: 'middle' },
         border: { left: { style: 'thin', color: { argb: ARGB.sep } } },
+      });
+      // No income-target concept exists anywhere in this app — left blank
+      // rather than fabricating a number with nothing real behind it.
+      styleCell(budgetCell, {
+        value: '—', fill: FILL.total,
+        font: { color: { argb: ARGB.textFaint }, size: 11 },
+        alignment: { horizontal: 'right', vertical: 'middle' },
+      });
+      styleCell(diffCell, {
+        value: '—', fill: FILL.total,
+        font: { color: { argb: ARGB.textFaint }, size: 11 },
+        alignment: { horizontal: 'right', vertical: 'middle' },
       });
     } else {
       const hist = catHistAvg[lbl] ?? 0;
@@ -488,6 +544,36 @@ function addMonthSheet(
         alignment: { horizontal: 'right', vertical: 'middle' },
         border: { left: { style: 'thin', color: { argb: ARGB.sep } } },
       });
+
+      if (hist > 0) {
+        const diff = hist - rowTotal;
+        styleCell(budgetCell, {
+          value: hist, numFmt: '$#,##0.00', fill: FILL.total,
+          font: { color: { argb: ARGB.textPrimary }, size: 11 },
+          alignment: { horizontal: 'right', vertical: 'middle' },
+        });
+        styleCell(diffCell, {
+          value: diff, numFmt: '$#,##0.00',
+          fill: diff < 0 ? FILL.red : FILL.green,
+          font: { bold: true, color: { argb: diff < 0 ? ARGB.red : ARGB.green }, size: 11 },
+          alignment: { horizontal: 'right', vertical: 'middle' },
+        });
+      } else {
+        // No history yet (e.g. this category's first month) — same guard
+        // the Total cell's own color already uses (hist > 0); a $0
+        // "Budget" here would misrepresent a category with literally no
+        // baseline as maximally over budget.
+        styleCell(budgetCell, {
+          value: '—', fill: FILL.total,
+          font: { color: { argb: ARGB.textFaint }, size: 11 },
+          alignment: { horizontal: 'right', vertical: 'middle' },
+        });
+        styleCell(diffCell, {
+          value: '—', fill: FILL.total,
+          font: { color: { argb: ARGB.textFaint }, size: 11 },
+          alignment: { horizontal: 'right', vertical: 'middle' },
+        });
+      }
     }
   });
 
@@ -538,6 +624,25 @@ function addMonthSheet(
       top:  { style: 'medium', color: { argb: ARGB.sep } },
       left: { style: 'medium', color: { argb: ARGB.sep } },
     },
+  });
+
+  // Budget / Difference for the Daily Total row (2026-09-02) — same
+  // treatment as the category rows, at the whole-month scale: monthlyBudget
+  // is the comparable figure already driving this row's own red/green
+  // (dailyBudget = monthlyBudget/days), so it's what "Budget" shows here.
+  const monthDiff = monthlyBudget - grandTotal;
+  styleCell(totalsRow.getCell(days + 3), {
+    value: monthlyBudget, numFmt: '$#,##0.00', fill: FILL.total,
+    font: { bold: true, color: { argb: ARGB.textPrimary }, size: 12 },
+    alignment: { horizontal: 'right', vertical: 'middle' },
+    border: { top: { style: 'medium', color: { argb: ARGB.sep } } },
+  });
+  styleCell(totalsRow.getCell(days + 4), {
+    value: monthDiff, numFmt: '$#,##0.00',
+    fill: monthDiff < 0 ? FILL.red : FILL.green,
+    font: { bold: true, color: { argb: monthDiff < 0 ? ARGB.red : ARGB.green }, size: 12 },
+    alignment: { horizontal: 'right', vertical: 'middle' },
+    border: { top: { style: 'medium', color: { argb: ARGB.sep } } },
   });
 }
 
@@ -719,6 +824,7 @@ function buildEmailHtml(name: string, reportLabel: string): string {
         <li>Rows = spending categories &amp; income</li>
         <li>Columns = every day of the month</li>
         <li>Category &amp; daily totals turn red when over budget/average</li>
+        <li>Budget &amp; Difference columns next to each total</li>
         <li>Summary sheet comparing all months side-by-side</li>
       </ul>
     </div>
