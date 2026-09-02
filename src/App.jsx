@@ -1836,9 +1836,19 @@ export default function App() {
               </div>
             )}
           </div>
-          <button data-tutorial="settings-btn" onClick={() => setScreen("profile")} style={{ background: screen === "profile" ? DC.gold + "18" : DC.card, border: `1px solid ${screen === "profile" ? DC.gold + "44" : `${DC.faint}33`}`, borderRadius: RADIUS.sm, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-            <Icon name="settings" size={21} color={screen === "profile" ? DC.gold : DC.muted} />
-          </button>
+          {/* Hidden while already on Settings (2026-09-02): navigating to
+              the screen you're already on was pointless/confusing. No
+              existing Help/FAQ *screen* to repurpose it to instead — the
+              only Help/FAQ in the app is a menu toggle inside Chat.jsx, not
+              a setScreen() destination — so this hides rather than invents
+              one. Confirmed safe: the onboarding tour only targets
+              [data-tutorial="settings-btn"] from screen: "dashboard", never
+              from profile, so hiding it here doesn't break that flow. */}
+          {screen !== "profile" && (
+            <button data-tutorial="settings-btn" onClick={() => setScreen("profile")} style={{ background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <Icon name="settings" size={21} color={DC.muted} />
+            </button>
+          )}
         </div>
       </div>
 

@@ -417,10 +417,18 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
               <Icon name="refresh-cw" size={13} color={DC.gold} strokeWidth={2.5} />
               {t("profile.reconnect_bank")}
             </button>
+            {/* Demoted to a text-link (2026-09-02): this reads as a
+                same-weight third button next to Sync/Reconnect even though
+                it's a conceptually different action — expanding to a new
+                connection, not maintaining the existing one. Sync and
+                Reconnect stay full primary buttons; this keeps its exact
+                behavior (isPro ? getLinkToken() : onUpgrade(), same lock
+                icon for non-Pro) but drops the box/border so it visually
+                reads as secondary. */}
             <button
               onClick={() => { if (!isPro) { onUpgrade(); return; } getLinkToken(); }}
-              style={{ width: "100%", padding: 12, background: isPro ? C.bankConnectBlue + "22" : DC.bg, border: `1px solid ${isPro ? C.bankConnectBlue + "44" : `${DC.faint}33`}`, borderRadius: RADIUS.md, color: isPro ? "#4B8EFF" : DC.faint, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
-              {isPro ? <Icon name="plus" size={13} color="#4B8EFF" strokeWidth={2.5} /> : <span>🔒</span>}
+              style={{ width: "100%", padding: "8px 0 2px", background: "none", border: "none", color: isPro ? "#4B8EFF" : DC.faint, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              {isPro ? <Icon name="plus" size={12} color="#4B8EFF" strokeWidth={2.5} /> : <span style={{ fontSize: 11 }}>🔒</span>}
               {isPro ? t("profile.add_another_bank", { count: bankCount }) : t("profile.add_another_bank_pro")}
             </button>
           </>
@@ -690,7 +698,16 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           <Icon name="shield" size={15} color={DC.gold} />
           <span style={{ fontWeight: 600, fontSize: 15 }}>{t("profile.security_title")}</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "4px 0" }}>
+        {/* Disabled-state fix (2026-09-02): only the toggle itself carried
+            any dimming (opacity: 0.5) — icon, label, and description were
+            all full-opacity, so the row read as an active, usable setting
+            until you actually reached the small "Coming in iOS app" text.
+            Reusing the same opacity: 0.45 this file already uses for its
+            other gated/unavailable control (the non-Pro Excel-frequency
+            picker above) so both read as "unavailable" the same way,
+            instead of inventing a second disabled treatment. Applied once
+            to the whole row rather than stacking it on the toggle too. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "4px 0", opacity: 0.45 }}>
           <div style={{ width: 38, height: 38, borderRadius: RADIUS.sm, background: DC.gold + "18", border: `1px solid ${DC.gold}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Icon name="smartphone" size={17} color={DC.gold} />
           </div>
@@ -699,7 +716,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             <div style={{ fontSize: 11, color: DC.muted, marginTop: 2 }}>{t("profile.face_id_sub")}</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-            <div style={{ width: 44, height: 24, borderRadius: RADIUS.sm, background: `${DC.faint}22`, border: `1px solid ${DC.faint}33`, display: "flex", alignItems: "center", padding: "0 3px", cursor: "not-allowed", opacity: 0.5 }}>
+            <div style={{ width: 44, height: 24, borderRadius: RADIUS.sm, background: `${DC.faint}22`, border: `1px solid ${DC.faint}33`, display: "flex", alignItems: "center", padding: "0 3px", cursor: "not-allowed" }}>
               <div style={{ width: 18, height: 18, borderRadius: RADIUS.full, background: DC.muted }} />
             </div>
             <span style={{ fontSize: 10, color: DC.faint }}>{t("profile.face_id_coming")}</span>
