@@ -412,16 +412,30 @@ function addMonthSheet(
             font: { color: { argb: ARGB.green }, size: 10 },
             alignment: { horizontal: 'right', vertical: 'middle' },
           });
-        } else if (v > dailyBudget) {
-          styleCell(cell, {
-            fill: FILL.red,
-            font: { color: { argb: ARGB.red }, size: 10 },
-            alignment: { horizontal: 'right', vertical: 'middle' },
-          });
         } else {
+          // Fixed 2026-09-02: this used to compare a single category's
+          // single-day amount against `dailyBudget` (monthlyBudget/days) —
+          // the whole month's TOTAL daily budget across all 7 categories
+          // combined, not a per-category threshold. A $40 grocery day was
+          // being judged against ~$200+/day of total household budget, so
+          // it was almost always "under" and rendered green — identical to
+          // an income cell. Confirmed via git blame: present since this
+          // function's original commit, not a regression.
+          //
+          // No threshold at this granularity now, by design (2026-09-02
+          // decision): a single day's spend in one category is too noisy a
+          // sample to judge against anything, and the report already has
+          // two correctly-scoped over/under signals — the row total vs.
+          // that category's own historical monthly average, and the Daily
+          // Total row vs. the full daily budget. A third, noisier per-cell
+          // check would just flag ordinary purchases as if something's
+          // wrong. Flat neutral tint for every expense day-cell instead —
+          // reuses the same total/structural tone (ARGB.totalBg +
+          // textMuted) the rest of the sheet already uses for "present but
+          // not being judged," so it doesn't invent a new color meaning.
           styleCell(cell, {
-            fill: FILL.green,
-            font: { color: { argb: ARGB.green }, size: 10 },
+            fill: FILL.total,
+            font: { color: { argb: ARGB.textMuted }, size: 10 },
             alignment: { horizontal: 'right', vertical: 'middle' },
           });
         }
@@ -673,8 +687,9 @@ function buildEmailHtml(name: string, reportLabel: string): string {
       <div style="font-size:15px;font-weight:700;margin-bottom:8px;">Your monthly report is attached</div>
       <div style="font-size:13px;color:#9AA4B2;line-height:1.7;">
         Your <strong style="color:#fff;">${reportLabel}</strong> financial report is attached as an Excel file — open it in Excel, Google Sheets, or Numbers.<br/><br/>
-        Cells are color-coded: <span style="color:#FF5C7A;font-weight:600;">red</span> = over budget for that day,
-        <span style="color:#12D18E;font-weight:600;">green</span> = within budget.
+        <span style="color:#12D18E;font-weight:600;">Green</span> = income. Category and daily totals turn
+        <span style="color:#FF5C7A;font-weight:600;">red</span> when they're over your budget or your usual average for that category —
+        individual day-by-day expense amounts are left neutral, since a single day's spend in one category isn't enough on its own to flag as a problem.
       </div>
     </div>
 
@@ -684,7 +699,7 @@ function buildEmailHtml(name: string, reportLabel: string): string {
         <li>One sheet per month — full transaction history</li>
         <li>Rows = spending categories &amp; income</li>
         <li>Columns = every day of the month</li>
-        <li>Red/green cells based on daily budget</li>
+        <li>Category &amp; daily totals turn red when over budget/average</li>
         <li>Summary sheet comparing all months side-by-side</li>
       </ul>
     </div>
