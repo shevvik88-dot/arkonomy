@@ -622,12 +622,19 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
           <div style={{ fontSize: 11, fontWeight: 700, color: DC.muted, letterSpacing: 1, marginBottom: 8 }}>
             {t("savings.asset_allocation").toUpperCase()}
           </div>
-          <div className="ph-mask" style={{ fontSize: 34, fontWeight: 800, color: DC.text, letterSpacing: -0.5, marginBottom: 2 }}>
+          <div className="ph-mask" style={{ fontSize: 34, fontWeight: 800, color: (!cashLoading && netWorth < 0) ? DC.ruby : DC.text, letterSpacing: -0.5, marginBottom: 2 }}>
             {/* netWorth is built from cashTotal, which is a false 0 during
                 cashLoading (see cashLoading's own comment above) — showing
                 it as-is would just move the same flash from the tile below
                 up into the headline number instead of fixing it. */}
-            {cashLoading ? "···" : fmtMoney(netWorth)}
+            {/* Sign fix (2026-09-02): fmtMoney defaults to Math.abs() with no
+                sign shown — a genuinely negative net worth (debt exceeding
+                cash+investments+savings) was rendering as a plain positive
+                number, actively telling the user the opposite of their real
+                financial position. sign:true + ruby-when-negative matches
+                how the rest of the app already flags shortfalls (e.g. the
+                coach card's "$47 short"). */}
+            {cashLoading ? "···" : fmtMoney(netWorth, true)}
           </div>
           <div style={{ fontSize: 12, color: DC.muted, marginBottom: 18 }}>{t("savings.net_worth")}</div>
 
@@ -667,6 +674,26 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
               );
             })}
           </div>
+
+          {/* Debt line (2026-09-02): the only subtraction in
+              calculateNetWorth() with no visible line item anywhere on this
+              screen — cash/stocks/crypto/savings all summed to grossAssets
+              right above, then debt silently vanished into the headline
+              number, making a correct subtraction look like a math error.
+              Kept out of the percentage-of-grossAssets grid above on
+              purpose: debt isn't a slice of gross assets, it's a deduction
+              from them, so a "% of assets" badge next to it would itself be
+              misleading. */}
+          {creditDebt > 0 && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTop: `1px solid ${DC.faint}22` }}>
+              <span style={{ fontSize: 12, color: DC.muted, fontWeight: 600 }}>{t("savings.credit_card_debt")}</span>
+              {/* creditDebt itself is a positive magnitude (amount owed, not
+                  a signed contribution to net worth) — negate before
+                  fmtMoney's sign:true so this reads as the deduction it
+                  actually is ("−$444.41"), not "+$444.41". */}
+              <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.ruby }}>{fmtMoney(-creditDebt, true)}</span>
+            </div>
+          )}
         </GlassCard>
       )}
 

@@ -476,6 +476,7 @@
   "savings": {
     "asset_allocation": "Alocação de Ativos",
     "net_worth": "patrimônio líquido",
+    "credit_card_debt": "Dívida de cartão de crédito",
     "cash": "Dinheiro",
     "stocks": "Ações",
     "crypto": "Cripto",

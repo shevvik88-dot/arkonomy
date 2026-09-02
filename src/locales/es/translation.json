@@ -476,6 +476,7 @@
   "savings": {
     "asset_allocation": "Distribución de activos",
     "net_worth": "patrimonio neto",
+    "credit_card_debt": "Deuda de tarjeta de crédito",
     "cash": "Efectivo",
     "stocks": "Acciones",
     "crypto": "Cripto",
