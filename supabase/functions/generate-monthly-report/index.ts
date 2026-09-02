@@ -89,12 +89,31 @@ function fmt(n: number) {
 // CORS + SERVE
 // ═════════════════════════════════════════════════════════════════════════════
 
-const CORS = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Same allow-list pattern as auth-login/market-data (2026-09-02, found
+// while trying to manually trigger this function from a Vercel preview
+// deployment for verification — preview subdomains get a fresh random
+// hash on every push, so the previous single-origin CORS made this
+// function's "User path" (manual on-demand trigger, see header comment)
+// completely unreachable from any preview, only from production.
+const PROD_ORIGIN = Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com';
+const ALLOWED_ORIGINS: (string | RegExp)[] = [
+  PROD_ORIGIN,
+  /^https:\/\/arkonomy-[a-z0-9-]+-shevvik88-dots-projects\.vercel\.app$/,
+];
+
+function resolveCorsHeaders(req: Request) {
+  const origin = req.headers.get('origin') ?? '';
+  const allowedOrigin = ALLOWED_ORIGINS.some(o => typeof o === 'string' ? o === origin : o.test(origin))
+    ? origin
+    : PROD_ORIGIN;
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  };
+}
 
 Deno.serve(async (req) => {
+  const CORS = resolveCorsHeaders(req);
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 
   try {
