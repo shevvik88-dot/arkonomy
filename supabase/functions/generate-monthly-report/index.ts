@@ -18,6 +18,20 @@ import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 initSentry('generate-monthly-report');
 
 // ── Colour palette (dark-theme Excel) ────────────────────────────────────────
+// green/red fixed 2026-09-02: these used to be generic bright green/red
+// (FF12D18E/FFFF5C7A) picked independently of the app's own design system.
+// Now the exact hex the app itself uses for the same meaning — DASHBOARD_C
+// (src/utils/colors.js): emerald "#2FB37D" for positive/income, ruby
+// "#D64F5E" for negative/over-budget — so a user who knows what "Arkonomy
+// green" and "Arkonomy red" look like in the app sees the same colors here.
+// greenBg/redBg/*Light stay dark background TINTS (unreadable as solid
+// fills on a dark sheet otherwise) but are now actually derived from those
+// same two hex values — same hue and saturation, lightness dropped to ~8%
+// (11% for the *Light row-tint variants) — rather than independently
+// hand-picked dark shades that merely happened to be in the same color
+// family. Same technique this codebase already uses for CAT_COLORS'
+// desaturation remap (colors.js) — an HSL transform off a canonical color,
+// not an arbitrary new pick.
 const ARGB = {
   headerBg:    'FF0D1F3C',
   headerFg:    'FF00C2FF',
@@ -27,12 +41,12 @@ const ARGB = {
   textPrimary: 'FFE8EDF5',
   textMuted:   'FF9AA4B2',
   textFaint:   'FF4A5E7A',
-  green:       'FF12D18E',
-  greenBg:     'FF0A2218',
-  greenBgLight:'FF0A2E1C',
-  red:         'FFFF5C7A',
-  redBg:       'FF2D0A12',
-  redBgLight:  'FF3D0F18',
+  green:       'FF2FB37D', // DC.emerald, exact
+  greenBg:     'FF082017', // DC.emerald, same H/S, L→8%
+  greenBgLight:'FF0C2C1F', // DC.emerald, same H/S, L→11%
+  red:         'FFD64F5E', // DC.ruby, exact
+  redBg:       'FF21080B', // DC.ruby, same H/S, L→8%
+  redBgLight:  'FF2E0B0E', // DC.ruby, same H/S, L→11%
   yellow:      'FFFFB800',
 };
 
