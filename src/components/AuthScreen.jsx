@@ -147,9 +147,21 @@ export default function AuthScreen({ onAuth }) {
     setLoading(true);
     try {
       if (mode === "signup") {
-        const { data: signUpData } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name }, emailRedirectTo: 'https://app.arkonomy.com' } });
-        if (signUpData?.user) {
-          posthog?.identify(signUpData.user.id);
+        // Routed through the auth-signup edge function (not supabase.auth.signUp
+        // directly) so it can be IP-rate-limited server-side — see
+        // PENETRATION_TEST_PLAN.md 6.3.
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/auth-signup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY },
+          body: JSON.stringify({ mode: "signup", email, password, full_name: name }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (res.status === 429) throw new Error(t("auth.error_rate_limited"));
+          throw new Error(data.msg || data.error_description || data.error || "Sign-up failed");
+        }
+        if (data?.id) {
+          posthog?.identify(data.id);
           posthog?.capture('user_signed_up', { method: 'email' });
         }
         setMsg(t("auth.success_check_email"));
@@ -185,8 +197,18 @@ export default function AuthScreen({ onAuth }) {
   async function handleResend() {
     setLoading(true);
     try {
-      const { error } = await supabase.auth.resend({ type: "signup", email, options: { emailRedirectTo: 'https://app.arkonomy.com' } });
-      if (error) throw error;
+      // Same auth-signup edge function, mode: "resend" — IP-rate-limited
+      // server-side (PENETRATION_TEST_PLAN.md 6.3).
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/auth-signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY },
+        body: JSON.stringify({ mode: "resend", email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 429) throw new Error(t("auth.error_rate_limited"));
+        throw new Error(data.msg || data.error_description || data.error || "Could not resend");
+      }
       startCooldown();
     } catch (e) { setError(friendlyError(e.message)); }
     finally { setLoading(false); }

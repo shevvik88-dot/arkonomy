@@ -27,6 +27,7 @@
     "success_reset_sent": "Check your email for reset instructions.",
     "error_forgot_no_email": "Enter your email above, then tap Forgot password.",
     "error_lockout": "Too many failed attempts. Try again in {{seconds}}s.",
+    "error_rate_limited": "Too many attempts from your network. Please try again later.",
     "error_security_check": "Security check failed. Please refresh the page and try again.",
     "resend_confirmation": "Resend confirmation email",
     "email_sent": "Email sent!",
