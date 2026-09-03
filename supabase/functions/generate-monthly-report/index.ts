@@ -14,10 +14,25 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import ExcelJS from 'npm:exceljs@4.4.0';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+import { isRealExpense, isTransferCategory } from '../_shared/financialConstants.ts';
 
 initSentry('generate-monthly-report');
 
 // ── Colour palette (dark-theme Excel) ────────────────────────────────────────
+// green/red fixed 2026-09-02: these used to be generic bright green/red
+// (FF12D18E/FFFF5C7A) picked independently of the app's own design system.
+// Now the exact hex the app itself uses for the same meaning — DASHBOARD_C
+// (src/utils/colors.js): emerald "#2FB37D" for positive/income, ruby
+// "#D64F5E" for negative/over-budget — so a user who knows what "Arkonomy
+// green" and "Arkonomy red" look like in the app sees the same colors here.
+// greenBg/redBg/*Light stay dark background TINTS (unreadable as solid
+// fills on a dark sheet otherwise) but are now actually derived from those
+// same two hex values — same hue and saturation, lightness dropped to ~8%
+// (11% for the *Light row-tint variants) — rather than independently
+// hand-picked dark shades that merely happened to be in the same color
+// family. Same technique this codebase already uses for CAT_COLORS'
+// desaturation remap (colors.js) — an HSL transform off a canonical color,
+// not an arbitrary new pick.
 const ARGB = {
   headerBg:    'FF0D1F3C',
   headerFg:    'FF00C2FF',
@@ -25,14 +40,19 @@ const ARGB = {
   totalBg:     'FF111E33',
   sep:         'FF1E2D4A',
   textPrimary: 'FFE8EDF5',
-  textMuted:   'FF9AA4B2',
+  // Brightened 2026-09-02 per design feedback (day-by-day expense numbers
+  // hard to read) — same hue/saturation as the original FF9AA4B2, lightness
+  // raised from 65% to 75% (contrast ratio against ARGB.totalBg goes from
+  // 6.6:1 to 8.9:1). Only consumer is the populated expense day-cell font,
+  // so this doesn't touch anything else's "muted" tone in the sheet.
+  textMuted:   'FFB7BEC8',
   textFaint:   'FF4A5E7A',
-  green:       'FF12D18E',
-  greenBg:     'FF0A2218',
-  greenBgLight:'FF0A2E1C',
-  red:         'FFFF5C7A',
-  redBg:       'FF2D0A12',
-  redBgLight:  'FF3D0F18',
+  green:       'FF2FB37D', // DC.emerald, exact
+  greenBg:     'FF082017', // DC.emerald, same H/S, L→8%
+  greenBgLight:'FF0C2C1F', // DC.emerald, same H/S, L→11%
+  red:         'FFD64F5E', // DC.ruby, exact
+  redBg:       'FF21080B', // DC.ruby, same H/S, L→8%
+  redBgLight:  'FF2E0B0E', // DC.ruby, same H/S, L→11%
   yellow:      'FFFFB800',
 };
 
@@ -45,6 +65,17 @@ const FILL = {
   rowGreen: { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB.greenBgLight } },
   rowRed:   { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB.redBgLight   } },
 } as const;
+
+// Design-feedback fix (2026-09-02): the boundary between daily data and the
+// Total/Budget/Difference summary columns only had a 'thin' border in
+// ARGB.sep (the same muted tone used for every other internal separator in
+// the sheet), so it didn't actually read as a boundary — same weight as
+// every other cell edge. This is deliberately its own distinct style
+// (thick + the header's own bright cyan) so it's visually unmistakable
+// where per-day data ends and the summary begins, applied to every row
+// that crosses it: header, each category row, Income, and the Daily
+// Total/Grand Total row.
+const STRONG_DIVIDER = { style: 'thick', color: { argb: ARGB.headerFg } } as const;
 
 const EXPENSE_CATEGORIES = ['Housing', 'Food', 'Shopping', 'Bills', 'Transport', 'Entertainment', 'Other'];
 const ALL_ROW_LABELS     = [...EXPENSE_CATEGORIES, 'Income'];
@@ -89,12 +120,31 @@ function fmt(n: number) {
 // CORS + SERVE
 // ═════════════════════════════════════════════════════════════════════════════
 
-const CORS = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Same allow-list pattern as auth-login/market-data (2026-09-02, found
+// while trying to manually trigger this function from a Vercel preview
+// deployment for verification — preview subdomains get a fresh random
+// hash on every push, so the previous single-origin CORS made this
+// function's "User path" (manual on-demand trigger, see header comment)
+// completely unreachable from any preview, only from production.
+const PROD_ORIGIN = Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com';
+const ALLOWED_ORIGINS: (string | RegExp)[] = [
+  PROD_ORIGIN,
+  /^https:\/\/arkonomy-[a-z0-9-]+-shevvik88-dots-projects\.vercel\.app$/,
+];
+
+function resolveCorsHeaders(req: Request) {
+  const origin = req.headers.get('origin') ?? '';
+  const allowedOrigin = ALLOWED_ORIGINS.some(o => typeof o === 'string' ? o === origin : o.test(origin))
+    ? origin
+    : PROD_ORIGIN;
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  };
+}
 
 Deno.serve(async (req) => {
+  const CORS = resolveCorsHeaders(req);
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 
   try {
@@ -191,16 +241,38 @@ Deno.serve(async (req) => {
           }
         }
 
-        // ── Fetch all transactions ──────────────────────────────────────────
-        const { data: txns, error: txErr } = await supabase
-          .from('transactions')
-          .select('date, amount, category_name, type')
-          .eq('user_id', user.id)
-          .order('date', { ascending: true });
+        // ── Fetch all transactions (paginated) ───────────────────────────────
+        // Bug fix (2026-09-02): this used to be a single unbounded .select()
+        // with no .limit(), silently capped at PostgREST's default 1000-row
+        // "Max Rows" project setting. Confirmed live: this account has 1,328
+        // transactions, and the 1000th row (ordered ascending) lands on
+        // 2026-05-11 — an exact match for the report stopping at May while
+        // real activity continued through August. Not a date-calculation
+        // bug — `now` is never used to bound this fetch at all, only for the
+        // email's report-month label below, which is why the email said
+        // "August 2026" while the actual sheets stopped in May: two
+        // unrelated pieces of the function agreeing on nothing.
+        //
+        // Paginate with .range() until a page comes back short — scales to
+        // any transaction count instead of re-capping at the next
+        // round-number threshold.
+        const PAGE_SIZE = 1000;
+        const txns: Tx[] = [];
+        for (let from = 0; ; from += PAGE_SIZE) {
+          const { data: page, error: txErr } = await supabase
+            .from('transactions')
+            .select('date, amount, category_name, type, description')
+            .eq('user_id', user.id)
+            .order('date', { ascending: true })
+            .range(from, from + PAGE_SIZE - 1);
 
-        if (txErr) throw new Error(`DB error: ${txErr.message}`);
+          if (txErr) throw new Error(`DB error: ${txErr.message}`);
+          if (!page || page.length === 0) break;
+          txns.push(...(page as Tx[]));
+          if (page.length < PAGE_SIZE) break;
+        }
 
-        if (!txns || txns.length === 0) {
+        if (txns.length === 0) {
           results.push({ userId: user.id, status: 'skipped', error: 'No transactions found' });
           continue;
         }
@@ -275,7 +347,7 @@ Deno.serve(async (req) => {
 // WORKBOOK BUILDER
 // ═════════════════════════════════════════════════════════════════════════════
 
-interface Tx { date: string; amount: number | string; category_name: string | null; type: string }
+interface Tx { date: string; amount: number | string; category_name: string | null; type: string; description?: string | null }
 
 async function buildWorkbook(txns: Tx[], monthlyBudget: number): Promise<InstanceType<typeof ExcelJS.Workbook>> {
   const wb       = new ExcelJS.Workbook();
@@ -296,11 +368,14 @@ async function buildWorkbook(txns: Tx[], monthlyBudget: number): Promise<Instanc
   if (monthKeys.length === 0) throw new Error('No valid transaction dates');
 
   // Historical average per expense category (across all months)
+  // isRealExpense fix (2026-09-02, see data-matrix loop in addMonthSheet for
+  // full rationale): excludes Transfer/Transfers/Zelle/Venmo, same as every
+  // other consumer of this predicate.
   const catHistAvg: Record<string, number> = {};
   for (const cat of EXPENSE_CATEGORIES) {
     const monthlyTotals = monthKeys.map(k =>
       byMonth[k]
-        .filter(t => t.type === 'expense' && normCat(t.category_name) === cat)
+        .filter(t => isRealExpense(t) && normCat(t.category_name) === cat)
         .reduce((s, t) => s + Number(t.amount), 0)
     );
     catHistAvg[cat] = monthlyTotals.reduce((a, b) => a + b, 0) / (monthlyTotals.length || 1);
@@ -342,6 +417,8 @@ function addMonthSheet(
   ws.getColumn(1).width = 16;                            // Category name
   for (let d = 2; d <= days + 1; d++) ws.getColumn(d).width = 7.5;
   ws.getColumn(days + 2).width = 13;                     // Total
+  ws.getColumn(days + 3).width = 13;                     // Budget
+  ws.getColumn(days + 4).width = 13;                     // Difference
 
   // ── Build data matrix  data[label][day0..dayN-1] ──────────────────────────
   const data: Record<string, number[]> = {};
@@ -350,6 +427,19 @@ function addMonthSheet(
   for (const t of txns) {
     const day = parseInt((t.date ?? '').slice(8, 10), 10);
     if (!day || day < 1 || day > days) continue;
+    // Transfer exclusion fix (2026-09-02): this used to fall through
+    // normCat() straight into the 'Other' bucket, since "Transfer"/
+    // "Transfers" isn't in CAT_MAP and isn't one of the 7 EXPENSE_CATEGORIES
+    // — same class of bug already fixed everywhere else in the app
+    // (Transactions, AI chat, Dashboard, Insights, financial-diagnosis all
+    // use isRealExpense/isTransferCategory to exclude Transfer/Zelle/Venmo
+    // from "real spending"). This report was the one surface still counting
+    // transfers as expenses, so a user comparing the downloaded report
+    // against the in-app numbers for the same month saw two different
+    // Total Expenses figures. Skipped here (not sent to 'Other') so it
+    // matches every other consumer exactly, rather than inventing a
+    // different bucket for it.
+    if (t.type === 'expense' && isTransferCategory(t)) continue;
     const cat = t.type === 'income' ? 'Income' : normCat(t.category_name);
     if (data[cat] !== undefined) data[cat][day - 1] += Number(t.amount);
   }
@@ -376,6 +466,20 @@ function addMonthSheet(
 
   styleCell(hdrRow.getCell(days + 2), {
     value: 'Total', fill: FILL.header,
+    font: { bold: true, color: { argb: ARGB.headerFg }, size: 11 },
+    alignment: { horizontal: 'right', vertical: 'middle' },
+    border: { bottom: { style: 'medium', color: { argb: ARGB.sep } }, left: STRONG_DIVIDER },
+  });
+
+  styleCell(hdrRow.getCell(days + 3), {
+    value: 'Budget', fill: FILL.header,
+    font: { bold: true, color: { argb: ARGB.headerFg }, size: 11 },
+    alignment: { horizontal: 'right', vertical: 'middle' },
+    border: { bottom: { style: 'medium', color: { argb: ARGB.sep } } },
+  });
+
+  styleCell(hdrRow.getCell(days + 4), {
+    value: 'Difference', fill: FILL.header,
     font: { bold: true, color: { argb: ARGB.headerFg }, size: 11 },
     alignment: { horizontal: 'right', vertical: 'middle' },
     border: { bottom: { style: 'medium', color: { argb: ARGB.sep } } },
@@ -412,16 +516,30 @@ function addMonthSheet(
             font: { color: { argb: ARGB.green }, size: 10 },
             alignment: { horizontal: 'right', vertical: 'middle' },
           });
-        } else if (v > dailyBudget) {
-          styleCell(cell, {
-            fill: FILL.red,
-            font: { color: { argb: ARGB.red }, size: 10 },
-            alignment: { horizontal: 'right', vertical: 'middle' },
-          });
         } else {
+          // Fixed 2026-09-02: this used to compare a single category's
+          // single-day amount against `dailyBudget` (monthlyBudget/days) —
+          // the whole month's TOTAL daily budget across all 7 categories
+          // combined, not a per-category threshold. A $40 grocery day was
+          // being judged against ~$200+/day of total household budget, so
+          // it was almost always "under" and rendered green — identical to
+          // an income cell. Confirmed via git blame: present since this
+          // function's original commit, not a regression.
+          //
+          // No threshold at this granularity now, by design (2026-09-02
+          // decision): a single day's spend in one category is too noisy a
+          // sample to judge against anything, and the report already has
+          // two correctly-scoped over/under signals — the row total vs.
+          // that category's own historical monthly average, and the Daily
+          // Total row vs. the full daily budget. A third, noisier per-cell
+          // check would just flag ordinary purchases as if something's
+          // wrong. Flat neutral tint for every expense day-cell instead —
+          // reuses the same total/structural tone (ARGB.totalBg +
+          // textMuted) the rest of the sheet already uses for "present but
+          // not being judged," so it doesn't invent a new color meaning.
           styleCell(cell, {
-            fill: FILL.green,
-            font: { color: { argb: ARGB.green }, size: 10 },
+            fill: FILL.total,
+            font: { color: { argb: ARGB.textMuted }, size: 10 },
             alignment: { horizontal: 'right', vertical: 'middle' },
           });
         }
@@ -439,12 +557,52 @@ function addMonthSheet(
     totalCell.value  = rowTotal;
     totalCell.numFmt = '$#,##0.00';
 
+    // Budget / Difference (2026-09-02): makes the Total column's red/green
+    // self-explanatory without a legend — the numbers next to it justify
+    // the color instead of the reader having to remember what it means.
+    //
+    // Source for "Budget": checked for a real per-category budget first —
+    // the categories table does have a `budget` column, populated with
+    // real values on this account (Bills $800, Shopping $400, etc.) — but
+    // its category names don't line up with this report's fixed 7-bucket
+    // taxonomy ("Food & Dining" vs. this report's "Food", a "Health"
+    // budget with no matching report row at all, no row for "Housing" or
+    // "Other"), and it's not read anywhere else in the app — no UI exists
+    // to view or edit it today, so it's most likely an orphaned column
+    // from a removed feature, not a live source of truth. Using it here
+    // would also disagree with the Total cell's own color, which is
+    // already decided by catHistAvg — showing a *different* number next
+    // to that color would undermine the "self-explanatory" goal rather
+    // than serve it. catHistAvg is the one already driving the coloring,
+    // already scoped to the exact same 7 categories, so it's what "Budget"
+    // shows here too.
+    //
+    // Difference = Budget − Total (not Total − Budget): a positive
+    // difference means budget left over (underspending), negative means
+    // the category ran over — the standard "remaining" convention most
+    // budget templates use, and the one that actually matches "negative
+    // = overspending" as asked for (Total − Budget would flip that sign).
+    const budgetCell = row.getCell(days + 3);
+    const diffCell   = row.getCell(days + 4);
+
     if (isIncome) {
       styleCell(totalCell, {
         fill: FILL.green,
         font: { bold: true, color: { argb: ARGB.green }, size: 11 },
         alignment: { horizontal: 'right', vertical: 'middle' },
-        border: { left: { style: 'thin', color: { argb: ARGB.sep } } },
+        border: { left: STRONG_DIVIDER },
+      });
+      // No income-target concept exists anywhere in this app — left blank
+      // rather than fabricating a number with nothing real behind it.
+      styleCell(budgetCell, {
+        value: '—', fill: FILL.total,
+        font: { color: { argb: ARGB.textFaint }, size: 11 },
+        alignment: { horizontal: 'right', vertical: 'middle' },
+      });
+      styleCell(diffCell, {
+        value: '—', fill: FILL.total,
+        font: { color: { argb: ARGB.textFaint }, size: 11 },
+        alignment: { horizontal: 'right', vertical: 'middle' },
       });
     } else {
       const hist = catHistAvg[lbl] ?? 0;
@@ -453,8 +611,43 @@ function addMonthSheet(
         fill: over ? FILL.red : FILL.green,
         font: { bold: true, color: { argb: over ? ARGB.red : ARGB.green }, size: 11 },
         alignment: { horizontal: 'right', vertical: 'middle' },
-        border: { left: { style: 'thin', color: { argb: ARGB.sep } } },
+        border: { left: STRONG_DIVIDER },
       });
+
+      if (hist > 0) {
+        const diff = hist - rowTotal;
+        styleCell(budgetCell, {
+          value: hist, numFmt: '$#,##0.00', fill: FILL.total,
+          font: { color: { argb: ARGB.textPrimary }, size: 11 },
+          alignment: { horizontal: 'right', vertical: 'middle' },
+        });
+        // Design feedback (2026-09-02): Difference is the number that
+        // actually answers "am I over or under" — Total and Budget are
+        // supporting context for it, not equals. Bumped a size above the
+        // other two (13 vs. 11) so it reads as the dominant one of the
+        // three, not just another same-weight column.
+        styleCell(diffCell, {
+          value: diff, numFmt: '$#,##0.00',
+          fill: diff < 0 ? FILL.red : FILL.green,
+          font: { bold: true, color: { argb: diff < 0 ? ARGB.red : ARGB.green }, size: 13 },
+          alignment: { horizontal: 'right', vertical: 'middle' },
+        });
+      } else {
+        // No history yet (e.g. this category's first month) — same guard
+        // the Total cell's own color already uses (hist > 0); a $0
+        // "Budget" here would misrepresent a category with literally no
+        // baseline as maximally over budget.
+        styleCell(budgetCell, {
+          value: '—', fill: FILL.total,
+          font: { color: { argb: ARGB.textFaint }, size: 11 },
+          alignment: { horizontal: 'right', vertical: 'middle' },
+        });
+        styleCell(diffCell, {
+          value: '—', fill: FILL.total,
+          font: { color: { argb: ARGB.textFaint }, size: 11 },
+          alignment: { horizontal: 'right', vertical: 'middle' },
+        });
+      }
     }
   });
 
@@ -503,9 +696,33 @@ function addMonthSheet(
     alignment: { horizontal: 'right', vertical: 'middle' },
     border: {
       top:  { style: 'medium', color: { argb: ARGB.sep } },
-      left: { style: 'medium', color: { argb: ARGB.sep } },
+      left: STRONG_DIVIDER,
     },
   });
+
+  // Budget / Difference for the Daily Total row (2026-09-02) — same
+  // treatment as the category rows, at the whole-month scale: monthlyBudget
+  // is the comparable figure already driving this row's own red/green
+  // (dailyBudget = monthlyBudget/days), so it's what "Budget" shows here.
+  const monthDiff = monthlyBudget - grandTotal;
+  styleCell(totalsRow.getCell(days + 3), {
+    value: monthlyBudget, numFmt: '$#,##0.00', fill: FILL.total,
+    font: { bold: true, color: { argb: ARGB.textPrimary }, size: 12 },
+    alignment: { horizontal: 'right', vertical: 'middle' },
+    border: { top: { style: 'medium', color: { argb: ARGB.sep } } },
+  });
+  // Same dominance treatment as the category rows' Difference cell — one
+  // size above Total/Budget's 12 (here: 14) so it's the visually loudest
+  // of the three at this row too.
+  styleCell(totalsRow.getCell(days + 4), {
+    value: monthDiff, numFmt: '$#,##0.00',
+    fill: monthDiff < 0 ? FILL.red : FILL.green,
+    font: { bold: true, color: { argb: monthDiff < 0 ? ARGB.red : ARGB.green }, size: 14 },
+    alignment: { horizontal: 'right', vertical: 'middle' },
+    border: { top: { style: 'medium', color: { argb: ARGB.sep } } },
+  });
+
+  extendDarkBackground(ws, totalsRowIdx, days + 4);
 }
 
 // ─── Summary Sheet ────────────────────────────────────────────────────────────
@@ -557,12 +774,15 @@ function addSummarySheet(
     const row  = ws.getRow(idx + 2);
     row.height = 20;
 
-    // Totals per expense category
+    // Totals per expense category — isRealExpense excludes Transfer/
+    // Transfers/Zelle/Venmo (2026-09-02, see addMonthSheet's data-matrix
+    // loop for full rationale), so this sheet's Total Expenses column
+    // agrees with every other surface in the app for the same month.
     const catTotals: Record<string, number> = {};
     let totalExpenses = 0;
     for (const cat of EXPENSE_CATEGORIES) {
       const v = txns
-        .filter(t => t.type === 'expense' && normCat(t.category_name) === cat)
+        .filter(t => isRealExpense(t) && normCat(t.category_name) === cat)
         .reduce((s, t) => s + Number(t.amount), 0);
       catTotals[cat]  = v;
       totalExpenses  += v;
@@ -615,6 +835,8 @@ function addSummarySheet(
       border: { left: { style: 'thin', color: { argb: ARGB.sep } } },
     });
   });
+
+  extendDarkBackground(ws, monthKeys.length + 1, colHeaders.length + 1);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -637,6 +859,48 @@ function styleCell(cell: ExcelJS.Cell, opts: CellStyle) {
   if (opts.alignment) cell.alignment = opts.alignment as ExcelJS.Alignment;
   if (opts.border)    cell.border    = opts.border    as ExcelJS.Borders;
   if (opts.numFmt)    cell.numFmt    = opts.numFmt;
+}
+
+// Fixed 2026-09-02 (design feedback): ExcelJS only styles cells it's told
+// to — anything outside the table's used range keeps the spreadsheet
+// engine's own default white cell background, which read as a jarring
+// white edge below/right of the dark table on typical screen sizes.
+// Neither sheet type in this workbook (month sheets, Summary) had any
+// handling for this before — this is new, applied identically to both so
+// the treatment is consistent everywhere the workbook has a table.
+//
+// lastRow/lastCol (the caller's args) are already each sheet's real
+// content extent, computed from that sheet's actual data, not a guess:
+// month sheets pass `days + 4` (a 28-day February vs. a 31-day August
+// ends the table 3 columns apart) and the Daily Total row index; the
+// Summary sheet passes `monthKeys.length + 1`, which grows or shrinks
+// with how many months of transaction history the account actually has.
+// So the boundary itself was always per-sheet dynamic — what changed
+// here (2026-09-02 follow-up) is the MARGIN painted past that boundary:
+// was a flat 40 rows / 6 columns regardless of sheet size, which could
+// be far more than needed on a small account or (in principle) still
+// not enough on an unusually wide one. Now a small fixed margin added on
+// top of the real, per-sheet boundary — enough to avoid a hard white
+// cutoff right at the table edge, without painting dozens of rows/columns
+// nothing will ever use.
+function extendDarkBackground(ws: ExcelJS.Worksheet, lastRow: number, lastCol: number) {
+  const EXTRA_ROWS = 12;
+  const EXTRA_COLS = 4;
+  const fill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB.cellBg } };
+  const totalCols = lastCol + EXTRA_COLS;
+
+  // Below the table: full width (table columns + the extra margin), so the
+  // bottom edge is never a straight white cutoff either.
+  for (let r = lastRow + 1; r <= lastRow + EXTRA_ROWS; r++) {
+    const row = ws.getRow(r);
+    for (let c = 1; c <= totalCols; c++) row.getCell(c).fill = fill;
+  }
+
+  // Right of the table: every row the table actually uses.
+  for (let r = 1; r <= lastRow; r++) {
+    const row = ws.getRow(r);
+    for (let c = lastCol + 1; c <= totalCols; c++) row.getCell(c).fill = fill;
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -671,10 +935,17 @@ function buildEmailHtml(name: string, reportLabel: string): string {
 
     <div style="background:#111E33;border:1px solid #1E2D4A;border-radius:14px;padding:20px;margin-bottom:20px;">
       <div style="font-size:15px;font-weight:700;margin-bottom:8px;">Your monthly report is attached</div>
+      <!-- Fixed 2026-09-02: this legend text still had the old generic
+           #12D18E/#FF5C7A hex hardcoded — the 2026-09-02 DC.emerald/DC.ruby
+           color-system migration updated the ARGB palette used in the
+           workbook itself but missed this HTML string, so the email body's
+           own color explanation didn't match what the attached spreadsheet
+           actually used. Now #2FB37D/#D64F5E, same as ARGB.green/red. -->
       <div style="font-size:13px;color:#9AA4B2;line-height:1.7;">
         Your <strong style="color:#fff;">${reportLabel}</strong> financial report is attached as an Excel file — open it in Excel, Google Sheets, or Numbers.<br/><br/>
-        Cells are color-coded: <span style="color:#FF5C7A;font-weight:600;">red</span> = over budget for that day,
-        <span style="color:#12D18E;font-weight:600;">green</span> = within budget.
+        <span style="color:#2FB37D;font-weight:600;">Green</span> = income. Category and daily totals turn
+        <span style="color:#D64F5E;font-weight:600;">red</span> when they're over your budget or your usual average for that category —
+        individual day-by-day expense amounts are left neutral, since a single day's spend in one category isn't enough on its own to flag as a problem.
       </div>
     </div>
 
@@ -684,7 +955,8 @@ function buildEmailHtml(name: string, reportLabel: string): string {
         <li>One sheet per month — full transaction history</li>
         <li>Rows = spending categories &amp; income</li>
         <li>Columns = every day of the month</li>
-        <li>Red/green cells based on daily budget</li>
+        <li>Category &amp; daily totals turn red when over budget/average</li>
+        <li>Budget &amp; Difference columns next to each total</li>
         <li>Summary sheet comparing all months side-by-side</li>
       </ul>
     </div>
