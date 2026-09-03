@@ -868,14 +868,24 @@ function styleCell(cell: ExcelJS.Cell, opts: CellStyle) {
 // Neither sheet type in this workbook (month sheets, Summary) had any
 // handling for this before — this is new, applied identically to both so
 // the treatment is consistent everywhere the workbook has a table.
-// ARGB.cellBg (the same tone already used for empty day-cells, the
-// darkest/neutral fill in the palette) is painted across a fixed margin
-// beyond the last used row/column: generous enough that scrolling a
-// couple of screens past the table, or a slightly wider window, still
-// shows dark background rather than default white.
+//
+// lastRow/lastCol (the caller's args) are already each sheet's real
+// content extent, computed from that sheet's actual data, not a guess:
+// month sheets pass `days + 4` (a 28-day February vs. a 31-day August
+// ends the table 3 columns apart) and the Daily Total row index; the
+// Summary sheet passes `monthKeys.length + 1`, which grows or shrinks
+// with how many months of transaction history the account actually has.
+// So the boundary itself was always per-sheet dynamic — what changed
+// here (2026-09-02 follow-up) is the MARGIN painted past that boundary:
+// was a flat 40 rows / 6 columns regardless of sheet size, which could
+// be far more than needed on a small account or (in principle) still
+// not enough on an unusually wide one. Now a small fixed margin added on
+// top of the real, per-sheet boundary — enough to avoid a hard white
+// cutoff right at the table edge, without painting dozens of rows/columns
+// nothing will ever use.
 function extendDarkBackground(ws: ExcelJS.Worksheet, lastRow: number, lastCol: number) {
-  const EXTRA_ROWS = 40;
-  const EXTRA_COLS = 6;
+  const EXTRA_ROWS = 12;
+  const EXTRA_COLS = 4;
   const fill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ARGB.cellBg } };
   const totalCols = lastCol + EXTRA_COLS;
 
