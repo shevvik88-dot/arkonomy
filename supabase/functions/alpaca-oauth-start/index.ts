@@ -10,6 +10,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+import { requirePaidPlan } from '../_shared/requirePaidPlan.ts';
 
 initSentry('alpaca-oauth-start');
 
@@ -44,6 +45,14 @@ Deno.serve(async (req) => {
     if (authErr || !user) {
       return json({ error: 'Unauthorized' }, 401, corsHeaders);
     }
+
+    // Connecting a brokerage account is a paid-Pro action — enforce it here,
+    // not just in the client that decides whether to show the Connect button.
+    // Without this, a free/trial user could obtain and store a working Alpaca
+    // token, which alpaca-portfolio would then serve.
+    // PENETRATION_TEST_PLAN.md 6.4 / SECURITY_THREAT_MODEL.md E4.
+    const planBlock = await requirePaidPlan(supabase, user.id, corsHeaders);
+    if (planBlock) return planBlock;
 
     const nonce = crypto.randomUUID();
     const expires_at = new Date(Date.now() + NONCE_TTL_MS).toISOString();

@@ -655,18 +655,62 @@ it stops being true."
   read-the-migration-first check to any *new* table going forward — this entry
   is the record that it was done once, not a standing exemption.
 
-### E4. Alpaca trading — Free/Pro plan gate bypass
-- **Entry point:** `alpaca-invest/index.ts`, gated by `usePlan.js`-derived plan
-  status checked server-side (not just hidden client-side UI).
-- **Current mitigation:** per CLAUDE.md, `usePlan.js` gating is explicitly called
-  out as "core business logic; never bypass" — and separately, `profiles.plan` is
-  one of the columns excluded from the client-writable UPDATE grant (T1), so a
-  client can't elevate their own plan by writing the column directly.
-- **Recommendation:** confirm `alpaca-invest`'s own server-side check reads
-  `profiles.plan` (or equivalent) from the DB at request time rather than trusting
-  a client-supplied plan/tier value in the request body — not re-verified
-  line-by-line for this document, flagged as the natural next check given how
-  central this gate is to the business model.
+### E4. Alpaca trading — Free/Pro plan gate bypass — **Found broken and fixed 2026-09-02** (was: "confirm the obvious-seeming thing is true" — it wasn't)
+- **Entry point:** `alpaca-invest/index.ts` (places live Alpaca orders),
+  `alpaca-oauth-start/index.ts` (issues the OAuth nonce that leads to a stored
+  brokerage token), `alpaca-portfolio/index.ts` (reads brokerage data).
+- **Attack vector:** this entry previously *asserted* `alpaca-invest` was "gated
+  by `usePlan.js`-derived plan status checked server-side". The PENETRATION_TEST_PLAN
+  6.4 pass (2026-09-02) read all three functions line by line: **none of them read
+  `profiles.plan` at all.** `alpaca-invest`'s only checks were auth → `amount ≥ 1`
+  → symbol format → pending-row dedup → `alpaca_access_token` presence → buying
+  power. The Pro paywall on investing lived **entirely in React**
+  (`src/hooks/usePlan.js` + the `(!isPro || isTrial)` guards in `App.jsx:1532` /
+  `Markets.jsx:744`). Any account with a valid Supabase JWT could call the edge
+  function directly and bypass it — no race, no timing, no crafted body. Two
+  concrete paths: (1) a `free` account calls `alpaca-oauth-start` (also ungated),
+  completes Alpaca OAuth, gets a working token stored, then calls `alpaca-invest`;
+  (2) a former paid Pro downgrades — `stripe-webhook`'s `customer.subscription.deleted`
+  set `plan:'free'` but left `alpaca_access_token` intact, so they keep trading
+  indefinitely. `profiles.plan` being excluded from the client-writable GRANT (T1)
+  did **not** help here — the bypass never needed to write `plan`, it just needed
+  the server to never read it.
+- **Impact (pre-fix):** paid-Pro paywall bypass on a real-money feature — a
+  non-paying user places live fractional orders on their own connected Alpaca
+  account through Arkonomy. Rated **HIGH**: money-moving, trivially reachable by
+  any authenticated user, not a rare timing accident. Pre-fix live proof
+  (`scripts/test-alpaca-invest-plan-gate-6.4.mjs`, zero money): disposable
+  `plan=free` account, no token, called `alpaca-invest` with its own JWT →
+  `HTTP 400 alpaca_not_connected`, i.e. it passed every gate and was stopped only
+  by the absent token.
+- **Fix:** new `supabase/functions/_shared/requirePaidPlan.ts` — reads
+  `profiles.plan, trial_ends_at` server-side and returns `403 upgrade_required`
+  unless `plan === 'pro'` AND there is no active `trial_ends_at` window (the exact
+  `isPaidPro && !hasActiveTrial` condition from `usePlan.js`; the client shows an
+  upgrade prompt, not a Buy button, during the trial). Fails **closed** (a plan-read
+  error → `503`, deny) — unlike `enforceRateLimit`, which is a cost guard and fails
+  open. Wired into `alpaca-invest`, `alpaca-oauth-start`, and `alpaca-portfolio`
+  immediately after the auth check, before any side effect. Separately,
+  `stripe-webhook` now nulls `alpaca_access_token / alpaca_refresh_token /
+  alpaca_account_id / alpaca_connected_at` on every downgrade path
+  (`customer.subscription.deleted`, terminal `invoice.payment_failed`,
+  `customer.subscription.updated`→inactive), so a downgraded account can't retain
+  a live brokerage token even as defence-in-depth behind the new gate. Deployed
+  `alpaca-invest` v75→v76, `alpaca-oauth-start` v10→v11, `alpaca-portfolio`
+  v39→v40, `stripe-webhook` v53→v54 — all `verify_jwt:false` preserved, confirmed
+  via `list_edge_functions`.
+- **Live-verified 2026-09-02** (`scripts/test-alpaca-invest-plan-gate-6.4.mjs`,
+  disposable account, `profiles.plan`/`trial_ends_at` flipped via service-role SQL
+  between cases): `plan=free` → `403 upgrade_required` on `alpaca-invest`,
+  `alpaca-oauth-start`, `alpaca-portfolio`; `plan=pro` + `trial_ends_at` in the
+  future (active trial) → `403`; `plan=pro` + `trial_ends_at` null (real paid Pro)
+  with no token → `400 alpaca_not_connected` (gate passes cleanly, a genuine Pro is
+  not broken); `investments` rows written for the blocked calls: `0` (the gate
+  fires before the pending-row insert). Account deleted after.
+- **Recommendation:** none open. Alpaca-side token revocation (calling Alpaca's
+  `/oauth/revoke` on downgrade, not just nulling the columns) is a possible
+  further hardening step — not done, matches the existing "null the columns"
+  pattern `alpaca-invest` already uses for a stale token.
 
 ---
 
@@ -681,13 +725,18 @@ items, in priority order:
 1. **D4** — login-lockout-as-targeted-DoS not verified in depth.
 2. **I2** — `ai-chat` warm-isolate cross-request state leakage of
    `financialContext` (not just Sentry tags) not re-verified line-by-line.
-3. **T2, T3, E4** — three "confirm the obvious-seeming thing is actually true"
-   checks, not known gaps.
+3. **T2, T3** — two "confirm the obvious-seeming thing is actually true"
+   checks, not known gaps. (**E4** was the third — it turned out to be a real
+   HIGH gap, now fixed; see below.)
 4. **I4** — 18 functions on single-static-origin CORS: real, but already correctly
    triaged as a functionality gap, not a security hole.
 5. **R1** — no durable audit trail for successful account deletion (only failures
    are logged) — a genuine gap if compliance/support ever needs to answer "did
    this happen and when" after the row is gone.
+6. **6.3** (PENETRATION_TEST_PLAN) — signup has no rate limit / CAPTCHA; each
+   confirmed account gets a fresh per-user `ai-chat`/`get-insights` budget.
+   LOW-MEDIUM, mitigated by mandatory email confirmation. Finding only, no fix
+   applied yet.
 
 **Fixed since the initial pass:**
 - **E1** — `config.toml` now explicitly lists `check-bank-connection` and
@@ -705,6 +754,15 @@ items, in priority order:
   host allow-list (`push-notify` v57→v58), live-verified same day against a
   real webhook.site target (0 requests received, confirmed via its own
   request-log API) — see T7 for full detail.
+- **E4** — `alpaca-invest` / `alpaca-oauth-start` / `alpaca-portfolio` had **no
+  server-side plan check** — the Pro paywall on investing was client-only,
+  bypassable by any valid JWT (HIGH, real-money feature). Found by
+  PENETRATION_TEST_PLAN 6.4 (2026-09-02), fixed same day: new
+  `_shared/requirePaidPlan.ts` (fail-closed, mirrors `usePlan.js`) wired into all
+  three; `stripe-webhook` now also nulls the Alpaca token columns on every
+  downgrade path. Deployed (`alpaca-invest` v76, `alpaca-oauth-start` v11,
+  `alpaca-portfolio` v40, `stripe-webhook` v54), live-verified free/trial → 403
+  and real paid Pro → passes. See E4 for full detail.
 
 **E3** (column-level GRANT audit on the 4 post-2026-07-18 tables) was checked in
 full for this document, not left open — see E3 above. All 4 read line-by-line;
