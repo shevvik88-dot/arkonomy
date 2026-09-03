@@ -143,9 +143,23 @@ Deno.serve(async (req) => {
       const sub = event.data.object as Stripe.Subscription;
       const customerId = sub.customer as string;
 
+      // Downgrade AND cut the brokerage connection. alpaca-invest /
+      // alpaca-oauth-start / alpaca-portfolio now gate on plan (E4 fix), but
+      // a stored, still-valid Alpaca token on a now-free account is dead
+      // weight and a standing risk if any future code path forgets the gate
+      // — invalidate it the same way alpaca-invest does on a stale token
+      // (null the columns; no app path can use them after this).
+      // PENETRATION_TEST_PLAN.md 6.4.
       const { error } = await supabase
         .from('profiles')
-        .update({ plan: 'free', trial_ends_at: null })
+        .update({
+          plan: 'free',
+          trial_ends_at: null,
+          alpaca_access_token: null,
+          alpaca_refresh_token: null,
+          alpaca_account_id: null,
+          alpaca_connected_at: null,
+        })
         .eq('stripe_customer_id', customerId);
 
       if (error) console.error('Failed to downgrade profile:', error);
@@ -157,7 +171,13 @@ Deno.serve(async (req) => {
       if (invoice.next_payment_attempt === null) {
         const { error } = await supabase
           .from('profiles')
-          .update({ plan: 'free' })
+          .update({
+            plan: 'free',
+            alpaca_access_token: null,
+            alpaca_refresh_token: null,
+            alpaca_account_id: null,
+            alpaca_connected_at: null,
+          })
           .eq('stripe_customer_id', customerId);
         if (error) console.error('Failed to downgrade profile on payment failure:', error);
       }
@@ -166,10 +186,21 @@ Deno.serve(async (req) => {
     if (event.type === 'customer.subscription.updated') {
       const sub = event.data.object as Stripe.Subscription;
       const customerId = sub.customer as string;
-      const plan = sub.status === 'active' || sub.status === 'trialing' ? 'pro' : 'free';
+      const isActive = sub.status === 'active' || sub.status === 'trialing';
+      const plan = isActive ? 'pro' : 'free';
+      // Same brokerage-token teardown as the delete/payment-failed branches
+      // when this update is the one that drops the user to free.
+      const downgradeFields = isActive
+        ? {}
+        : {
+            alpaca_access_token: null,
+            alpaca_refresh_token: null,
+            alpaca_account_id: null,
+            alpaca_connected_at: null,
+          };
       const { error } = await supabase
         .from('profiles')
-        .update({ plan })
+        .update({ plan, ...downgradeFields })
         .eq('stripe_customer_id', customerId);
       if (error) console.error('Failed to sync subscription update:', error);
     }
