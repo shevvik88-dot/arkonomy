@@ -27,6 +27,7 @@
     "success_reset_sent": "Revisa tu correo para restablecer la contraseña.",
     "error_forgot_no_email": "Ingresa tu correo arriba y luego toca ¿Olvidaste tu contraseña?",
     "error_lockout": "Demasiados intentos fallidos. Inténtalo de nuevo en {{seconds}}s.",
+    "error_rate_limited": "Demasiados intentos desde tu red. Inténtalo de nuevo más tarde.",
     "error_security_check": "La verificación de seguridad falló. Recarga la página e inténtalo de nuevo.",
     "resend_confirmation": "Reenviar correo de confirmación",
     "email_sent": "¡Correo enviado!",

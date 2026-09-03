@@ -581,6 +581,47 @@ it stops being true."
   Not verified in depth for this document — the RPC internals
   (`check_login_lockout`) weren't read line-by-line here.
 
+### D5. Signup / confirmation-email resend — no rate limit — **Found + fixed 2026-09-02**
+- **Entry point:** account creation and confirmation-email resend. The client
+  used to call `supabase.auth.signUp()` / `supabase.auth.resend()` directly
+  against GoTrue — no app-side chokepoint, so nothing counted requests.
+- **Attack vector:** PENETRATION_TEST_PLAN.md 6.3. Live test: 20 back-to-back
+  `POST /auth/v1/signup` from one IP, one email domain → 20/20 `HTTP 200`, zero
+  `429`, no CAPTCHA, no delay. Each confirmed account then gets its own fresh
+  per-user `ai-chat` (20/hr) / `get-insights` (30/hr) budget —
+  `enforceRateLimit` (`_shared/rateLimit.ts`) keys only on `user_id`, no IP
+  component — so disposable-account farming multiplies free LLM usage, and the
+  resend endpoint is an open "send email to an arbitrary address" primitive.
+  Partly blunted by mandatory email confirmation (an unconfirmed account has no
+  usable session — `signInWithPassword` → `400 email_not_confirmed`), which
+  bounds the *rate* an attacker converts accounts but not the raw signup volume.
+- **Fix:** new `auth-signup` edge function (`verify_jwt:false`, mirrors
+  `auth-login`) — both signup and resend route through it; `AuthScreen.jsx`
+  calls it instead of the SDK. It resolves the caller IP the same way
+  `auth-login` does (`CF-Connecting-IP` → `X-Forwarded-For` fallback) and calls
+  `check_and_increment_ip_rate_limit` (new `ip_rate_limits` table +
+  `SECURITY DEFINER` RPC, `REVOKE`d from `anon`/`authenticated`, `GRANT`
+  `service_role` only — same lockdown as `check_and_increment_rate_limit`,
+  migration `20260902000000`) **before** proxying to GoTrue, so even
+  invalid-body spam counts. Limits: 10 signups / IP / hr, 5 resends / IP / hr,
+  1-hour rolling window. **Fail-open** (a cost/abuse guard, not access control —
+  matches `enforceRateLimit`). Real client IP is forwarded to GoTrue as
+  `X-Forwarded-For` so its own limiter and audit log see the true origin.
+  Deployed `auth-signup` v2; migration applied via `apply_migration`
+  (privileges confirmed by `has_function_privilege`).
+- **Live-verified 2026-09-02** (`scripts/test-signup-rate-limit-6.3.mjs` against
+  the deployed function): signup #1–10 → `200`, #11+ → `429` (first at exactly
+  #11); resend #1–5 → `200`, #6+ → `429` (first at #6); 429s return in ~200 ms,
+  before GoTrue is called. Disposable accounts + `ip_rate_limits` test rows
+  cleaned up after.
+- **Residual / recommendation:** the per-IP throttle stops single-source
+  scripted abuse, not a genuinely distributed one (botnet / proxy pool, one
+  account per IP) — the same structural limit as D4's `email::ip` lockout key.
+  A CAPTCHA (hCaptcha / Cloudflare Turnstile via Supabase Auth's built-in
+  setting + `gotrue_meta_security.captcha_token` in `auth-signup`'s upstream
+  call) is the complementary control for that case. Tracked as
+  PENETRATION_TEST_PLAN.md 6.6, **Deferred**.
+
 ---
 
 ## E — Elevation of Privilege

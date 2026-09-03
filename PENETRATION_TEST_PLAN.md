@@ -315,6 +315,14 @@ chaining actions across features to reach a state no single action would.
      financial detail into another user's AI conversation. Not testable
      until both halves are independently confirmed or ruled out — listed so
      it isn't lost track of once 6.1 and I2 are each individually resolved.
+6.6. **CAPTCHA on signup (follow-up to 6.3)**: the 6.3 fix (per-IP signup
+     throttle) stops single-source scripted abuse but not a genuinely
+     distributed one (botnet / proxy pool, one account per IP) — the same
+     structural limit as the `email::ip` login lockout (1.1). A CAPTCHA
+     (hCaptcha / Cloudflare Turnstile via Supabase Auth's built-in setting +
+     `gotrue_meta_security.captcha_token`) is the complementary control for
+     the distributed case. Deliberately **not** implemented with 6.3 —
+     tracked here as a standalone follow-up.
 
 ### Test Scenarios
 - **6.1** — repeat the FK-ownership-audit method from I6's fix (read every
@@ -346,9 +354,10 @@ chaining actions across features to reach a state no single action would.
 |---|---|---|---|---|
 | 6.1 Broader FK-ownership sweep | Not yet tested | — | — | — |
 | 6.2 Payment-flow-abandonment chain | **Tested 2026-08-17, re-verified 2026-08-19** | Same test as 3.3 confirms this chain concretely — see 3.3's result. | **HIGH → Closed** (same finding as 3.3) | **Fixed, live-verified** |
-| 6.3 Signup-abuse rate-limit bypass | Not yet tested | — | — | — |
+| 6.3 Signup-abuse rate-limit bypass | **Found 2026-09-02, fixed + live-verified 2026-09-02** | **Found:** signup was plain `supabase.auth.signUp()` (`AuthScreen.jsx:150`) — no wrapping edge function, no app-side throttle. Live proof (`scripts/test-signup-rate-limit-6.3.mjs`, initial form, against `/auth/v1/signup`): **20 back-to-back from one IP, one email domain — 20/20 HTTP 200, zero 429, no CAPTCHA, no escalating delay.** Corollary confirmed by code: `enforceRateLimit(userId, fn)` (`_shared/rateLimit.ts:41`) keys **only** on `user_id`, so every confirmed account = a fresh `ai-chat` 20/hr + `get-insights` 30/hr budget. Pre-existing partial mitigation: email confirmation is enforced on the session path (`signInWithPassword` on an unconfirmed account → `400 email_not_confirmed`). **Fix:** new `auth-signup` edge function (`verify_jwt:false`, mirrors `auth-login`) — both signup and confirmation-email **resend** now route through it; `AuthScreen.jsx` calls it instead of the SDK. It resolves the caller IP (`CF-Connecting-IP` → `X-Forwarded-For` fallback, same as `auth-login`) and calls `check_and_increment_ip_rate_limit` (new `ip_rate_limits` table + `SECURITY DEFINER` RPC, `REVOKE`d from anon/authenticated, migration `20260902000000`) **before** proxying to GoTrue — every attempt counts, including invalid-body ones. Limits: **10 signups / IP / hour, 5 resends / IP / hour**, 1-hour rolling window. **Fail-open** (matches `enforceRateLimit`). Real client IP forwarded to GoTrue as `X-Forwarded-For`. **Deployed:** `auth-signup` v2; migration applied via `apply_migration` (RPC confirmed `SECURITY DEFINER`; `anon`/`authenticated` `EXECUTE` = false, `service_role` = true; RLS on `ip_rate_limits`, no policies). **Live-verified** (`scripts/test-signup-rate-limit-6.3.mjs` against the deployed function): signup #1–10 → `200`, #11+ → `429` (first 429 at exactly #11); resend #1–5 → `200`, #6+ → `429` (first at #6); 429s short-circuit in ~200 ms, before GoTrue. 10 disposable accounts + `ip_rate_limits` test rows cleaned up after. | **LOW-MEDIUM → Closed** for the single-source case. Distributed abuse (one account per IP) remains — see 6.6. | **Fixed, live-verified** (`auth-signup`, `_shared/ipRateLimit.ts`, `ip_rate_limits` migration, `AuthScreen.jsx`, `config.toml`) |
 | 6.4 Plan-downgrade race chain | Not yet tested | — | — | — |
 | 6.5 Compounding I2+I6-pattern chain | Blocked on I2/6.1 individually | — | — | — |
+| 6.6 CAPTCHA on signup (follow-up to 6.3) | Not started | Complementary control for the distributed-abuse case the per-IP 6.3 throttle doesn't cover (botnet / proxy pool, one account per IP). hCaptcha / Cloudflare Turnstile via Supabase Auth's built-in setting + `gotrue_meta_security.captcha_token` in `auth-signup`'s upstream call. | LOW (residual after 6.3) | **Deferred** — intentionally out of scope for the 6.3 fix; revisit if distributed signup abuse is observed |
 
 ---
 
