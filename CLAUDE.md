@@ -51,6 +51,7 @@
 
 * Test user UUID: `90eb11c3-c1e9-4241-8362-9e15ce231c33`
 * Never run destructive migrations without showing the SQL first.
+* Wrap any standalone ADD CONSTRAINT or CREATE INDEX for an object already declared inline in a CREATE TABLE in an existence check (pg_constraint / pg_class lookup or IF NOT EXISTS).
 * RLS policies must be verified after any schema change.
 * See docs/security-log.md before touching auth, RLS, payment, or race-condition-sensitive code.
 * Edge functions deploy via `supabase functions deploy <name>`.
