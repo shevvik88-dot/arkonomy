@@ -14,8 +14,10 @@
 //   { type: "chart",  symbol: "AAPL", period: "1D"|"1W"|"1M"|"1Y" }
 //   { type: "stats",  symbol: "AAPL" }
 //   { type: "search", query:  "apple" }
+//   { type: "logos",  symbols: ["AAPL", "TSLA"] }  — logo URL only, batched, long-cached (see _shared/logoCache.ts)
 
 import { getMarketSnapshot } from '../_shared/marketSnapshot.ts';
+import { getLogos } from '../_shared/logoCache.ts';
 import { enforceRateLimit } from '../_shared/rateLimit.ts';
 
 // Same allow-list pattern as auth-login/check-bank-connection — preview
@@ -215,11 +217,23 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { type, symbol, period, query } = body as {
-      type?: string; symbol?: string; period?: string; query?: string;
+    const { type, symbol, period, query, symbols } = body as {
+      type?: string; symbol?: string; period?: string; query?: string; symbols?: unknown;
     };
     reqType = type;
     reqSymbol = symbol;
+
+    // ── LOGOS (batched, long-cached — see _shared/logoCache.ts) ───────────────
+    if (type === 'logos') {
+      if (!key) return noKey();
+      const list = (Array.isArray(symbols) ? symbols : [])
+        .filter((s): s is string => typeof s === 'string' && s.length > 0)
+        .slice(0, 25); // Holdings list is small; a hard cap keeps one malformed/abusive request from fanning out into dozens of Finnhub calls at once.
+      const logos = list.length > 0 ? await getLogos(list, key) : {};
+      return new Response(JSON.stringify({ logos }), {
+        headers: { ...CORS, 'Content-Type': 'application/json' },
+      });
+    }
 
     // ── OVERVIEW ──────────────────────────────────────────────────────────────
     if (type === 'overview') {
