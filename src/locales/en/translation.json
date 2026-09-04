@@ -69,6 +69,8 @@
     "card_question_cash_flow": "Am I on track to have enough by the end of the month?",
     "card_question_next_up": "Can I afford the upcoming {{merchant}} charge on {{date}}?",
     "view_full_month": "View full month",
+    "calendar_legend_bill": "Bill",
+    "calendar_legend_income": "Income",
     "show_less": "Show less",
     "balance_short": "Balance",
     "end_of_month_short": "End of month",
