@@ -271,9 +271,9 @@ tracking:
 ### Status
 | Requirement | Verified | Result | Severity | Fix status |
 |---|---|---|---|---|
-| 5.1 Leak-response runbook written | Not yet written | — | — | — |
-| 5.2 Scope-assessment checklist (Sentry/Supabase logs) | Not yet written | — | — | — |
-| 5.3 Per-credential-type rotation order | Not yet written | — | — | — |
+| 5.1 Leak-response runbook written | **Done 2026-09-03** | `INCIDENT_RESPONSE.md` §2.A ("Secret / credential leak"), generalized from the I7 response — decode-the-JWT step with the real decoded payload, the live-API test against `/auth/v1/admin/users` (key as both `apikey` and `Bearer`), the real `401 "Legacy API keys are disabled"` rejection body + exposure-window math, and the Dashboard "JWT Signing Keys vs API Keys legacy toggle" gotcha. Also §0 (first 15 min), §1 (classification of all 4 incident types), §2.C (the T7/I6/E4 "fix-and-prove-it-deployed" pattern). | N/A (deliverable is the doc) | **Written** — `INCIDENT_RESPONSE.md` |
+| 5.2 Scope-assessment checklist (Sentry/Supabase logs) | **Done 2026-09-03** | `INCIDENT_RESPONSE.md` — each checklist's "Assess scope" phase: `mcp__supabase__get_logs`/`query_logs`/`get_advisors`, direct SQL "state that shouldn't have changed in the window" queries, per-vulnerability data fingerprint queries (T7's non-vendor `push_subscription.endpoint`, I6's cross-user `goal_id`), and the explicit **Sentry access gap** (no API/MCP this project — scope assessment is manual in the dashboard, and `_shared/sentry.ts` scrubs value fields so pivot to Supabase logs / DB rows, per R3). §2.D is the dedicated "suspicious activity, no root cause yet" flow. | N/A | **Written** — `INCIDENT_RESPONSE.md` §2.A.3 / §2.B.2 / §2.C.2 / §2.D |
+| 5.3 Per-credential-type rotation order | **Done 2026-09-03** | `INCIDENT_RESPONSE.md` §2.A.4 — a table covering Supabase `service_role` / `anon`-publishable / JWT signing key, Stripe secret + webhook secret, Plaid secret, Alpaca client secret, VAPID, Firebase API key, and the independent keys (Finnhub / Resend / Anthropic / Sentry DSN): where to rotate, what breaks during the gap, what to update/redeploy after, and the ordering constraints (webhook secret first among Stripe items; roll→deploy→verify→*then* revoke old Stripe key; `service_role` before anything else; Plaid Production-approval caveat). Plus the "confirm the new value is actually live via `list_edge_functions` / `get_edge_function`, not the deploy CLI message" step. | N/A | **Written** — `INCIDENT_RESPONSE.md` §2.A.4 |
 
 ---
 
