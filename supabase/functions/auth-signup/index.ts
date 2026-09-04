@@ -32,7 +32,7 @@ function resolveCorsHeaders(req: Request) {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-Deno.serve(async (req) => {
+Deno.serve(async (req, info) => {
   const corsHeaders = resolveCorsHeaders(req);
   function json(body: unknown, status = 200) {
     return new Response(JSON.stringify(body), {
@@ -59,10 +59,28 @@ Deno.serve(async (req) => {
     const password = typeof body.password === "string" ? body.password : "";
     const fullName = typeof body.full_name === "string" ? body.full_name : "";
 
-    const ip =
-      req.headers.get("CF-Connecting-IP") ||
-      (req.headers.get("X-Forwarded-For") ?? "").split(",")[0].trim() ||
-      "unknown";
+    // Trusted client-IP resolution. `CF-Connecting-IP` is set authoritatively
+    // by Cloudflare (which fronts *.supabase.co) and cannot be spoofed by the
+    // client (PENETRATION_TEST_PLAN.md 1.1).
+    //
+    // We deliberately do NOT fall back to a client-controlled header:
+    // `X-Forwarded-For` is fully attacker-set (a client can prepend a forged
+    // leftmost value to the infra-added chain), so keying the rate limit on
+    // it would hand an attacker a fresh 10-signup bucket per forged value
+    // (background security review, 2026-09-03). If `CF-Connecting-IP` is ever
+    // absent, fall back to the runtime peer address (`info.remoteAddr` — a
+    // socket property, not a header, never attacker-controlled) and finally a
+    // shared "unknown" bucket. Verified live 2026-09-03: `CF-Connecting-IP`
+    // is present on every real request to this function (Cloudflare fronts
+    // *.supabase.co and injects it; a forged one is rejected at the CF WAF
+    // with a 403 before reaching origin), and `info.remoteAddr.hostname` on
+    // Supabase Edge Runtime is an internal address (e.g. 0.0.0.0), so the
+    // fallback is a single conservative shared bucket that is unreachable in
+    // practice — an acceptable failure mode for an abuse guard.
+    const cfIp = req.headers.get("CF-Connecting-IP")?.trim() || "";
+    // deno-lint-ignore no-explicit-any
+    const peerHost = ((info as any)?.remoteAddr?.hostname ?? "").trim();
+    const ip = cfIp || peerHost || "unknown";
 
     // IP rate limit BEFORE anything reaches GoTrue — the counter increments
     // on every call, so even invalid-field spam counts toward the limit.
@@ -86,14 +104,15 @@ Deno.serve(async (req) => {
         };
 
     // Forward the real client IP so GoTrue's own limiter and audit log see
-    // the actual origin, not the single shared edge-infra IP that every
-    // request would otherwise carry. Only when we actually resolved one —
-    // never forward the literal "unknown".
+    // the actual origin. Forward ONLY the trusted `CF-Connecting-IP` value —
+    // never echo a client-supplied `X-Forwarded-For` / peer-fallback into
+    // GoTrue's rate limiter, or an attacker rotating that header would
+    // bypass GoTrue's throttle too.
     const upstreamHeaders: Record<string, string> = {
       "Content-Type": "application/json",
       apikey: ANON_KEY,
     };
-    if (ip !== "unknown") upstreamHeaders["X-Forwarded-For"] = ip;
+    if (cfIp) upstreamHeaders["X-Forwarded-For"] = cfIp;
 
     const upstream = await fetch(
       `${SUPABASE_URL}/auth/v1/${upstreamPath}?redirect_to=${encodeURIComponent(PROD_ORIGIN)}`,
