@@ -170,14 +170,20 @@ function GoalCard({ sv, onDelete, onEdit, onUpdate, totalIncome, totalSpent, tra
           </div>
         </div>
         <div style={{ display: "flex", gap: 4 }}>
+          {/* Bug fix (2026-09-02): both buttons rendered as an identical "$"
+              — Icon.jsx has no "arrow-up-right" or "edit-3" entry, so
+              icons[name] || icons["dollar"] silently fell back to the same
+              glyph for both, masking two genuinely different actions.
+              "plus" and "edit" already exist in Icon.jsx's own map; this is
+              a name fix only, openMoveMoney/setShowEdit behavior unchanged. */}
           <button onClick={openMoveMoney} style={{ background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-            <Icon name="arrow-up-right" size={16} color={DC.gold} />
+            <Icon name="plus" size={16} color={DC.gold} strokeWidth={2.5} />
           </button>
           <button onClick={openReminderDirectly} style={{ background: reminder ? DC.gold + "18" : DC.card, border: `1px solid ${reminder ? DC.gold + "44" : `${DC.faint}33`}`, borderRadius: RADIUS.sm, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
             <Icon name="bell" size={15} color={reminder ? DC.gold : DC.muted} />
           </button>
           <button onClick={() => setShowEdit(true)} style={{ background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-            <Icon name="edit-3" size={15} color={DC.muted} />
+            <Icon name="edit" size={15} color={DC.muted} />
           </button>
         </div>
       </div>
@@ -616,20 +622,36 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
           <div style={{ fontSize: 11, fontWeight: 700, color: DC.muted, letterSpacing: 1, marginBottom: 8 }}>
             {t("savings.asset_allocation").toUpperCase()}
           </div>
-          <div className="ph-mask" style={{ fontSize: 34, fontWeight: 800, color: DC.text, letterSpacing: -0.5, marginBottom: 2 }}>
+          <div className="ph-mask" style={{ fontSize: 34, fontWeight: 800, color: (!cashLoading && netWorth < 0) ? DC.ruby : DC.text, letterSpacing: -0.5, marginBottom: 2 }}>
             {/* netWorth is built from cashTotal, which is a false 0 during
                 cashLoading (see cashLoading's own comment above) — showing
                 it as-is would just move the same flash from the tile below
                 up into the headline number instead of fixing it. */}
-            {cashLoading ? "···" : fmtMoney(netWorth)}
+            {/* Sign fix (2026-09-02): fmtMoney defaults to Math.abs() with no
+                sign shown — a genuinely negative net worth (debt exceeding
+                cash+investments+savings) was rendering as a plain positive
+                number, actively telling the user the opposite of their real
+                financial position. sign:true + ruby-when-negative matches
+                how the rest of the app already flags shortfalls (e.g. the
+                coach card's "$47 short"). */}
+            {cashLoading ? "···" : fmtMoney(netWorth, true)}
           </div>
           <div style={{ fontSize: 12, color: DC.muted, marginBottom: 18 }}>{t("savings.net_worth")}</div>
 
           {/* Segmented bar — denominated in gross assets (cash+investments+
               savings), not net worth: there's no debt tile in this bar, so
               dividing by net worth would make percentages go negative or
-              over 100% whenever there's any credit card debt. */}
-          <div style={{ height: 8, borderRadius: RADIUS.full, overflow: "hidden", display: "flex", gap: 2, marginBottom: 20 }}>
+              over 100% whenever there's any credit card debt.
+
+              Color fix (2026-09-02): each segment already pulled its color
+              from the same ASSET_TILES.color the chips below use — never
+              actually a separate gradient — but the 2px gap had no explicit
+              background, so it inherited the surrounding transparency and
+              was barely visible, making two adjacent hues (blue/green) read
+              as one smooth blend instead of distinct, chip-matching blocks.
+              Explicit DC.bg fill + a slightly wider gap makes the boundary
+              actually visible. */}
+          <div style={{ height: 8, borderRadius: RADIUS.full, overflow: "hidden", display: "flex", gap: 3, marginBottom: 20, background: DC.bg }}>
             {ASSET_TILES.filter(r => r.amount > 0 && !r.loading).map(r => {
               const pct = Math.round((r.amount / grossAssets) * 100);
               return <div key={r.key} style={{ flex: pct, background: r.color, height: "100%" }} />;
@@ -652,6 +674,26 @@ export default function Savings({ savings = [], onAdd, onUpdate, onEdit, onDelet
               );
             })}
           </div>
+
+          {/* Debt line (2026-09-02): the only subtraction in
+              calculateNetWorth() with no visible line item anywhere on this
+              screen — cash/stocks/crypto/savings all summed to grossAssets
+              right above, then debt silently vanished into the headline
+              number, making a correct subtraction look like a math error.
+              Kept out of the percentage-of-grossAssets grid above on
+              purpose: debt isn't a slice of gross assets, it's a deduction
+              from them, so a "% of assets" badge next to it would itself be
+              misleading. */}
+          {creditDebt > 0 && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTop: `1px solid ${DC.faint}22` }}>
+              <span style={{ fontSize: 12, color: DC.muted, fontWeight: 600 }}>{t("savings.credit_card_debt")}</span>
+              {/* creditDebt itself is a positive magnitude (amount owed, not
+                  a signed contribution to net worth) — negate before
+                  fmtMoney's sign:true so this reads as the deduction it
+                  actually is ("−$444.41"), not "+$444.41". */}
+              <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.ruby }}>{fmtMoney(-creditDebt, true)}</span>
+            </div>
+          )}
         </GlassCard>
       )}
 

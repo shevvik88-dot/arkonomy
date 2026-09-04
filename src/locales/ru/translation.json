@@ -488,6 +488,7 @@
   "savings": {
     "asset_allocation": "Распределение активов",
     "net_worth": "чистая стоимость",
+    "credit_card_debt": "Долг по кредитной карте",
     "cash": "Наличные",
     "stocks": "Акции",
     "crypto": "Крипто",

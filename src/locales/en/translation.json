@@ -477,6 +477,7 @@
   "savings": {
     "asset_allocation": "Asset Allocation",
     "net_worth": "net worth",
+    "credit_card_debt": "Credit card debt",
     "cash": "Cash",
     "stocks": "Stocks",
     "crypto": "Crypto",
