@@ -318,6 +318,14 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
   const catColor    = CAT_COLORS[t.category_name] || DC.gold;
   const catIcon     = isIncome ? "dollar" : (CAT_ICONS_MAP[t.category_name] || "credit");
   const displayName = normalizeTxName(t);
+  // True when normalizeTxName had no usable merchant description to work
+  // with and fell back to the category itself as the row's title (a real
+  // "Plaid gave us nothing more specific" case, not a display bug —
+  // confirmed 2026-08-29: there is no separate subcategory field anywhere
+  // in this app's data model, `category_name` is the only value either
+  // line ever reads). Showing that same category again in the subtitle
+  // line right below reads as "Income · Income" for exactly this reason.
+  const titleIsJustCategory = displayName === (t.category_name || "").trim() && !!(t.category_name || "").trim();
 
   function resetSwipe() {
     if (!rowRef.current) return;
@@ -409,9 +417,20 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
         <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
           <div style={{ fontSize: 14, fontWeight: 500, color: DC.text, letterSpacing: -0.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{displayName}</div>
           <div style={{ fontSize: 11, color: DC.faint, marginTop: 2, display: "flex", alignItems: "center", gap: 4, overflow: "hidden", fontFamily: FONT }}>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1 }}>{tCat(t.category_name || guessCategory(t.description, t.type) || "Other", i18t)} · {fmtDate(t.date)}</span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1 }}>
+              {titleIsJustCategory ? fmtDate(t.date) : `${tCat(t.category_name || guessCategory(t.description, t.type) || "Other", i18t)} · ${fmtDate(t.date)}`}
+            </span>
             {t.pending && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: DC.gold, background: DC.gold + "26", padding: "1px 5px", borderRadius: RADIUS.xs, flexShrink: 0 }}>
+              // Softened 2026-08-29 (external design feedback) — was a
+              // solid-fill DC.gold+"26" chip (bold 700-weight text on a
+              // ~15%-opacity fill), which read as louder than everything
+              // around it despite DC.gold itself not being a saturated
+              // color. Switched to the lighter bordered-chip treatment
+              // already used elsewhere in this same file for informational
+              // gold accents (e.g. the inline banners at lines ~567/615) —
+              // lower-opacity fill + a thin border instead of relying on
+              // fill density alone, plus 600 instead of 700 weight.
+              <span style={{ fontSize: 10, fontWeight: 600, color: DC.gold, background: DC.gold + "12", border: `1px solid ${DC.gold}33`, padding: "1px 5px", borderRadius: RADIUS.xs, flexShrink: 0 }}>
                 {i18t("transactions.pending")}
               </span>
             )}
