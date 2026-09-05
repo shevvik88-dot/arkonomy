@@ -48,6 +48,19 @@ export function isRealExpense(t) {
   return t.type === 'expense' && !isTransferCategory(t);
 }
 
+// Mirror of isRealExpense for the income side. A credit that is still
+// Zelle/Venmo by description — or whose category_name is 'Transfer'/
+// 'Transfers' — is money movement, not earnings: an incoming P2P payment,
+// or the receiving leg of a transfer between the user's own accounts.
+// Counting it as income inflated every income-derived figure (Net / "left
+// after spending", savings rate, health score) and made a same-user
+// transfer read as a net gain that never happened. The expense side already
+// excluded the sending leg via isRealExpense, so without this the two sides
+// were asymmetric (self-transfer / incoming-P2P investigation, 2026-09-03).
+export function isRealIncome(t) {
+  return t.type === 'income' && !isTransferCategory(t);
+}
+
 // ── Net Worth — single source of truth ───────────────────────────────────────
 // Budget/overspending-signals investigation, Step 2.5 (2026-08-27): Dashboard
 // and Savings both showed a number labeled "Net Worth" for the same account,
