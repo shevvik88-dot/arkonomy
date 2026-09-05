@@ -130,6 +130,18 @@ sample-size mistake in the original test, corrected the same day — see the
 table row above and `SECURITY_THREAT_MODEL.md`'s S5 for the full write-up.
 No action item remains open here.
 
+**Shipped, 2026-09-05:** the fix above was written and live-verified
+2026-08-27 on a feature branch (`security/password-change-and-s5`) that sat
+unmerged and un-PR'd for over a week — found during a repo-wide branch audit,
+not by design. Rebased onto `main` (62 commits behind at that point), 2
+trivial doc-only conflicts resolved by keeping both sides' content (this
+file's 1.1 row, `SECURITY_THREAT_MODEL.md`'s E4/S5 bullets), re-verified live
+against the real Supabase project on a fresh disposable account
+(`scripts/test-password-change-post-rebase-2026-09-05.mjs`: change password
+→ 200, sign in with the new password → 200, sign in with the old password →
+400) — merged via PR #81. The fix was live-verified correct for over a week
+before actually reaching real users.
+
 ---
 
 ## 2. SSRF (Server-Side Request Forgery)
@@ -278,8 +290,8 @@ No action item remains open here.
 ### Status
 | Requirement | Verified | Result | Severity | Fix status |
 |---|---|---|---|---|
-| 4.1 Tests for all 4 race-condition fixes | Not yet tested | — | — | — |
-| 4.2 Framework decision | Not yet decided | — | — | — |
+| 4.1 Tests for all 4 race-condition fixes | **Delivered 2026-09-04 (PR #79), status corrected 2026-09-05 — this table was never updated when the harness landed, same stale-doc class this document already warns about** | `supabase/functions/_test/` (Deno test files, `_helpers/setup.ts` + `fixtures.sql` for a local-stack disposable-user harness, `_helpers/fakeFetch.ts` intercepts Alpaca/Plaid/Stripe so no real broker/bank/payment call is ever made). **3 of the 4 required fixes are covered**: `alpaca-invest.test.ts` (FINDING-A pending-row dedup, plus plan gate + validation + stale-token teardown), `stripe-webhook.test.ts` (FINDING-B `event_id` idempotency, plus signature verification + subscription lifecycle), `plaid-sync.test.ts` (FINDING-E cursor compare-and-swap, plus service-role gate + category mapping). Bonus, not one of the original 4: `requirePaidPlan.test.ts` (E4 / 6.4's paid-Pro gate). **1 of the 4 is still missing: `stripe-checkout`'s `checkout_pending_at` guard (FINDING-C) has no test file** — confirmed by listing `supabase/functions/_test/` on `main`, no `stripe-checkout.test.ts` exists. Also open per the harness's own README TODO: `npm run test:edge` isn't wired into CI yet (no `.github/workflows/` step), and `plaid-sync.test.ts` doesn't cover the `linkIntraUserTransfers` self-transfer matcher added separately. | **Partial.** The 3 covered fixes have real regression protection; FINDING-C (a real, already-shipped race-condition fix) has none — a future refactor could silently reintroduce it with nothing catching it. | **Partially done** — `stripe-checkout.test.ts` for FINDING-C, and CI wiring, are the two concrete remaining gaps |
+| 4.2 Framework decision | **Decided and delivered 2026-09-04 (PR #79)** | Went with **Deno's own test runner** (`deno test`, via `npm run test:edge`), not live HTTP integration scripts — matches the actual code (Deno edge functions) without needing to shim `Deno.serve`/`Deno.env`/`https://esm.sh/...` imports the way Vitest would've required. Tests run against the local Supabase stack (`npx supabase start` first), not deployed functions, so they're free to run repeatedly and don't touch prod. | None | N/A — decision made, harness exists |
 
 ---
 
