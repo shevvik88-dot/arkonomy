@@ -43,7 +43,7 @@
     "eslint": "^10.9.0",
     "eslint-import-resolver-node": "^0.4.0",
     "eslint-plugin-import-x": "^4.17.1",
-    "pdfkit": "^0.19.1",
+    "pdfkit": "^0.20.1",
     "playwright": "^1.62.1",
     "sharp": "^0.35.2",
     "supabase": "^2.115.0",
