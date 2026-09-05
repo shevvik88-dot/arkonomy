@@ -11,7 +11,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-Deno.serve(async (req) => {
+export async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -85,13 +85,21 @@ Deno.serve(async (req) => {
     // this, two near-simultaneous checkout attempts (double tab, double
     // click before redirect) both pass the check above and both get a
     // valid session.
-    const { data: lockedProfile, error: lockErr } = await supabase
+    // Detect "did this UPDATE win the lock" via the affected-row count, not
+    // a returned row. The .or() filter is on checkout_pending_at itself, and
+    // the UPDATE sets that column — so `return=representation` can't be used
+    // to tell acquisition from rejection: PostgREST 14 re-applies the filter
+    // to the returned rows, and the just-written `now()` value no longer
+    // satisfies `IS NULL OR < (now - 15m)`, so the representation comes back
+    // empty even on a successful lock (and older PostgREST 42703s outright
+    // when a filtered column is absent from the select list). `count: 'exact'`
+    // reflects the UPDATE's own WHERE: 1 = we acquired it, 0 = someone else
+    // holds a fresh lock.
+    const { count: lockAcquired, error: lockErr } = await supabase
       .from('profiles')
-      .update({ checkout_pending_at: new Date().toISOString() })
+      .update({ checkout_pending_at: new Date().toISOString() }, { count: 'exact' })
       .eq('id', user.id)
-      .or('checkout_pending_at.is.null,checkout_pending_at.lt.' + new Date(Date.now() - 15 * 60 * 1000).toISOString())
-      .select('id')
-      .maybeSingle();
+      .or('checkout_pending_at.is.null,checkout_pending_at.lt.' + new Date(Date.now() - 15 * 60 * 1000).toISOString());
 
     if (lockErr) {
       console.error('stripe-checkout: checkout_pending_at check failed:', lockErr);
@@ -101,7 +109,7 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    if (!lockedProfile) {
+    if (!lockAcquired) {
       return new Response(JSON.stringify({
         error: 'A checkout is already in progress. Please finish or cancel it before starting another.',
       }), {
@@ -155,4 +163,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-});
+}
+
+// Serve unless imported by the edge-function test harness, which sets
+// ARK_EDGE_TEST and calls handler() directly. Unset in prod — serves normally.
+if (!Deno.env.get('ARK_EDGE_TEST')) Deno.serve(handler);
