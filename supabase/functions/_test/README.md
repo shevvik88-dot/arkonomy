@@ -39,3 +39,17 @@ disposable auth users on the local stack and fake the external APIs
 - Wire `npm run test:edge` into CI (`.github/workflows/`) with a
   `supabase start` step. Deliberately out of scope for the PR that added
   these tests; tracked as a separate change.
+- `plaid-sync.test.ts` doesn't yet cover `linkIntraUserTransfers` (the
+  confirmation-token self-transfer matcher added separately, self-transfer /
+  incoming-P2P investigation, 2026-09-03) — only the Zelle/Venmo
+  description-override path is exercised. No `plaid_accounts.type`
+  (depository/credit) fixture support exists yet either, which that
+  matcher's tagging rule depends on. Accepted gap, not a blocker for this
+  PR; add coverage in a follow-up.
+- `_helpers/fixtures.sql`'s compensating `GRANT` works around a real gap:
+  a from-scratch `supabase db reset` leaves `service_role` with no table
+  privileges at all, because production's
+  `GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role`
+  was applied out-of-band and no migration ever re-asserts it. That's a
+  replay-correctness bug independent of this test harness — tracked in
+  BACKLOG.md, not fixed here (this file only unblocks the local tests).
