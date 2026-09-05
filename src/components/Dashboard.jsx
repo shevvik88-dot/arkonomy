@@ -18,7 +18,6 @@ import { getTodaysLesson, getPersonalizedLessonNote, computeNextStreak } from '.
 import { getCardQuestion } from '../utils/cardQuestions';
 import { useLongPress } from '../hooks/useLongPress';
 import { BUFFER, isTransferCategory, calculateNetWorth } from "../shared/financialConstants";
-import { AccordionSection } from "./Profile";
 
 
 // ─── Health Score Gauge ──────────────────────────────────────────────────────
@@ -1331,6 +1330,14 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   // button could still look broken on taller viewports.
   const creditCardsRef = useRef(null);
   const [creditCardsHighlight, setCreditCardsHighlight] = useState(false);
+  // >2 cards: first 2 shown, rest behind an inline "Show N more" toggle
+  // (replaces the old AccordionSection). The coach card's "Review Credit
+  // Cards" CTA force-expands via the highlight flag below so it still
+  // reveals every card, not just the top 2.
+  const [creditCardsExpanded, setCreditCardsExpanded] = useState(false);
+  useEffect(() => {
+    if (creditCardsHighlight) setCreditCardsExpanded(true);
+  }, [creditCardsHighlight]);
   function scrollToCreditCards() {
     creditCardsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     setCreditCardsHighlight(true);
@@ -1402,8 +1409,8 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   }, [alpacaConnected]);
   // Hottest cards first (highest utilization) — cards with no computable
   // utilization (institution didn't return balance_available) sort last.
-  // Shared by the compact Dashboard card and the AccordionSection body
-  // when there are more than 2 (see item 3 in the main render below).
+  // Drives both the visible top-2 and the "Show N more" order (see item 3
+  // in the main render below).
   const sortedCreditAccounts = [...creditAccounts].sort((a, b) => {
     const pa = creditUtilization(a), pb = creditUtilization(b);
     if (pa == null && pb == null) return 0;
@@ -1707,10 +1714,9 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         );
       })()}
 
-      {/* 3 ── Credit Cards — compact single-line-per-card, collapsible via
-          Settings' AccordionSection once there are more than 2 (replaces
-          the old top-3 + "+N more" modal sheet — the accordion already
-          reveals everything on expand, no separate sheet needed). */}
+      {/* 3 ── Credit Cards — compact single-line-per-card. With more than 2
+          cards the top 2 (highest utilization) stay visible and the rest
+          collapse behind an inline "Show N more" toggle. */}
       {creditAccounts.length > 0 && (() => {
         const totalDebt = sumCreditDebt(creditAccounts);
         // Step 2.5 (2026-08-27): was accountBalance - totalDebt (cash minus
@@ -1736,6 +1742,10 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         // regardless of what the coach card currently says.
         const cardRow = (a, i) => (
           <div key={a.account_id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: i === 0 ? 0 : "8px 0 0" }}>
+            {/* Generic card glyph — Plaid /accounts/get returns no institution
+                logo, and plaid-get-accounts only stores institution_name, so
+                there's nothing bank-specific to show here. */}
+            <Icon name="credit" size={14} color={DC.faint} />
             <span className="ph-mask" style={{ fontSize: 13, color: DC.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creditCardLabel(a)}</span>
             <span className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: DC.text }}>{m(Number(a.balance_current ?? 0))}</span>
             <span style={{ fontSize: 11, fontWeight: 700, color: utilColorDC(creditUtilization(a)), minWidth: 34, textAlign: "right" }}>{(() => { const p = creditUtilization(a); return p != null ? `${Math.round(p * 100)}%` : "—"; })()}</span>
@@ -1762,35 +1772,38 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.credit_cards_title")}</span>
         );
 
-        // 2 or fewer: shown directly, no accordion, and — production bug
-        // found 2026-08-28 — a single card skips the generic "Credit
-        // Cards: $total" header entirely instead of duplicating that
-        // one card's own row below it (the previous "exactly 1 card"
-        // branch was accidentally left as the old pre-redesign block,
-        // full name + separate UTILIZATION/Net Worth lines, never
-        // updated to the compact cardRow format below) — but still gets
-        // the plain label above it, same as every other section. More
-        // than 2: collapsed by default behind the same AccordionSection
-        // Settings uses (Profile.jsx) — forced open when reached via the
-        // coach card's "Review Credit Cards" CTA (creditCardsHighlight)
-        // so that CTA actually reveals every card, not just a flash on
-        // an already-collapsed summary.
-        if (sortedCreditAccounts.length <= 2) {
-          return (
-            <div ref={creditCardsRef} {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", outline: creditCardsHighlight ? `2px solid ${DC.gold}` : "2px solid transparent", outlineOffset: 2, transition: "outline-color 0.3s", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
-              {sortedCreditAccounts.length > 1 ? header : <div style={{ marginBottom: 8 }}>{plainLabel}</div>}
-              <div style={{ marginTop: sortedCreditAccounts.length > 1 ? (netWorthLabel ? 10 : 8) : 0 }}>
-                {sortedCreditAccounts.map(cardRow)}
-              </div>
-            </div>
-          );
-        }
+        // Single unified card (replaces the old ≤2 plain-card / >2
+        // AccordionSection split). 1 card skips the "Credit Cards: $total"
+        // header to avoid duplicating that one card's own row — production
+        // bug found 2026-08-28 — but still gets the plain section label,
+        // same as every other Dashboard section. With more than 2 cards
+        // only the top 2 (highest utilization) show; the rest sit behind
+        // an inline "Show N more" toggle. The coach card's "Review Credit
+        // Cards" CTA force-expands via creditCardsHighlight so it reveals
+        // every card, not just a flash on the collapsed summary.
+        const hasToggle = sortedCreditAccounts.length > 2;
+        const visibleCards = hasToggle && !creditCardsExpanded
+          ? sortedCreditAccounts.slice(0, 2)
+          : sortedCreditAccounts;
+        const hiddenCount = sortedCreditAccounts.length - visibleCards.length;
 
         return (
-          <div ref={creditCardsRef} {...creditCardsLongPress} style={{ userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
-            <AccordionSection header={header} borderColor={creditCardsHighlight ? DC.gold : undefined} forceExpanded={creditCardsHighlight}>
-              {sortedCreditAccounts.map(cardRow)}
-            </AccordionSection>
+          <div ref={creditCardsRef} {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", outline: creditCardsHighlight ? `2px solid ${DC.gold}` : "2px solid transparent", outlineOffset: 2, transition: "outline-color 0.3s", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
+            {sortedCreditAccounts.length > 1 ? header : <div style={{ marginBottom: 8 }}>{plainLabel}</div>}
+            <div style={{ marginTop: sortedCreditAccounts.length > 1 ? (netWorthLabel ? 10 : 8) : 0 }}>
+              {visibleCards.map(cardRow)}
+              {hasToggle && (
+                <button
+                  onClick={() => setCreditCardsExpanded(v => !v)}
+                  style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", background: "none", border: "none", padding: "10px 0 0", cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold }}
+                >
+                  <span>{creditCardsExpanded ? t("dashboard.credit_cards_show_less") : t("dashboard.credit_cards_show_more", { count: hiddenCount })}</span>
+                  <span style={{ display: "flex", transform: creditCardsExpanded ? "rotate(270deg)" : "rotate(90deg)", transition: "transform 0.2s" }}>
+                    <Icon name="chevron" size={12} color={DC.gold} />
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
         );
       })()}
