@@ -96,17 +96,6 @@ Deno.serve(async (req) => {
       ? new Date(profile.trial_ends_at) > new Date()
       : false;
 
-    // Paid Pro → unlimited web search.
-    // Trial    → web search up to 5 total uses (atomic check+increment in DB).
-    // Free     → no web search; chat responds normally without the tool.
-    let canUseSearch = isPaidPro && !hasActiveTrial;
-    if (!canUseSearch && hasActiveTrial) {
-      const { data: allowed } = await supabase.rpc('increment_trial_web_search', {
-        p_user_id: user.id,
-      });
-      canUseSearch = !!allowed;
-    }
-
     const mappedMessages = messages.map((m: { role: string; text: string }) => ({
       role: m.role === "user" ? "user" : "assistant",
       content: String(m.text ?? "").slice(0, 2000),
@@ -127,7 +116,32 @@ Deno.serve(async (req) => {
     // narrower regex/classifier.
     const lastUserMessage = [...mappedMessages].reverse().find((m) => m.role === "user")?.content ?? "";
 
-    const systemPrompt = buildSystemPrompt(financialContext, lastUserMessage);
+    // Brokerage holdings and the web_search tool are mutually exclusive
+    // within one call — a hard, code-level invariant, not a prompt request.
+    // web_search runs server-side at Anthropic and we cannot inspect the
+    // query it generates, so if real position data is in the system prompt
+    // the tool is simply not offered; if the tool is offered, the holdings
+    // are withheld from the prompt. The keyword check only picks which mode
+    // this turn is in: a miss means holdings withheld + search available
+    // (no leak, just less portfolio context), never holdings + search.
+    const includeHoldings =
+      portfolioHasHoldings(financialContext?.portfolio) &&
+      messageIsInvestingRelated(lastUserMessage);
+
+    // Paid Pro → unlimited web search.
+    // Trial    → web search up to 5 total uses (atomic check+increment in DB).
+    // Free     → no web search; chat responds normally without the tool.
+    // The trial count is only spent when search is actually offered — an
+    // investing turn suppresses search (holdings win), so don't burn a use.
+    let canUseSearch = isPaidPro && !hasActiveTrial && !includeHoldings;
+    if (!canUseSearch && hasActiveTrial && !includeHoldings) {
+      const { data: allowed } = await supabase.rpc('increment_trial_web_search', {
+        p_user_id: user.id,
+      });
+      canUseSearch = !!allowed;
+    }
+
+    const systemPrompt = buildSystemPrompt(financialContext, lastUserMessage, includeHoldings);
 
     const reply = await callWithToolLoop(ANTHROPIC_API_KEY, systemPrompt, mappedMessages, canUseSearch);
 
@@ -219,9 +233,35 @@ async function callWithToolLoop(
   return "Sorry, I couldn't generate a response.";
 }
 
+// ── Holdings ⊕ web_search separation ──────────────────────────────
+// See the call site: real brokerage position data and the web_search tool
+// are never present in the same API call.
+
+// True only for the SUCCESS portfolio shape carrying sensitive data —
+// positions, portfolio value, cash, or buying power. The status-only
+// shapes ({ loadFailed | disconnected | upgradeRequired }) carry nothing
+// sensitive and never gate web_search.
+function portfolioHasHoldings(portfolio: any): boolean {
+  if (!portfolio || portfolio.loadFailed || portfolio.disconnected || portfolio.upgradeRequired) {
+    return false;
+  }
+  const hasPositions = Array.isArray(portfolio.positions) && portfolio.positions.length > 0;
+  const hasAccountValue = [portfolio.portfolioValue, portfolio.cash, portfolio.buyingPower]
+    .some((n: any) => n != null && Number(n) !== 0);
+  return hasPositions || hasAccountValue;
+}
+
+// Deliberately permissive — a false positive (holdings shown, search
+// suppressed for one turn) is harmless; the only thing that must never
+// happen (holdings + search together) is prevented structurally at the
+// call site regardless of what this returns.
+function messageIsInvestingRelated(text: string): boolean {
+  return /\b(invest(ing|ments?)?|portfolio|stocks?|shares?|equit(y|ies)|etfs?|index fund|mutual fund|holdings?|positions?|tickers?|brokerage|alpaca|diversif\w*|allocation|rebalanc\w*|dividends?|crypto|bitcoin|btc|ethereum|eth|spy|qqq|voo|vti|nasdaq|s&p|buy (more|into)|what (else )?(should|to|can) i buy|should i (buy|sell|invest))\b/i.test(text || "");
+}
+
 // ── System prompt builder ─────────────────────────────────────────
 
-function buildSystemPrompt(ctx: any, lastUserMessage: string): string {
+function buildSystemPrompt(ctx: any, lastUserMessage: string, includeHoldings = true): string {
   // Neutralize the delimiter this gets embedded inside below — without
   // this, a user message containing a literal `"""` could prematurely
   // close the quoted block and inject text that reads as a fresh system
@@ -542,7 +582,9 @@ TIME AWARENESS:
         ? "brokerage portfolio insight is a Pro feature and is not available on the current plan — do not describe any holdings"
         : portfolio.loadFailed
           ? "connected, but the live portfolio could NOT be loaded this session — tell the user it didn't load and to try again shortly; do not guess or infer any holdings, balances, or performance"
-          : (() => {
+          : !includeHoldings
+            ? "connected — position details are not included on this turn. If the user asks specifically about their portfolio or holdings (without also asking you to look up current market or news info in the same message), those details will be available. Do not guess or infer any holdings, balances, or performance in the meantime."
+            : (() => {
           const positions = Array.isArray(portfolio.positions) ? portfolio.positions.slice(0, 50) : [];
           const posList = positions.length > 0
             ? positions.map((p: any) => {
