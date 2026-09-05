@@ -17,6 +17,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { randomBytes } from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -40,8 +41,13 @@ if (!SUPABASE_URL || !ANON_KEY || !SERVICE_ROLE_KEY) {
   throw new Error('Missing SUPABASE_URL / ANON_KEY / SERVICE_ROLE_KEY in .env.local');
 }
 
+// CodeQL js/insecure-randomness: Math.random() flagged as a
+// cryptographically insecure source (2026-09-05, PR #79). These values only
+// ever name/unlock a disposable .invalid-TLD test account — never a real
+// one — so the risk was already low, but randomBytes() is just as easy to
+// call and removes the finding outright.
 function randomSuffix() {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  return randomBytes(8).toString('hex') + Date.now().toString(36);
 }
 
 // .invalid is an RFC 2606 reserved TLD — guaranteed non-deliverable, so a
@@ -53,7 +59,7 @@ export function disposableEmail(tag) {
 }
 
 export function randomPassword() {
-  return 'Pw_' + Math.random().toString(36).slice(2, 12) + 'Aa1!';
+  return 'Pw_' + randomBytes(8).toString('hex') + 'Aa1!';
 }
 
 export async function createDisposableUser(email, password) {

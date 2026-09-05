@@ -56,7 +56,7 @@
 
 ## Supabase rules
 
-* Test user UUID: `90eb11c3-c1e9-4241-8362-9e15ce231c33`
+* UUID `90eb11c3-c1e9-4241-8362-9e15ce231c33` (`shevvik88@gmail.com`) is the **real personal account**, not an isolated test account — confirmed by the user 2026-08-27 after prior sessions/docs wrongly called it "the test account." Never mutate its auth state (password, sessions) or delete it for testing. Any test that creates sessions, changes credentials, or otherwise mutates auth state must use a freshly created disposable Supabase Auth user instead (see `scripts/_lib-disposable-account.mjs`); read-only checks against this account are fine.
 * Never run destructive migrations without showing the SQL first.
 * Wrap any standalone ADD CONSTRAINT or CREATE INDEX for an object already declared inline in a CREATE TABLE in an existence check (pg_constraint / pg_class lookup or IF NOT EXISTS).
 * RLS policies must be verified after any schema change.

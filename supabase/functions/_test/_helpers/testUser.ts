@@ -6,6 +6,7 @@
 // 90eb11c3-...). Emails use the RFC 2606 .invalid TLD so nothing is ever
 // deliverable. Same approach as scripts/_lib-disposable-account.mjs.
 
+import { randomBytes } from 'node:crypto';
 import { getCachedConfig } from './localStack.ts';
 import { dbAdmin } from './db.ts';
 
@@ -27,8 +28,13 @@ export interface TestUser {
   cleanup: () => Promise<void>;
 }
 
+// CodeQL js/insecure-randomness: Math.random() flagged as a
+// cryptographically insecure source (2026-09-05, PR #79). These values only
+// ever name/unlock a disposable .invalid-TLD test account created for one
+// test run — never a real one — so the risk was already low, but
+// randomBytes() is just as easy to call and removes the finding outright.
 function rand(): string {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  return randomBytes(8).toString('hex') + Date.now().toString(36);
 }
 
 export async function createTestUser(opts: TestUserOpts = {}): Promise<TestUser> {
