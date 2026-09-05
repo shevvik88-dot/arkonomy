@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
+    "test:edge": "deno test --no-check --node-modules-dir=auto --allow-net --allow-env --allow-run --allow-read --allow-sys supabase/functions/_test/",
     "prepare": "node scripts/setup-git-hooks.cjs"
   },
   "dependencies": {
