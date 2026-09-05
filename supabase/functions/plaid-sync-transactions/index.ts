@@ -525,7 +525,7 @@ async function syncItemTransactions(
 // HANDLER
 // ═════════════════════════════════════════════════════════════════════════════
 
-Deno.serve(async (req) => {
+export async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
@@ -688,4 +688,8 @@ Deno.serve(async (req) => {
     await captureAndFlush(err, { function_name: 'plaid-sync-transactions' });
     return json({ error: "Internal Server Error" }, 500, corsHeaders);
   }
-});
+}
+
+// Serve unless imported by the edge-function test harness, which sets
+// ARK_EDGE_TEST and calls handler() directly. Unset in prod — serves normally.
+if (!Deno.env.get('ARK_EDGE_TEST')) Deno.serve(handler);

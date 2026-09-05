@@ -9,7 +9,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, stripe-signature',
 };
 
-Deno.serve(async (req) => {
+export async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -217,4 +217,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-});
+}
+
+// Serve unless imported by the edge-function test harness, which sets
+// ARK_EDGE_TEST and calls handler() directly. Unset in prod — serves normally.
+if (!Deno.env.get('ARK_EDGE_TEST')) Deno.serve(handler);
