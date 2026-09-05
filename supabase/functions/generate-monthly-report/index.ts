@@ -14,7 +14,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import ExcelJS from 'npm:exceljs@4.4.0';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
-import { isRealExpense, isTransferCategory } from '../_shared/financialConstants.ts';
+import { isRealExpense, isRealIncome, isTransferCategory } from '../_shared/financialConstants.ts';
 
 initSentry('generate-monthly-report');
 
@@ -432,14 +432,15 @@ function addMonthSheet(
     // "Transfers" isn't in CAT_MAP and isn't one of the 7 EXPENSE_CATEGORIES
     // — same class of bug already fixed everywhere else in the app
     // (Transactions, AI chat, Dashboard, Insights, financial-diagnosis all
-    // use isRealExpense/isTransferCategory to exclude Transfer/Zelle/Venmo
-    // from "real spending"). This report was the one surface still counting
-    // transfers as expenses, so a user comparing the downloaded report
-    // against the in-app numbers for the same month saw two different
-    // Total Expenses figures. Skipped here (not sent to 'Other') so it
-    // matches every other consumer exactly, rather than inventing a
-    // different bucket for it.
-    if (t.type === 'expense' && isTransferCategory(t)) continue;
+    // use isRealExpense/isRealIncome/isTransferCategory to exclude Transfer/
+    // Zelle/Venmo from "real spending"/"real income"). This report was the
+    // one surface still counting transfers as expenses, so a user comparing
+    // the downloaded report against the in-app numbers for the same month
+    // saw two different Total Expenses figures. Skipped here (not sent to
+    // 'Other' or 'Income') so it matches every other consumer exactly. Both
+    // legs are dropped — including an incoming Zelle/Venmo credit that would
+    // otherwise land in the Income row (2026-09-03).
+    if (isTransferCategory(t)) continue;
     const cat = t.type === 'income' ? 'Income' : normCat(t.category_name);
     if (data[cat] !== undefined) data[cat][day - 1] += Number(t.amount);
   }
@@ -788,7 +789,7 @@ function addSummarySheet(
       totalExpenses  += v;
     }
     const totalIncome = txns
-      .filter(t => t.type === 'income')
+      .filter(isRealIncome)
       .reduce((s, t) => s + Number(t.amount), 0);
 
     const overBudget = totalExpenses > monthlyBudget;

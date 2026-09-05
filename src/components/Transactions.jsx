@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { FONT, CAT_COLORS, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmt, fmtDate, parseDate, guessCategory, tCat, cleanMerchantName, localDateString, sumAmounts } from "../utils/helpers";
-import { isRealExpense, isTransferCategory } from "../shared/financialConstants";
+import { isRealExpense, isRealIncome, isTransferCategory } from "../shared/financialConstants";
 import { getCurrentMonthWindow, monthTransactions } from "../shared/dateWindows";
 import Icon from "./shared/Icon";
 import { ConnectBankPrompt } from "./shared/ConnectBankPrompt";
@@ -33,13 +33,16 @@ function normalizeTxName(t) {
 }
 
 function calcSummary(txs, prevTxs = []) {
-  // isRealExpense (shared/financialConstants) — was category_name !== "Transfer"
-  // only, missing the plural "Transfers" Zelle/Venmo form App.jsx/ai-chat/
-  // Insights' budget bar already excluded, inflating this screen's total
-  // relative to every other surface (budget/overspending-signals
-  // investigation, Step 2, 2026-08-27).
+  // isRealExpense/isRealIncome (shared/financialConstants) — was
+  // category_name !== "Transfer" only, missing the plural "Transfers"
+  // Zelle/Venmo form App.jsx/Insights' budget bar already excluded,
+  // inflating this screen's total relative to every other surface (budget/
+  // overspending-signals investigation, Step 2, 2026-08-27). isRealIncome
+  // added 2026-09-03: the income side must exclude the same Transfer/
+  // Zelle/Venmo rows the expense side does, or an incoming P2P payment /
+  // self-transfer inflates Net.
   const realExpense = arr => sumAmounts(arr.filter(isRealExpense));
-  const byIncome = arr => sumAmounts(arr.filter(t => t.type === "income"));
+  const byIncome = arr => sumAmounts(arr.filter(isRealIncome));
   const income  = byIncome(txs);
   const expense = realExpense(txs);
   const net     = income - expense;
@@ -498,10 +501,10 @@ export default function Transactions({ transactions, categories, onAdd, onDuplic
   const curTxs  = monthTransactions(transactions, now.getFullYear(), now.getMonth());
   const prevTxs = monthTransactions(transactions, prevMo.getFullYear(), prevMo.getMonth());
 
-  const hasCurrentIncome = curTxs.some(t => t.type === "income");
+  const hasCurrentIncome = curTxs.some(isRealIncome);
   const effectiveCurTxs = hasCurrentIncome ? curTxs : (() => {
     const lastIncome = [...transactions]
-      .filter(t => t.type === "income")
+      .filter(isRealIncome)
       .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
     return lastIncome ? [...curTxs, lastIncome] : curTxs;
   })();
@@ -591,7 +594,7 @@ export default function Transactions({ transactions, categories, onAdd, onDuplic
 
       <SummaryCards
         summary={summary}
-        onIncomeClick={() => setSheet({ title: t("transactions.income_breakdown"), subtitle: `${monthLabel} · ${fmtMoney(summary.income)} total`, rows: effectiveCurTxs.filter(t => t.type === "income").map(t => ({ name: normalizeTxName(t), sub: fmtDate(t.date), amount: fmtMoney(Number(t.amount), true), color: DC.emerald, icon: "dollar" })) })}
+        onIncomeClick={() => setSheet({ title: t("transactions.income_breakdown"), subtitle: `${monthLabel} · ${fmtMoney(summary.income)} total`, rows: effectiveCurTxs.filter(isRealIncome).map(t => ({ name: normalizeTxName(t), sub: fmtDate(t.date), amount: fmtMoney(Number(t.amount), true), color: DC.emerald, icon: "dollar" })) })}
         onExpenseClick={() => setSheet({ title: t("transactions.expenses_breakdown"), subtitle: `${monthLabel} · ${fmtMoney(summary.expense)} total`, rows: expenseRows })}
         onNetClick={() => setSheet({ title: t("transactions.net_summary"), subtitle: monthLabel, rows: [{ name: t("transactions.total_income"), amount: fmtMoney(summary.income, true), color: DC.emerald, icon: "trending-up", pct: 100 }, { name: t("transactions.total_expenses"), amount: fmtMoney(summary.expense), color: DC.ruby, icon: "trending-down", pct: Math.round(summary.expense / Math.max(summary.income, 1) * 100) }, { name: t("transactions.net_balance"), amount: fmtMoney(summary.net, true), color: DC.emerald, icon: "award", pct: Math.round(summary.net / Math.max(summary.income, 1) * 100) }] })}
       />

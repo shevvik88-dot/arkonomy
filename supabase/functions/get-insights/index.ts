@@ -2,7 +2,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { enforceRateLimit } from '../_shared/rateLimit.ts';
-import { BUFFER, SAVE_CAP_SMALL, SAVE_CAP_MEDIUM, SAVE_CAP_LARGE, REC_MIN, REC_MAX, isRealExpense } from '../_shared/financialConstants.ts';
+import { BUFFER, SAVE_CAP_SMALL, SAVE_CAP_MEDIUM, SAVE_CAP_LARGE, REC_MIN, REC_MAX, isRealExpense, isRealIncome } from '../_shared/financialConstants.ts';
 import { getCurrentMonthWindow, monthTransactions, monthKey } from '../_shared/dateWindows.ts';
 import { getUpcomingCharges } from '../_shared/recurringDetector.ts';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
@@ -184,7 +184,7 @@ async function buildFinancialInput(supabase: any, userId: string) {
       .eq('user_id', userId).gte('date', startOfMonth).lte('date', todayStr),
     supabase.from('transactions').select('amount, category_name, description, date, type')
       .eq('user_id', userId).gte('date', startOf3MonthsAgo).lt('date', startOfMonth),
-    supabase.from('transactions').select('amount, date, type')
+    supabase.from('transactions').select('amount, category_name, description, date, type')
       .eq('user_id', userId).eq('type', 'income')
       .gte('date', startOfIncomeLookback).lte('date', todayStr)
       .order('date', { ascending: false }),
@@ -200,7 +200,12 @@ async function buildFinancialInput(supabase: any, userId: string) {
 
   const rawCurrent   = currentTxns      || [];
   const rawHistorical = historicalTxns  || [];
-  const recentIncome = recentIncomeTxns || [];
+  // isRealIncome: drop incoming Zelle/Venmo (and any Transfer-categorised)
+  // credits so a P2P payment or a transfer between the user's own accounts
+  // doesn't stand in as "most recent month's income" (self-transfer /
+  // incoming-P2P investigation, 2026-09-03). Mirrors the isRealExpense
+  // exclusion the spending totals below already apply.
+  const recentIncome = (recentIncomeTxns || []).filter(isRealIncome);
 
   // getCurrentMonthWindow/monthTransactions from ../_shared/dateWindows —
   // single source of truth for "what counts as the current month" (budget/
@@ -228,7 +233,7 @@ async function buildFinancialInput(supabase: any, userId: string) {
 
   // ── Effective monthly income ──────────────────────────────────────────────
   const currentMonthIncome = current
-    .filter((t: any) => t.type === 'income')
+    .filter(isRealIncome)
     .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
 
   let effectiveMonthlyIncome = currentMonthIncome;
@@ -245,7 +250,7 @@ async function buildFinancialInput(supabase: any, userId: string) {
 
   if (effectiveMonthlyIncome === 0) {
     const historicalMonthIncome: Record<string, number> = {};
-    historical.filter((t: any) => t.type === 'income').forEach((t: any) => {
+    historical.filter(isRealIncome).forEach((t: any) => {
       const month = t.date.slice(0, 7);
       historicalMonthIncome[month] = (historicalMonthIncome[month] || 0) + Number(t.amount);
     });
@@ -277,11 +282,11 @@ async function buildFinancialInput(supabase: any, userId: string) {
 
   // allIncome/allExpenses feed ONLY the synthetic currentBalance fallback
   // below (used when there's no real Plaid balance) — deliberately NOT
-  // filtered through isRealExpense. A Transfer really did leave the checking
-  // account, so it belongs in a balance reconstruction even though it isn't
-  // "spending" for budget/overspending purposes. Don't unify this one with
-  // the spending totals above — it's a different question (real cash
-  // movement vs. spending-against-plan).
+  // filtered through isRealExpense/isRealIncome. A Transfer really did move
+  // cash in/out of the checking account, so both legs belong in a balance
+  // reconstruction even though neither is "spending"/"earning" for budget
+  // purposes. Don't unify these two with the spending/income totals above —
+  // it's a different question (real cash movement vs. against-plan).
   const allIncome = [...historical, ...current]
     .filter((t: any) => t.type === 'income')
     .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
