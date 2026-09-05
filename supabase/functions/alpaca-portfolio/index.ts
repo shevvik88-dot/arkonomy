@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+import { requirePaidPlan } from '../_shared/requirePaidPlan.ts';
 
 initSentry('alpaca-portfolio');
 
@@ -58,6 +59,13 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Brokerage data is a paid-Pro feature. Read-only (no money moves here),
+    // but a downgraded ex-Pro shouldn't keep pulling portfolio data — same
+    // server-side gate as alpaca-invest / alpaca-oauth-start.
+    // PENETRATION_TEST_PLAN.md 6.4 / SECURITY_THREAT_MODEL.md E4.
+    const planBlock = await requirePaidPlan(supabase, user.id, corsHeaders);
+    if (planBlock) return planBlock;
 
     const { data: profile } = await supabase
       .from('profiles')

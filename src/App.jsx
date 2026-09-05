@@ -24,7 +24,7 @@ import UpcomingChargesCard from "./components/UpcomingChargesCard";
 import { usePlan } from "./hooks/usePlan";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "./healthScore";
-import { BUFFER, isRealExpense, isTransferCategory } from "./shared/financialConstants";
+import { BUFFER, isRealExpense, isRealIncome, isTransferCategory } from "./shared/financialConstants";
 import { getCurrentMonthWindow, monthTransactions } from "./shared/dateWindows";
 import { IS_IOS_NATIVE, IS_NATIVE } from "./lib/platform";
 import { useUSStorefront } from "./lib/storefront";
@@ -1286,26 +1286,27 @@ export default function App() {
   const thisMonth = monthTransactions(transactions, curYear, curMonth);
   const lastMonth = monthTransactions(transactions, prevYear, prevMonthIdx);
 
-  // isRealExpense/isTransferCategory imported from ./shared/financialConstants —
-  // single source of truth for the Transfer/Transfers exclusion rule, shared
-  // with Transactions.jsx and (mirrored, Deno can't import from src/)
-  // get-insights/financial-diagnosis (budget/overspending-signals
-  // investigation, Step 2, 2026-08-27). resolveCategory() below is
-  // untouched — its guessCategory-based re-categorization for unrelated
+  // isRealExpense/isRealIncome/isTransferCategory imported from
+  // ./shared/financialConstants — single source of truth for the Transfer/
+  // Transfers exclusion rule, shared with Transactions.jsx and (mirrored,
+  // Deno can't import from src/) get-insights/financial-diagnosis (budget/
+  // overspending-signals investigation, Step 2, 2026-08-27; income side
+  // added 2026-09-03 so an incoming Zelle/Venmo or a transfer between the
+  // user's own accounts no longer inflates income). resolveCategory() below
+  // is untouched — its guessCategory-based re-categorization for unrelated
   // categories is a separate, still-open duplication issue (see
   // docs/known-issues.md), not part of transfer detection.
   const totalSpent = sumAmounts(thisMonth.filter(isRealExpense));
-  const totalIncome = sumAmounts(thisMonth.filter(t => t.type === "income"));
-  const totalTransfers = sumAmounts(thisMonth.filter(isTransferCategory));
+  const totalIncome = sumAmounts(thisMonth.filter(isRealIncome));
   const lastSpent = sumAmounts(lastMonth.filter(isRealExpense));
-  const lastIncome = sumAmounts(lastMonth.filter(t => t.type === "income"));
+  const lastIncome = sumAmounts(lastMonth.filter(isRealIncome));
 
   // FIX: sum ALL income from the most recent month, not just the single most
   // recent transaction — same bug already fixed in get-insights/buildFinancialInput
   // (a one-off transaction like a small CD deposit understated real income).
   const effectiveIncome = (() => {
     if (totalIncome > 0) return totalIncome;
-    const incomeTxs = transactions.filter(t => t.type === "income");
+    const incomeTxs = transactions.filter(isRealIncome);
     if (incomeTxs.length === 0) return 0;
     const mostRecent = [...incomeTxs].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
     const mostRecentDate = parseDate(mostRecent.date);
@@ -1477,7 +1478,7 @@ export default function App() {
     await Browser.open({ url: "https://app.arkonomy.com/upgrade" });
   };
   const plaidBalance = sumDepositoryBalance(getCachedAccounts());
-  const shared = { transactions, categories, savings, profile, totalSpent, totalIncome: effectiveIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, totalTransfers, isShowingLastMonth, isPro, onUpgrade, plaidBalance };
+  const shared = { transactions, categories, savings, profile, totalSpent, totalIncome: effectiveIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, isShowingLastMonth, isPro, onUpgrade, plaidBalance };
 
   function openMarket(symbol) {
     setMarketInitSymbol(symbol ?? null);
@@ -1836,9 +1837,19 @@ export default function App() {
               </div>
             )}
           </div>
-          <button data-tutorial="settings-btn" onClick={() => setScreen("profile")} style={{ background: screen === "profile" ? DC.gold + "18" : DC.card, border: `1px solid ${screen === "profile" ? DC.gold + "44" : `${DC.faint}33`}`, borderRadius: RADIUS.sm, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-            <Icon name="settings" size={21} color={screen === "profile" ? DC.gold : DC.muted} />
-          </button>
+          {/* Hidden while already on Settings (2026-09-02): navigating to
+              the screen you're already on was pointless/confusing. No
+              existing Help/FAQ *screen* to repurpose it to instead — the
+              only Help/FAQ in the app is a menu toggle inside Chat.jsx, not
+              a setScreen() destination — so this hides rather than invents
+              one. Confirmed safe: the onboarding tour only targets
+              [data-tutorial="settings-btn"] from screen: "dashboard", never
+              from profile, so hiding it here doesn't break that flow. */}
+          {screen !== "profile" && (
+            <button data-tutorial="settings-btn" onClick={() => setScreen("profile")} style={{ background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <Icon name="settings" size={21} color={DC.muted} />
+            </button>
+          )}
         </div>
       </div>
 

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { FONT, CAT_COLORS, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmt, fmtDate, parseDate, guessCategory, tCat, cleanMerchantName, localDateString, sumAmounts } from "../utils/helpers";
-import { isRealExpense, isTransferCategory } from "../shared/financialConstants";
+import { isRealExpense, isRealIncome, isTransferCategory } from "../shared/financialConstants";
 import { getCurrentMonthWindow, monthTransactions } from "../shared/dateWindows";
 import Icon from "./shared/Icon";
 import { ConnectBankPrompt } from "./shared/ConnectBankPrompt";
@@ -33,13 +33,16 @@ function normalizeTxName(t) {
 }
 
 function calcSummary(txs, prevTxs = []) {
-  // isRealExpense (shared/financialConstants) — was category_name !== "Transfer"
-  // only, missing the plural "Transfers" Zelle/Venmo form App.jsx/ai-chat/
-  // Insights' budget bar already excluded, inflating this screen's total
-  // relative to every other surface (budget/overspending-signals
-  // investigation, Step 2, 2026-08-27).
+  // isRealExpense/isRealIncome (shared/financialConstants) — was
+  // category_name !== "Transfer" only, missing the plural "Transfers"
+  // Zelle/Venmo form App.jsx/Insights' budget bar already excluded,
+  // inflating this screen's total relative to every other surface (budget/
+  // overspending-signals investigation, Step 2, 2026-08-27). isRealIncome
+  // added 2026-09-03: the income side must exclude the same Transfer/
+  // Zelle/Venmo rows the expense side does, or an incoming P2P payment /
+  // self-transfer inflates Net.
   const realExpense = arr => sumAmounts(arr.filter(isRealExpense));
-  const byIncome = arr => sumAmounts(arr.filter(t => t.type === "income"));
+  const byIncome = arr => sumAmounts(arr.filter(isRealIncome));
   const income  = byIncome(txs);
   const expense = realExpense(txs);
   const net     = income - expense;
@@ -318,6 +321,14 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
   const catColor    = CAT_COLORS[t.category_name] || DC.gold;
   const catIcon     = isIncome ? "dollar" : (CAT_ICONS_MAP[t.category_name] || "credit");
   const displayName = normalizeTxName(t);
+  // True when normalizeTxName had no usable merchant description to work
+  // with and fell back to the category itself as the row's title (a real
+  // "Plaid gave us nothing more specific" case, not a display bug —
+  // confirmed 2026-08-29: there is no separate subcategory field anywhere
+  // in this app's data model, `category_name` is the only value either
+  // line ever reads). Showing that same category again in the subtitle
+  // line right below reads as "Income · Income" for exactly this reason.
+  const titleIsJustCategory = displayName === (t.category_name || "").trim() && !!(t.category_name || "").trim();
 
   function resetSwipe() {
     if (!rowRef.current) return;
@@ -409,9 +420,20 @@ export function TxRow({ t, onDelete, onEdit, onLongPress, hideAmount = false }) 
         <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
           <div style={{ fontSize: 14, fontWeight: 500, color: DC.text, letterSpacing: -0.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: FONT }}>{displayName}</div>
           <div style={{ fontSize: 11, color: DC.faint, marginTop: 2, display: "flex", alignItems: "center", gap: 4, overflow: "hidden", fontFamily: FONT }}>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1 }}>{tCat(t.category_name || guessCategory(t.description, t.type) || "Other", i18t)} · {fmtDate(t.date)}</span>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1 }}>
+              {titleIsJustCategory ? fmtDate(t.date) : `${tCat(t.category_name || guessCategory(t.description, t.type) || "Other", i18t)} · ${fmtDate(t.date)}`}
+            </span>
             {t.pending && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: DC.gold, background: DC.gold + "26", padding: "1px 5px", borderRadius: RADIUS.xs, flexShrink: 0 }}>
+              // Softened 2026-08-29 (external design feedback) — was a
+              // solid-fill DC.gold+"26" chip (bold 700-weight text on a
+              // ~15%-opacity fill), which read as louder than everything
+              // around it despite DC.gold itself not being a saturated
+              // color. Switched to the lighter bordered-chip treatment
+              // already used elsewhere in this same file for informational
+              // gold accents (e.g. the inline banners at lines ~567/615) —
+              // lower-opacity fill + a thin border instead of relying on
+              // fill density alone, plus 600 instead of 700 weight.
+              <span style={{ fontSize: 10, fontWeight: 600, color: DC.gold, background: DC.gold + "12", border: `1px solid ${DC.gold}33`, padding: "1px 5px", borderRadius: RADIUS.xs, flexShrink: 0 }}>
                 {i18t("transactions.pending")}
               </span>
             )}
@@ -479,10 +501,10 @@ export default function Transactions({ transactions, categories, onAdd, onDuplic
   const curTxs  = monthTransactions(transactions, now.getFullYear(), now.getMonth());
   const prevTxs = monthTransactions(transactions, prevMo.getFullYear(), prevMo.getMonth());
 
-  const hasCurrentIncome = curTxs.some(t => t.type === "income");
+  const hasCurrentIncome = curTxs.some(isRealIncome);
   const effectiveCurTxs = hasCurrentIncome ? curTxs : (() => {
     const lastIncome = [...transactions]
-      .filter(t => t.type === "income")
+      .filter(isRealIncome)
       .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
     return lastIncome ? [...curTxs, lastIncome] : curTxs;
   })();
@@ -572,7 +594,7 @@ export default function Transactions({ transactions, categories, onAdd, onDuplic
 
       <SummaryCards
         summary={summary}
-        onIncomeClick={() => setSheet({ title: t("transactions.income_breakdown"), subtitle: `${monthLabel} · ${fmtMoney(summary.income)} total`, rows: effectiveCurTxs.filter(t => t.type === "income").map(t => ({ name: normalizeTxName(t), sub: fmtDate(t.date), amount: fmtMoney(Number(t.amount), true), color: DC.emerald, icon: "dollar" })) })}
+        onIncomeClick={() => setSheet({ title: t("transactions.income_breakdown"), subtitle: `${monthLabel} · ${fmtMoney(summary.income)} total`, rows: effectiveCurTxs.filter(isRealIncome).map(t => ({ name: normalizeTxName(t), sub: fmtDate(t.date), amount: fmtMoney(Number(t.amount), true), color: DC.emerald, icon: "dollar" })) })}
         onExpenseClick={() => setSheet({ title: t("transactions.expenses_breakdown"), subtitle: `${monthLabel} · ${fmtMoney(summary.expense)} total`, rows: expenseRows })}
         onNetClick={() => setSheet({ title: t("transactions.net_summary"), subtitle: monthLabel, rows: [{ name: t("transactions.total_income"), amount: fmtMoney(summary.income, true), color: DC.emerald, icon: "trending-up", pct: 100 }, { name: t("transactions.total_expenses"), amount: fmtMoney(summary.expense), color: DC.ruby, icon: "trending-down", pct: Math.round(summary.expense / Math.max(summary.income, 1) * 100) }, { name: t("transactions.net_balance"), amount: fmtMoney(summary.net, true), color: DC.emerald, icon: "award", pct: Math.round(summary.net / Math.max(summary.income, 1) * 100) }] })}
       />

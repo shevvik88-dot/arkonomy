@@ -107,6 +107,62 @@ it stops being true."
   claim to have exhaustively audited every current call site, only that the CSP
   baseline is real and enforced.
 
+### S5. Password-reset 8-digit `email_otp` — throttle on `/auth/v1/verify` confirmed live — **found 2026-08-27, closed same day (was misreported as open)**
+- **Entry point:** GoTrue's native `POST {SUPABASE_URL}/auth/v1/verify`,
+  reachable directly with the public anon key — not an Arkonomy edge
+  function, so none of Arkonomy's own rate-limit code (`check_login_lockout`,
+  `enforceRateLimit`) applies to it.
+- **Attack vector:** `supabase.auth.resetPasswordForEmail()`
+  (`AuthScreen.jsx:200`) and the equivalent Admin API `generate_link`
+  both produce, alongside the long `hashed_token` used in the emailed
+  link, a short 8-digit numeric `email_otp` — GoTrue's standard alternate
+  "enter this code" flow, shipped by Supabase's default email template,
+  not something Arkonomy added. Confirmed live (disposable account,
+  `scripts/test-password-reset-token.mjs`) that `POST /auth/v1/verify
+  {type:'recovery', email, token:<8-digit code>}` independently issues a
+  full session with no `token_hash` involved — not a cosmetic/unused
+  field. 15 wrong guesses against a real, still-valid code were all
+  correctly rejected, but the real code still worked immediately after —
+  no lockout, no increasing delay, no throttle observed on this endpoint
+  specifically (as distinct from `auth-login`'s lockout, which never
+  fires here).
+- **Impact (initial read, before follow-up):** 8 digits = 10^8
+  combinations. The original test only sent 15 wrong guesses and saw no
+  429 — but 15 is under Supabase's documented 30-request IP-based token-
+  bucket burst for `/auth/v1/verify` (confirmed via `search_docs`,
+  `guides/auth/rate-limits`: "Verification requests" are limited **by IP
+  address**, token-bucket algorithm, burst capacity 30, refilled at
+  `auth.rate_limits.verification.requests_per_hour` — listed
+  **"Customizable: No"**, a fixed platform default, distinct from the
+  customizable `rate_limit_otp`/`rate_limit_email_sent`/etc. limits).
+  15 requests could never have crossed that threshold — the original
+  "no throttle observed" conclusion was a sample-size artifact, not a
+  real gap.
+- **Follow-up, live-verified 2026-08-27** (`scripts/test-verify-endpoint-rate-limit.mjs`,
+  disposable account): sent 45 wrong-guess requests against a real,
+  still-valid recovery code. Requests #1–30 got the expected `403`
+  (wrong code, normally rejected); **request #31 onward got `429
+  {"error_code":"over_request_rate_limit","msg":"Request rate limit
+  reached"}`**, 15/15 for the remainder — exactly matching the
+  documented 30-request burst. The real code itself was also `429`'d
+  immediately after (rate limit applies regardless of whether the guess
+  would've been correct). Confirms the throttle is real, active, and
+  per-source-IP, not merely documented.
+- **Severity: LOW, closed.** A single source IP gets ~30 guesses before
+  being cut off for the refill window — serial brute force of 10^8
+  combinations from one IP is not remotely practical. Residual risk is
+  the same accepted trade-off already documented for D4/1.1 (a
+  genuinely distributed attacker with many real source IPs gets an
+  independent 30-guess budget per IP) — not a new gap, and not
+  something Arkonomy's own code could add on top of a platform-level,
+  non-customizable control anyway.
+- **Recommendation:** none open. Checked the Dashboard
+  (`/project/_/auth/rate-limits`) to see whether this specific limit has
+  a UI toggle — it doesn't (confirmed both by the docs' "Customizable:
+  No" and by the fact the page requires its own login the assistant
+  correctly declined to perform on the user's behalf) — nothing to
+  configure, the fixed platform default is already doing its job.
+
 ---
 
 ## T — Tampering (unauthorized modification of data in transit or at rest)
@@ -581,6 +637,47 @@ it stops being true."
   Not verified in depth for this document — the RPC internals
   (`check_login_lockout`) weren't read line-by-line here.
 
+### D5. Signup / confirmation-email resend — no rate limit — **Found + fixed 2026-09-02**
+- **Entry point:** account creation and confirmation-email resend. The client
+  used to call `supabase.auth.signUp()` / `supabase.auth.resend()` directly
+  against GoTrue — no app-side chokepoint, so nothing counted requests.
+- **Attack vector:** PENETRATION_TEST_PLAN.md 6.3. Live test: 20 back-to-back
+  `POST /auth/v1/signup` from one IP, one email domain → 20/20 `HTTP 200`, zero
+  `429`, no CAPTCHA, no delay. Each confirmed account then gets its own fresh
+  per-user `ai-chat` (20/hr) / `get-insights` (30/hr) budget —
+  `enforceRateLimit` (`_shared/rateLimit.ts`) keys only on `user_id`, no IP
+  component — so disposable-account farming multiplies free LLM usage, and the
+  resend endpoint is an open "send email to an arbitrary address" primitive.
+  Partly blunted by mandatory email confirmation (an unconfirmed account has no
+  usable session — `signInWithPassword` → `400 email_not_confirmed`), which
+  bounds the *rate* an attacker converts accounts but not the raw signup volume.
+- **Fix:** new `auth-signup` edge function (`verify_jwt:false`, mirrors
+  `auth-login`) — both signup and resend route through it; `AuthScreen.jsx`
+  calls it instead of the SDK. It resolves the caller IP the same way
+  `auth-login` does (`CF-Connecting-IP` → `X-Forwarded-For` fallback) and calls
+  `check_and_increment_ip_rate_limit` (new `ip_rate_limits` table +
+  `SECURITY DEFINER` RPC, `REVOKE`d from `anon`/`authenticated`, `GRANT`
+  `service_role` only — same lockdown as `check_and_increment_rate_limit`,
+  migration `20260902000000`) **before** proxying to GoTrue, so even
+  invalid-body spam counts. Limits: 10 signups / IP / hr, 5 resends / IP / hr,
+  1-hour rolling window. **Fail-open** (a cost/abuse guard, not access control —
+  matches `enforceRateLimit`). Real client IP is forwarded to GoTrue as
+  `X-Forwarded-For` so its own limiter and audit log see the true origin.
+  Deployed `auth-signup` v2; migration applied via `apply_migration`
+  (privileges confirmed by `has_function_privilege`).
+- **Live-verified 2026-09-02** (`scripts/test-signup-rate-limit-6.3.mjs` against
+  the deployed function): signup #1–10 → `200`, #11+ → `429` (first at exactly
+  #11); resend #1–5 → `200`, #6+ → `429` (first at #6); 429s return in ~200 ms,
+  before GoTrue is called. Disposable accounts + `ip_rate_limits` test rows
+  cleaned up after.
+- **Residual / recommendation:** the per-IP throttle stops single-source
+  scripted abuse, not a genuinely distributed one (botnet / proxy pool, one
+  account per IP) — the same structural limit as D4's `email::ip` lockout key.
+  A CAPTCHA (hCaptcha / Cloudflare Turnstile via Supabase Auth's built-in
+  setting + `gotrue_meta_security.captcha_token` in `auth-signup`'s upstream
+  call) is the complementary control for that case. Tracked as
+  PENETRATION_TEST_PLAN.md 6.6, **Deferred**.
+
 ---
 
 ## E — Elevation of Privilege
@@ -655,18 +752,62 @@ it stops being true."
   read-the-migration-first check to any *new* table going forward — this entry
   is the record that it was done once, not a standing exemption.
 
-### E4. Alpaca trading — Free/Pro plan gate bypass
-- **Entry point:** `alpaca-invest/index.ts`, gated by `usePlan.js`-derived plan
-  status checked server-side (not just hidden client-side UI).
-- **Current mitigation:** per CLAUDE.md, `usePlan.js` gating is explicitly called
-  out as "core business logic; never bypass" — and separately, `profiles.plan` is
-  one of the columns excluded from the client-writable UPDATE grant (T1), so a
-  client can't elevate their own plan by writing the column directly.
-- **Recommendation:** confirm `alpaca-invest`'s own server-side check reads
-  `profiles.plan` (or equivalent) from the DB at request time rather than trusting
-  a client-supplied plan/tier value in the request body — not re-verified
-  line-by-line for this document, flagged as the natural next check given how
-  central this gate is to the business model.
+### E4. Alpaca trading — Free/Pro plan gate bypass — **Found broken and fixed 2026-09-02** (was: "confirm the obvious-seeming thing is true" — it wasn't)
+- **Entry point:** `alpaca-invest/index.ts` (places live Alpaca orders),
+  `alpaca-oauth-start/index.ts` (issues the OAuth nonce that leads to a stored
+  brokerage token), `alpaca-portfolio/index.ts` (reads brokerage data).
+- **Attack vector:** this entry previously *asserted* `alpaca-invest` was "gated
+  by `usePlan.js`-derived plan status checked server-side". The PENETRATION_TEST_PLAN
+  6.4 pass (2026-09-02) read all three functions line by line: **none of them read
+  `profiles.plan` at all.** `alpaca-invest`'s only checks were auth → `amount ≥ 1`
+  → symbol format → pending-row dedup → `alpaca_access_token` presence → buying
+  power. The Pro paywall on investing lived **entirely in React**
+  (`src/hooks/usePlan.js` + the `(!isPro || isTrial)` guards in `App.jsx:1532` /
+  `Markets.jsx:744`). Any account with a valid Supabase JWT could call the edge
+  function directly and bypass it — no race, no timing, no crafted body. Two
+  concrete paths: (1) a `free` account calls `alpaca-oauth-start` (also ungated),
+  completes Alpaca OAuth, gets a working token stored, then calls `alpaca-invest`;
+  (2) a former paid Pro downgrades — `stripe-webhook`'s `customer.subscription.deleted`
+  set `plan:'free'` but left `alpaca_access_token` intact, so they keep trading
+  indefinitely. `profiles.plan` being excluded from the client-writable GRANT (T1)
+  did **not** help here — the bypass never needed to write `plan`, it just needed
+  the server to never read it.
+- **Impact (pre-fix):** paid-Pro paywall bypass on a real-money feature — a
+  non-paying user places live fractional orders on their own connected Alpaca
+  account through Arkonomy. Rated **HIGH**: money-moving, trivially reachable by
+  any authenticated user, not a rare timing accident. Pre-fix live proof
+  (`scripts/test-alpaca-invest-plan-gate-6.4.mjs`, zero money): disposable
+  `plan=free` account, no token, called `alpaca-invest` with its own JWT →
+  `HTTP 400 alpaca_not_connected`, i.e. it passed every gate and was stopped only
+  by the absent token.
+- **Fix:** new `supabase/functions/_shared/requirePaidPlan.ts` — reads
+  `profiles.plan, trial_ends_at` server-side and returns `403 upgrade_required`
+  unless `plan === 'pro'` AND there is no active `trial_ends_at` window (the exact
+  `isPaidPro && !hasActiveTrial` condition from `usePlan.js`; the client shows an
+  upgrade prompt, not a Buy button, during the trial). Fails **closed** (a plan-read
+  error → `503`, deny) — unlike `enforceRateLimit`, which is a cost guard and fails
+  open. Wired into `alpaca-invest`, `alpaca-oauth-start`, and `alpaca-portfolio`
+  immediately after the auth check, before any side effect. Separately,
+  `stripe-webhook` now nulls `alpaca_access_token / alpaca_refresh_token /
+  alpaca_account_id / alpaca_connected_at` on every downgrade path
+  (`customer.subscription.deleted`, terminal `invoice.payment_failed`,
+  `customer.subscription.updated`→inactive), so a downgraded account can't retain
+  a live brokerage token even as defence-in-depth behind the new gate. Deployed
+  `alpaca-invest` v75→v76, `alpaca-oauth-start` v10→v11, `alpaca-portfolio`
+  v39→v40, `stripe-webhook` v53→v54 — all `verify_jwt:false` preserved, confirmed
+  via `list_edge_functions`.
+- **Live-verified 2026-09-02** (`scripts/test-alpaca-invest-plan-gate-6.4.mjs`,
+  disposable account, `profiles.plan`/`trial_ends_at` flipped via service-role SQL
+  between cases): `plan=free` → `403 upgrade_required` on `alpaca-invest`,
+  `alpaca-oauth-start`, `alpaca-portfolio`; `plan=pro` + `trial_ends_at` in the
+  future (active trial) → `403`; `plan=pro` + `trial_ends_at` null (real paid Pro)
+  with no token → `400 alpaca_not_connected` (gate passes cleanly, a genuine Pro is
+  not broken); `investments` rows written for the blocked calls: `0` (the gate
+  fires before the pending-row insert). Account deleted after.
+- **Recommendation:** none open. Alpaca-side token revocation (calling Alpaca's
+  `/oauth/revoke` on downgrade, not just nulling the columns) is a possible
+  further hardening step — not done, matches the existing "null the columns"
+  pattern `alpaca-invest` already uses for a stale token.
 
 ---
 
@@ -681,13 +822,26 @@ items, in priority order:
 1. **D4** — login-lockout-as-targeted-DoS not verified in depth.
 2. **I2** — `ai-chat` warm-isolate cross-request state leakage of
    `financialContext` (not just Sentry tags) not re-verified line-by-line.
-3. **T2, T3, E4** — three "confirm the obvious-seeming thing is actually true"
-   checks, not known gaps.
+3. **T2, T3** — two "confirm the obvious-seeming thing is actually true"
+   checks, not known gaps. (**E4** was the third — it turned out to be a real
+   HIGH gap, now fixed; see below.)
 4. **I4** — 18 functions on single-static-origin CORS: real, but already correctly
    triaged as a functionality gap, not a security hole.
 5. **R1** — no durable audit trail for successful account deletion (only failures
    are logged) — a genuine gap if compliance/support ever needs to answer "did
    this happen and when" after the row is gone.
+6. **6.3** (PENETRATION_TEST_PLAN) — signup has no rate limit / CAPTCHA; each
+   confirmed account gets a fresh per-user `ai-chat`/`get-insights` budget.
+   LOW-MEDIUM, mitigated by mandatory email confirmation. Finding only, no fix
+   applied yet.
+
+**Process note, 2026-08-27:** `90eb11c3-c1e9-4241-8362-9e15ce231c33`
+(`shevvik88@gmail.com`) was labeled "the test account" throughout this
+document and `PENETRATION_TEST_PLAN.md` — that was wrong, it's the
+maintainer's real personal account. Going forward, any test mutating auth
+state or account data uses a disposable Supabase Auth user instead (see
+`scripts/_lib-disposable-account.mjs`). Prior sessions' checks against it
+were read-only/dry-run and stand as recorded.
 
 **Fixed since the initial pass:**
 - **E1** — `config.toml` now explicitly lists `check-bank-connection` and
@@ -705,6 +859,21 @@ items, in priority order:
   host allow-list (`push-notify` v57→v58), live-verified same day against a
   real webhook.site target (0 requests received, confirmed via its own
   request-log API) — see T7 for full detail.
+- **E4** — `alpaca-invest` / `alpaca-oauth-start` / `alpaca-portfolio` had **no
+  server-side plan check** — the Pro paywall on investing was client-only,
+  bypassable by any valid JWT (HIGH, real-money feature). Found by
+  PENETRATION_TEST_PLAN 6.4 (2026-09-02), fixed same day: new
+  `_shared/requirePaidPlan.ts` (fail-closed, mirrors `usePlan.js`) wired into all
+  three; `stripe-webhook` now also nulls the Alpaca token columns on every
+  downgrade path. Deployed (`alpaca-invest` v76, `alpaca-oauth-start` v11,
+  `alpaca-portfolio` v40, `stripe-webhook` v54), live-verified free/trial → 403
+  and real paid Pro → passes. See E4 for full detail.
+- **S5** — password-reset 8-digit `email_otp` on `/auth/v1/verify` initially
+  looked unthrottled (pentest plan 1.4, 2026-08-27) because the test sample
+  (15 requests) was under Supabase's documented 30-request IP burst; a
+  45-request follow-up confirmed the real, active, non-customizable
+  platform-level rate limit (`429 over_request_rate_limit` from request #31
+  on) — no code change needed, see S5 for full detail.
 
 **E3** (column-level GRANT audit on the 4 post-2026-07-18 tables) was checked in
 full for this document, not left open — see E3 above. All 4 read line-by-line;

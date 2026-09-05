@@ -34,7 +34,7 @@ function resolveCorsHeaders(req: Request) {
   };
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (req, info) => {
   const corsHeaders = resolveCorsHeaders(req);
   function json(body: unknown, status = 200) {
     return new Response(JSON.stringify(body), {
@@ -63,10 +63,24 @@ Deno.serve(async (req) => {
     const { email, password } = body as { email?: string; password?: string };
     if (!email || !password) return json({ error: "Email and password required" }, 400);
 
-    const ip =
-      req.headers.get("CF-Connecting-IP") ||
-      (req.headers.get("X-Forwarded-For") ?? "").split(",")[0].trim() ||
-      "unknown";
+    // Trusted client-IP resolution — `CF-Connecting-IP` is set authoritatively
+    // by Cloudflare (fronts *.supabase.co) and cannot be spoofed by the
+    // client; it is always present for real production traffic and takes
+    // priority (PENETRATION_TEST_PLAN.md 1.1, and re-verified live 2026-09-03
+    // against auth-signup: present on every real request, a forged one is
+    // WAF-rejected with 403 before origin). The old code fell back to the
+    // fully client-controlled `X-Forwarded-For` (leftmost, client-prependable),
+    // which — if that branch were ever reached — would let an attacker rotate
+    // the header for a fresh 5-attempt lockout budget per forged IP, or
+    // DoS-lock a victim's email from a single real IP by forging many.
+    // Fallback is now the runtime peer address (`info.remoteAddr` — a socket
+    // property, not a header; on Supabase Edge Runtime it's an internal
+    // address, so a conservative shared bucket), then a shared "unknown"
+    // bucket (background security review, 2026-09-03).
+    const cfIp = req.headers.get("CF-Connecting-IP")?.trim() || "";
+    // deno-lint-ignore no-explicit-any
+    const peerHost = ((info as any)?.remoteAddr?.hostname ?? "").trim();
+    const ip = cfIp || peerHost || "unknown";
     const rateLimitKey = `${email.toLowerCase()}::${ip}`;
 
     const supabase = createClient(

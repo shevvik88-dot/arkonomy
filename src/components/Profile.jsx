@@ -106,6 +106,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
   const [goalError, setGoalError] = useState("");
   const [saved, setSaved] = useState(false);
   const [showChangePw, setShowChangePw] = useState(false);
+  const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [pwMsg, setPwMsg] = useState(null); // { type: "success"|"error", text }
@@ -176,16 +177,27 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
 
   async function handleChangePassword() {
     setPwMsg(null);
-    if (!newPw || !confirmPw) { setPwMsg({ type: "error", text: t("profile.error_fill_both") }); return; }
+    if (!currentPw || !newPw || !confirmPw) { setPwMsg({ type: "error", text: t("profile.error_fill_all") }); return; }
     if (newPw !== confirmPw) { setPwMsg({ type: "error", text: t("profile.error_passwords_match") }); return; }
     const pwErr = pwError(newPw, t);
     if (pwErr) { setPwMsg({ type: "error", text: pwErr }); return; }
     setPwLoading(true);
-    const { error } = await supabase.auth.updateUser({ password: newPw });
+    // current_password is required here — this project's Supabase Auth has
+    // secure-password-change enforcement on (GOTRUE_SECURITY_UPDATE_PASSWORD_
+    // REQUIRE_CURRENT_PASSWORD), confirmed live 2026-08-27
+    // (PENETRATION_TEST_PLAN.md 1.3): omitting it fails every call with
+    // current_password_required, which is what this form did before.
+    const { error } = await supabase.auth.updateUser({ password: newPw, current_password: currentPw });
     setPwLoading(false);
-    if (error) { setPwMsg({ type: "error", text: error.message }); return; }
+    if (error) {
+      const text = error.code === "current_password_invalid" ? t("profile.error_current_password_invalid")
+        : error.code === "same_password" ? t("profile.error_same_password")
+        : error.message;
+      setPwMsg({ type: "error", text });
+      return;
+    }
     setPwMsg({ type: "success", text: t("profile.success_password") });
-    setNewPw(""); setConfirmPw("");
+    setCurrentPw(""); setNewPw(""); setConfirmPw("");
     setTimeout(() => { setShowChangePw(false); setPwMsg(null); }, 2000);
   }
   const inp = { width: "100%", padding: "13px 14px", background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, color: DC.text, fontSize: 15, boxSizing: "border-box", fontFamily: FONT };
@@ -286,7 +298,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             <div style={{ color: DC.muted, fontSize: 13 }}>{maskEmail(user.email)}</div>
           </div>
           <button
-            onClick={() => { setShowChangePw(v => !v); setPwMsg(null); setNewPw(""); setConfirmPw(""); }}
+            onClick={() => { setShowChangePw(v => !v); setPwMsg(null); setCurrentPw(""); setNewPw(""); setConfirmPw(""); }}
             style={{ flexShrink: 0, background: "none", border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.xs, padding: "5px 10px", color: DC.muted, fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: FONT, whiteSpace: "nowrap" }}
           >
             {showChangePw ? t("profile.cancel") : t("profile.change_password")}
@@ -297,6 +309,15 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <input
               type="password"
+              autoComplete="current-password"
+              placeholder={t("profile.current_password")}
+              value={currentPw}
+              onChange={e => setCurrentPw(e.target.value)}
+              style={{ width: "100%", padding: "11px 14px", background: DC.bg, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, color: DC.text, fontSize: 14, boxSizing: "border-box", fontFamily: FONT }}
+            />
+            <input
+              type="password"
+              autoComplete="new-password"
               placeholder={t("profile.new_password")}
               value={newPw}
               onChange={e => setNewPw(e.target.value)}
@@ -304,6 +325,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             />
             <input
               type="password"
+              autoComplete="new-password"
               placeholder={t("profile.confirm_password")}
               value={confirmPw}
               onChange={e => setConfirmPw(e.target.value)}
@@ -417,10 +439,18 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
               <Icon name="refresh-cw" size={13} color={DC.gold} strokeWidth={2.5} />
               {t("profile.reconnect_bank")}
             </button>
+            {/* Demoted to a text-link (2026-09-02): this reads as a
+                same-weight third button next to Sync/Reconnect even though
+                it's a conceptually different action — expanding to a new
+                connection, not maintaining the existing one. Sync and
+                Reconnect stay full primary buttons; this keeps its exact
+                behavior (isPro ? getLinkToken() : onUpgrade(), same lock
+                icon for non-Pro) but drops the box/border so it visually
+                reads as secondary. */}
             <button
               onClick={() => { if (!isPro) { onUpgrade(); return; } getLinkToken(); }}
-              style={{ width: "100%", padding: 12, background: isPro ? C.bankConnectBlue + "22" : DC.bg, border: `1px solid ${isPro ? C.bankConnectBlue + "44" : `${DC.faint}33`}`, borderRadius: RADIUS.md, color: isPro ? "#4B8EFF" : DC.faint, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
-              {isPro ? <Icon name="plus" size={13} color="#4B8EFF" strokeWidth={2.5} /> : <span>🔒</span>}
+              style={{ width: "100%", padding: "8px 0 2px", background: "none", border: "none", color: isPro ? "#4B8EFF" : DC.faint, fontWeight: 600, fontSize: 12, cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              {isPro ? <Icon name="plus" size={12} color="#4B8EFF" strokeWidth={2.5} /> : <span style={{ fontSize: 11 }}>🔒</span>}
               {isPro ? t("profile.add_another_bank", { count: bankCount }) : t("profile.add_another_bank_pro")}
             </button>
           </>
@@ -690,7 +720,16 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
           <Icon name="shield" size={15} color={DC.gold} />
           <span style={{ fontWeight: 600, fontSize: 15 }}>{t("profile.security_title")}</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "4px 0" }}>
+        {/* Disabled-state fix (2026-09-02): only the toggle itself carried
+            any dimming (opacity: 0.5) — icon, label, and description were
+            all full-opacity, so the row read as an active, usable setting
+            until you actually reached the small "Coming in iOS app" text.
+            Reusing the same opacity: 0.45 this file already uses for its
+            other gated/unavailable control (the non-Pro Excel-frequency
+            picker above) so both read as "unavailable" the same way,
+            instead of inventing a second disabled treatment. Applied once
+            to the whole row rather than stacking it on the toggle too. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "4px 0", opacity: 0.45 }}>
           <div style={{ width: 38, height: 38, borderRadius: RADIUS.sm, background: DC.gold + "18", border: `1px solid ${DC.gold}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Icon name="smartphone" size={17} color={DC.gold} />
           </div>
@@ -699,7 +738,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             <div style={{ fontSize: 11, color: DC.muted, marginTop: 2 }}>{t("profile.face_id_sub")}</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-            <div style={{ width: 44, height: 24, borderRadius: RADIUS.sm, background: `${DC.faint}22`, border: `1px solid ${DC.faint}33`, display: "flex", alignItems: "center", padding: "0 3px", cursor: "not-allowed", opacity: 0.5 }}>
+            <div style={{ width: 44, height: 24, borderRadius: RADIUS.sm, background: `${DC.faint}22`, border: `1px solid ${DC.faint}33`, display: "flex", alignItems: "center", padding: "0 3px", cursor: "not-allowed" }}>
               <div style={{ width: 18, height: 18, borderRadius: RADIUS.full, background: DC.muted }} />
             </div>
             <span style={{ fontSize: 10, color: DC.faint }}>{t("profile.face_id_coming")}</span>

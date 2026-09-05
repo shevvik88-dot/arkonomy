@@ -15,7 +15,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { enforceRateLimit } from '../_shared/rateLimit.ts';
 import { computeRecurringSummary } from '../_shared/recurringDetector.ts';
-import { isRealExpense } from '../_shared/financialConstants.ts';
+import { isRealExpense, isRealIncome } from '../_shared/financialConstants.ts';
 import { getCurrentMonthWindow, monthKey } from '../_shared/dateWindows.ts';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 
@@ -177,16 +177,19 @@ Deno.serve(async (req) => {
     // ══════════════════════════════════════════════════════════════════════
 
     // Bucket by month for income/expense averages and trend classification.
-    // isRealExpense excludes Transfer/Transfers — this loop previously
-    // counted every expense-type transaction, including transfers, inflating
-    // monthlyExpenseAvg (and the "spending $X more than you earn" gap
-    // derived from it) relative to every other surface (budget/overspending-
-    // signals investigation, Step 2, 2026-08-27).
+    // isRealExpense/isRealIncome exclude Transfer/Transfers (and incoming
+    // Zelle/Venmo) — this loop previously counted every expense- and every
+    // income-type transaction, transfers included, inflating both
+    // monthlyExpenseAvg (and the "spending $X more than you earn" gap) and
+    // monthlyIncomeAvg / income-variance relative to every other surface
+    // (budget/overspending-signals investigation, Step 2, 2026-08-27;
+    // income side added 2026-09-03 so a self-transfer or incoming P2P
+    // payment doesn't inflate income or its stability metric).
     const monthlyIncome: Record<string, number> = {};
     const monthlyExpense: Record<string, number> = {};
     for (const t of transactions) {
       const key = monthKey(t.date);
-      if (t.type === 'income') monthlyIncome[key] = (monthlyIncome[key] || 0) + Math.abs(Number(t.amount) || 0);
+      if (isRealIncome(t)) monthlyIncome[key] = (monthlyIncome[key] || 0) + Math.abs(Number(t.amount) || 0);
       if (isRealExpense(t)) monthlyExpense[key] = (monthlyExpense[key] || 0) + Math.abs(Number(t.amount) || 0);
     }
     const incomeMonths = Object.keys(monthlyIncome).sort();

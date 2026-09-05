@@ -930,11 +930,35 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
       </div>
       )}
 
-      {compactWeek && (
-        <button onClick={() => setExpanded(v => !v)} style={{ display: "block", background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold }}>
-          {expanded ? t("dashboard.show_less") : t("dashboard.view_full_month")}
-        </button>
-      )}
+      {/* Color-key legend — persistent, not a one-time dismissible tip
+          (2026-08-29 design feedback): the red/green day-number coloring
+          itself was already correct (red = a bill charged/due that day,
+          green = income landed/expected), the actual gap was a first-time
+          user having no way to learn what the colors mean. A dismissible
+          tip (same pattern as the "long-press any card" banner) would
+          only teach the user who happens to see it before dismissing —
+          this needs to be answerable every time someone glances at the
+          grid, so it stays on rather than earning a one-time-only slot.
+          Kept to the same small/muted scale as "View full month" right
+          next to it, on the same row, so it doesn't add a whole new line
+          of visual weight. */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+        {compactWeek && (
+          <button onClick={() => setExpanded(v => !v)} style={{ display: "block", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold, flexShrink: 0 }}>
+            {expanded ? t("dashboard.show_less") : t("dashboard.view_full_month")}
+          </button>
+        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11, color: DC.muted }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: DC.ruby, flexShrink: 0 }} />
+            {t("dashboard.calendar_legend_bill")}
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: DC.emerald, flexShrink: 0 }} />
+            {t("dashboard.calendar_legend_income")}
+          </span>
+        </div>
+      </div>
 
       {selectedDay && (
         <div onClick={() => { setSelectedDay(null); setTooltipDay(null); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 180, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
@@ -1703,6 +1727,13 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           ? `${t("dashboard.credit_cards_net_worth")}: ${balanceVisible ? (netWorth < 0 ? `-$${fmt(Math.abs(netWorth))}` : `$${fmt(netWorth)}`) : "••••"}`
           : null;
 
+        // Was briefly made conditional on the coach card also mentioning
+        // this same card's utilization (2026-08-29, hidePct) — reverted
+        // same day: that dependency is fragile, since the coach's message
+        // can change to an unrelated topic, or a second card can get
+        // added, at which point this block becomes the only reliable
+        // place to see the utilization number at all. Always shown now,
+        // regardless of what the coach card currently says.
         const cardRow = (a, i) => (
           <div key={a.account_id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: i === 0 ? 0 : "8px 0 0" }}>
             <span className="ph-mask" style={{ fontSize: 13, color: DC.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creditCardLabel(a)}</span>
