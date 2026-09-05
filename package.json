@@ -32,7 +32,7 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-i18next": "^17.0.8",
-    "react-plaid-link": "^4.1.1"
+    "react-plaid-link": "^5.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
