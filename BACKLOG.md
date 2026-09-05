@@ -9,38 +9,20 @@
 
 ## 📋 ЗАПЛАНИРОВАНО — промпты готовы
 
-### 22. HIGH — service_role не имеет доступа ни к одной public-таблице на чистом replay (грант не в миграциях, только ручное состояние прода)
+### 22. HIGH — service_role не имеет доступа ни к одной public-таблице на чистом replay — ЗАКРЫТ 2026-09-04
 
-Найдено 2026-09-04 при сборке edge-function regression-harness (`supabase/functions/_test/`, PR "test(edge): add regression harness"). На чистом `npx supabase db reset` (все миграции применены с нуля) роль `service_role` не имеет **ни SELECT, ни INSERT, ни UPDATE, ни DELETE** ни на одной public-таблице — только `postgres` (роль, которой применяются миграции). Подтверждено live через `information_schema.role_table_grants`: `service_role` на `profiles`/`investments`/`plaid_items`/`plaid_accounts`/`transactions`/`stripe_webhook_events` имеет только `REFERENCES, TRIGGER, TRUNCATE` — не проверялись остальные таблицы, но нет оснований считать их исключением.
+Найдено 2026-09-04 при сборке edge-function regression-harness. Прод работал только потому, что `GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role` был применён один раз вручную (Studio/CLI) до появления папки миграций и никогда не закоммичен. Тот же класс проблемы, что для `plaid_items` unique constraint (PR #76), но в масштабе всех таблиц/service_role целиком.
 
-Прод работает только потому, что стандартный Supabase-грант `GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role` был применён один раз вручную (Studio/CLI) ДО того, как в проекте завели папку миграций — и никогда не закоммичен ни в одну миграцию. Тот же класс проблемы, что была найдена и закрыта для `plaid_items` unique constraint (PR #76, `20260413000002_plaid_items_unique.sql`), только там масштаб был одна таблица/один констрейнт, здесь — вообще все таблицы и весь доступ service_role целиком.
+**Фикс**: `20260904000000_service_role_grants.sql` — `GRANT ALL ON ALL TABLES/SEQUENCES/ROUTINES IN SCHEMA public TO service_role` + `ALTER DEFAULT PRIVILEGES ... TO service_role` (на будущие объекты). Без `IF NOT EXISTS`-обёртки — `GRANT`/`ALTER DEFAULT PRIVILEGES` в Postgres естественно идемпотентны (в отличие от `ADD CONSTRAINT`, который падает на дубликате имени), обёртка была бы cargo-culting несовпадающего паттерна.
 
-**Риск, если база когда-либо будет пересоздана только из миграций** (disaster recovery, новое окружение, staging, CI, `db reset` на новой машине) — `service_role` молча теряет доступ ко всему. Ломается всё, что ходит через service-role ключ: все Stripe/Plaid webhooks, cron-функции (`generate-monthly-report`, `daily-lesson-v2`, `weekly-report`, `large-transaction-alert`), admin-экшены (`plaid-sync-transactions`'s `resync_all`/`sync_item`). PostgREST отвечает "permission denied for table X" на каждый запрос. Это не ловится ни RLS-ревью, ни `get_advisors` — GRANT/REVOKE это отдельный от RLS policies уровень доступа, `pg_policies` его не показывает.
+**Live-проверка перед миграцией** (`information_schema.role_table_grants`/`role_routine_grants`, `pg_sequences`, `pg_default_acl` на проде): все 19 public-таблиц и все 11 routines уже имели полный набор прав для `service_role` — миграция 1:1 кодифицирует то, что уже реально на проде, не добавляет новых прав. Публичная схема на проде не содержит ни одной sequence (все PK — UUID default, не serial/identity).
 
-Компенсирующий грант для тестового харнесса — `supabase/functions/_test/_helpers/fixtures.sql` (даёт `service_role` DML, намеренно не трогает `authenticated`/`anon` lockdown из `20260730000000`/`20260730000001`). Это тестовый костыль, не прод-фикс — грант нигде не закоммичен как миграция.
+**Верификация на чистом `npx supabase db reset`** (новая ветка от `main`, не от `test/edge-regression-harness` — несвязанные незакоммиченные изменения из другой сессии предварительно застэшены):
+- `service_role` реальный REST-round-trip (INSERT→SELECT→UPDATE→DELETE) на `login_attempts` — все шаги 2xx.
+- `service_role` SELECT на `profiles`/`transactions`/`plaid_items`/`stripe_webhook_events`/`investments` — 200 (было бы 403 без миграции).
+- `authenticated` (реальный JWT, реальная строка `profiles`): SELECT разрешённых колонок — 200 с данными; UPDATE `monthly_budget` — 204, реально применилось; UPDATE `plan` (попытка эскалации) — 403, `plan` не изменился; SELECT `alpaca_access_token` явно — 403. Column-level lockdown из `20260730000000`/`20260730000001` не пострадал.
 
-```
-Напиши миграцию, которая явно кодифицирует текущий прод-грант вместо
-того чтобы оставлять его незакоммиченным ручным состоянием:
-
-  GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
-  GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
-  GRANT ALL ON ALL ROUTINES IN SCHEMA public TO service_role;
-  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
-  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO service_role;
-  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO service_role;
-
-Сначала проверь live на проде (information_schema.role_table_grants),
-какие именно привилегии у anon/authenticated сейчас реально есть на
-каждой таблице — не предполагай "ALL", column-level lockdown в
-20260730000000/20260730000001 (profiles) и любые другие точечные
-REVOKE'ы должны остаться в силе ПОСЛЕ этой миграции, не быть случайно
-перегранчены заново. Покажи итоговый SQL перед применением
-(CLAUDE.md: миграции, трогающие auth/RLS/схему — только с явным
-подтверждением). Проверь на db reset до и после: service_role должен
-получить полный доступ, authenticated/anon — ничего сверх того, что
-уже задокументировано в существующих grant-миграциях.
-```
+**Найдено попутно, НЕ в скоупе, не тронуто**: `pg_default_acl` на проде показывает, что `ALTER DEFAULT PRIVILEGES` для роли `postgres` (которой применяются миграции) уже выдаёт `ALL` на будущие таблицы не только `service_role`, но и `anon`/`authenticated` — то есть каждая НОВАЯ таблица, созданная миграцией, по умолчанию получает полный GRANT-доступ для этих ролей и защищена только RLS-политиками (если они есть). Тот же класс риска, что "5 таблиц без policies" из #13, но теперь на уровне default-privileges для всех будущих таблиц, а не конкретных существующих. Требует отдельного решения (сузить `ALTER DEFAULT PRIVILEGES` до `service_role` на проде и в новой миграции, либо явно принять как осознанный паттерн) — не решалось здесь, так как это меняет доступ anon/authenticated, что требует отдельного подтверждения.
 
 ### 13. Полный RLS-аудит по всем таблицам — ЗАКРЫТ 2026-07-17
 
