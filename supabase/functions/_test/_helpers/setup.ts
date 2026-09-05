@@ -41,6 +41,7 @@ Deno.env.set('PLAID_CLIENT_ID', 'test-plaid-client-id');
 Deno.env.set('PLAID_SECRET', 'test-plaid-secret');
 Deno.env.set('STRIPE_SECRET_KEY', 'sk_test_edge_harness');
 Deno.env.set('STRIPE_WEBHOOK_SECRET', 'whsec_edge_harness_secret');
+Deno.env.set('STRIPE_PRICE_ID', 'price_edge_harness');
 
 // No SENTRY_DSN on purpose — initSentry() no-ops, captureAndFlush() is inert.
 
