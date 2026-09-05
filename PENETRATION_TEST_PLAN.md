@@ -8,9 +8,19 @@ that got forgotten.
 
 ## Methodology
 
-- All testing against the **test account** (`90eb11c3-c1e9-4241-8362-9e15ce231c33`,
-  `shevvik88@gmail.com`) or freshly-created disposable accounts — never real
-  user data.
+- **Correction, 2026-08-27**: `90eb11c3-c1e9-4241-8362-9e15ce231c33`
+  (`shevvik88@gmail.com`) was called "the test account" throughout this
+  document and `SECURITY_THREAT_MODEL.md` — that was wrong. The user
+  confirmed it's their **real personal account**. Prior sessions' read-only
+  checks and dry-run probes against it stand as-is, but going forward: any
+  test that mutates auth state (sessions, password, deletion) or account
+  data must use a freshly-created **disposable** Supabase Auth user
+  instead — see `scripts/_lib-disposable-account.mjs` (added 2026-08-27,
+  used for 1.2/1.3/1.4 below). Read-only/non-mutating checks against the
+  real account remain acceptable but should default to a disposable
+  account when one isn't materially harder to set up.
+- All testing against a **freshly-created disposable account** (see above)
+  by default — never real user data.
 - Wherever a test could plausibly move real money (Alpaca live trades, Stripe
   real charges), confirm with the user before running it — some scenarios in
   this plan are request-shape/response-code checks that stop short of that
@@ -85,10 +95,40 @@ tracking:
 | Requirement | Verified | Result | Severity | Fix status |
 |---|---|---|---|---|
 | 1.1 IP+email lockout | **Tested 2026-08-17; spoofable fallback hardened + live-verified 2026-09-03** | Passed (spoofing vector) / Known trade-off (structural). Read `check_login_lockout`/`record_login_failure`/`clear_login_attempts` in full: key is `email.toLowerCase()::ip`, 5 attempts / 15-min window → 15-min lockout, correctly implemented (sliding window reset). Live-tested against a disposable non-existent target email: 5 failures → 429 on the 6th, confirmed. Attempted to bypass via header spoofing: `CF-Connecting-IP` spoofing itself was blocked by Cloudflare's own WAF before reaching the origin (`403`); `X-Forwarded-For` spoofing (the code's fallback) was NOT blocked by Cloudflare but had **zero effect** on the lockout — `CF-Connecting-IP` (set authoritatively by Cloudflare, unspoofable) is always present for real traffic and takes priority; the `X-Forwarded-For` fallback branch was effectively dead code for production traffic. **Hardening (2026-09-03, background security review):** even as unreachable dead code, the `X-Forwarded-For` fallback was a latent bypass (leftmost value is client-prependable → a fresh 5-attempt budget per forged IP if the branch were ever reached), and it was being echoed into GoTrue's own limiter. Both `auth-login` and `auth-signup` now resolve the client IP as `CF-Connecting-IP` → `info.remoteAddr` (a `Deno.serve` socket property, never a header) → shared `"unknown"` bucket; the client `X-Forwarded-For` header is no longer read for keying, and only the trusted `CF-Connecting-IP` is forwarded upstream. **Live-verified 2026-09-03** (probe deployed to `auth-signup`, then removed): `CF-Connecting-IP` present on every real request (`73.x.x.x`); a request with a forged `CF-Connecting-IP` + `X-Forwarded-For` → `403` at the Cloudflare WAF, never reaches origin; `info.remoteAddr` populated (`transport: tcp`) but an internal address on Supabase Edge Runtime, so the fallback is a conservative shared bucket, unreachable in practice. Regression + exploit re-test: 12 signups each with a *different* spoofed `X-Forwarded-For` → still `429` at #11 (all keyed on the real `CF-Connecting-IP`; pre-fix this would have been 12×`200`). Deployed `auth-login` v45→v46, `auth-signup` v2→v4 (`verify_jwt:false` preserved). Residual, **not a bug**: the `email::ip` key still gives a genuinely distributed attacker (many *real* distinct IPs — a botnet/proxy pool) an independent 5-attempt budget per real IP — the standard, deliberate trade-off vs. email-only lockout (which lets anyone DoS-lock a known email). | **LOW/informational → Fixed** (the spoofable fallback is removed; the distributed-real-IP residual is a known, accepted design trade-off) | **Fixed, live-verified** (`auth-login`, `auth-signup` — client-supplied `X-Forwarded-For` no longer keys the rate limit or is forwarded upstream) |
-| 1.2 Refresh token rotation | Not yet tested | — | — | — |
-| 1.3 Session invalidation on password change | Not yet tested | — | — | — |
-| 1.4 Password reset token properties | Not yet tested | — | — | — |
-| 1.5 Concurrent-session detection | Not yet tested | — | — | — |
+| 1.2 Refresh token rotation | **Tested 2026-08-27** | Passed. Disposable Supabase Auth account (`scripts/test-refresh-token-rotation.mjs`, Admin API `createUser`/`deleteUser` — never the real account, see Methodology correction above). Password sign-in → S1 (access+refresh). Used S1's refresh token once → S2 issued, S1≠S2 confirmed. Immediately replayed the now-superseded S1 refresh token: got `HTTP 200` returning the **same** pair as S2 (identical refresh token) — this is GoTrue's documented reuse-interval grace window (short-lived tolerance for network-retry races), not a live vulnerability, confirmed by comparing the replay's returned refresh token byte-for-byte against S2's rather than assuming from the 200 status alone. Waited 15s (past any plausible grace window) and replayed S1's original refresh token again: `HTTP 400 invalid_grant`, rejected — confirms rotation is enforced once the grace window elapses, not merely appearing to work due to a coincidental race. Disposable account deleted after. | None | N/A |
+| 1.3 Session invalidation on password change | **Tested 2026-08-27** | Passed (the actual 1.3 question) — but surfaced a separate, real, currently-live functional bug (documented below, not part of 1.3's own pass/fail). Disposable account (`scripts/test-password-change-session-invalidation.mjs`), two independent password sign-ins → session A, session B (distinct access+refresh pairs confirmed). Changed password from session A via `supabase.auth.updateUser({ password })` — **the exact call `Profile.jsx:174`'s `handleChangePassword` makes** — and it failed live: `HTTP 400 {"error_code":"current_password_required","msg":"Current password required when setting new password."}`. This project's Supabase Auth has "secure password change" enforcement on, and `Profile.jsx` never sends `current_password`. **Separate finding, see below the table.** Retried with `current_password` added (Admin-API-only workaround, not something the real UI can do without a code change) to unblock the rest of the test: password change succeeded (`HTTP 200`). Session B afterward: `GET /auth/v1/user` → `403` (access token actively rejected, not just left to expire naturally), and `refresh_token` grant → `400 refresh_token_not_found`. Both of session B's credentials were dead immediately after the password change from session A — confirms password change **does** invalidate other sessions, both access and refresh, not merely relying on JWT natural expiry. Session A re-authenticates fine with the new password. Disposable account deleted after. | **1.3 itself: None.** Separate finding (password-change-broken bug) is a functional defect, not classified under this table — see write-up below. | N/A for 1.3 |
+| 1.4 Password reset token properties | **Tested 2026-08-27, corrected and closed same day** | Passed overall, with a self-correction along the way. Disposable account (`scripts/test-password-reset-token.mjs`), Admin API `generate_link(type:'recovery')` — same token GoTrue would email via `resetPasswordForEmail()`, obtained without needing real inbox access. `hashed_token`: 56 hex chars (224 bits) — cryptographically unguessable, confirmed single-use (`HTTP 403 otp_expired` on replay). Separately, the same response includes `email_otp`: an 8-digit numeric code, independently valid via `POST /auth/v1/verify {type:'recovery', email, token:<code>}` with no `token_hash` at all — GoTrue's standard alternate flow, shipped by Supabase's default email template; `AuthScreen.jsx` doesn't surface a code-entry UI, but the endpoint is reachable directly regardless. **First pass got this wrong**: sent 15 wrong guesses, all correctly rejected, but concluded "no throttle observed" — that was a sample-size error, not a real finding. `mcp__supabase__search_docs` (`guides/auth/rate-limits`) confirmed `/auth/v1/verify` has a documented, **non-customizable**, IP-based token-bucket limit (burst 30). A 45-request follow-up (`scripts/test-verify-endpoint-rate-limit.mjs`) confirmed it live: requests #1–30 got `403` (wrong code), **#31 onward got `429 over_request_rate_limit`**, including the real code itself once the bucket was empty. Also checked whether the Dashboard exposes a toggle for this specific limit — attempted to open `/project/_/auth/rate-limits` via browser automation; the session wasn't logged into Supabase, and per the standing rule against entering passwords on the user's behalf, stopped at the login screen rather than signing in — not needed anyway, since the docs already confirm this particular limit has no UI control (fixed platform default, unlike `rate_limit_otp`/`rate_limit_email_sent` etc., which are listed as customizable). | **LOW, closed.** ~30 guesses/hour-window per source IP makes serial brute force of 10^8 combinations impractical; residual is the same accepted distributed-attacker trade-off as 1.1/D4, not a new gap. | **N/A — already mitigated by a Supabase platform default, confirmed live; no code or config change available or needed.** |
+| 1.5 Concurrent-session detection | **Checked 2026-08-27 (absence confirmed, no live test needed per this requirement's own "flag if genuinely absent" bar)** | Grepped `src/`, all migrations, and edge functions for `userAgent`, "new device", "new login", "concurrent session", "device fingerprint", "active session" — no matches beyond unrelated `sessionStorage` hits. No email/push/UI signal exists anywhere for a new-device or concurrent login. Confirmed absence by search, not by trying to trigger a feature that isn't there. | **LOW/informational** — nice-to-have per the requirement's own framing, not a gap in an existing control. | N/A — not implemented, not planned unless prioritized separately |
+
+**1.3's separate finding — password change was broken for every real user — Fixed and live-verified 2026-08-27:**
+`Profile.jsx:174`'s `handleChangePassword()` called only
+`supabase.auth.updateUser({ password: newPw })`. This project's Supabase Auth
+has secure-password-change enforcement on (`current_password_required` for
+any account that already has a password — every real signup), and the
+frontend never collected or sent `current_password`. Confirmed the exact
+client-side field name/shape from the installed SDK
+(`node_modules/@supabase/auth-js/src/lib/types.ts:528`,
+`UserAttributes.current_password?: string`) rather than assuming — it's a
+plain field on the same `updateUser()` call, no separate reauthentication/
+nonce step needed for this case (that flow exists for other sensitive
+GoTrue operations, not this one). **Fix**: added a "current password" field
+to `Profile.jsx`'s change-password form (`currentPw` state, new input
+above "new password", `autoComplete="current-password"`), passed as
+`current_password` in the `updateUser` call, and mapped the two other real
+error codes probed live (`scripts/test-password-change-error-codes.mjs`) —
+`current_password_invalid` (wrong current password) and `same_password`
+(new === old) — to friendly messages in all 4 locales (en/ru/es/pt); other
+errors (e.g. `weak_password`) still fall back to `error.message`.
+**Live-verified end-to-end** on a disposable account, calling the exact
+same shape `Profile.jsx` now sends: `updateUser({password, current_password})`
+→ `HTTP 200`; re-sign-in with the new password → `200`; sign-in with the
+old password afterward → `400 invalid_credentials` (old password
+genuinely dead, not just UI-side state). `npm run build` passes clean.
+
+**1.4 resolution:** what looked like an open gap turned out to be a
+sample-size mistake in the original test, corrected the same day — see the
+table row above and `SECURITY_THREAT_MODEL.md`'s S5 for the full write-up.
+No action item remains open here.
 
 ---
 
