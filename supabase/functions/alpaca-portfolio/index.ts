@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 import { requirePaidPlan } from '../_shared/requirePaidPlan.ts';
+import { enforceRateLimit } from '../_shared/rateLimit.ts';
 
 initSentry('alpaca-portfolio');
 
@@ -66,6 +67,12 @@ Deno.serve(async (req) => {
     // PENETRATION_TEST_PLAN.md 6.4 / SECURITY_THREAT_MODEL.md E4.
     const planBlock = await requirePaidPlan(supabase, user.id, corsHeaders);
     if (planBlock) return planBlock;
+
+    // Cost/abuse guard — each call below fans out to 3 Alpaca REST requests
+    // on the user's live OAuth token, and ai-chat now invokes this once per
+    // chat message before its own rate check runs.
+    const rateLimitResponse = await enforceRateLimit(user.id, 'alpaca-portfolio');
+    if (rateLimitResponse) return rateLimitResponse;
 
     const { data: profile } = await supabase
       .from('profiles')

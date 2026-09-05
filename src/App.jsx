@@ -1658,6 +1658,13 @@ export default function App() {
     setChatMessages(updated);
     setChatInput("");
 
+    // Show the "..." bubble immediately — the context-building below makes up
+    // to two network round-trips (balance retry + Alpaca portfolio) before
+    // ai-chat is even called, and without this the UI looks frozen for that
+    // whole time.
+    const lid = Date.now();
+    setChatMessages(prev => [...prev, { role: "assistant", text: "...", id: lid, loading: true }]);
+
     // Real account balance is critical financial data going into an AI
     // prompt marked "treat as ground truth" — never substitute a different
     // number (monthly net) if it's missing. getCachedAccounts() reflects
@@ -1666,18 +1673,70 @@ export default function App() {
     // of passively trusting that cross-screen cache for this specific case.
     let freshAccounts = getCachedAccounts();
     let currentBalance = sumDepositoryBalance(freshAccounts);
-    if (currentBalance == null && bankConnected) {
-      try {
-        const result = await callEdgeFunction("plaid-get-accounts", {});
-        if (result?.accounts) {
-          freshAccounts = result.accounts;
-          if (freshAccounts.length) setCachedAccounts(freshAccounts);
-          currentBalance = sumDepositoryBalance(freshAccounts);
+
+    // Alpaca brokerage portfolio — fetched fresh here (not from the per-screen
+    // caches Markets/Savings/Dashboard each keep) so "review my portfolio /
+    // what else should I buy" actually has the user's real positions. No
+    // local cache by design: chat is low-volume and stale holdings would
+    // mislead. Failure is surfaced to the prompt explicitly, never omitted —
+    // an absent field reads to the model as "no brokerage account" — and a
+    // permanent failure (plan lost / brokerage disconnected) is distinguished
+    // from a transient one so the coach doesn't tell an ex-Pro to "try again
+    // shortly" forever.
+    let portfolio = null;
+
+    // The balance retry and the portfolio fetch are independent — run them
+    // together instead of blocking on one then the other.
+    await Promise.all([
+      (async () => {
+        if (currentBalance != null || !bankConnected) return;
+        try {
+          const result = await callEdgeFunction("plaid-get-accounts", {});
+          if (result?.accounts) {
+            freshAccounts = result.accounts;
+            if (freshAccounts.length) setCachedAccounts(freshAccounts);
+            currentBalance = sumDepositoryBalance(freshAccounts);
+          }
+        } catch (err) {
+          logger.error("[sendChat] balance fetch failed:", err);
         }
-      } catch (err) {
-        logger.error("[sendChat] balance fetch failed:", err);
-      }
-    }
+      })(),
+      (async () => {
+        if (!alpacaConnected) return;
+        try {
+          const p = await callEdgeFunction("alpaca-portfolio", {});
+          if (p?.error === "alpaca_not_connected") {
+            portfolio = { disconnected: true };
+            setAlpacaConnected(false); // token was wiped server-side — re-sync UI state
+          } else if (p?.error === "upgrade_required") {
+            portfolio = { upgradeRequired: true };
+          } else if (p && !p.error) {
+            portfolio = {
+              portfolioValue: p.portfolio_value ?? null,
+              cash: p.cash ?? null,
+              buyingPower: p.buying_power ?? null,
+              positions: (p.positions ?? []).slice(0, 50).map(pos => ({
+                symbol: pos.symbol,
+                qty: pos.qty,
+                marketValue: pos.market_value,
+                avgEntryPrice: pos.avg_entry_price,
+                unrealizedPl: pos.unrealized_pl,
+                unrealizedPlpc: pos.unrealized_plpc,
+              })),
+              openOrders: (p.open_orders ?? []).slice(0, 20).map(o => ({
+                symbol: o.symbol, side: o.side, notional: o.notional,
+                qty: o.qty, status: o.status,
+              })),
+            };
+          } else {
+            portfolio = { loadFailed: true }; // 5xx / plan_check_failed / network — transient
+          }
+        } catch (err) {
+          logger.error("[sendChat] alpaca portfolio fetch failed:", err);
+          portfolio = { loadFailed: true };
+        }
+      })(),
+    ]);
 
     const allAccounts = freshAccounts || [];
     const creditCards = getCreditAccounts(allAccounts)
@@ -1689,6 +1748,49 @@ export default function App() {
 
     const { subscriptions, regularPayments, subTotal, regularTotal } = computeRecurringSummary(transactions, new Date(), merchantAliasMap);
     const duplicates = findDuplicateSubscriptions(subscriptions);
+
+    // (a) When the current month has no income yet, component-level
+    // effectiveIncome falls back to the most recent month that has ANY
+    // income — NOT necessarily last month, and the lookback is unbounded.
+    // Recompute which month that was so the prompt only claims "last month"
+    // when it literally is the previous calendar month.
+    const realIncomeTxs = transactions.filter(isRealIncome);
+    const fallbackIncomeDate = (totalIncome === 0 && realIncomeTxs.length > 0)
+      ? parseDate([...realIncomeTxs].sort((a, b) => new Date(b.date) - new Date(a.date))[0].date)
+      : null;
+    const incomeIsEstimated = totalIncome === 0 && effectiveIncome > 0;
+    const incomeEstimatedFromLastMonth = incomeIsEstimated && !!fallbackIncomeDate
+      && fallbackIncomeDate.getMonth() === prevMonthIdx
+      && fallbackIncomeDate.getFullYear() === prevYear;
+
+    // Spend figure paired with income for safe-to-move: when income is last
+    // month's, use the larger of last / this month so a heavy current month
+    // can't hide behind a cheap prior one; otherwise current-month spend.
+    const spendBasisForSafeToMove = incomeEstimatedFromLastMonth
+      ? Math.max(lastSpent, totalSpent)
+      : totalSpent;
+
+    // availableSafeToMove is null — no reliable figure — when EITHER (b) the
+    // balance couldn't be loaded, OR the only income on record predates last
+    // month (pairing a stale paycheck with one month's spend would just
+    // fabricate a number). The prompt renders each null case with its own
+    // explanation; a real number is rounded so its stated derivation
+    // reconciles with the other figures in the prompt.
+    const safeToMoveNullReason =
+      currentBalance == null ? 'balance'
+      : (incomeIsEstimated && !incomeEstimatedFromLastMonth) ? 'income'
+      : null;
+    const incomeSideSafe = effectiveIncome - spendBasisForSafeToMove - BUFFER;
+    const balanceSideSafe = currentBalance != null ? currentBalance - BUFFER : Infinity;
+    const rawSafeToMove = Math.max(0, Math.min(incomeSideSafe, balanceSideSafe));
+    const availableSafeToMove = safeToMoveNullReason ? null : Math.round(rawSafeToMove);
+    // Which constraint actually bound the number, so the prompt's stated
+    // derivation reconciles with the figure ('zero' when expenses/buffer
+    // leave nothing, 'balance' when the account cap won, else 'income').
+    const availableSafeToMoveBasis = safeToMoveNullReason ? null
+      : rawSafeToMove === 0 ? 'zero'
+      : balanceSideSafe < incomeSideSafe ? 'balance'
+      : 'income';
 
     const ctx = {
       // Explicit signal for ai-chat's LANGUAGE section — without this the
@@ -1704,7 +1806,12 @@ export default function App() {
         currentMonthIncome: effectiveIncome,
         monthlyBudget: Number(profile?.monthly_budget) || 3000,
         budgetUsedPct: Math.round((totalSpent / (Number(profile?.monthly_budget) || 3000)) * 100),
-        availableSafeToMove: Math.max(0, Math.min(effectiveIncome - totalSpent - BUFFER, currentBalance != null ? currentBalance - BUFFER : Infinity)),
+        availableSafeToMove,
+        availableSafeToMoveSpendBasis: availableSafeToMove == null ? null : Math.round(spendBasisForSafeToMove),
+        availableSafeToMoveBasis,
+        safeToMoveNullReason,
+        incomeEstimated: incomeIsEstimated,
+        incomeEstimatedFromLastMonth,
       },
       engine: {
         activeSignals: aiContext?.activeSignals ?? [],
@@ -1734,10 +1841,8 @@ export default function App() {
       })),
       creditCards,
       interestThisMonth,
+      portfolio,
     };
-
-    const lid = Date.now();
-    setChatMessages(prev => [...prev, { role: "assistant", text: "...", id: lid, loading: true }]);
 
     try {
       const res = await callEdgeFunction("ai-chat", {

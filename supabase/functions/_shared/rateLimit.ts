@@ -18,6 +18,12 @@ const RATE_LIMITS: Record<string, number> = {
   // realistic heavy browsing (~200/hr) while still bounding how much of the
   // shared quota a single runaway/scripted client can burn.
   'market-data':       300,
+  // Brokerage portfolio read. ai-chat now fetches this once per chat message
+  // for Alpaca-connected users (before its own rate check runs), and three
+  // screens also poll it on mount — each call fans out to 3 Alpaca REST
+  // requests on the user's live OAuth token. 60/hr bounds a runaway/scripted
+  // client well above realistic use without risking Alpaca-side throttling.
+  'alpaca-portfolio':  60,
 };
 
 function corsHeaders() {
