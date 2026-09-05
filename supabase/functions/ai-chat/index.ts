@@ -70,6 +70,18 @@ Deno.serve(async (req) => {
       });
     }
 
+    // financialContext is client-supplied and gets .map().join()'d straight
+    // into the system prompt. Cap its total size so a scripted client can't
+    // pad it with ~100k tokens of junk arrays and burn Anthropic spend
+    // (rate limit is 20/hr, but that's 20 huge prompts). buildSystemPrompt
+    // also slices each array defensively; this is the outer bound.
+    if (financialContext != null && JSON.stringify(financialContext).length > 32_000) {
+      return new Response(JSON.stringify({ error: "financialContext too large" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set");
 
@@ -83,17 +95,6 @@ Deno.serve(async (req) => {
     const hasActiveTrial = profile?.trial_ends_at
       ? new Date(profile.trial_ends_at) > new Date()
       : false;
-
-    // Paid Pro → unlimited web search.
-    // Trial    → web search up to 5 total uses (atomic check+increment in DB).
-    // Free     → no web search; chat responds normally without the tool.
-    let canUseSearch = isPaidPro && !hasActiveTrial;
-    if (!canUseSearch && hasActiveTrial) {
-      const { data: allowed } = await supabase.rpc('increment_trial_web_search', {
-        p_user_id: user.id,
-      });
-      canUseSearch = !!allowed;
-    }
 
     const mappedMessages = messages.map((m: { role: string; text: string }) => ({
       role: m.role === "user" ? "user" : "assistant",
@@ -115,7 +116,32 @@ Deno.serve(async (req) => {
     // narrower regex/classifier.
     const lastUserMessage = [...mappedMessages].reverse().find((m) => m.role === "user")?.content ?? "";
 
-    const systemPrompt = buildSystemPrompt(financialContext, lastUserMessage);
+    // Brokerage holdings and the web_search tool are mutually exclusive
+    // within one call — a hard, code-level invariant, not a prompt request.
+    // web_search runs server-side at Anthropic and we cannot inspect the
+    // query it generates, so if real position data is in the system prompt
+    // the tool is simply not offered; if the tool is offered, the holdings
+    // are withheld from the prompt. The keyword check only picks which mode
+    // this turn is in: a miss means holdings withheld + search available
+    // (no leak, just less portfolio context), never holdings + search.
+    const includeHoldings =
+      portfolioHasHoldings(financialContext?.portfolio) &&
+      messageIsInvestingRelated(lastUserMessage);
+
+    // Paid Pro → unlimited web search.
+    // Trial    → web search up to 5 total uses (atomic check+increment in DB).
+    // Free     → no web search; chat responds normally without the tool.
+    // The trial count is only spent when search is actually offered — an
+    // investing turn suppresses search (holdings win), so don't burn a use.
+    let canUseSearch = isPaidPro && !hasActiveTrial && !includeHoldings;
+    if (!canUseSearch && hasActiveTrial && !includeHoldings) {
+      const { data: allowed } = await supabase.rpc('increment_trial_web_search', {
+        p_user_id: user.id,
+      });
+      canUseSearch = !!allowed;
+    }
+
+    const systemPrompt = buildSystemPrompt(financialContext, lastUserMessage, includeHoldings);
 
     const reply = await callWithToolLoop(ANTHROPIC_API_KEY, systemPrompt, mappedMessages, canUseSearch);
 
@@ -207,9 +233,35 @@ async function callWithToolLoop(
   return "Sorry, I couldn't generate a response.";
 }
 
+// ── Holdings ⊕ web_search separation ──────────────────────────────
+// See the call site: real brokerage position data and the web_search tool
+// are never present in the same API call.
+
+// True only for the SUCCESS portfolio shape carrying sensitive data —
+// positions, portfolio value, cash, or buying power. The status-only
+// shapes ({ loadFailed | disconnected | upgradeRequired }) carry nothing
+// sensitive and never gate web_search.
+function portfolioHasHoldings(portfolio: any): boolean {
+  if (!portfolio || portfolio.loadFailed || portfolio.disconnected || portfolio.upgradeRequired) {
+    return false;
+  }
+  const hasPositions = Array.isArray(portfolio.positions) && portfolio.positions.length > 0;
+  const hasAccountValue = [portfolio.portfolioValue, portfolio.cash, portfolio.buyingPower]
+    .some((n: any) => n != null && Number(n) !== 0);
+  return hasPositions || hasAccountValue;
+}
+
+// Deliberately permissive — a false positive (holdings shown, search
+// suppressed for one turn) is harmless; the only thing that must never
+// happen (holdings + search together) is prevented structurally at the
+// call site regardless of what this returns.
+function messageIsInvestingRelated(text: string): boolean {
+  return /\b(invest(ing|ments?)?|portfolio|stocks?|shares?|equit(y|ies)|etfs?|index fund|mutual fund|holdings?|positions?|tickers?|brokerage|alpaca|diversif\w*|allocation|rebalanc\w*|dividends?|crypto|bitcoin|btc|ethereum|eth|spy|qqq|voo|vti|nasdaq|s&p|buy (more|into)|what (else )?(should|to|can) i buy|should i (buy|sell|invest))\b/i.test(text || "");
+}
+
 // ── System prompt builder ─────────────────────────────────────────
 
-function buildSystemPrompt(ctx: any, lastUserMessage: string): string {
+function buildSystemPrompt(ctx: any, lastUserMessage: string, includeHoldings = true): string {
   // Neutralize the delimiter this gets embedded inside below — without
   // this, a user message containing a literal `"""` could prematurely
   // close the quoted block and inject text that reads as a fresh system
@@ -268,6 +320,26 @@ does not add a new restriction:
   what IS answerable — their real financial position from PRIORITY ORDER,
   framed as what's worth considering before making that call. Never end
   the reply on the refusal alone.
+- When INVESTMENT PORTFOLIO below shows real holdings, you MAY describe
+  what is there factually — position sizes, concentration, unrealized
+  gain/loss, and the cash and buying power sitting available — and discuss
+  diversification or concentration risk in general terms. You still never
+  tell the user to buy, sell, or hold a specific ticker, including one they
+  already hold or a new name to "add". For "what else should I buy," point
+  at the general shape (e.g. most of the portfolio in one name, cash
+  sitting uninvested) and what is worth considering, after leading with
+  whatever PRIORITY ORDER says is more urgent (interest-bearing debt, a
+  cash shortfall) as always.
+- If INVESTMENT PORTFOLIO below says it could not be loaded, tell the user
+  their portfolio did not load this time and to try again shortly. If it
+  says the brokerage is disconnected, tell them to reconnect it in Settings.
+  If it says it needs Pro, say brokerage insight is a Pro feature. Never
+  guess, infer, or half-remember holdings, balances, or performance.
+- If you use the web_search tool: never put the user's holdings, tickers,
+  position sizes, balances, cash, buying power, or any figure from AI
+  CONTEXT into a search query. Search only for general, public information
+  (e.g. "S&P 500 historical average return"), never anything that
+  identifies or describes this user's actual portfolio or finances.
 
 LANGUAGE:
 - Respond in USER'S APP LANGUAGE (below) — this is the default and the
@@ -413,6 +485,7 @@ When recommending a credit card payment, the amount must never exceed SAFE TO MO
 Always say: "You have $X available after keeping a $1,000 buffer — put that toward [highest APR card]."
 Never say "pay off your balance" or recommend an amount larger than SAFE TO MOVE.
 If SAFE TO MOVE is $0 or negative, say so honestly: "There's no spare cash this month after your expenses — focus on not adding to the balance."
+If SAFE TO MOVE says unavailable (for any reason), do NOT name any payment amount at all — give the reason it states, and keep any debt advice non-numeric (e.g. avoid adding to the balance).
 If multiple cards exist, focus on the card with the highest balance first (APR is not available from Plaid).
 
 WINS MATTER:
@@ -432,7 +505,7 @@ TIME AWARENESS:
 
   if (!ctx) return BASE_PROMPT + "\n\nNo financial data available yet.";
 
-  const { language, metrics, engine, regularCommitments, topCategories, savingsGoals, totalSaved, recentTransactions, creditCards, interestThisMonth } = ctx;
+  const { language, metrics, engine, regularCommitments, topCategories, savingsGoals, totalSaved, recentTransactions, creditCards, interestThisMonth, portfolio } = ctx;
 
   const LANGUAGE_NAMES: Record<string, string> = { en: "English", ru: "Russian", es: "Spanish", pt: "Portuguese (Brazilian)" };
   const languageName = LANGUAGE_NAMES[(language ?? "").slice(0, 2)] ?? "English";
@@ -458,7 +531,7 @@ TIME AWARENESS:
   const allCommitments = [
     ...(regularCommitments?.subscriptions ?? []).map((s: any) => ({ ...s, kind: 'subscription' })),
     ...(regularCommitments?.regularPayments ?? []).map((s: any) => ({ ...s, kind: 'regular payment' })),
-  ].sort((a: any, b: any) => b.amount - a.amount);
+  ].sort((a: any, b: any) => b.amount - a.amount).slice(0, 30); // defensive cap — client sends a handful
 
   const commitmentLines = allCommitments.length > 0
     ? allCommitments.map((c: any) => `${c.name}: $${c.amount}/mo (${c.kind})`).join(", ")
@@ -483,6 +556,7 @@ TIME AWARENESS:
     : "no priority insight this month";
 
   const categoryLines = (topCategories || [])
+    .slice(0, 15)
     .map((c: any) => `${c.name}: $${c.amount}`)
     .join(", ") || "no spending data";
 
@@ -494,10 +568,42 @@ TIME AWARENESS:
     .join(", ") || "none";
 
   const goalLines = (savingsGoals || []).length > 0
-    ? savingsGoals.map((g: any) =>
+    ? savingsGoals.slice(0, 20).map((g: any) =>
         `${g.name}: $${g.current} of $${g.target} (${g.progressPct}%, $${g.remaining} remaining)`
       ).join(", ")
     : "no goals set";
+
+  const usd0 = (n: any) => `$${Number(n ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  const portfolioLine = !portfolio
+    ? "no brokerage account connected"
+    : portfolio.disconnected
+      ? "the brokerage connection is no longer valid — tell the user to reconnect their brokerage in Settings; do not guess or infer any holdings, balances, or performance"
+      : portfolio.upgradeRequired
+        ? "brokerage portfolio insight is a Pro feature and is not available on the current plan — do not describe any holdings"
+        : portfolio.loadFailed
+          ? "connected, but the live portfolio could NOT be loaded this session — tell the user it didn't load and to try again shortly; do not guess or infer any holdings, balances, or performance"
+          : !includeHoldings
+            ? "connected — position details are not included on this turn. If the user asks specifically about their portfolio or holdings (without also asking you to look up current market or news info in the same message), those details will be available. Do not guess or infer any holdings, balances, or performance in the meantime."
+            : (() => {
+          const positions = Array.isArray(portfolio.positions) ? portfolio.positions.slice(0, 50) : [];
+          const posList = positions.length > 0
+            ? positions.map((p: any) => {
+                const parts = [`${p.symbol}: ${p.qty} sh`, `value ${usd0(p.marketValue)}`];
+                if (p.unrealizedPl != null) {
+                  const pct = p.unrealizedPlpc != null ? ` (${(Number(p.unrealizedPlpc) * 100).toFixed(1)}%)` : "";
+                  parts.push(`unrealized ${Number(p.unrealizedPl) >= 0 ? "+" : "-"}${usd0(Math.abs(Number(p.unrealizedPl)))}${pct}`);
+                }
+                return parts.join(", ");
+              }).join(" | ")
+            : "no open positions";
+          const orders = Array.isArray(portfolio.openOrders) ? portfolio.openOrders.slice(0, 20) : [];
+          const ordersList = orders.length > 0
+            ? "; pending orders: " + orders.map((o: any) =>
+                `${o.side} ${o.symbol}${o.notional ? ` $${o.notional}` : o.qty ? ` ${o.qty} sh` : ""} (${o.status})`
+              ).join(", ")
+            : "";
+          return `total value ${usd0(portfolio.portfolioValue)}, cash ${usd0(portfolio.cash)}, buying power ${usd0(portfolio.buyingPower)}. Positions: ${posList}${ordersList}`;
+        })();
 
   const DATA_BLOCK = `
 
@@ -516,9 +622,33 @@ USER'S APP LANGUAGE: ${languageName}
 TIMING: Day ${dayOfMonth} of ${daysInMonth} (${daysLeft} days left, ${monthPhase}-month)
 STATE: ${state}
 BALANCE: ${metrics?.currentBalance != null ? `$${metrics.currentBalance}` : "unavailable right now — do NOT guess, estimate, or substitute another number (e.g. income minus spending) for this. Tell the user their balance couldn't be loaded and to try again in a moment."}
-SAFE TO MOVE: $${metrics?.availableSafeToMove ?? 0} (income minus spending minus $1,000 buffer — hard cap for any payment recommendation)
+SAFE TO MOVE: ${(() => {
+  const m = metrics ?? {};
+  if (m.availableSafeToMove == null) {
+    return m.safeToMoveNullReason === 'income'
+      ? "unavailable — the only income on record predates last month, so there is no reliable basis to compute spare cash. Do NOT state or estimate any dollar amount for spare cash, safe-to-move, or a card payment. Say you can't compute a reliable figure without recent income."
+      : "unavailable — the account balance couldn't be loaded, so there is no reliable safe-to-move figure this session. Do NOT state or estimate any dollar amount for spare cash, safe-to-move, or a card payment. Say plainly you can't get a reliable balance right now and to check back shortly.";
+  }
+  const cap = " Hard cap for any payment recommendation.";
+  if (m.availableSafeToMoveBasis === 'zero') {
+    return `$0 — after this month's spending and the $1,000 buffer there is no spare cash.${cap}`;
+  }
+  if (m.availableSafeToMoveBasis === 'balance') {
+    return `$${m.availableSafeToMove} = account balance $${Math.round(Number(m.currentBalance ?? 0))} minus $1,000 buffer (capped by balance — lower than income-minus-spending would allow).${cap}`;
+  }
+  const estNote = m.incomeEstimatedFromLastMonth
+    ? " (income and spending here are LAST MONTH's, used because this month has no income yet — not the SPENT THIS MONTH line below)"
+    : "";
+  return `$${m.availableSafeToMove} = income $${Math.round(Number(m.currentMonthIncome ?? 0))} minus $${m.availableSafeToMoveSpendBasis ?? m.currentMonthSpend ?? 0} spending minus $1,000 buffer${estNote}.${cap}`;
+})()}
 SPENT THIS MONTH: $${metrics?.currentMonthSpend ?? 0} of $${metrics?.monthlyBudget ?? 0} budget (${metrics?.budgetUsedPct ?? 0}% used)
-INCOME THIS MONTH: $${metrics?.currentMonthIncome ?? 0}
+INCOME THIS MONTH: $${metrics?.currentMonthIncome ?? 0}${
+  metrics?.incomeEstimatedFromLastMonth
+    ? " (ESTIMATED — this is LAST MONTH's income; none has landed yet this month. Treat it and anything derived from it as approximate, say so, don't present it as confirmed this-month earnings.)"
+    : metrics?.incomeEstimated
+      ? " (ESTIMATED — the only income on record predates last month; there is none for this month or last month. Treat as unknown/approximate and say so.)"
+      : ""
+}
 
 PRIMARY DRIVER: ${primaryDriver}
 CATEGORY BREAKDOWN: ${categoryLines}
@@ -537,6 +667,7 @@ TOTAL SAVED: $${totalSaved ?? 0}
 CREDIT CARDS (from Plaid): ${
   Array.isArray(creditCards) && creditCards.length > 0
     ? creditCards
+        .slice(0, 20)
         .sort((a: any, b: any) => (b.balance ?? 0) - (a.balance ?? 0))
         .map((c: any) => {
           const parts = [c.name];
@@ -547,6 +678,8 @@ CREDIT CARDS (from Plaid): ${
     : 'none connected via Plaid'
 }
 INTEREST CHARGES THIS MONTH: ${interestThisMonth > 0 ? `$${Number(interestThisMonth).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'none detected'}
+
+INVESTMENT PORTFOLIO (from Alpaca brokerage): ${portfolioLine}
 ---`;
 
   return BASE_PROMPT + DATA_BLOCK;
