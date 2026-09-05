@@ -165,13 +165,56 @@ Deno.serve(async (req) => {
         // (90-day non-recurring stats) and for filtering candidates below.
         // A merchant's recurring status can only be determined from its
         // pattern across many months, not from a single transaction alone.
-        const [{ data: allTxns, error: txErr }, { data: aliasRows }] = await Promise.all([
-          supabase.from('transactions')
+        //
+        // Bug fix (2026-09-02): this used to be a single unbounded .select()
+        // with no .limit() and no .order() — silently capped at PostgREST's
+        // default 1000-row "Max Rows" project setting, exactly the same
+        // class of bug just found and fixed in generate-monthly-report. The
+        // real account this was diagnosed against already has 1,328
+        // transactions, so it's already hitting this today, live — and
+        // because there was no .order() at all, the truncation here isn't
+        // even deterministically "oldest 1000" the way the report's was; it
+        // could silently drop an arbitrary mix of rows, including recent
+        // large transactions the whole alert exists to catch. Higher
+        // severity than the report bug: that one made a downloaded file
+        // incomplete, this one can make a live safety alert miss the exact
+        // thing it's supposed to flag.
+        //
+        // Paginated with .range() the same way, ordered by date so pages
+        // are at least deterministic — the 90-day stats and recurring
+        // detection below don't care about fetch order, but deterministic
+        // pagination is easier to reason about than relying on whatever
+        // order Postgres happens to return with none specified.
+        //
+        // aliasRows is independent of the transactions pagination, so it's
+        // kicked off up front and only awaited once the loop needs it —
+        // keeps the original two-query concurrency instead of serializing
+        // an unrelated fetch behind a now-multi-request transactions pull.
+        // Supabase-js query builders are lazy thenables (no request fires
+        // until awaited/`.then()`'d) — Promise.resolve() forces that `.then()`
+        // right away, the same way Promise.all([...]) did in the original
+        // code, instead of only starting the request once awaited below.
+        const aliasRowsPromise = Promise.resolve(
+          supabase.from('merchant_aliases').select('alias_key, canonical_key, status').eq('user_id', user.id)
+        );
+
+        const PAGE_SIZE = 1000;
+        const allTxns: Tx[] = [];
+        for (let from = 0; ; from += PAGE_SIZE) {
+          const { data: page, error: txErr } = await supabase
+            .from('transactions')
             .select('id, date, amount, type, description, category_name, created_at, large_tx_notified')
-            .eq('user_id', user.id),
-          supabase.from('merchant_aliases').select('alias_key, canonical_key, status').eq('user_id', user.id),
-        ]);
-        if (txErr) throw new Error(`DB error: ${txErr.message}`);
+            .eq('user_id', user.id)
+            .order('date', { ascending: true })
+            .range(from, from + PAGE_SIZE - 1);
+
+          if (txErr) throw new Error(`DB error: ${txErr.message}`);
+          if (!page || page.length === 0) break;
+          allTxns.push(...(page as Tx[]));
+          if (page.length < PAGE_SIZE) break;
+        }
+
+        const { data: aliasRows } = await aliasRowsPromise;
 
         const aliasMap = new Map<string, string>();
         (aliasRows ?? []).filter((a: any) => a.status === 'confirmed')
