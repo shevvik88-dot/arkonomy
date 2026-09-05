@@ -47,6 +47,13 @@
 * Keep components in the file where they're used unless explicitly asked to extract.
 * When editing a file, re-read it first; never rely on stale context.
 
+## Subagent usage policy
+
+* First, check what subagents actually exist in this project (list them / check the subagent config) rather than assuming from memory.
+* For any change touching production data, financial calculations, authentication, or Plaid/payment integration files: automatically run whichever available subagents are relevant (e.g. security review, code review, test running) on the diff BEFORE deploying — without waiting for an explicit request each time.
+* Purely cosmetic/UI changes (styling, copy, layout) with no data or security surface: subagents stay optional/on-request.
+* Rationale: pre-deploy subagent review has caught real bugs nothing else did — missing `ON DELETE CASCADE` on an FK, prompt injection via unescaped user text in a system prompt, an unbounded transaction fetch silently truncating at 1000 rows, missing rate limits. Worth being default for financially-sensitive code, not opt-in.
+
 ## Supabase rules
 
 * Test user UUID: `90eb11c3-c1e9-4241-8362-9e15ce231c33`
