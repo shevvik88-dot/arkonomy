@@ -187,10 +187,17 @@ function plaidTxToRow(tx: PlaidTransaction, userId: string) {
 
   const description = tx.merchant_name ?? tx.name ?? '';
 
-  // Peer-to-peer transfers: visible in chart and counted in spending.
-  // Override regardless of Plaid's category (Zelle rent → RENT_AND_UTILITIES → Housing
-  // without this check, double-counting actual rent).
-  if (!isIncome && /\bzelle\b|\bvenmo\b/i.test(description)) {
+  // Peer-to-peer transfers (Zelle/Venmo), BOTH directions: money movement,
+  // not spending or income. Override regardless of Plaid's category (Zelle
+  // rent → RENT_AND_UTILITIES → Housing without this check, double-counting
+  // actual rent). The incoming leg used to be left as 'Income' (this was
+  // guarded by !isIncome), so a transfer between the user's own accounts or
+  // an incoming P2P payment inflated every income-derived figure
+  // (self-transfer / incoming-P2P investigation, 2026-09-03). `type` still
+  // follows the sign so the ledger shows +/- correctly; only the category
+  // is forced to 'Transfers' so isRealIncome/isRealExpense exclude it.
+  const isP2P = /\bzelle\b|\bvenmo\b/i.test(description);
+  if (isP2P) {
     catName = 'Transfers';
   }
 
@@ -202,7 +209,7 @@ function plaidTxToRow(tx: PlaidTransaction, userId: string) {
     amount:               Math.abs(tx.amount),
     type:                 isIncome ? 'income' : 'expense',
     description,
-    category_name:        isIncome ? 'Income' : catName,
+    category_name:        isP2P ? 'Transfers' : (isIncome ? 'Income' : catName),
     pending:              tx.pending,
   };
 }
@@ -254,6 +261,137 @@ async function syncItemAccounts(
       .from('plaid_accounts')
       .upsert(rows, { onConflict: 'account_id' });
     if (error) console.error(`[plaid-sync-transactions] plaid_accounts upsert error for item ${item.id}:`, error);
+  }
+}
+
+// ── Intra-user transfer linking ──────────────────────────────────────────────
+// A transfer between the user's own connected accounts arrives as two
+// unrelated rows: an expense on the sending account and an income on the
+// receiving one. isTransferCategory only catches Zelle/Venmo by description,
+// so a credit-card payment ("Mobile Banking payment to CRD 9966" /
+// "PAYMENT FROM CHK 5999") or a checking→savings move slips through and the
+// income leg inflates every income total (self-transfer investigation,
+// 2026-09-03).
+//
+// Detection is deliberately high-precision, token-only: both legs of a real
+// intra-user transfer carry the same bank confirmation number in their
+// description. A purely structural match (equal amount, ±1 day, opposite
+// sign) produced only false positives in a dry run against production data
+// — a same-day same-amount Zelle to a person, and payments to *external*
+// cards (Wells Fargo, Capital One) that are real outflows — so it is NOT
+// used here. See BACKLOG.md ("structural intra-transfer fallback").
+//
+// Tagging rule:
+//   • depository → credit  (card payment): tag ONLY the credit-side income
+//     leg as 'Transfers'. The depository-side outflow stays an expense —
+//     paying down a card is a real use of this month's cash.
+//   • depository ↔ depository (e.g. checking→savings): tag BOTH legs — no
+//     spending or earning happened, money just moved between the user's pools.
+//
+// Idempotent, and re-scans a trailing window every sync because a pair can
+// split across two syncs (one leg today, the other tomorrow). If a later
+// Plaid `modified` resets a tagged row's category_name, the next run of this
+// pass re-tags it — a brief, self-correcting inconsistency, accepted so the
+// rule can live in category_name like every other Transfer/Transfers check
+// rather than needing a dedicated column.
+
+const INTRA_TRANSFER_WINDOW_DAYS = 45;
+const CONF_TOKEN_RE = /conf(?:irmation)?#?\s*([a-z0-9]{6,})/i;
+
+function confToken(description: string | null): string | null {
+  const m = CONF_TOKEN_RE.exec(description ?? '');
+  return m ? m[1].toLowerCase() : null;
+}
+
+function daysApart(a: string, b: string): number {
+  return Math.abs((new Date(a).getTime() - new Date(b).getTime()) / 86_400_000);
+}
+
+async function linkIntraUserTransfers(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<{ tagged: number }> {
+  try {
+    const since = new Date(Date.now() - INTRA_TRANSFER_WINDOW_DAYS * 86_400_000)
+      .toISOString().slice(0, 10);
+
+    const [{ data: txns, error: txErr }, { data: accts, error: acErr }] = await Promise.all([
+      supabase.from('transactions')
+        .select('id, account_id, date, amount, type, description, category_name')
+        .eq('user_id', userId)
+        .not('plaid_transaction_id', 'is', null)
+        .gte('date', since),
+      supabase.from('plaid_accounts')
+        .select('account_id, type')
+        .eq('user_id', userId),
+    ]);
+    if (txErr) { console.error('[intra-transfer] tx fetch error:', txErr); return { tagged: 0 }; }
+    if (acErr) { console.error('[intra-transfer] accounts fetch error:', acErr); return { tagged: 0 }; }
+
+    const acctType = new Map<string, string>();
+    for (const a of (accts ?? [])) acctType.set(a.account_id as string, a.type as string);
+
+    interface TxLeg {
+      id: string; acct: string; date: string; cents: number;
+      type: string; token: string | null; cat: string | null;
+    }
+    const rows: TxLeg[] = (txns ?? []).map((t: any) => ({
+      id:    t.id as string,
+      acct:  t.account_id as string,
+      date:  t.date as string,
+      cents: Math.round(Number(t.amount) * 100),
+      type:  t.type as string,
+      token: confToken(t.description),
+      cat:   t.category_name as string | null,
+    })).filter((r: TxLeg) => r.token && acctType.has(r.acct));
+
+    const expenses = rows.filter(r => r.type === 'expense');
+    const incomes  = rows.filter(r => r.type === 'income');
+
+    // Candidate pairs on a shared confirmation token. Count appearances per
+    // leg so an ambiguous leg (>1 candidate) can be dropped entirely.
+    const candidates: Array<{ exp: TxLeg; inc: TxLeg }> = [];
+    const expUses = new Map<string, number>();
+    const incUses = new Map<string, number>();
+    for (const exp of expenses) {
+      for (const inc of incomes) {
+        if (exp.token !== inc.token) continue;
+        if (exp.cents !== inc.cents) continue;
+        if (exp.acct === inc.acct) continue;
+        if (daysApart(exp.date, inc.date) > 1) continue;
+        candidates.push({ exp, inc });
+        expUses.set(exp.id, (expUses.get(exp.id) ?? 0) + 1);
+        incUses.set(inc.id, (incUses.get(inc.id) ?? 0) + 1);
+      }
+    }
+
+    const toTag = new Set<string>();
+    for (const { exp, inc } of candidates) {
+      if (expUses.get(exp.id) !== 1 || incUses.get(inc.id) !== 1) continue; // ambiguous
+      const et = acctType.get(exp.acct);
+      const it = acctType.get(inc.acct);
+      if (et === 'depository' && it === 'credit') {
+        if (inc.cat !== 'Transfers') toTag.add(inc.id);
+      } else if (et === 'depository' && it === 'depository') {
+        if (exp.cat !== 'Transfers') toTag.add(exp.id);
+        if (inc.cat !== 'Transfers') toTag.add(inc.id);
+      }
+      // any other account-type combination: leave untouched
+    }
+
+    if (toTag.size === 0) return { tagged: 0 };
+
+    const { error: updErr } = await supabase
+      .from('transactions')
+      .update({ category_name: 'Transfers' })
+      .in('id', [...toTag])
+      .eq('user_id', userId);
+    if (updErr) { console.error('[intra-transfer] update error:', updErr); return { tagged: 0 }; }
+
+    return { tagged: toTag.size };
+  } catch (err) {
+    console.error('[intra-transfer] unexpected error:', err);
+    return { tagged: 0 };
   }
 }
 
@@ -387,7 +525,7 @@ async function syncItemTransactions(
 // HANDLER
 // ═════════════════════════════════════════════════════════════════════════════
 
-Deno.serve(async (req) => {
+export async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
@@ -460,6 +598,12 @@ Deno.serve(async (req) => {
           }
         }
 
+        // Run the intra-user transfer pass once per user, after all their
+        // items are synced (a pair can span two accounts / two items).
+        for (const uid of usersSeen) {
+          await linkIntraUserTransfers(supabase, uid);
+        }
+
         return json({
           action:         'resync_all',
           users_resynced: usersSeen.size,
@@ -490,6 +634,7 @@ Deno.serve(async (req) => {
         const counts = await syncItemTransactions(supabase, plaidBase, clientId, secret, item);
         await syncItemAccounts(supabase, plaidBase, clientId, secret, item);
         await supabase.from('plaid_items').update({ error_code: null }).eq('id', item.id);
+        await linkIntraUserTransfers(supabase, item.user_id as string);
         return json({ action: 'sync_item', ...counts }, 200, corsHeaders);
       }
     }
@@ -528,6 +673,10 @@ Deno.serve(async (req) => {
       await syncItemAccounts(supabase, plaidBase, clientId, secret, { ...item, user_id: user.id });
     }
 
+    // Link intra-user transfers once, after every item for this user is
+    // synced (both legs of a pair may live on different items/accounts).
+    await linkIntraUserTransfers(supabase, user.id);
+
     return json(
       { added: totalAdded, modified: totalModified, removed: totalRemoved, synced: totalAdded + totalModified },
       200,
@@ -539,4 +688,8 @@ Deno.serve(async (req) => {
     await captureAndFlush(err, { function_name: 'plaid-sync-transactions' });
     return json({ error: "Internal Server Error" }, 500, corsHeaders);
   }
-});
+}
+
+// Serve unless imported by the edge-function test harness, which sets
+// ARK_EDGE_TEST and calls handler() directly. Unset in prod — serves normally.
+if (!Deno.env.get('ARK_EDGE_TEST')) Deno.serve(handler);

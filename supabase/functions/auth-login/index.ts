@@ -6,12 +6,21 @@ initSentry("auth-login");
 // Preview deployments get a fresh random subdomain hash on every push
 // (arkonomy-<hash>-shevvik88-dots-projects.vercel.app) — a single static
 // origin can't cover that, so this is an allow-list/pattern match instead.
-// Never echoes back an arbitrary origin: only prod or a Vercel preview URL
-// under this exact project match; anything else falls back to prod.
+// Never echoes back an arbitrary origin: only prod, a Vercel preview URL
+// under this exact project match, or a local Vite dev server; anything
+// else falls back to prod. localhost is safe to allow unconditionally
+// (not gated behind an env flag) — the browser only ever sends
+// `Origin: http://localhost:<port>` for a request that genuinely
+// originated from that machine's own local dev server; a remote attacker
+// cannot spoof it into a victim's browser. Added 2026-08-28 — local
+// dev login against this function was previously unreachable (CORS
+// `Failed to fetch`, found while trying to screenshot a Dashboard change
+// against localhost:5173).
 const PROD_ORIGIN = Deno.env.get("APP_URL") ?? "https://app.arkonomy.com";
 const ALLOWED_ORIGINS: (string | RegExp)[] = [
   PROD_ORIGIN,
   /^https:\/\/arkonomy-[a-z0-9-]+-shevvik88-dots-projects\.vercel\.app$/,
+  /^http:\/\/localhost:\d+$/,
 ];
 
 function resolveCorsHeaders(req: Request) {
@@ -25,7 +34,7 @@ function resolveCorsHeaders(req: Request) {
   };
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (req, info) => {
   const corsHeaders = resolveCorsHeaders(req);
   function json(body: unknown, status = 200) {
     return new Response(JSON.stringify(body), {
@@ -54,10 +63,24 @@ Deno.serve(async (req) => {
     const { email, password } = body as { email?: string; password?: string };
     if (!email || !password) return json({ error: "Email and password required" }, 400);
 
-    const ip =
-      req.headers.get("CF-Connecting-IP") ||
-      (req.headers.get("X-Forwarded-For") ?? "").split(",")[0].trim() ||
-      "unknown";
+    // Trusted client-IP resolution — `CF-Connecting-IP` is set authoritatively
+    // by Cloudflare (fronts *.supabase.co) and cannot be spoofed by the
+    // client; it is always present for real production traffic and takes
+    // priority (PENETRATION_TEST_PLAN.md 1.1, and re-verified live 2026-09-03
+    // against auth-signup: present on every real request, a forged one is
+    // WAF-rejected with 403 before origin). The old code fell back to the
+    // fully client-controlled `X-Forwarded-For` (leftmost, client-prependable),
+    // which — if that branch were ever reached — would let an attacker rotate
+    // the header for a fresh 5-attempt lockout budget per forged IP, or
+    // DoS-lock a victim's email from a single real IP by forging many.
+    // Fallback is now the runtime peer address (`info.remoteAddr` — a socket
+    // property, not a header; on Supabase Edge Runtime it's an internal
+    // address, so a conservative shared bucket), then a shared "unknown"
+    // bucket (background security review, 2026-09-03).
+    const cfIp = req.headers.get("CF-Connecting-IP")?.trim() || "";
+    // deno-lint-ignore no-explicit-any
+    const peerHost = ((info as any)?.remoteAddr?.hostname ?? "").trim();
+    const ip = cfIp || peerHost || "unknown";
     const rateLimitKey = `${email.toLowerCase()}::${ip}`;
 
     const supabase = createClient(

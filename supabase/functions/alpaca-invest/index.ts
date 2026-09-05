@@ -9,6 +9,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+import { requirePaidPlan } from '../_shared/requirePaidPlan.ts';
 
 initSentry('alpaca-invest');
 
@@ -19,7 +20,7 @@ const corsHeaders = {
 
 const BASE_URL = 'https://api.alpaca.markets';
 
-Deno.serve(async (req) => {
+export async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -53,6 +54,15 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // ── Enforce the paid-Pro paywall server-side ─────────────────
+    // The React invest buttons already block non-paid users, but that's
+    // client state — this is the actual enforcement point. Runs before the
+    // body is even parsed, so a free/trial/downgraded caller gets a 403
+    // with zero side effects (no pending row, no Alpaca call).
+    // PENETRATION_TEST_PLAN.md 6.4 / SECURITY_THREAT_MODEL.md E4.
+    const planBlock = await requirePaidPlan(supabase, user.id, corsHeaders);
+    if (planBlock) return planBlock;
 
     // ── Parse request ────────────────────────────────────────────
     // A malformed body (e.g. a raw `Infinity` token, invalid per RFC 8259)
@@ -307,4 +317,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-});
+}
+
+// Serve unless imported by the edge-function test harness, which sets
+// ARK_EDGE_TEST and calls handler() directly. Unset in prod — serves normally.
+if (!Deno.env.get('ARK_EDGE_TEST')) Deno.serve(handler);

@@ -29,3 +29,13 @@ export function isTransferCategory(t: { category_name?: string | null; descripti
 export function isRealExpense(t: { type: string; category_name?: string | null; description?: string | null }): boolean {
   return t.type === 'expense' && !isTransferCategory(t);
 }
+
+// Mirror of isRealExpense for the income side — see src/shared/
+// financialConstants.js's isRealIncome comment for the full rationale
+// (self-transfer / incoming-P2P investigation, 2026-09-03). An incoming
+// Zelle/Venmo credit, or the receiving leg of a transfer between the user's
+// own accounts, is money movement — not earnings. The expense side already
+// excluded the sending leg, so without this the two sides were asymmetric.
+export function isRealIncome(t: { type: string; category_name?: string | null; description?: string | null }): boolean {
+  return t.type === 'income' && !isTransferCategory(t);
+}

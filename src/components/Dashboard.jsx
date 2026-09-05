@@ -18,6 +18,7 @@ import { getTodaysLesson, getPersonalizedLessonNote, computeNextStreak } from '.
 import { getCardQuestion } from '../utils/cardQuestions';
 import { useLongPress } from '../hooks/useLongPress';
 import { BUFFER, isTransferCategory, calculateNetWorth } from "../shared/financialConstants";
+import { AccordionSection } from "./Profile";
 
 
 // ─── Health Score Gauge ──────────────────────────────────────────────────────
@@ -210,8 +211,14 @@ function HealthScoreBar({ score, color, comment, breakdown, hasData = true, prev
   );
 }
 
-function DonutChart({ data, size = 196, onCatClick, hideAmounts = false, lockList = false, onUpgrade, sideLegend = false }) {
+function DonutChart({ data, size = 196, onCatClick, hideAmounts = false, capCount = null, paywalled = false, onUpgrade, sideLegend = false }) {
   const { t } = useTranslation();
+  // Capped to capCount by default regardless of plan (Dashboard redesign,
+  // 2026-08-28 — was Pro-only unbounded via the old lockList={!isPro}
+  // prop, no visual cap and no "View all" for Pro at all). paywalled
+  // controls what happens to the overflow once capped: Free gets the
+  // existing blur+upgrade treatment, Pro gets a plain expand-in-place.
+  const [expanded, setExpanded] = useState(false);
   const cx = size / 2, cy = size / 2;
   const outerR = size / 2 - 8;
   // Thinner ring (was 22px, then 10px, still heavier than the mockup) with a
@@ -295,14 +302,18 @@ function DonutChart({ data, size = 196, onCatClick, hideAmounts = false, lockLis
       </div>
 
       {(() => {
-        // Free users see the top 3 categories in full (real value, no
-        // teaser blur on the whole list) — only categories beyond that are
-        // locked. Pro sees everything; lockList=false skips this split
-        // entirely. If there are 3 or fewer categories total, there's
-        // nothing to lock — show them all plainly, same as Pro.
-        const lockedCount = lockList ? Math.max(0, slices.length - 3) : 0;
-        const visibleSlices = lockedCount > 0 ? slices.slice(0, 3) : slices;
-        const hiddenSlices  = lockedCount > 0 ? slices.slice(3) : [];
+        // Free users see the top capCount categories in full (real value,
+        // no teaser blur on the visible list) — only categories beyond
+        // that are locked behind blur+upgrade. Pro users get the same
+        // visual cap for scannability, but the overflow is a plain "View
+        // all" expand, not a paywall. Once expanded (Pro only — Free's
+        // hidden rows stay behind onUpgrade, never locally expandable),
+        // capCount stops applying for the rest of this render. If there
+        // are capCount or fewer categories total, there's nothing to cap —
+        // show them all plainly regardless of plan.
+        const lockedCount = capCount != null && !expanded ? Math.max(0, slices.length - capCount) : 0;
+        const visibleSlices = lockedCount > 0 ? slices.slice(0, capCount) : slices;
+        const hiddenSlices  = lockedCount > 0 ? slices.slice(capCount) : [];
 
         const row = (s, i) => (
           <div key={s.cat}
@@ -323,16 +334,25 @@ function DonutChart({ data, size = 196, onCatClick, hideAmounts = false, lockLis
           <div style={{ display: "flex", flexDirection: "column", gap: sideLegend ? 8 : 6, flex: sideLegend ? 1 : "unset", minWidth: 0 }}>
             {visibleSlices.map(row)}
             {hiddenSlices.length > 0 && (
-              <div style={{ position: "relative" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, filter: "blur(3px)", userSelect: "none", pointerEvents: "none" }}>
-                  {hiddenSlices.map(row)}
+              paywalled ? (
+                <div style={{ position: "relative" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, filter: "blur(3px)", userSelect: "none", pointerEvents: "none" }}>
+                    {hiddenSlices.map(row)}
+                  </div>
+                  <div onClick={onUpgrade} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: DC.muted, background: DC.card, padding: "5px 14px", borderRadius: RADIUS.lg, border: `1px solid ${DC.faint}33` }}>
+                      {t("dashboard.unlock_more_categories", { count: lockedCount })}
+                    </span>
+                  </div>
                 </div>
-                <div onClick={onUpgrade} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: DC.muted, background: DC.card, padding: "5px 14px", borderRadius: RADIUS.lg, border: `1px solid ${DC.faint}33` }}>
-                    {t("dashboard.unlock_more_categories", { count: lockedCount })}
-                  </span>
-                </div>
-              </div>
+              ) : (
+                <button
+                  onClick={() => setExpanded(true)}
+                  style={{ display: "block", background: "none", border: "none", padding: "2px 0 0", margin: 0, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold, textAlign: sideLegend ? "left" : "center" }}
+                >
+                  {t("dashboard.view_all_categories")} →
+                </button>
+              )
             )}
           </div>
         );
@@ -666,6 +686,47 @@ function getUpcomingChargesByDay(transactions, aliasMap, referenceDate, schedule
   return result;
 }
 
+// Finds the single day (if any), within the rest of the current month,
+// where the most upcoming bills land together — reuses the same
+// recurring/card/scheduled-payment sources as getUpcomingChargesByDay
+// above so this can never disagree with what the calendar grid itself
+// would show for that day. Returns null when no day has 2+ bills
+// clustering together (the common case — this is meant to be a rare
+// flag, not a permanent fixture). Dashboard redesign, 2026-08-28 —
+// replaces the old inline "Three bills land on the 9th" text that used
+// to live inside the calendar card itself (removed at some point before
+// this pass, per the numbering gap between items 5 and 7).
+function getBillClusterAlert(transactions, aliasMap, referenceDate, scheduledPayments = []) {
+  const daysInMonth = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 0).getDate();
+  const remainingDays = daysInMonth - referenceDate.getDate();
+  const all = [
+    ...getUpcomingCharges(transactions, aliasMap, referenceDate, { maxDays: remainingDays, maxResults: Infinity }),
+    ...getUpcomingCardPayments(transactions, aliasMap, referenceDate, { maxDays: remainingDays, maxResults: Infinity }),
+    ...scheduledPayments
+      .filter(p => p.status === "pending")
+      .map(p => ({ amount: Number(p.amount), expectedDate: p.due_date })),
+  ];
+
+  const monthPrefix = `${referenceDate.getFullYear()}-${String(referenceDate.getMonth() + 1).padStart(2, "0")}`;
+  const byDay = {};
+  all.forEach(c => {
+    if (!c.expectedDate.startsWith(monthPrefix)) return;
+    const day = Number(c.expectedDate.slice(8, 10));
+    byDay[day] ??= { count: 0, total: 0 };
+    byDay[day].count += 1;
+    byDay[day].total += Number(c.amount);
+  });
+
+  let best = null;
+  for (const [day, v] of Object.entries(byDay)) {
+    if (v.count < 2) continue;
+    if (!best || v.count > best.count || (v.count === best.count && v.total > best.total)) {
+      best = { day: Number(day), count: v.count, total: v.total };
+    }
+  }
+  return best;
+}
+
 const WEEKDAY_KEYS = ["weekday_mon", "weekday_tue", "weekday_wed", "weekday_thu", "weekday_fri", "weekday_sat", "weekday_sun"];
 
 // Small day cell shared by the grid (level 1) and the day-detail strip
@@ -788,6 +849,11 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
 
   return (
     <GlassCard style={compactWeek ? { padding: "14px 16px", background: DC.card, border: "none" } : { padding: "14px 16px" }}>
+      {/* "This Month" label — briefly stripped during the Dashboard
+          redesign (2026-08-28) on the theory that the new separate
+          bill-clustering line above this card made it redundant;
+          restored same day per explicit request — the label stays
+          regardless of compactWeek. */}
       <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 10, color: compactWeek ? DC.text : C.text }}>{t("dashboard.month_calendar_title")}</div>
       <div style={showCompact ? { display: "flex", justifyContent: "space-between", marginBottom: 6 } : { display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
         {WEEKDAY_KEYS.map(key => (
@@ -864,11 +930,35 @@ function MonthCalendar({ transactions, merchantAliasMap, onDayClick, onDayCatego
       </div>
       )}
 
-      {compactWeek && (
-        <button onClick={() => setExpanded(v => !v)} style={{ display: "block", background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold }}>
-          {expanded ? t("dashboard.show_less") : t("dashboard.view_full_month")}
-        </button>
-      )}
+      {/* Color-key legend — persistent, not a one-time dismissible tip
+          (2026-08-29 design feedback): the red/green day-number coloring
+          itself was already correct (red = a bill charged/due that day,
+          green = income landed/expected), the actual gap was a first-time
+          user having no way to learn what the colors mean. A dismissible
+          tip (same pattern as the "long-press any card" banner) would
+          only teach the user who happens to see it before dismissing —
+          this needs to be answerable every time someone glances at the
+          grid, so it stays on rather than earning a one-time-only slot.
+          Kept to the same small/muted scale as "View full month" right
+          next to it, on the same row, so it doesn't add a whole new line
+          of visual weight. */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+        {compactWeek && (
+          <button onClick={() => setExpanded(v => !v)} style={{ display: "block", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold, flexShrink: 0 }}>
+            {expanded ? t("dashboard.show_less") : t("dashboard.view_full_month")}
+          </button>
+        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11, color: DC.muted }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: DC.ruby, flexShrink: 0 }} />
+            {t("dashboard.calendar_legend_bill")}
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: DC.emerald, flexShrink: 0 }} />
+            {t("dashboard.calendar_legend_income")}
+          </span>
+        </div>
+      </div>
 
       {selectedDay && (
         <div onClick={() => { setSelectedDay(null); setTooltipDay(null); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 180, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
@@ -1064,24 +1154,71 @@ function AddPlannedPaymentModal({ dueDate, transactions, merchantAliasMap, sched
 // pass stays scoped to Dashboard.jsx's own visual language.
 const COACH_WARNING_TYPES = ['cash_risk', 'category_spike', 'overspending', 'debt_utilization', 'goal_off_track'];
 
-function CoachBlock({ insight, onAction, onAskCoach }) {
+function CoachBlock({ insight, onAction, onAskCoach, diagnosisCardState, diagnosisAccentColor, onOpenDiagnosis }) {
   const { t } = useTranslation();
   const headline = insight?.rendered?.headline;
-  // Above the early return below — a hook after a conditional return is a
-  // Rules of Hooks violation (see Coding rules in CLAUDE.md).
+  // Above any conditional return — a hook after one is a Rules of Hooks
+  // violation (see Coding rules in CLAUDE.md). This card no longer bails
+  // out entirely when there's no active coach insight (Dashboard
+  // redesign, 2026-08-28): the Financial Diagnosis link now lives inside
+  // this same card (previously its own standalone button below Today's
+  // Lesson) and must stay visible even with no coach headline — a user
+  // can have an active diagnosis with no live checkInEngine signal, or
+  // vice versa, so neither half gates the other.
   const longPress = useLongPress(() => onAskCoach?.(headline));
-  if (!headline) return null;
-  const accent = COACH_WARNING_TYPES.includes(insight.type) ? DC.ruby : DC.gold;
-  const { cta, action } = insight.rendered;
+  const accent = headline && COACH_WARNING_TYPES.includes(insight.type) ? DC.ruby : DC.gold;
+  const { cta, action } = insight?.rendered || {};
+
+  const diagnosisTitle = !diagnosisCardState || diagnosisCardState.type !== 'fresh'
+    ? t("dashboard.financial_diagnosis_link")
+    : diagnosisCardState.ageDays === 0 ? t("dashboard.financial_diagnosis_checked_today")
+    : diagnosisCardState.ageDays === 1 ? t("dashboard.financial_diagnosis_checked_yesterday")
+    : t("dashboard.financial_diagnosis_checked_days", { count: diagnosisCardState.ageDays });
+  const diagnosisSubtitle =
+    !diagnosisCardState ? t("dashboard.financial_diagnosis_subtitle")
+    : diagnosisCardState.type === 'stale_event' ? t("dashboard.diagnosis_stale_event")
+    : diagnosisCardState.type === 'stale_time' ? t("dashboard.diagnosis_stale_time")
+    : diagnosisCardState.headline || null;
+
   return (
-    <div {...longPress} style={{ background: DC.card, borderLeft: `3px solid ${accent}`, borderRadius: RADIUS.lg, padding: "20px", fontFamily: FONT, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
-      <div style={{ fontSize: 13, color: DC.muted, fontWeight: 600, letterSpacing: 0.5, marginBottom: 6 }}>{t("dashboard.your_coach")}</div>
-      <div className="ph-mask" style={{ fontSize: 18, fontWeight: 700, color: DC.text, lineHeight: 1.4 }}>
-        {highlightNumbers(headline, accent)}
-      </div>
-      <button onClick={() => onAction?.(action, insight.data)} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 14, fontWeight: 700, color: accent }}>
-        {cta || t("dashboard.fix_this")}
-        <Icon name="chevron" size={13} color={accent} />
+    <div {...longPress} style={{ background: DC.card, borderLeft: headline ? `3px solid ${accent}` : `3px solid transparent`, borderRadius: RADIUS.lg, padding: "16px 18px", fontFamily: FONT, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
+      {headline && (
+        <>
+          <div style={{ fontSize: 13, color: DC.muted, fontWeight: 600, letterSpacing: 0.5, marginBottom: 6 }}>{t("dashboard.your_coach")}</div>
+          <div className="ph-mask" style={{ fontSize: 17, fontWeight: 700, color: DC.text, lineHeight: 1.4 }}>
+            {highlightNumbers(headline, accent)}
+          </div>
+          <button onClick={() => onAction?.(action, insight.data)} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 14, fontWeight: 700, color: accent }}>
+            {cta || t("dashboard.fix_this")}
+            <Icon name="chevron" size={13} color={accent} />
+          </button>
+        </>
+      )}
+
+      {/* Financial Diagnosis — second, more prominent link in this same
+          card (Dashboard redesign, 2026-08-28). "fresh" state's copy is
+          now a single combined line ("Your financial diagnosis · checked
+          X days ago") worded as the product differentiator it is, not the
+          old two-line "Full diagnosis: checked X days ago" footnote
+          treatment. */}
+      <button
+        onClick={onOpenDiagnosis}
+        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", boxSizing: "border-box", textAlign: "left", marginTop: headline ? 14 : 0, paddingTop: headline ? 14 : 0, borderTop: headline ? `1px solid ${DC.faint}18` : "none", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: FONT }}
+      >
+        <Icon name="star" size={16} color={DC.gold} strokeWidth={1.8} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: diagnosisAccentColor }}>{diagnosisTitle}</span>
+            <Icon name="chevron" size={12} color={diagnosisAccentColor} />
+          </div>
+          {diagnosisSubtitle && (
+            <div className="ph-mask" style={{ fontSize: 12, color: DC.muted, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {diagnosisCardState?.type === 'fresh' && diagnosisCardState.headline
+                ? highlightNumbers(diagnosisCardState.headline, diagnosisCardState.healthy ? DC.emerald : DC.ruby)
+                : diagnosisSubtitle}
+            </div>
+          )}
+        </div>
       </button>
     </div>
   );
@@ -1177,7 +1314,6 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   const [investTotal, setInvestTotal] = useState(0);
   const [alpacaPortfolio, setAlpacaPortfolio] = useState(null);
   const [otherBreakdown, setOtherBreakdown] = useState(false);
-  const [allCreditCards, setAllCreditCards] = useState(false);
   const [showCashFlowSheet, setShowCashFlowSheet] = useState(false);
   const [showUpcomingSheet, setShowUpcomingSheet] = useState(false);
   const [showLessonSheet, setShowLessonSheet] = useState(false);
@@ -1266,7 +1402,8 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   }, [alpacaConnected]);
   // Hottest cards first (highest utilization) — cards with no computable
   // utilization (institution didn't return balance_available) sort last.
-  // Shared by the compact Dashboard card and the "+N more" sheet below.
+  // Shared by the compact Dashboard card and the AccordionSection body
+  // when there are more than 2 (see item 3 in the main render below).
   const sortedCreditAccounts = [...creditAccounts].sort((a, b) => {
     const pa = creditUtilization(a), pb = creditUtilization(b);
     if (pa == null && pb == null) return 0;
@@ -1274,7 +1411,20 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
     if (pb == null) return -1;
     return pb - pa;
   });
-  const creditUtilColor = (pct) => pct == null ? C.faint : pct >= 0.70 ? C.red : pct >= 0.30 ? C.yellow : C.green;
+  // Bank/institution name ("Bank of America") instead of Plaid's own card
+  // product name ("Customized Cash Rewards Visa Platinum Plus") for the
+  // compact row — already fetched per-account, no new call needed
+  // (plaid-get-accounts/index.ts sets institution_name from plaid_items,
+  // same value check-bank-connection already surfaces). Falls back to the
+  // product name if institution_name is ever missing. Appends the last-4
+  // mask when present so two cards from the same bank stay distinguishable
+  // in the accordion list — institution name alone would make them look
+  // identical. 2026-08-29 follow-up to the Dashboard redesign.
+  function creditCardLabel(a) {
+    const productName = a.name || a.official_name || t("dashboard.credit_cards_title");
+    if (!a.institution_name) return productName;
+    return a.mask ? `${a.institution_name} ••${a.mask}` : a.institution_name;
+  }
   const budget = Number(profile?.monthly_budget) || 3000;
   const balance = totalIncome - totalSpent;
   // Same formula as Insights.jsx.availableSafe — for cashPositionLow parity between screens.
@@ -1287,6 +1437,14 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
     ? [...upcomingCharges].sort((a, b) => a.daysUntil - b.daysUntil)[0]
     : null;
 
+  // Bill-clustering alert (Dashboard redesign, 2026-08-28) — its own
+  // compact line, separate from the calendar grid below (see
+  // getBillClusterAlert's own comment).
+  const billClusterAlert = useMemo(
+    () => getBillClusterAlert(transactions, merchantAliasMap, new Date(), scheduledPayments),
+    [transactions, merchantAliasMap, scheduledPayments]
+  );
+
   // ── Card long-press → prefilled AI chat question ───────────────────────────
   // useLongPress itself must be called unconditionally at the top level (not
   // inside a render-time IIFE/conditional) — Rules of Hooks. The callbacks
@@ -1297,7 +1455,7 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
   const creditCardsLongPress = useLongPress(() => {
     const top = sortedCreditAccounts[0];
     if (!top) return;
-    handleCardLongPress('creditCards', { cardName: top.name || top.official_name || t("dashboard.credit_cards_title"), pct: creditUtilization(top) });
+    handleCardLongPress('creditCards', { cardName: creditCardLabel(top), pct: creditUtilization(top) });
   });
   const spendingLongPress = useLongPress(() => {
     const top = Object.entries(spendingByCategory).sort((a, b) => b[1] - a[1])[0];
@@ -1488,90 +1646,20 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         </div>
       )}
 
-      {/* 1 ── Coach block (highest-priority insight, moved to top) */}
-      <CoachBlock insight={insight?.type === 'savings_opportunity' && balance <= 0 ? null : insight} onAction={(action, data) => action === 'view_debt' ? scrollToCreditCards() : onInsightAction(action, data)} onAskCoach={headline => handleCardLongPress('coach', { headline })} />
+      {/* 1 ── Coach card: highest-priority insight + Financial Diagnosis
+          entry point, both inside the same card now (Dashboard redesign,
+          2026-08-28) — the diagnosis link used to be its own standalone
+          button below Today's Lesson. */}
+      <CoachBlock
+        insight={insight?.type === 'savings_opportunity' && balance <= 0 ? null : insight}
+        onAction={(action, data) => action === 'view_debt' ? scrollToCreditCards() : onInsightAction(action, data)}
+        onAskCoach={headline => handleCardLongPress('coach', { headline })}
+        diagnosisCardState={diagnosisCardState}
+        diagnosisAccentColor={diagnosisAccentColor}
+        onOpenDiagnosis={() => onNavigate("financial-diagnosis")}
+      />
 
-      {/* 2 ── Calendar week (compact by default, "View full month" reveals the unchanged full grid + Level 2 sheet) */}
-      <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} scheduledPayments={scheduledPayments} onAddScheduledPayment={onAddScheduledPayment} onCancelScheduledPayment={onCancelScheduledPayment} accountBalance={accountBalance} bankConnected={bankConnected} onNavigate={onNavigate} compactWeek />
-
-      {/* 3 ── Today's lesson */}
-      <TodaysLessonRow lesson={todaysLesson} streak={lessonStreak.current_streak} alreadyCompletedToday={lessonAlreadyDoneToday} onClick={() => { setShowLessonSheet(true); onCompleteLesson?.(); }} />
-      {/* Financial Diagnosis entry point — upgraded 2026-08-24 from a bare
-          text link to a small card (discoverability fix: the link alone
-          was too subtle, low visual hierarchy, unclear what tapping it
-          did). Still placed here, not a standalone card elsewhere on the
-          screen — Phase 2 wires this exact lesson row to become
-          diagnosis-aware once an active diagnosis exists, so this stays
-          the same slot, same narrative arc ("check your money" -> "see
-          your personalized lesson here"). Deliberately NOT merged into
-          CoachBlock above: that card is driven by the separate
-          checkInEngine insight-signal system and returns null with no
-          active signal — piggybacking there would make this invisible to
-          exactly the users who already have a live insight showing. */}
-      <button
-        onClick={() => onNavigate("financial-diagnosis")}
-        style={{ display: "flex", alignItems: "flex-start", gap: 10, width: "100%", boxSizing: "border-box", textAlign: "left", margin: "6px 0 0", padding: "12px 14px", background: DC.card, border: `1px solid ${diagnosisAccentColor}33`, borderRadius: RADIUS.sm, cursor: "pointer", fontFamily: FONT }}
-      >
-        {/* Icon consistency fix (2026-08-24): was a raw "✨" emoji, the only
-            spot on this card not using the shared stroke-based Icon.jsx set
-            — swapped for the existing "star" icon (same one Watchlist
-            already uses), not a new bespoke sparkle.
-            Always DC.gold (2026-08-25), not diagnosisAccentColor — same
-            "constant visual anchor" precedent as TodaysLessonRow's zap icon
-            (also always DC.gold regardless of state) — the card was
-            blending into the background next to the more colorful cards
-            around it (Coach block, Spending by Category dots, Health Score
-            deltas). Title/subtitle text still vary by state below. */}
-        <div style={{ marginTop: 1 }}><Icon name="star" size={18} color={DC.gold} strokeWidth={1.8} /></div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: diagnosisAccentColor }}>{t("dashboard.financial_diagnosis_link")}</span>
-            <Icon name="chevron" size={12} color={diagnosisAccentColor} />
-          </div>
-          {!diagnosisCardState && (
-            <div style={{ fontSize: 11, color: DC.muted, marginTop: 2 }}>{t("dashboard.financial_diagnosis_subtitle")}</div>
-          )}
-          {diagnosisCardState?.type === 'stale_event' && (
-            <div style={{ fontSize: 11, color: DC.muted, marginTop: 2 }}>{t("dashboard.diagnosis_stale_event")}</div>
-          )}
-          {diagnosisCardState?.type === 'stale_time' && (
-            <div style={{ fontSize: 11, color: DC.muted, marginTop: 2 }}>{t("dashboard.diagnosis_stale_time")}</div>
-          )}
-          {diagnosisCardState?.type === 'fresh' && (
-            <>
-              <div style={{ fontSize: 11, color: DC.muted, marginTop: 2 }}>
-                {diagnosisCardState.ageDays === 0 ? t("dashboard.diagnosis_checked_today")
-                  : diagnosisCardState.ageDays === 1 ? t("dashboard.diagnosis_checked_yesterday")
-                  : t("dashboard.diagnosis_last_checked", { count: diagnosisCardState.ageDays })}
-              </div>
-              {/* Headline preview — real financial narrative text, same
-                  ph-mask convention FinancialDiagnosis.jsx's own headline
-                  already uses for session-replay privacy.
-                  Dollar/percent figures color-coded via the same
-                  highlightNumbers() helper Insights.jsx already uses for
-                  this exact purpose (2026-08-25) — ruby fallback for a
-                  problem diagnosis, emerald for a healthy one, since the
-                  headline text itself has no literal +/- sign for
-                  highlightNumbers to key off (e.g. "spending $212 more
-                  than you earn" has no minus sign, but is clearly bad
-                  news). Deliberately scoped to ONLY this Dashboard teaser
-                  — FinancialDiagnosis.jsx's own headline/explanation text
-                  stays ruby-free, per that file's own Phase 1 decision
-                  ("gold and ruby never share a UI signal" on that calm,
-                  full-explanation screen); this is a different, scannable
-                  teaser surface, not a rule change to the full result
-                  screen. */}
-              {diagnosisCardState.headline && (
-                <div className="ph-mask" style={{ fontSize: 11, color: DC.faint, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {highlightNumbers(diagnosisCardState.headline, diagnosisCardState.healthy ? DC.emerald : DC.ruby)}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </button>
-
-      {/* 4 ── Balance / End of month — compact boxes, tap either to open the full Cash Flow Forecast (burn-down bar + 3-stat grid) in a sheet, nothing lost or duplicated on-page */}
+      {/* 2 ── Balance: one asymmetric card (real balance primary + sparkline, "Projected EOM" subordinate below) — gold border keeps it a visual anchor without competing with the coach card above. Tap opens the full Cash Flow Forecast sheet, same as before. */}
       {!bankConnected ? (
         <div data-tutorial="net-balance">
           <ConnectBankPrompt title={t("dashboard.account_balance")} message={t("dashboard.connect_bank_balance")} onNavigate={onNavigate} />
@@ -1584,62 +1672,45 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           ? projectBalanceAt(transactions, accountBalance, endOfMonthDate, merchantAliasMap, scheduledPayments, today)
           : { projectedRaw: null };
         const projectedBalance = projectedRaw != null ? Math.max(0, projectedRaw) : null;
-        const eomColor = projectedBalance == null ? DC.text : projectedRaw <= 0 ? DC.ruby : DC.text;
+        // Muted by default — subordinate to the real balance above it, per
+        // spec (it's a forecast, not a fact) — except when it flags an
+        // actual projected deficit, still worth a real warning color.
+        const eomColor = projectedBalance == null ? DC.muted : projectedRaw <= 0 ? DC.ruby : DC.muted;
         return (
-          <div data-tutorial="net-balance" {...cashFlowLongPress} style={{ display: "flex", gap: 8, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
-            <button onClick={() => setShowCashFlowSheet(true)} style={{ flex: 1, textAlign: "left", background: DC.card, borderRadius: RADIUS.md, padding: "14px 16px", border: "none", cursor: "pointer", fontFamily: FONT }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.balance_short")}</span>
-                <span onClick={e => { e.stopPropagation(); setBalanceVisible(v => !v); }} role="button" aria-label={balanceVisible ? t("dashboard.hide_balance") : t("dashboard.show_balance")} style={{ display: "flex", padding: 4 }}>
-                  <Icon name={balanceVisible ? "eye" : "eye-off"} size={13} color={DC.faint} />
-                </span>
-              </div>
+          <button data-tutorial="net-balance" {...cashFlowLongPress} onClick={() => setShowCashFlowSheet(true)} style={{ display: "block", width: "100%", boxSizing: "border-box", textAlign: "left", background: DC.card, borderRadius: RADIUS.md, padding: "16px 18px", border: `1.5px solid ${DC.gold}66`, cursor: "pointer", fontFamily: FONT, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.balance_short")}</span>
+              <span onClick={e => { e.stopPropagation(); setBalanceVisible(v => !v); }} role="button" aria-label={balanceVisible ? t("dashboard.hide_balance") : t("dashboard.show_balance")} style={{ display: "flex", padding: 4 }}>
+                <Icon name={balanceVisible ? "eye" : "eye-off"} size={13} color={DC.faint} />
+              </span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
               {accountBalance != null ? (
-                <>
-                  <div className="ph-mask" style={{ fontSize: 19, fontWeight: 800, letterSpacing: -0.5, color: DC.text }}>
-                    {balanceVisible ? `$${fmt(accountBalance)}` : "••••"}
-                  </div>
-                  <div style={{ marginTop: 4 }}><Sparkline transactions={transactions} /></div>
-                </>
+                <div className="ph-mask" style={{ fontSize: 32, fontWeight: 800, letterSpacing: -1, color: DC.text, lineHeight: 1.1 }}>
+                  {balanceVisible ? `$${fmt(accountBalance)}` : "••••"}
+                </div>
               ) : (
-                <div style={{ width: 100, height: 19, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${DC.card} 0%,#20263380 40%,${DC.card} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
+                <div style={{ width: 120, height: 32, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${DC.card} 0%,#20263380 40%,${DC.card} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
               )}
-            </button>
-            <button onClick={() => setShowCashFlowSheet(true)} style={{ flex: 1, textAlign: "left", background: DC.card, borderRadius: RADIUS.md, padding: "14px 16px", border: "none", cursor: "pointer", fontFamily: FONT }}>
-              <div style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase", marginBottom: 8 }}>{t("dashboard.end_of_month_short")}</div>
+              <Sparkline transactions={transactions} />
+            </div>
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${DC.faint}18` }}>
               {projectedBalance != null ? (
-                <div className="ph-mask" style={{ fontSize: 19, fontWeight: 800, letterSpacing: -0.5, color: eomColor }}>{balanceVisible ? `$${fmt(projectedBalance)}` : "••••"}</div>
+                <span className="ph-mask" style={{ fontSize: 12, color: DC.faint }}>
+                  {t("dashboard.projected_eom")} · <span style={{ fontWeight: 700, color: eomColor }}>{balanceVisible ? `$${fmt(projectedBalance)}` : "••••"}</span>
+                </span>
               ) : (
-                <div style={{ width: 60, height: 19, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${DC.card} 0%,#20263380 40%,${DC.card} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
+                <div style={{ width: 100, height: 12, borderRadius: RADIUS.xs, background: `linear-gradient(90deg,${DC.card} 0%,#20263380 40%,${DC.card} 100%)`, backgroundSize: "200% 100%", animation: "bal-shimmer 1.4s ease-in-out infinite" }} />
               )}
-            </button>
-          </div>
-        );
-      })()}
-
-      {/* 5 ── Next up: soonest upcoming charge, compact row. Full list (the
-          previous always-visible carousel) is one tap away in a sheet —
-          same UpcomingChargesCard component, unchanged, not lost. */}
-      {nextUpcomingCharge && (() => {
-        const next = nextUpcomingCharge;
-        const dueDate = new Date(next.expectedDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
-        return (
-          <button onClick={() => setShowUpcomingSheet(true)} {...nextUpLongPress} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", cursor: "pointer", fontFamily: FONT, textAlign: "left", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
-            <div style={{ width: 36, height: 36, borderRadius: RADIUS.sm, background: DC.gold + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Icon name="file" size={16} color={DC.gold} />
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, color: DC.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {t("dashboard.next")} <span style={{ color: DC.text, fontWeight: 600 }}>{next.merchant}</span>
-              </div>
-              <div style={{ fontSize: 11, color: DC.faint, marginTop: 2 }}>{t("dashboard.due_on", { date: dueDate })}</div>
-            </div>
-            <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: DC.text, flexShrink: 0 }}>${fmt(next.amount, 2)}</span>
           </button>
         );
       })()}
 
-      {/* 7 ── Credit Cards */}
+      {/* 3 ── Credit Cards — compact single-line-per-card, collapsible via
+          Settings' AccordionSection once there are more than 2 (replaces
+          the old top-3 + "+N more" modal sheet — the accordion already
+          reveals everything on expand, no separate sheet needed). */}
       {creditAccounts.length > 0 && (() => {
         const totalDebt = sumCreditDebt(creditAccounts);
         // Step 2.5 (2026-08-27): was accountBalance - totalDebt (cash minus
@@ -1651,73 +1722,119 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         const netWorth = accountBalance != null
           ? calculateNetWorth({ cash: accountBalance, investments: investmentsTotal, savingsGoals: totalSaved, creditDebt: totalDebt })
           : null;
-        const topCards = sortedCreditAccounts.slice(0, 3);
-        const remaining = sortedCreditAccounts.length - topCards.length;
         const utilColorDC = (pct) => pct == null ? DC.faint : pct >= 0.70 ? DC.ruby : pct >= 0.30 ? DC.gold : DC.emerald;
         const netWorthLabel = netWorth != null
           ? `${t("dashboard.credit_cards_net_worth")}: ${balanceVisible ? (netWorth < 0 ? `-$${fmt(Math.abs(netWorth))}` : `$${fmt(netWorth)}`) : "••••"}`
           : null;
 
-        // Exactly one card: the generic "Credit Cards" label + total-debt
-        // header duplicated the single card's own name/balance below it.
-        // Use the card's real name as the header instead, and fold Net
-        // Worth into a small line next to utilization% rather than its own
-        // prominent row — one card doesn't need two header lines.
-        if (creditAccounts.length === 1) {
-          const only = topCards[0];
-          const pct = creditUtilization(only);
-          const color = utilColorDC(pct);
+        // Was briefly made conditional on the coach card also mentioning
+        // this same card's utilization (2026-08-29, hidePct) — reverted
+        // same day: that dependency is fragile, since the coach's message
+        // can change to an unrelated topic, or a second card can get
+        // added, at which point this block becomes the only reliable
+        // place to see the utilization number at all. Always shown now,
+        // regardless of what the coach card currently says.
+        const cardRow = (a, i) => (
+          <div key={a.account_id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: i === 0 ? 0 : "8px 0 0" }}>
+            <span className="ph-mask" style={{ fontSize: 13, color: DC.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{creditCardLabel(a)}</span>
+            <span className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: DC.text }}>{m(Number(a.balance_current ?? 0))}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: utilColorDC(creditUtilization(a)), minWidth: 34, textAlign: "right" }}>{(() => { const p = creditUtilization(a); return p != null ? `${Math.round(p * 100)}%` : "—"; })()}</span>
+          </div>
+        );
+
+        const header = (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.credit_cards_title")}</span>
+              <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.ruby }}>{m(totalDebt)}</span>
+            </div>
+            {netWorthLabel && <div className="ph-mask" style={{ fontSize: 11, color: DC.faint, marginTop: 4 }}>{netWorthLabel}</div>}
+          </div>
+        );
+
+        // Plain section label, no value beside it — matches BALANCE/NEXT
+        // BILL/THIS MONTH's own label style. Shown for the 1-card case
+        // (which skips the fuller `header` below to avoid duplicating
+        // that one card's own total), added 2026-08-28 per a follow-up
+        // request after this card was the only one on Dashboard missing
+        // any section label at all.
+        const plainLabel = (
+          <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.credit_cards_title")}</span>
+        );
+
+        // 2 or fewer: shown directly, no accordion, and — production bug
+        // found 2026-08-28 — a single card skips the generic "Credit
+        // Cards: $total" header entirely instead of duplicating that
+        // one card's own row below it (the previous "exactly 1 card"
+        // branch was accidentally left as the old pre-redesign block,
+        // full name + separate UTILIZATION/Net Worth lines, never
+        // updated to the compact cardRow format below) — but still gets
+        // the plain label above it, same as every other section. More
+        // than 2: collapsed by default behind the same AccordionSection
+        // Settings uses (Profile.jsx) — forced open when reached via the
+        // coach card's "Review Credit Cards" CTA (creditCardsHighlight)
+        // so that CTA actually reveals every card, not just a flash on
+        // an already-collapsed summary.
+        if (sortedCreditAccounts.length <= 2) {
           return (
             <div ref={creditCardsRef} {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", outline: creditCardsHighlight ? `2px solid ${DC.gold}` : "2px solid transparent", outlineOffset: 2, transition: "outline-color 0.3s", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: DC.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{only.name || only.official_name || t("dashboard.credit_cards_title")}</span>
-                <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.text }}>{m(Number(only.balance_current ?? 0))}</span>
+              {sortedCreditAccounts.length > 1 ? header : <div style={{ marginBottom: 8 }}>{plainLabel}</div>}
+              <div style={{ marginTop: sortedCreditAccounts.length > 1 ? (netWorthLabel ? 10 : 8) : 0 }}>
+                {sortedCreditAccounts.map(cardRow)}
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
-                <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 0.5, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.credit_cards_utilization")}</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color }}>{pct != null ? `${Math.round(pct * 100)}%` : "—"}</span>
-              </div>
-              {netWorthLabel && (
-                <div className="ph-mask" style={{ fontSize: 11, color: DC.faint, marginTop: 6 }}>{netWorthLabel}</div>
-              )}
             </div>
           );
         }
 
         return (
-          <div ref={creditCardsRef} {...creditCardsLongPress} style={{ background: DC.card, borderRadius: RADIUS.md, padding: "16px", border: "none", outline: creditCardsHighlight ? `2px solid ${DC.gold}` : "2px solid transparent", outlineOffset: 2, transition: "outline-color 0.3s", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-              <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>
-                {t("dashboard.credit_cards_title")}
-              </span>
-              <span className="ph-mask" style={{ fontSize: 17, fontWeight: 800, color: DC.ruby }}>{m(totalDebt)}</span>
-            </div>
-            {netWorthLabel && (
-              <div className="ph-mask" style={{ fontSize: 11, color: DC.faint, marginBottom: 12 }}>{netWorthLabel}</div>
-            )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: netWorthLabel ? 0 : 8 }}>
-              {topCards.map((a, i) => {
-                const pct = creditUtilization(a);
-                const color = utilColorDC(pct);
-                return (
-                  <div key={a.account_id || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 13, color: DC.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name || a.official_name || t("dashboard.credit_cards_title")}</span>
-                    <span className="ph-mask" style={{ fontSize: 13, fontWeight: 600, color: DC.text }}>{m(Number(a.balance_current ?? 0))}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 34, textAlign: "right" }}>{pct != null ? `${Math.round(pct * 100)}%` : "—"}</span>
-                  </div>
-                );
-              })}
-            </div>
-            {remaining > 0 && (
-              <button onClick={() => setAllCreditCards(true)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: 0, marginTop: 10, cursor: "pointer", fontFamily: FONT, fontSize: 12, fontWeight: 600, color: DC.gold }}>
-                {t("dashboard.credit_cards_more", { count: remaining })}
-              </button>
-            )}
+          <div ref={creditCardsRef} {...creditCardsLongPress} style={{ userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
+            <AccordionSection header={header} borderColor={creditCardsHighlight ? DC.gold : undefined} forceExpanded={creditCardsHighlight}>
+              {sortedCreditAccounts.map(cardRow)}
+            </AccordionSection>
           </div>
         );
       })()}
 
-      {/* 8 ── Spending by Category (donut + side legend) */}
+      {/* 4 ── Next bill — calm/informational, deliberately no ruby/urgent accent (that's reserved for the coach card above). Full list is one tap away in the Upcoming sheet, unchanged. */}
+      {nextUpcomingCharge && (() => {
+        const next = nextUpcomingCharge;
+        const dueDate = new Date(next.expectedDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+        return (
+          <button onClick={() => setShowUpcomingSheet(true)} {...nextUpLongPress} style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%", boxSizing: "border-box", background: DC.card, borderRadius: RADIUS.md, padding: "14px 16px", border: "none", cursor: "pointer", fontFamily: FONT, textAlign: "left", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
+            <span style={{ fontSize: 10, color: DC.muted, letterSpacing: 1, fontWeight: 600, textTransform: "uppercase" }}>{t("dashboard.next_bill_label")}</span>
+            <span className="ph-mask" style={{ fontSize: 14, color: DC.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <span style={{ fontWeight: 600 }}>{next.merchant}</span>
+              <span style={{ color: DC.faint }}> · {dueDate} — </span>
+              <span style={{ fontWeight: 700 }}>${fmt(next.amount, 2)}</span>
+            </span>
+          </button>
+        );
+      })()}
+
+      {/* 5 ── Bill-clustering alert (own compact line, NOT merged into the
+          grid below) + the calendar grid itself, now stripped of the old
+          "This Month" label and any inline clustering text — just the
+          grid + "View full month" link, per the redesign spec's own
+          fallback default (kept the day-grid for day-of-week context
+          rather than reducing to just this one line). */}
+      {billClusterAlert && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: DC.gold + "14", border: `1px solid ${DC.gold}33`, borderRadius: RADIUS.sm, padding: "10px 14px" }}>
+          <Icon name="calendar" size={14} color={DC.gold} />
+          <span className="ph-mask" style={{ fontSize: 12, fontWeight: 600, color: DC.text }}>
+            {t("dashboard.bill_cluster_alert", {
+              date: new Date(new Date().getFullYear(), new Date().getMonth(), billClusterAlert.day).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+              count: billClusterAlert.count,
+              total: `$${fmt(billClusterAlert.total, 0)}`,
+            })}
+          </span>
+        </div>
+      )}
+      <MonthCalendar transactions={transactions} merchantAliasMap={merchantAliasMap} onDayClick={onDayClick} onDayCategoryClick={onDayCategoryClick} scheduledPayments={scheduledPayments} onAddScheduledPayment={onAddScheduledPayment} onCancelScheduledPayment={onCancelScheduledPayment} accountBalance={accountBalance} bankConnected={bankConnected} onNavigate={onNavigate} compactWeek />
+
+      {/* 6 ── Today's lesson (unchanged) */}
+      <TodaysLessonRow lesson={todaysLesson} streak={lessonStreak.current_streak} alreadyCompletedToday={lessonAlreadyDoneToday} onClick={() => { setShowLessonSheet(true); onCompleteLesson?.(); }} />
+
+      {/* 7 ── Spending by Category (donut + top-3 + "View all →" + side legend) */}
       <div {...spendingLongPress} style={{ background: DC.card, borderRadius: RADIUS.lg, padding: "14px 16px", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <span style={{ fontWeight: 600, fontSize: 14, color: DC.muted }}>{t("dashboard.spending_by_category")}</span>
@@ -1731,11 +1848,11 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
             {t("dashboard.no_spending_data")}
           </div>
         ) : (
-          <DonutChart data={spendingByCategory} size={120} sideLegend onCatClick={isPro ? handleCatClick : null} hideAmounts={!balanceVisible} lockList={!isPro} onUpgrade={onUpgrade} />
+          <DonutChart data={spendingByCategory} size={120} sideLegend onCatClick={isPro ? handleCatClick : null} hideAmounts={!balanceVisible} capCount={3} paywalled={!isPro} onUpgrade={onUpgrade} />
         )}
       </div>
 
-      {/* 9 ── Financial Health Score — same HealthScoreBar component as before (collapsed row + expand-on-tap breakdown), restyled to the new palette internally, not replaced */}
+      {/* 8 ── Financial Health Score — tone now matches severity (getScoreLabel fix, 2026-08-28): a near-floor score no longer reads as the same "Getting started" as a brand-new account. */}
       <div data-tutorial="health-score" {...healthScoreLongPress} style={{ userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}>
         <HealthScoreBar score={healthScore} color={dcScoreColor} comment={healthComment} breakdown={scoreBreakdown} hasData={totalIncome > 0 || totalSpent > 0} prevScore={prevHealthScore} cashPositionLow={cashPositionLow} />
         <button
@@ -1747,10 +1864,10 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
         </button>
       </div>
 
-      {/* 10 ── Markets */}
+      {/* 9 ── Markets (unchanged) */}
       <MiniMarkets onOpenMarket={onOpenMarket} />
 
-      {/* 11 ── Ask your coach anything */}
+      {/* Ask your coach anything — unchanged, stays after Markets */}
       <button data-tutorial="ask-coach" onClick={() => onOpenChat?.()} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.full, padding: "14px 20px", cursor: "pointer", fontFamily: FONT, marginTop: 4 }}>
         <span style={{ fontSize: 13, color: DC.muted }}>{t("dashboard.ask_coach_placeholder")}</span>
         <Icon name="chevron" size={14} color={DC.faint} />
@@ -1932,38 +2049,6 @@ export default function Dashboard({ totalSpent, totalIncome, lastSpent, lastInco
           </div>
         );
       })()}
-
-      {allCreditCards && (
-        <div onClick={() => setAllCreditCards(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 180, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: C.card, borderRadius: '20px 20px 0 0', border: `1px solid ${C.border}`, padding: '0 0 32px', maxHeight: '75vh', display: 'flex', flexDirection: 'column' }}>
-            {/* Handle */}
-            <div style={{ padding: '14px 0 0', display: 'flex', justifyContent: 'center' }}>
-              <div style={{ width: 36, height: 4, borderRadius: RADIUS.full, background: 'rgba(255,255,255,0.12)' }} />
-            </div>
-            {/* Header */}
-            <div style={{ padding: '12px 20px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.sep}`, flexShrink: 0 }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{t("dashboard.credit_cards_title")}</div>
-              <button onClick={() => setAllCreditCards(false)} aria-label={t("dashboard.close")} style={{ background: C.bgTertiary, border: `1px solid ${C.border}`, borderRadius: RADIUS.xs, width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={2.5} strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-            {/* List */}
-            <div style={{ overflowY: 'auto', flex: 1, padding: '8px 0' }}>
-              {sortedCreditAccounts.map((a, i) => {
-                const pct = creditUtilization(a);
-                const color = creditUtilColor(pct);
-                return (
-                  <div key={a.account_id || i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', borderBottom: i < sortedCreditAccounts.length - 1 ? `1px solid ${C.sep}` : 'none' }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: C.text, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name || a.official_name || t("dashboard.credit_cards_title")}</span>
-                    <span className="ph-mask" style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{m(Number(a.balance_current ?? 0))}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 34, textAlign: 'right' }}>{pct != null ? `${Math.round(pct * 100)}%` : '—'}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

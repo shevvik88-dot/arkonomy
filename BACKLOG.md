@@ -9,6 +9,39 @@
 
 ## 📋 ЗАПЛАНИРОВАНО — промпты готовы
 
+### 22. HIGH — service_role не имеет доступа ни к одной public-таблице на чистом replay (грант не в миграциях, только ручное состояние прода)
+
+Найдено 2026-09-04 при сборке edge-function regression-harness (`supabase/functions/_test/`, PR "test(edge): add regression harness"). На чистом `npx supabase db reset` (все миграции применены с нуля) роль `service_role` не имеет **ни SELECT, ни INSERT, ни UPDATE, ни DELETE** ни на одной public-таблице — только `postgres` (роль, которой применяются миграции). Подтверждено live через `information_schema.role_table_grants`: `service_role` на `profiles`/`investments`/`plaid_items`/`plaid_accounts`/`transactions`/`stripe_webhook_events` имеет только `REFERENCES, TRIGGER, TRUNCATE` — не проверялись остальные таблицы, но нет оснований считать их исключением.
+
+Прод работает только потому, что стандартный Supabase-грант `GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role` был применён один раз вручную (Studio/CLI) ДО того, как в проекте завели папку миграций — и никогда не закоммичен ни в одну миграцию. Тот же класс проблемы, что была найдена и закрыта для `plaid_items` unique constraint (PR #76, `20260413000002_plaid_items_unique.sql`), только там масштаб был одна таблица/один констрейнт, здесь — вообще все таблицы и весь доступ service_role целиком.
+
+**Риск, если база когда-либо будет пересоздана только из миграций** (disaster recovery, новое окружение, staging, CI, `db reset` на новой машине) — `service_role` молча теряет доступ ко всему. Ломается всё, что ходит через service-role ключ: все Stripe/Plaid webhooks, cron-функции (`generate-monthly-report`, `daily-lesson-v2`, `weekly-report`, `large-transaction-alert`), admin-экшены (`plaid-sync-transactions`'s `resync_all`/`sync_item`). PostgREST отвечает "permission denied for table X" на каждый запрос. Это не ловится ни RLS-ревью, ни `get_advisors` — GRANT/REVOKE это отдельный от RLS policies уровень доступа, `pg_policies` его не показывает.
+
+Компенсирующий грант для тестового харнесса — `supabase/functions/_test/_helpers/fixtures.sql` (даёт `service_role` DML, намеренно не трогает `authenticated`/`anon` lockdown из `20260730000000`/`20260730000001`). Это тестовый костыль, не прод-фикс — грант нигде не закоммичен как миграция.
+
+```
+Напиши миграцию, которая явно кодифицирует текущий прод-грант вместо
+того чтобы оставлять его незакоммиченным ручным состоянием:
+
+  GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
+  GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
+  GRANT ALL ON ALL ROUTINES IN SCHEMA public TO service_role;
+  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
+  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO service_role;
+  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO service_role;
+
+Сначала проверь live на проде (information_schema.role_table_grants),
+какие именно привилегии у anon/authenticated сейчас реально есть на
+каждой таблице — не предполагай "ALL", column-level lockdown в
+20260730000000/20260730000001 (profiles) и любые другие точечные
+REVOKE'ы должны остаться в силе ПОСЛЕ этой миграции, не быть случайно
+перегранчены заново. Покажи итоговый SQL перед применением
+(CLAUDE.md: миграции, трогающие auth/RLS/схему — только с явным
+подтверждением). Проверь на db reset до и после: service_role должен
+получить полный доступ, authenticated/anon — ничего сверх того, что
+уже задокументировано в существующих grant-миграциях.
+```
+
 ### 13. Полный RLS-аудит по всем таблицам — ЗАКРЫТ 2026-07-17
 
 security-auditor (opus) прошёлся по всем 14 таблиц (live `pg_tables`/`pg_policies`, не только миграции). Найдено 3 находки, все зафиксированы и исправлены:
@@ -422,6 +455,8 @@ functions, или и прямые Supabase-запросы с фронта; ру�
 
 ## 🧷 ТЕХДОЛГ — зафиксировано, не срочно
 
+- [ ] **Structural intra-transfer fallback — отложено до накопления реального трафика (2026-09-03).** `plaid-sync-transactions/linkIntraUserTransfers` сейчас линкует переводы между своими счетами ТОЛЬКО по совпадающему confirmation-токену в описании обеих ног (`PAYMENT FROM CHK 5999 CONF#xxx` ↔ `Mobile Banking payment to CRD 9966 Confirmation# xxx`). Токен-матч на проде: 11/11 реальных пар, ноль ложных, идеальный 1:1. Задумывался ещё структурный fallback (равная сумма + ±1 день + противоположный знак + разные подключённые счета + лексикон внутренних переводов) для случаев без токена — но dry-run по реальным данным дал **3 кандидата, все ложные**: Zelle человеку на ту же сумму/дату, и платежи на ВНЕШНИЕ карты (Wells Fargo, Capital One — не подключены, это реальный отток). Спасал только safeguard «отклонить при >1 кандидате», и то лишь потому, что у каждой income-ноги уже был настоящий токен-партнёр — хрупко. Вернуться, когда наберётся больше юзеров с несколькими счетами: сначала прогнать в shadow-режиме (лог без записи), сверить точность, только потом включать запись. Backfill исторических данных тоже был токен-only.
+
 - [ ] **Найдено 2026-08-06: 23 файла (22 edge functions + `_shared/rateLimit.ts`) используют одинаковый hardcoded single-origin CORS-паттерн** (`'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com'`) — работает для прода, но ломается на любом non-prod origin (preview deployments, будущие staging-окружения). Найдено при попытке живой визуальной проверки Dashboard-редизайна на Vercel preview: `bankConnected` некорректно уходил в `false` (CORS-блок на `check-bank-connection`), Markets-карточка падала с "Failed to fetch" (CORS-блок на `market-data`) — оба выглядели как баги редизайна, но были найдены как CORS-баги на соседних, не тронутых редизайном функциях. **5 из 23 уже починены allow-list/regex-паттерном** (echo origin только если совпадает с прод-доменом ИЛИ `/^https:\/\/arkonomy-[a-z0-9]+-shevvik88-dots-projects\.vercel\.app$/`, иначе fallback на прод — никогда не эхо произвольного origin): `auth-login`, `check-bank-connection`, `market-data`, `plaid-get-accounts`, `get-insights` (последняя — вероятная причина, почему Coach-блок редизайна не рендерился на preview: `insight`/`allInsights` зависят от этой функции; CORS-preflight подтверждён живо, но фактический рендер Coach-блока на preview после фикса ещё не перепроверен визуально в браузере). Каждый живо проверен (реальный OPTIONS-preflight против задеплоенной функции) на 3 origin: prod (без изменений), preview (теперь разрешён), untrusted (по-прежнему падает на прод-фоллбек, не эхо). **Остаются непочиненными (17 функций + 1 shared-файл, тем же способом, отдельным заходом, каждая с той же живой проверкой, не пакетно)**: `ai-chat`, `alpaca-invest`, `alpaca-oauth-start`, `alpaca-portfolio`, `delete-account`, `generate-monthly-report`, `large-transaction-alert`, `plaid-batch-sync`, `plaid-exchange-token`, `plaid-link-token`, `plaid-refresh-balance`, `plaid-sync-transactions`, `push-notify`, `stock-ai-analysis`, `stripe-checkout`, `stripe-webhook`, `weekly-report`, `_shared/rateLimit.ts`. (18 непочиненных итого — не 13, как предполагалось в моменте; счёт сверен точно с grep по всем 23 файлам на каждом шаге, не оценкой на глаз.) Про `_shared/rateLimit.ts` отдельно: это shared-хелпер, импортируется несколькими функциями (`market-data`, `ai-chat`, `get-insights` как минимум) — даже после фикса `market-data`'s собственного CORS-константа, ответ конкретно от `enforceRateLimit()` (429 при рейт-лимите) всё ещё несёт старый хардкод, пока сам `rateLimit.ts` не починен отдельно — узкий, но реальный остаточный пробел, не полностью закрытый фиксом `market-data`.
 
 - [x] **Закрыто 2026-07-27: PostHog wizard-интеграция — проверен чек-лист "Verify before merging" из `posthog-setup-report.md`, найдены и исправлены реальные проблемы.** Wizard добавил `posthog-js`/`@posthog/react`, `PostHogProvider` в `main.jsx`, 13 событий в 4 файлах, обновил CSP в `vercel.json` (`connect-src`/`script-src`/новая `worker-src` директива под session replay). Прошёлся по всем 7 пунктам чек-листа: билд чистый; тест-сьют — единственный e2e (`e2e/new-user-journey.spec.js`) реально бьёт по продакшену (`baseURL: https://app.arkonomy.com`), не запущен, оставлен на юзера; `.env.example` — в проекте такой конвенции никогда не было (нет ни файла, ни root README в git-истории), пропущено осознанно; Vercel env vars — добавлены `VITE_POSTHOG_PROJECT_TOKEN`/`VITE_POSTHOG_HOST` в Production+Preview (были только в `.env.local`, прод их не видел бы); source-map upload — вынесен в отдельную задачу #20 (затрагивает и Sentry тоже, который сорсмапы вообще никогда не грузил); `identify()`-на-возврате — проверено по коду (не live), корректно, один `useEffect` покрывает и логин, и session restore. **Найдено сверх чек-листа, самое существенное**: `posthog.identify()` в `AuthScreen.jsx` слал `email`/`name` как person-traits — прямое расхождение с уже существующей политикой проекта (`main.jsx`'s Sentry-конфиг явно скрабит `email` через `SENSITIVE_KEYS` + `sendDefaultPii: false`). Исправлено — оставлен только `identify(userId)`, PII убран (2 места, signup+login). `App.jsx`'s `identify(userId, {plan})` не тронут — `plan` не PII. `.env.local`/`.env.test` (содержат реальный `SUPABASE_SERVICE_ROLE_KEY` и e2e-пароль) перепроверены — корректно в `.gitignore`, никогда не коммитились.
@@ -585,6 +620,29 @@ Test coverage gap (найдено, не закрыто):
   юзер пожалуется на неверный Net Worth/Cash, который не
   самоисправляется, или заодно с другими fetch-timing доработками
   Savings.jsx.
+- **AI-чат (`ai-chat`) — рост стоимости токенов с длиной истории,
+  без prompt caching** — найдено 2026-08-29 при разборе вопроса
+  пользователя про то, почему сообщение недельной давности всё ещё
+  видно в треде. Клиент (`App.jsx` `sendChat`) на каждый вызов
+  отправляет **весь** накопленный `chatMessages` (то, что лежит в
+  `sessionStorage`), сервер (`ai-chat/index.ts:66`) не режет историю
+  окном — только жёстко отклоняет весь запрос (`400 "Too many
+  messages"`), если сообщений больше 50. В запросе к Anthropic
+  (`callWithToolLoop`) нет `cache_control` вообще — ни на системный
+  промпт, ни на историю сообщений, значит каждый новый вызов
+  переоплачивает как свежие input-токены всю накопленную историю
+  заново. Частично смягчено в этот же день: добавлен
+  `CHAT_HISTORY_EXPIRY_MS` (1 час, `App.jsx`) — тред автоматически
+  сбрасывается при открытии, если последняя активность старше часа,
+  так что для обычного использования (не непрерывный часовой чат)
+  разговор физически не успевает вырасти настолько, чтобы стоимость
+  токенов стала заметной проблемой. Не исправлено полностью —
+  реальное решение (добавить `cache_control` на стабильную часть
+  истории, и/или суммаризировать старые сообщения вместо дословной
+  пересылки) — это архитектурное решение, а не быстрый патч. Вернуться,
+  если появятся активные пользователи, реально держащие чат открытым
+  часами (сейчас неизвестно, есть ли такие), или если стоимость
+  Anthropic API на `ai-chat` станет заметной статьёй расходов.
 
 ---
 

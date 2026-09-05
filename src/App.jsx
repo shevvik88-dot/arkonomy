@@ -24,7 +24,7 @@ import UpcomingChargesCard from "./components/UpcomingChargesCard";
 import { usePlan } from "./hooks/usePlan";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import { calculateHealthScore, generateHealthComment, getScoreLabel } from "./healthScore";
-import { BUFFER, isRealExpense, isTransferCategory } from "./shared/financialConstants";
+import { BUFFER, isRealExpense, isRealIncome, isTransferCategory } from "./shared/financialConstants";
 import { getCurrentMonthWindow, monthTransactions } from "./shared/dateWindows";
 import { IS_IOS_NATIVE, IS_NATIVE } from "./lib/platform";
 import { useUSStorefront } from "./lib/storefront";
@@ -97,6 +97,19 @@ const FONT = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
 
 // ── Sync staleness ────────────────────────────────────────────────────────────
 const SYNC_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+// ── AI chat history expiry ──────────────────────────────────────────────────
+// A single continuous sessionStorage-backed thread (see chatMessages below)
+// grows unbounded until either the tab genuinely closes or a user manually
+// hits "New chat" — on mobile Capacitor/PWA, the OS can keep the process
+// alive in the background for days with no clean "closed" event ever
+// reaching JS, so tab-lifetime alone doesn't bound it in practice. Time-based
+// expiry instead: if the last chat activity is older than this, treat it as
+// a new conversation on next open, same as if the user had pressed "New
+// chat" themselves — silent, no error shown, since aging out is normal
+// behavior here, not a failure. Adjust this one constant, not scattered
+// magic numbers, if the threshold ever needs to change.
+const CHAT_HISTORY_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
 function isSyncStale(lastSyncedAt) {
   if (!lastSyncedAt) return true;
@@ -401,14 +414,34 @@ export default function App() {
   const [dateFilter, setDateFilter] = useState(null);
   const [chatMessages, setChatMessages] = useState(() => {
     try {
-      const saved = sessionStorage.getItem('arkonomy_chat_history');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      const lastActivityAt = Number(sessionStorage.getItem('arkonomy_chat_history_ts'));
+      const expired = !lastActivityAt || (Date.now() - lastActivityAt > CHAT_HISTORY_EXPIRY_MS);
+      if (expired) {
+        // Stale — clear it now rather than leaving a dangling entry the
+        // persist effect below would otherwise silently resurrect on the
+        // very next message (it patches arkonomy_chat_history_ts on any
+        // chatMessages change, not just genuinely new ones, if the old
+        // key were still sitting there unrelated to this fresh thread).
+        sessionStorage.removeItem('arkonomy_chat_history');
+        sessionStorage.removeItem('arkonomy_chat_history_ts');
+      } else {
+        const saved = sessionStorage.getItem('arkonomy_chat_history');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
       }
     } catch {}
     return [{ role: "assistant", text: t('chat.greeting_default') }];
   });
+  // Skips the persist effect's very first run (component mount) — without
+  // this, loading a still-fresh saved thread back into state on open would
+  // immediately stamp arkonomy_chat_history_ts to "now", and the expiry
+  // check above would then never see a true last-activity time again (every
+  // subsequent app open would look artificially fresh). Only real
+  // chatMessages changes after mount (an actual new message) should refresh
+  // the timestamp.
+  const chatHistoryMountedRef = useRef(false);
   const [chatInput, setChatInput] = useState("");
   const [autopilot, setAutopilot] = useState(() => {
     try {
@@ -913,6 +946,7 @@ export default function App() {
       logger.error("[signOut] failed:", err);
     } finally {
       sessionStorage.removeItem('arkonomy_chat_history');
+      sessionStorage.removeItem('arkonomy_chat_history_ts');
       setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]); setMerchantAliases([]); setScheduledPayments([]); setChatMessages([]);
     }
   }
@@ -937,6 +971,7 @@ export default function App() {
     clearAccountsCache();
     clearDiagnosisLessonCache();
     sessionStorage.removeItem('arkonomy_chat_history');
+    sessionStorage.removeItem('arkonomy_chat_history_ts');
     await supabase.auth.signOut();
     setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]); setMerchantAliases([]); setScheduledPayments([]); setChatMessages([]);
   }
@@ -1251,26 +1286,27 @@ export default function App() {
   const thisMonth = monthTransactions(transactions, curYear, curMonth);
   const lastMonth = monthTransactions(transactions, prevYear, prevMonthIdx);
 
-  // isRealExpense/isTransferCategory imported from ./shared/financialConstants —
-  // single source of truth for the Transfer/Transfers exclusion rule, shared
-  // with Transactions.jsx and (mirrored, Deno can't import from src/)
-  // get-insights/financial-diagnosis (budget/overspending-signals
-  // investigation, Step 2, 2026-08-27). resolveCategory() below is
-  // untouched — its guessCategory-based re-categorization for unrelated
+  // isRealExpense/isRealIncome/isTransferCategory imported from
+  // ./shared/financialConstants — single source of truth for the Transfer/
+  // Transfers exclusion rule, shared with Transactions.jsx and (mirrored,
+  // Deno can't import from src/) get-insights/financial-diagnosis (budget/
+  // overspending-signals investigation, Step 2, 2026-08-27; income side
+  // added 2026-09-03 so an incoming Zelle/Venmo or a transfer between the
+  // user's own accounts no longer inflates income). resolveCategory() below
+  // is untouched — its guessCategory-based re-categorization for unrelated
   // categories is a separate, still-open duplication issue (see
   // docs/known-issues.md), not part of transfer detection.
   const totalSpent = sumAmounts(thisMonth.filter(isRealExpense));
-  const totalIncome = sumAmounts(thisMonth.filter(t => t.type === "income"));
-  const totalTransfers = sumAmounts(thisMonth.filter(isTransferCategory));
+  const totalIncome = sumAmounts(thisMonth.filter(isRealIncome));
   const lastSpent = sumAmounts(lastMonth.filter(isRealExpense));
-  const lastIncome = sumAmounts(lastMonth.filter(t => t.type === "income"));
+  const lastIncome = sumAmounts(lastMonth.filter(isRealIncome));
 
   // FIX: sum ALL income from the most recent month, not just the single most
   // recent transaction — same bug already fixed in get-insights/buildFinancialInput
   // (a one-off transaction like a small CD deposit understated real income).
   const effectiveIncome = (() => {
     if (totalIncome > 0) return totalIncome;
-    const incomeTxs = transactions.filter(t => t.type === "income");
+    const incomeTxs = transactions.filter(isRealIncome);
     if (incomeTxs.length === 0) return 0;
     const mostRecent = [...incomeTxs].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
     const mostRecentDate = parseDate(mostRecent.date);
@@ -1343,9 +1379,11 @@ export default function App() {
   // CodeQL alert #7 dismissed as accepted risk (GitHub UI shows "false positive"
   // due to available reason options, but this is an accepted-risk decision).
   useEffect(() => {
+    if (!chatHistoryMountedRef.current) { chatHistoryMountedRef.current = true; return; }
     try {
       const toSave = chatMessages.filter(m => !m.loading);
       sessionStorage.setItem('arkonomy_chat_history', JSON.stringify(toSave));
+      sessionStorage.setItem('arkonomy_chat_history_ts', String(Date.now()));
     } catch {}
   }, [chatMessages]);
 
@@ -1440,7 +1478,7 @@ export default function App() {
     await Browser.open({ url: "https://app.arkonomy.com/upgrade" });
   };
   const plaidBalance = sumDepositoryBalance(getCachedAccounts());
-  const shared = { transactions, categories, savings, profile, totalSpent, totalIncome: effectiveIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, totalTransfers, isShowingLastMonth, isPro, onUpgrade, plaidBalance };
+  const shared = { transactions, categories, savings, profile, totalSpent, totalIncome: effectiveIncome, lastSpent, lastIncome, spendingByCategory, prevSpendingByCategory, isShowingLastMonth, isPro, onUpgrade, plaidBalance };
 
   function openMarket(symbol) {
     setMarketInitSymbol(symbol ?? null);
@@ -1607,7 +1645,10 @@ export default function App() {
   function startNewChat() {
     const fresh = [{ role: "assistant", text: buildChatGreeting() }];
     setChatMessages(fresh);
-    try { sessionStorage.setItem('arkonomy_chat_history', JSON.stringify(fresh)); } catch {}
+    try {
+      sessionStorage.setItem('arkonomy_chat_history', JSON.stringify(fresh));
+      sessionStorage.setItem('arkonomy_chat_history_ts', String(Date.now()));
+    } catch {}
   }
 
   async function sendChat(input, baseMessages, options) {
@@ -1702,6 +1743,21 @@ export default function App() {
       const res = await callEdgeFunction("ai-chat", {
         messages: updated.filter(m => !m.loading), financialContext: ctx, plan: profile?.plan ?? 'free'
       });
+      // callEdgeFunction resolves (doesn't throw) on a non-2xx response — it
+      // just returns whatever JSON body came back, so ai-chat's 400 "Too
+      // many messages" (its own hard cap, see supabase/functions/ai-chat/
+      // index.ts) lands here, not in the catch block below. Distinguished
+      // explicitly from the network-failure branch since the fallback text
+      // there ("Could not reach AI...") would otherwise mislead a user
+      // whose real problem is message-history length, not connectivity —
+      // CHAT_HISTORY_EXPIRY_MS above should make this rare in practice (a
+      // conversation has to stay continuously active for an hour to even
+      // reach the 50-message cap without expiring first), but it's still a
+      // real path if someone does chat that long in one sitting.
+      if (res?.error === "Too many messages") {
+        setChatMessages(prev => prev.map(m => m.id === lid ? { role: "assistant", text: t('chat.error_too_long'), action: 'start_new_chat' } : m));
+        return;
+      }
       const raw = res?.reply || "Sorry, something went wrong.";
       const reply = raw.replace(/^[\s.,!?;:]+/, '');
       setChatMessages(prev => prev.map(m => m.id === lid ? { role: "assistant", text: reply } : m));
@@ -1781,9 +1837,19 @@ export default function App() {
               </div>
             )}
           </div>
-          <button data-tutorial="settings-btn" onClick={() => setScreen("profile")} style={{ background: screen === "profile" ? DC.gold + "18" : DC.card, border: `1px solid ${screen === "profile" ? DC.gold + "44" : `${DC.faint}33`}`, borderRadius: RADIUS.sm, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-            <Icon name="settings" size={21} color={screen === "profile" ? DC.gold : DC.muted} />
-          </button>
+          {/* Hidden while already on Settings (2026-09-02): navigating to
+              the screen you're already on was pointless/confusing. No
+              existing Help/FAQ *screen* to repurpose it to instead — the
+              only Help/FAQ in the app is a menu toggle inside Chat.jsx, not
+              a setScreen() destination — so this hides rather than invents
+              one. Confirmed safe: the onboarding tour only targets
+              [data-tutorial="settings-btn"] from screen: "dashboard", never
+              from profile, so hiding it here doesn't break that flow. */}
+          {screen !== "profile" && (
+            <button data-tutorial="settings-btn" onClick={() => setScreen("profile")} style={{ background: DC.card, border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.sm, width: 42, height: 42, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <Icon name="settings" size={21} color={DC.muted} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -2103,7 +2169,7 @@ export default function App() {
             </div>{/* end drag zone */}
             {/* Chat body — touchAction:auto restores scroll inside the message list */}
             <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", padding: "0 14px 14px", touchAction: "auto" }}>
-              <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={msg => sendChat(msg ?? chatInput)} onClose={() => setShowChat(false)} isPro={isPro} suggestions={(() => {
+              <Chat messages={chatMessages} input={chatInput} setInput={setChatInput} onSend={msg => sendChat(msg ?? chatInput)} onClose={() => setShowChat(false)} isPro={isPro} onStartNewChat={startNewChat} suggestions={(() => {
                 const base = CHAT_SUGGESTIONS_BY_SCREEN[screen] ?? CHAT_SUGGESTIONS_BY_SCREEN.dashboard;
                 if (screen !== 'dashboard') return base;
                 const first = buildFirstDashboardSuggestion({ spendingByCategory, prevSpendingByCategory, transactions, balance: effectiveIncome - totalSpent, upcomingCharges });
