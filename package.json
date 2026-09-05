@@ -22,7 +22,7 @@
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.2",
     "@posthog/react": "^1.10.3",
-    "@sentry/react": "^10.69.0",
+    "@sentry/react": "^10.71.0",
     "@supabase/supabase-js": "^2.111.0",
     "exceljs": "^4.4.0",
     "firebase": "^12.18.0",
