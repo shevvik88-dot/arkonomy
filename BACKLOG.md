@@ -9,7 +9,11 @@
 
 ## 📋 ЗАПЛАНИРОВАНО — промпты готовы
 
-### 22. HIGH — service_role не имеет доступа ни к одной public-таблице на чистом replay — ЗАКРЫТ 2026-09-04
+### 22. HIGH — service_role grants + default-privileges для anon/authenticated — 22a CLOSED (PR #82), 22b CLOSED 2026-09-06
+
+Оба подпункта закрыты: 22a — PR #82 (`20260904000000`); 22b — Вариант A применён, миграция `20260906182949_narrow_default_privileges_anon_authenticated.sql`, отдельный PR.
+
+#### 22a. service_role не имеет доступа ни к одной public-таблице на чистом replay — CLOSED 2026-09-04 (PR #82)
 
 Найдено 2026-09-04 при сборке edge-function regression-harness. Прод работал только потому, что `GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role` был применён один раз вручную (Studio/CLI) до появления папки миграций и никогда не закоммичен. Тот же класс проблемы, что для `plaid_items` unique constraint (PR #76), но в масштабе всех таблиц/service_role целиком.
 
@@ -22,7 +26,23 @@
 - `service_role` SELECT на `profiles`/`transactions`/`plaid_items`/`stripe_webhook_events`/`investments` — 200 (было бы 403 без миграции).
 - `authenticated` (реальный JWT, реальная строка `profiles`): SELECT разрешённых колонок — 200 с данными; UPDATE `monthly_budget` — 204, реально применилось; UPDATE `plan` (попытка эскалации) — 403, `plan` не изменился; SELECT `alpaca_access_token` явно — 403. Column-level lockdown из `20260730000000`/`20260730000001` не пострадал.
 
-**Найдено попутно, НЕ в скоупе, не тронуто**: `pg_default_acl` на проде показывает, что `ALTER DEFAULT PRIVILEGES` для роли `postgres` (которой применяются миграции) уже выдаёт `ALL` на будущие таблицы не только `service_role`, но и `anon`/`authenticated` — то есть каждая НОВАЯ таблица, созданная миграцией, по умолчанию получает полный GRANT-доступ для этих ролей и защищена только RLS-политиками (если они есть). Тот же класс риска, что "5 таблиц без policies" из #13, но теперь на уровне default-privileges для всех будущих таблиц, а не конкретных существующих. Требует отдельного решения (сузить `ALTER DEFAULT PRIVILEGES` до `service_role` на проде и в новой миграции, либо явно принять как осознанный паттерн) — не решалось здесь, так как это меняет доступ anon/authenticated, что требует отдельного подтверждения.
+#### 22b. ALTER DEFAULT PRIVILEGES для anon/authenticated на будущие таблицы — CLOSED 2026-09-06 (Вариант A)
+
+Найдено попутно при live-проверке 22a (`pg_default_acl` на проде): standard-Supabase bootstrap выдал `ALTER DEFAULT PRIVILEGES ... GRANT ALL ON TABLES/SEQUENCES TO anon, authenticated` для ролей `postgres` И `supabase_admin`. То есть каждая НОВАЯ таблица, созданная миграцией, по умолчанию получала полный table-level GRANT для `anon`/`authenticated` и была защищена только RLS — тот же класс риска, что "таблицы без policy" из #13, но на уровне дефолта для всех будущих таблиц. Ни одна из 19 существующих таблиц не имеет явного `GRANT ... TO authenticated` в истории миграций — все полагались на этот неявный дефолт + RLS.
+
+**Фикс**: `20260906182949_narrow_default_privileges_anon_authenticated.sql` — `ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE ALL ON TABLES/SEQUENCES FROM anon, authenticated`. Скоуп — только TABLES + SEQUENCES; ROUTINES/FUNCTIONS не тронуты (Postgres и так грантит EXECUTE PUBLIC на новые функции независимо от ALTER DEFAULT PRIVILEGES; проект уже делает точечный `REVOKE EXECUTE ... FROM PUBLIC` на каждую чувствительную RPC, а `has_alpaca_token()` сознательно полагается на дефолтный PUBLIC execute). `service_role` дефолты оставлены широкими (их фиксирует `20260904000000`), так что service-role edge-функции на чистом replay продолжают работать.
+
+**Pre-flight (прод `hvnkxxazjfesbxdkzuba`, 2026-09-06)**: `pg_default_acl` содержит записи `FOR ROLE postgres` и `FOR ROLE supabase_admin`; все 19 public-таблиц принадлежат `postgres`; миграции идут как `current_user = postgres`. `postgres` НЕ член `supabase_admin` → запись `supabase_admin` из миграции тронуть нельзя (permission denied). Оставлена задокументированным остатком: сработала бы только если таблицу создать напрямую `AS supabase_admin`, чего в этом проекте не было ни разу (0/19) и нет ни в одном workflow (CLI `db push`/`db reset` и Studio SQL editor идут как `postgres`).
+
+**Применено через `apply_migration` (MCP), не `db push`.** Post-apply verification на проде:
+- `pg_default_acl` `FOR ROLE postgres`: `objtype='r'` и `'S'` теперь `{postgres, service_role}` — `anon`/`authenticated` убраны (не no-op). `objtype='f'` не изменён.
+- Все 19 существующих таблиц сохранили грант'ы нетронутыми (`has_table_privilege` — `authenticated` SELECT/INSERT/UPDATE/DELETE = true везде, кроме pre-existing column-lockdown на `profiles`). `ALTER DEFAULT PRIVILEGES` действует только в момент CREATE, materialized ACL 19 таблиц не тронуты.
+- Live-тест: `CREATE TABLE public._tmp_22b_default_priv_check` без явного GRANT → `has_table_privilege('authenticated', ...)` = false по всем DML, `anon` = false, `service_role` = true; `relacl` = `{postgres=.../postgres,service_role=.../postgres}`. Таблица удалена, `to_regclass` = null. Защита реально работает для будущих таблиц, а не только теоретически.
+- Чистый локальный `supabase db reset` (весь chain миграций + эта последней) — применяется без ошибок; локальный `pg_default_acl` совпал с продом.
+- `npm run test:edge` — **47 passed / 0 failed**. Харнесс не затронут, как и предсказывалось (`_test/_helpers/fixtures.sql` компенсирует грант'ы только для `service_role` и сознательно не re-widen'ит anon/authenticated). (Первый прогон дал 35 fetch-ошибок к `127.0.0.1:54321/auth/v1/health` — сломанный локальный Kong/GoTrue после рестарта контейнеров, не связано с миграцией; полный `supabase stop`/`start` починил, повторный прогон зелёный.)
+- `get_advisors(security)` на проде после DDL — без регрессий: все находки (`rls_enabled_no_policy` ×8, `function_search_path_mutable`, `extension_in_public`, SECURITY DEFINER executable ×3, leaked-password-protection) pre-existing, ни одна не связана с этой миграцией (она не создаёт таблиц/функций/политик).
+
+**Новый контракт**: каждая будущая миграция с клиентской таблицей обязана сама выдать явный `GRANT ... TO authenticated` (колоночный, по паттерну `profiles` из `20260730000000`/`20260730000001`). Забытый GRANT теперь падает громко (PostgREST `permission denied for table X`) вместо тихого over-expose. Зафиксировано в `docs/security-log.md`.
 
 ### 13. Полный RLS-аудит по всем таблицам — ЗАКРЫТ 2026-07-17
 
