@@ -573,7 +573,14 @@ TIME AWARENESS:
       ).join(", ")
     : "no goals set";
 
-  const usd0 = (n: any) => `$${Number(n ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  // Adaptive precision: whole dollars once a figure is $100+, 2 decimals
+  // below that — a round-up-investing brokerage account can hold positions
+  // worth cents, and whole-dollar rounding would render those as "$0".
+  const usd = (n: any) => {
+    const v = Number(n ?? 0);
+    const d = Math.abs(v) < 100 ? 2 : 0;
+    return `$${v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })}`;
+  };
   const portfolioLine = !portfolio
     ? "no brokerage account connected"
     : portfolio.disconnected
@@ -586,12 +593,17 @@ TIME AWARENESS:
             ? "connected — position details are not included on this turn. If the user asks specifically about their portfolio or holdings (without also asking you to look up current market or news info in the same message), those details will be available. Do not guess or infer any holdings, balances, or performance in the meantime."
             : (() => {
           const positions = Array.isArray(portfolio.positions) ? portfolio.positions.slice(0, 50) : [];
+          const invested = positions.reduce((s: number, p: any) => s + Number(p.marketValue ?? 0), 0);
           const posList = positions.length > 0
             ? positions.map((p: any) => {
-                const parts = [`${p.symbol}: ${p.qty} sh`, `value ${usd0(p.marketValue)}`];
+                const mv = Number(p.marketValue ?? 0);
+                const parts = [`${p.symbol}: ${p.qty} sh`, `value ${usd(mv)}`];
+                // Pre-computed so the model doesn't have to divide — makes
+                // "most of your money is in X" framing reliable on Haiku.
+                if (invested > 0) parts.push(`${((mv / invested) * 100).toFixed(0)}% of holdings`);
                 if (p.unrealizedPl != null) {
                   const pct = p.unrealizedPlpc != null ? ` (${(Number(p.unrealizedPlpc) * 100).toFixed(1)}%)` : "";
-                  parts.push(`unrealized ${Number(p.unrealizedPl) >= 0 ? "+" : "-"}${usd0(Math.abs(Number(p.unrealizedPl)))}${pct}`);
+                  parts.push(`unrealized ${Number(p.unrealizedPl) >= 0 ? "+" : "-"}${usd(Math.abs(Number(p.unrealizedPl)))}${pct}`);
                 }
                 return parts.join(", ");
               }).join(" | ")
@@ -602,7 +614,7 @@ TIME AWARENESS:
                 `${o.side} ${o.symbol}${o.notional ? ` $${o.notional}` : o.qty ? ` ${o.qty} sh` : ""} (${o.status})`
               ).join(", ")
             : "";
-          return `total value ${usd0(portfolio.portfolioValue)}, cash ${usd0(portfolio.cash)}, buying power ${usd0(portfolio.buyingPower)}. Positions: ${posList}${ordersList}`;
+          return `total value ${usd(portfolio.portfolioValue)}, cash ${usd(portfolio.cash)}, buying power ${usd(portfolio.buyingPower)}. Positions: ${posList}${ordersList}`;
         })();
 
   const DATA_BLOCK = `
