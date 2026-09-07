@@ -34,6 +34,22 @@ verify_jwt = false
 [functions.stock-ai-analysis]
 verify_jwt = false
 
+# Cron / service-role functions — each does its own service-role-key or JWT
+# check inside the function body, so the platform gateway check must be off.
+# These three were deployed verify_jwt=false but had no config entry until
+# 2026-09-07 — undeclared drift, the same class as the financial-diagnosis
+# note below. A plain `supabase functions deploy <name>` without this would
+# flip the gateway to true and silently kill the cron (the 2026-07-25
+# incident: weekly-report / plaid-batch-sync went dark).
+[functions.large-transaction-alert]
+verify_jwt = false
+
+[functions.plaid-batch-sync]
+verify_jwt = false
+
+[functions.weekly-report]
+verify_jwt = false
+
 # Explicit, not left to default — matches the house convention every other
 # client-facing function here uses (manual JWT check inside the function,
 # not the platform gateway check). Without this entry it silently inherited
