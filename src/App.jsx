@@ -951,14 +951,24 @@ export default function App() {
     }
   }
 
+  // Returns { ok: true } on success (session already cleared), or
+  // { ok: false, message } on failure — the caller shows `message` inline and
+  // keeps the user signed in (the account still exists). Never signs out on a
+  // failure path: that unmounts the confirm dialog before the message paints.
   async function deleteAccount() {
+    // Hardcoded English to match the other error toasts in this file
+    // (addTransaction, bank connect) — the 4 locale files are mid-edit for an
+    // unrelated feature; i18n of these two is a small BACKLOG follow-up.
+    const FAILED_MSG = "Something went wrong deleting your account. Please try again, or contact support if it keeps happening.";
+    const SESSION_EXPIRED_MSG = "Your session expired. Please sign in again to delete your account.";
+    let res;
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      // delete-account now does everything server-side (Stripe subscription
-      // cancel, Plaid item/remove, then all rows, then the auth user) — it
-      // needs plaid_items/profiles intact to read access_token/stripe_customer_id
+      // delete-account does everything server-side (Stripe subscription cancel,
+      // Plaid item/remove, then all rows, then the auth user) — it needs
+      // plaid_items/profiles intact to read access_token/stripe_customer_id
       // before anything is deleted, so the client no longer deletes rows itself.
-      await fetch(`${SUPABASE_URL}/functions/v1/delete-account`, {
+      res = await fetch(`${SUPABASE_URL}/functions/v1/delete-account`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${session?.access_token}`,
@@ -966,14 +976,49 @@ export default function App() {
         }
       });
     } catch (e) {
-      if (import.meta.env.DEV) logger.error("[deleteAccount]", e);
+      // fetch itself rejected — offline, or the response was CORS-blocked.
+      // A connectivity issue, not a server error: log, no Sentry.
+      logger.error("[deleteAccount] request failed:", e);
+      return { ok: false, message: FAILED_MSG };
     }
-    clearAccountsCache();
-    clearDiagnosisLessonCache();
-    sessionStorage.removeItem('arkonomy_chat_history');
-    sessionStorage.removeItem('arkonomy_chat_history_ts');
-    await supabase.auth.signOut();
-    setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]); setMerchantAliases([]); setScheduledPayments([]); setChatMessages([]);
+
+    if (res.ok) {
+      clearAccountsCache();
+      clearDiagnosisLessonCache();
+      sessionStorage.removeItem('arkonomy_chat_history');
+      sessionStorage.removeItem('arkonomy_chat_history_ts');
+      await supabase.auth.signOut();
+      setUser(null); setProfile(null); setTransactions([]); setCategories([]); setSavings([]); setMerchantAliases([]); setScheduledPayments([]); setChatMessages([]);
+      return { ok: true };
+    }
+
+    const body = await res.json().catch(() => ({}));
+    logger.error("[deleteAccount] failed:", res.status, body);
+
+    // Dead/expired session (e.g. signed out on another device): the gateway
+    // rejects before the function runs, so retrying won't help. Do NOT sign
+    // out here — that unmounts the dialog before the message can paint,
+    // reproducing the silent-bounce bug. Show it inline; the user closes the
+    // dialog and re-authenticates on their next action.
+    if (res.status === 401) {
+      return { ok: false, message: SESSION_EXPIRED_MSG };
+    }
+
+    // 409: an investment is still processing (a normal, self-healing race). The
+    // account is fully intact; the user just retries in a moment. The server's
+    // message is the specific, actionable one. Not Sentry-worthy.
+    if (res.status === 409 && body?.error) {
+      return { ok: false, message: body.error };
+    }
+
+    // 5xx / anything else — a genuine failure. The function deletes app data
+    // before the auth user, so a 500 here can mean the rows are gone but login
+    // still works (see BACKLOG — server should sign such a user out). Sentry it.
+    Sentry.captureException(
+      new Error(`delete-account ${res.status}: ${body?.error || "no error body"}`),
+      { tags: { context: "delete_account" } },
+    );
+    return { ok: false, message: FAILED_MSG };
   }
 
   async function addTransaction(tx) {
