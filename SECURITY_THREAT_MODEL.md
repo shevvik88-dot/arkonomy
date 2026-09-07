@@ -280,6 +280,18 @@ it stops being true."
   enum or cron function was needed. See
   `supabase/migrations/20260907000001_investments_stable_idempotency.sql`
   and `supabase/functions/_test/alpaca-invest.test.ts`.
+- **Follow-up fix (2026-09-07, same day):** a code-reviewer/security-auditor
+  pass over the fix above (before handoff, never merged) found two
+  remaining gaps in the reconcile-and-reuse path and closed both: (1) the
+  outer `catch` had lost its pendingRowId cleanup entirely — any exception
+  other than the order-placement fetch's own left a permanently stuck
+  `'pending'` row, restored; (2) two concurrent retries reconciling the
+  same `'unknown'` row could both get a 404 lookup and both place a real
+  order under the same `client_order_id` — now claimed atomically first
+  (compare-and-swap `'unknown' -> 'pending'`) — and a 422 "client order id
+  already exists" rejection from Alpaca (a real duplicate, not an
+  ambiguous one) was still releasing the reservation instead of
+  reconciling onto it. Not run against a live stack — see final report.
 - **Entry point:** `alpaca-invest/index.ts`, the outer `catch (err)` block
   (originally FINDING-A of the 2026-08-17 race-condition audit — the fix for
   the double-order TOCTOU gap is what introduced this narrower, distinct
