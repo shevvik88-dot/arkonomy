@@ -262,7 +262,24 @@ it stops being true."
   and the added complexity of a stored-procedure code path isn't justified
   until this actually bites in production.
 
-### T6. `alpaca-invest` — indeterminate order-placement outcome treated as failure, accepted risk
+### T6. `alpaca-invest` — indeterminate order-placement outcome treated as failure — **Fixed: 2026-09-07 (independent audit)**
+- **Fix (2026-09-07):** the order-placement `fetch()` now has its own
+  try/catch, separate from a definite Alpaca rejection. A network-level
+  throw marks the row `status: 'unknown'` (never deletes it) instead of
+  releasing the reservation. The next request for the same (user, symbol,
+  amount) — blocked from creating a fresh row by
+  `investments_user_symbol_amount_open_key`, the partial unique index that
+  replaced the old 4-column `window_bucket` constraint — reconciles with
+  Alpaca synchronously via `GET /v2/orders:by_client_order_id` (keyed on
+  `investments.id`, stable for the row's whole lifecycle, instead of a
+  per-minute bucket) before doing anything else: if Alpaca has the order,
+  the row is synced and no second order is placed; if not, the order is
+  placed now, reusing the same row/id. This supersedes the background-
+  cron recommendation below — reconciliation happens inline on the very
+  next retry rather than waiting for a periodic job, and no new row status
+  enum or cron function was needed. See
+  `supabase/migrations/20260907000001_investments_stable_idempotency.sql`
+  and `supabase/functions/_test/alpaca-invest.test.ts`.
 - **Entry point:** `alpaca-invest/index.ts`, the outer `catch (err)` block
   (originally FINDING-A of the 2026-08-17 race-condition audit — the fix for
   the double-order TOCTOU gap is what introduced this narrower, distinct
