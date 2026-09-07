@@ -12,15 +12,16 @@ import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 import { getUpcomingCharges } from '../_shared/recurringDetector.ts';
 import { isTransferCategory } from '../_shared/financialConstants.ts';
 import { getMarketSnapshot, type MarketQuote } from '../_shared/marketSnapshot.ts';
+import { resolveCorsHeaders } from '../_shared/cors.ts';
 
 initSentry('weekly-report');
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-firebase-appcheck',
-};
-
 Deno.serve(async (req) => {
+  // prodOnly: scheduled cron + manual service-role POST only — not called from
+  // any browser (grep of src/), so no preview origin is ever legitimate.
+  // (x-firebase-appcheck dropped from the old allow-header list — nothing
+  // sends it; App Check is a no-op project-wide, see BACKLOG.)
+  const corsHeaders = resolveCorsHeaders(req, { prodOnly: true });
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
