@@ -6,31 +6,12 @@ import { BUFFER, SAVE_CAP_SMALL, SAVE_CAP_MEDIUM, SAVE_CAP_LARGE, REC_MIN, REC_M
 import { getCurrentMonthWindow, monthTransactions, monthKey } from '../_shared/dateWindows.ts';
 import { getUpcomingCharges } from '../_shared/recurringDetector.ts';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+import { resolveCorsHeaders } from '../_shared/cors.ts';
 
 initSentry('get-insights');
 
-// Same allow-list pattern as auth-login/check-bank-connection/market-data/
-// plaid-get-accounts — preview deployments get a fresh random subdomain
-// hash on every push, so a single static origin can't cover them.
-const PROD_ORIGIN = Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com';
-const ALLOWED_ORIGINS: (string | RegExp)[] = [
-  PROD_ORIGIN,
-  /^https:\/\/arkonomy-[a-z0-9-]+-shevvik88-dots-projects\.vercel\.app$/,
-];
-
-function resolveCorsHeaders(req: Request) {
-  const origin = req.headers.get('origin') ?? '';
-  const allowedOrigin = ALLOWED_ORIGINS.some(o => typeof o === 'string' ? o === origin : o.test(origin))
-    ? origin
-    : PROD_ORIGIN;
-  return {
-    'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-firebase-appcheck',
-  };
-}
-
 Deno.serve(async (req) => {
-  const corsHeaders = resolveCorsHeaders(req);
+  const corsHeaders = resolveCorsHeaders(req, { extraAllowHeaders: 'x-firebase-appcheck' });
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -55,7 +36,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const rateLimitResponse = await enforceRateLimit(user.id, 'get-insights');
+    const rateLimitResponse = await enforceRateLimit(user.id, 'get-insights', { corsHeaders });
     if (rateLimitResponse) return rateLimitResponse;
 
     // userId from body is ignored — always use the authenticated user

@@ -1,5 +1,6 @@
 import { initSentry, captureAndFlush } from "../_shared/sentry.ts";
 import { enforceIpRateLimit } from "../_shared/ipRateLimit.ts";
+import { resolveCorsHeaders, PROD_ORIGIN } from "../_shared/cors.ts";
 
 initSentry("auth-signup");
 
@@ -11,29 +12,18 @@ initSentry("auth-signup");
 //
 // verify_jwt: false — this is pre-auth by definition (no token exists yet).
 
-const PROD_ORIGIN = Deno.env.get("APP_URL") ?? "https://app.arkonomy.com";
-const ALLOWED_ORIGINS: (string | RegExp)[] = [
-  PROD_ORIGIN,
-  /^https:\/\/arkonomy-[a-z0-9-]+-shevvik88-dots-projects\.vercel\.app$/,
-  /^http:\/\/localhost:\d+$/,
-];
-
-function resolveCorsHeaders(req: Request) {
-  const origin = req.headers.get("origin") ?? "";
-  const allowedOrigin = ALLOWED_ORIGINS.some(o => typeof o === "string" ? o === origin : o.test(origin))
-    ? origin
-    : PROD_ORIGIN;
-  return {
-    "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  };
-}
+// PROD_ORIGIN (imported from _shared/cors.ts) is reused below as the GoTrue
+// `redirect_to` target for the confirmation email — one source of truth for
+// this app's prod origin.
+// localhost allowed for local dev — same rationale as auth-login (2026-08-28
+// incident). Only ever sent by the machine's own dev server, not spoofable.
+const LOCAL_DEV_ORIGIN = /^http:\/\/localhost:\d+$/;
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 Deno.serve(async (req, info) => {
-  const corsHeaders = resolveCorsHeaders(req);
+  const corsHeaders = resolveCorsHeaders(req, { extraOrigins: [LOCAL_DEV_ORIGIN] });
   function json(body: unknown, status = 200) {
     return new Response(JSON.stringify(body), {
       status,

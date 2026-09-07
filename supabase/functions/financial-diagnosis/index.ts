@@ -18,33 +18,9 @@ import { computeRecurringSummary } from '../_shared/recurringDetector.ts';
 import { isRealExpense, isRealIncome } from '../_shared/financialConstants.ts';
 import { getCurrentMonthWindow, monthKey } from '../_shared/dateWindows.ts';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+import { resolveCorsHeaders } from '../_shared/cors.ts';
 
 initSentry('financial-diagnosis');
-
-// ── CORS ─────────────────────────────────────────────────────────────────────
-// Allow-list (prod + Vercel preview), same pattern as get-insights/
-// auth-login/check-bank-connection/market-data/plaid-get-accounts.
-const PROD_ORIGIN = Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com';
-const ALLOWED_ORIGINS: (string | RegExp)[] = [
-  PROD_ORIGIN,
-  /^https:\/\/arkonomy-[a-z0-9-]+-shevvik88-dots-projects\.vercel\.app$/,
-];
-function resolveCorsHeaders(req: Request) {
-  const origin = req.headers.get('origin') ?? '';
-  const allowedOrigin = ALLOWED_ORIGINS.some(o => typeof o === 'string' ? o === origin : o.test(origin))
-    ? origin
-    : PROD_ORIGIN;
-  return {
-    'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    // Dynamic-origin reflection without Vary means an intermediary cache
-    // could serve one origin's CORS headers to another (security-auditor
-    // finding, 2026-08-23) — pre-existing pattern shared with get-insights/
-    // auth-login/check-bank-connection/market-data/plaid-get-accounts, only
-    // fixed here since this is the only one touched this round.
-    'Vary': 'Origin',
-  };
-}
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const MIN_HISTORY_DAYS = 14;
@@ -109,7 +85,7 @@ Deno.serve(async (req) => {
     // Anthropic call plus 7 DB queries per request. A degraded rate_limits
     // table shouldn't silently remove the cap on a cost-moving action
     // (security-auditor finding, 2026-08-23).
-    const rateLimitResponse = await enforceRateLimit(user.id, 'financial-diagnosis', { failClosed: true });
+    const rateLimitResponse = await enforceRateLimit(user.id, 'financial-diagnosis', { failClosed: true, corsHeaders });
     if (rateLimitResponse) return rateLimitResponse;
 
     // req.json() throws on malformed JSON — caught here specifically so it
