@@ -337,7 +337,17 @@ Deno.test('independent audit 2026-09-07: a DB write failure does not advance the
       json(page({ added: [tx({ amount: 0 })], next_cursor: 'c1', has_more: false })));
 
     const res = await handler(syncReq(user.accessToken));
-    assertEquals(res.status, 500); // no false "success" reported after the write failed
+    // The normal per-user sync path never lets one bad item read as a clean
+    // 200 — a single failing item (this test) and a failing item alongside
+    // a healthy one (see the 207 test below) both surface as 207 with the
+    // item id in failed_items; there's nothing left of this user's own sync
+    // request that could still fail outside that per-item loop, so 500
+    // isn't reachable here (code-reviewer finding, 2026-09-07 — this test
+    // originally asserted 500, which the actual per-item-catch code never
+    // produces for a single failing item).
+    assertEquals(res.status, 207);
+    const body = await res.json();
+    assertEquals(body.failed_items, [id]);
     assertEquals(await itemCursor(id), 'c0'); // not advanced to c1
     assertEquals((await txRows(user.id)).length, 0); // nothing persisted either
   } finally {
@@ -358,7 +368,7 @@ Deno.test('independent audit 2026-09-07: retry after a write failure is safe (id
       json(page({ added: [bad], next_cursor: 'c1', has_more: false })));
 
     const failed = await handler(syncReq(user.accessToken));
-    assertEquals(failed.status, 500);
+    assertEquals(failed.status, 207); // see the status-code note in the test above
     assertEquals(await itemCursor(id), 'c0');
 
     // Plaid replays the same unadvanced page on the next sync — fix the
