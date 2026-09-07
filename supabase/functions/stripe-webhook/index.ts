@@ -53,29 +53,66 @@ export async function handler(req: Request): Promise<Response> {
   // Idempotency: Stripe delivers at-least-once — retries on non-2xx and
   // manual dashboard resends can redeliver the same event.id. Insert it
   // first, before any side effect; a PRIMARY KEY conflict means this
-  // event was already processed (e.g. checkout.session.completed would
+  // event.id was already seen (e.g. checkout.session.completed would
   // otherwise recompute trial_ends_at = now() + 7 days on every
   // redelivery, silently extending the trial with zero attacker action).
   //
-  // Known gap: insert and side-effects are not in one transaction — if the
-  // function crashes between them, the event is marked processed but the
-  // side-effect didn't apply, and Stripe's retry will be silently ignored.
-  // See SECURITY_THREAT_MODEL.md.
+  // `status` (independent-audit fix, 2026-09-07) closes the gap the
+  // insert-only version had: insert and side-effect were never one
+  // transaction, so a crash/error between them left the event permanently
+  // marked "seen" with its side effect never applied, and Stripe's retry
+  // was silently swallowed by the dedup row alone. See
+  // 20260907000000_stripe_webhook_events_status.sql for the state machine.
+  const STALE_PROCESSING_MS = 60_000;
+  let retryingStale = false;
+
   const { error: dedupErr } = await supabase
     .from('stripe_webhook_events')
-    .insert({ event_id: event.id });
+    .insert({ event_id: event.id, status: 'processing' });
+
   if (dedupErr) {
     if (dedupErr.code === '23505') {
-      return new Response(JSON.stringify({ received: true, duplicate: true }), {
+      const { data: existing, error: fetchErr } = await supabase
+        .from('stripe_webhook_events')
+        .select('status, processed_at')
+        .eq('event_id', event.id)
+        .single();
+
+      // Row vanished between the conflict and this read (e.g. a concurrent
+      // failed attempt's own cleanup deleted it) — ack as duplicate rather
+      // than risk two attempts reapplying the effect at once; a genuinely
+      // dropped event still comes back on Stripe's own retry cadence.
+      if (fetchErr || !existing || existing.status === 'completed') {
+        return new Response(JSON.stringify({ received: true, duplicate: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // status === 'processing': either another delivery is genuinely
+      // in flight right now (resolves in milliseconds — ack without
+      // reapplying, so the effect still runs exactly once) or a prior
+      // attempt crashed before reaching its own cleanup and left this
+      // stuck forever otherwise. Age is the only way to tell them apart.
+      const age = Date.now() - new Date(existing.processed_at as string).getTime();
+      if (age < STALE_PROCESSING_MS) {
+        return new Response(JSON.stringify({ received: true, duplicate: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      // Stale — fall through and actually (re)run the side effect below,
+      // reusing the existing row (no new insert needed).
+      retryingStale = true;
+    } else {
+      console.error('stripe-webhook: dedup insert failed:', dedupErr);
+      await captureAndFlush(dedupErr, { function_name: 'stripe-webhook', event_id: event.id });
+      return new Response(JSON.stringify({ error: "Internal Server Error" }), {
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    console.error('stripe-webhook: dedup insert failed:', dedupErr);
-    await captureAndFlush(dedupErr, { function_name: 'stripe-webhook', event_id: event.id });
-    return new Response(JSON.stringify({ error: "Internal Server Error" }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+  }
+  if (retryingStale) {
+    console.warn(`stripe-webhook: retrying stale 'processing' event ${event.id} (previous attempt never completed)`);
   }
 
   try {
@@ -100,8 +137,12 @@ export async function handler(req: Request): Promise<Response> {
           .eq('id', userId)
           .select('id');
 
-        if (error) console.error('Failed to update profile to trial:', error);
-        if (error || !updatedRows?.length) {
+        // A real DB error here (as opposed to the legitimate 0-row
+        // delete-account race handled below) must fail this delivery so
+        // Stripe retries it — silently logging it was the exact gap
+        // independent-audit finding #2 named.
+        if (error) { console.error('Failed to update profile to trial:', error); throw error; }
+        if (!updatedRows?.length) {
           await captureAndFlush(
             new Error('stripe-webhook: checkout.session.completed update matched 0 rows — possible delete-account race'),
             { function_name: 'stripe-webhook', event_id: event.id, user_id: userId },
@@ -116,12 +157,19 @@ export async function handler(req: Request): Promise<Response> {
     if (event.type === 'checkout.session.expired') {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.client_reference_id;
-      if (userId) {
+      if (userId && session.id) {
+        // Scoped to this specific session id (independent-audit finding
+        // #3) — without it, a session's expiry event arriving late (up to
+        // Stripe's own delivery/retry window) could clear a DIFFERENT,
+        // newer checkout_session_id/checkout_pending_at the user had
+        // already started since, reopening the double-checkout window
+        // stripe-checkout's own guard exists to close.
         const { error } = await supabase
           .from('profiles')
           .update({ checkout_pending_at: null, checkout_session_id: null })
-          .eq('id', userId);
-        if (error) console.error('Failed to clear checkout_pending_at on expiry:', error);
+          .eq('id', userId)
+          .eq('checkout_session_id', session.id);
+        if (error) { console.error('Failed to clear checkout_pending_at on expiry:', error); throw error; }
       }
     }
 
@@ -135,7 +183,7 @@ export async function handler(req: Request): Promise<Response> {
           .from('profiles')
           .update({ trial_ends_at: null })
           .eq('stripe_customer_id', customerId);
-        if (error) console.error('Failed to clear trial_ends_at:', error);
+        if (error) { console.error('Failed to clear trial_ends_at:', error); throw error; }
       }
     }
 
@@ -162,7 +210,7 @@ export async function handler(req: Request): Promise<Response> {
         })
         .eq('stripe_customer_id', customerId);
 
-      if (error) console.error('Failed to downgrade profile:', error);
+      if (error) { console.error('Failed to downgrade profile:', error); throw error; }
     }
 
     if (event.type === 'invoice.payment_failed') {
@@ -179,7 +227,7 @@ export async function handler(req: Request): Promise<Response> {
             alpaca_connected_at: null,
           })
           .eq('stripe_customer_id', customerId);
-        if (error) console.error('Failed to downgrade profile on payment failure:', error);
+        if (error) { console.error('Failed to downgrade profile on payment failure:', error); throw error; }
       }
     }
 
@@ -202,7 +250,22 @@ export async function handler(req: Request): Promise<Response> {
         .from('profiles')
         .update({ plan, ...downgradeFields })
         .eq('stripe_customer_id', customerId);
-      if (error) console.error('Failed to sync subscription update:', error);
+      if (error) { console.error('Failed to sync subscription update:', error); throw error; }
+    }
+
+    // Mark this event fully applied so a later redelivery short-circuits
+    // above instead of reapplying. A failure to write this specific
+    // update is logged/reported but not fatal — every branch above is
+    // itself idempotent (same plan/trial_ends_at write twice is
+    // harmless), so worst case a future redelivery just reruns the same
+    // no-op effect instead of the ideal "duplicate: true" ack.
+    const { error: completeErr } = await supabase
+      .from('stripe_webhook_events')
+      .update({ status: 'completed' })
+      .eq('event_id', event.id);
+    if (completeErr) {
+      console.error('stripe-webhook: failed to mark event completed:', completeErr);
+      await captureAndFlush(completeErr, { function_name: 'stripe-webhook', event_id: event.id });
     }
 
     return new Response(JSON.stringify({ received: true }), {
@@ -211,6 +274,13 @@ export async function handler(req: Request): Promise<Response> {
 
   } catch (err) {
     console.error('stripe-webhook handler error:', err);
+    // Delete rather than leave the row stuck at 'processing' — lets an
+    // immediate retry actually reapply the effect instead of being told
+    // "duplicate" for up to STALE_PROCESSING_MS. A crash that skips this
+    // catch entirely (the whole instance dying, not a normal throw) still
+    // self-heals via the staleness check above on the next delivery.
+    const { error: cleanupErr } = await supabase.from('stripe_webhook_events').delete().eq('event_id', event.id);
+    if (cleanupErr) console.error('stripe-webhook: failed to clean up dedup row after error:', cleanupErr);
     await captureAndFlush(err, { function_name: 'stripe-webhook' });
     return new Response(JSON.stringify({ error: "Internal Server Error" }), {
       status: 500,

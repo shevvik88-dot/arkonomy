@@ -204,13 +204,110 @@ Deno.test('invoice.payment_succeeded: subscription_cycle with a real charge clea
 
 Deno.test('checkout.session.expired → checkout guard fields cleared', async () => {
   const user = await createTestUser({ plan: 'free', profile: { checkout_pending_at: new Date().toISOString(), checkout_session_id: 'cs_exp' } });
-  const e = evt('checkout.session.expired', { client_reference_id: user.id });
+  const e = evt('checkout.session.expired', { id: 'cs_exp', client_reference_id: user.id });
   try {
     const res = await post(e.payload);
     assertEquals(res.status, 200);
     const { data: p } = await profile(user.id);
     assertEquals(p!.checkout_pending_at, null);
     assertEquals(p!.checkout_session_id, null);
+  } finally {
+    await delEvents(e.id);
+    await user.cleanup();
+  }
+});
+
+Deno.test('independent audit 2026-09-07: an old session expiring does not clear a newer session\'s lock', async () => {
+  // The user's stored checkout_session_id has since moved on to 'cs_new'
+  // (a second checkout started after 'cs_old' was created) — 'cs_old's
+  // own expiry event, arriving late, must not release that newer lock.
+  const user = await createTestUser({ plan: 'free', profile: { checkout_pending_at: new Date().toISOString(), checkout_session_id: 'cs_new' } });
+  const e = evt('checkout.session.expired', { id: 'cs_old', client_reference_id: user.id });
+  try {
+    const res = await post(e.payload);
+    assertEquals(res.status, 200);
+    const { data: p } = await profile(user.id);
+    assert(p!.checkout_pending_at !== null); // still locked
+    assertEquals(p!.checkout_session_id, 'cs_new'); // untouched
+  } finally {
+    await delEvents(e.id);
+    await user.cleanup();
+  }
+});
+
+Deno.test('independent audit 2026-09-07: a DB failure applying the effect fails the delivery and does not stick', async () => {
+  // profiles.stripe_customer_id is UNIQUE — colliding with an existing
+  // customer id is a real DB error, not a mock.
+  const clash = `cus_${crypto.randomUUID()}`;
+  const other = await createTestUser({ plan: 'free', profile: { stripe_customer_id: clash } });
+  const user  = await createTestUser({ plan: 'free' });
+  const e = evt('checkout.session.completed', { client_reference_id: user.id, customer: clash });
+  try {
+    const failed = await post(e.payload);
+    assertEquals(failed.status, 500); // not a false 200 after the write actually failed
+
+    const { data: after } = await profile(user.id);
+    assertEquals(after!.plan, 'free'); // not upgraded
+
+    const { data: rows } = await dbAdmin().from('stripe_webhook_events').select('event_id').eq('event_id', e.id);
+    assertEquals(rows!.length, 0); // dedup row cleaned up, not left stuck at 'processing'
+
+    // Retry with the collision resolved — same event.id must actually
+    // reapply this time, not be told "duplicate".
+    await dbAdmin().from('profiles').update({ stripe_customer_id: null }).eq('id', other.id);
+    const retried = await post(e.payload);
+    assertEquals(retried.status, 200);
+    assertEquals((await retried.json()).duplicate, undefined);
+    const { data: afterRetry } = await profile(user.id);
+    assertEquals(afterRetry!.plan, 'pro');
+  } finally {
+    await delEvents(e.id);
+    await other.cleanup();
+    await user.cleanup();
+  }
+});
+
+Deno.test('independent audit 2026-09-07: a stale processing row (crashed prior attempt) is retried, not treated as duplicate', async () => {
+  const user = await createTestUser({ plan: 'free' });
+  const cust = `cus_${crypto.randomUUID()}`;
+  const e = evt('checkout.session.completed', { client_reference_id: user.id, customer: cust });
+  try {
+    // Simulate a previous attempt that inserted the dedup row and then
+    // crashed before ever reaching the profile update or its own cleanup.
+    await dbAdmin().from('stripe_webhook_events').insert({
+      event_id: e.id, status: 'processing', processed_at: new Date(Date.now() - 61_000).toISOString(),
+    });
+
+    const res = await post(e.payload);
+    assertEquals(res.status, 200);
+    assertEquals((await res.json()).duplicate, undefined); // actually reapplied, not acked as a no-op
+
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.plan, 'pro');
+
+    const { data: rows } = await dbAdmin().from('stripe_webhook_events').select('status').eq('event_id', e.id).single();
+    assertEquals(rows!.status, 'completed');
+  } finally {
+    await delEvents(e.id);
+    await user.cleanup();
+  }
+});
+
+Deno.test('independent audit 2026-09-07: a fresh processing row (genuinely concurrent) is acked without reapplying', async () => {
+  const user = await createTestUser({ plan: 'free' });
+  const cust = `cus_${crypto.randomUUID()}`;
+  const e = evt('checkout.session.completed', { client_reference_id: user.id, customer: cust });
+  try {
+    // A few milliseconds old — well under the staleness window, i.e. a
+    // delivery that's genuinely still in flight right now elsewhere.
+    await dbAdmin().from('stripe_webhook_events').insert({ event_id: e.id, status: 'processing' });
+
+    const res = await post(e.payload);
+    assertEquals(res.status, 200);
+    assertEquals((await res.json()).duplicate, true);
+
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.plan, 'free'); // not applied by this (losing) delivery
   } finally {
     await delEvents(e.id);
     await user.cleanup();
