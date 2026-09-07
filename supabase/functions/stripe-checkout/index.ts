@@ -79,12 +79,81 @@ export async function handler(req: Request): Promise<Response> {
     // already exists in Stripe — it can't see a checkout that's in
     // flight (session created, payment not yet completed), since the
     // subscription itself is only created later, async, on
-    // checkout.session.completed. Second, complementary guard: atomic
-    // check-and-set on profiles.checkout_pending_at, reset by
-    // stripe-webhook on checkout.session.completed/.expired. Without
-    // this, two near-simultaneous checkout attempts (double tab, double
-    // click before redirect) both pass the check above and both get a
-    // valid session.
+    // checkout.session.completed.
+    //
+    // Independent-audit finding #3: the mutex below only ever had a fixed
+    // 15-minute TTL, unrelated to how long a real Checkout Session stays
+    // completable (up to 24h, Stripe's default). Once 15 minutes passed,
+    // a second attempt could reacquire the mutex and mint session B while
+    // session A — created by the first attempt — was still perfectly
+    // payable, so completing both meant two subscriptions. Fix: before
+    // ever touching the mutex, confirm with Stripe itself whether the
+    // profile's last known session is still open, and if so reuse it —
+    // this is authoritative regardless of how much time has passed,
+    // unlike any local timestamp heuristic.
+    const { data: profileBefore } = await supabase
+      .from('profiles')
+      .select('stripe_customer_id, checkout_session_id')
+      .eq('id', user.id)
+      .single();
+
+    if (profileBefore?.checkout_session_id) {
+      const staleSessionId = profileBefore.checkout_session_id;
+      let stillOpen: boolean;
+      let reusableUrl: string | null = null;
+      try {
+        const existingSession = await stripe.checkout.sessions.retrieve(staleSessionId);
+        stillOpen = existingSession.status === 'open';
+        reusableUrl = existingSession.url;
+      } catch (err: any) {
+        if (err?.statusCode === 404) {
+          // Session id Stripe no longer recognizes — safe to treat as not open.
+          stillOpen = false;
+        } else {
+          // Can't confirm either way (network/Stripe-side error) — fail
+          // closed rather than risk minting a second session while the
+          // first might still be completable.
+          console.error('stripe-checkout: failed to verify existing session:', err);
+          await captureAndFlush(err, { function_name: 'stripe-checkout', checkout_session_id: staleSessionId });
+          return new Response(JSON.stringify({ error: "Internal Server Error" }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      if (stillOpen) {
+        // Reuse rather than create a second concurrently-completable
+        // session — safe to return unconditionally: a concurrent duplicate
+        // request landing here too just gets handed the same URL back.
+        return new Response(JSON.stringify({ url: reusableUrl }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Confirmed closed (completed/expired/canceled) — release the guard
+      // fields ourselves rather than wait for stripe-webhook's own
+      // checkout.session.expired handling, scoped to this exact session id
+      // so we never clobber a different session another request may have
+      // just started. Best-effort: if this loses a race to a concurrent
+      // request already past this point, that request's own CAS below is
+      // still the real guard.
+      await supabase
+        .from('profiles')
+        .update({ checkout_pending_at: null, checkout_session_id: null })
+        .eq('id', user.id)
+        .eq('checkout_session_id', staleSessionId);
+    }
+
+    // Second, complementary guard against the narrower race Stripe can't
+    // see for us above: two near-simultaneous requests both reaching this
+    // point with no checkout_session_id yet (double tab, double click
+    // before redirect) — atomic check-and-set on profiles.checkout_pending_at.
+    // This mutex only needs to cover the short window until the session
+    // below is created and its id stored — actual session lifetime is now
+    // handled entirely by the Stripe-verified check above, so its own TTL
+    // here is just a safety net against a crashed request that acquired
+    // the mutex but never got as far as storing a session id at all.
     // Detect "did this UPDATE win the lock" via the affected-row count, not
     // a returned row. The .or() filter is on checkout_pending_at itself, and
     // the UPDATE sets that column — so `return=representation` can't be used
@@ -118,20 +187,14 @@ export async function handler(req: Request): Promise<Response> {
       });
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('stripe_customer_id')
-      .eq('id', user.id)
-      .single();
-
     const session = await stripe.checkout.sessions.create({
       mode:                'subscription',
       client_reference_id: user.id,
       // Reuse the known customer if we have one (e.g. a prior cancelled
       // subscription) instead of letting Stripe mint yet another duplicate
       // customer object for the same person.
-      ...(profile?.stripe_customer_id
-        ? { customer: profile.stripe_customer_id }
+      ...(profileBefore?.stripe_customer_id
+        ? { customer: profileBefore.stripe_customer_id }
         : { customer_email: user.email }),
       line_items: [
         { price: STRIPE_PRICE_ID, quantity: 1 },

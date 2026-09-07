@@ -38,6 +38,12 @@ function mockCheckoutSessionCreate(mock: ReturnType<typeof installFakeFetch>, id
   return id;
 }
 
+// stripe.checkout.sessions.retrieve(id) -> GET /v1/checkout/sessions/{id}
+function mockCheckoutSessionRetrieve(mock: ReturnType<typeof installFakeFetch>, id: string, status: string) {
+  mock.on('GET', (u) => u.pathname === `/v1/checkout/sessions/${id}`, () =>
+    json({ id, status, url: `https://checkout.stripe.com/pay/${id}` }));
+}
+
 Deno.test('happy path: no existing lock, no active subscription -> session created, guard fields set', async () => {
   const mock = installFakeFetch();
   const user = await createTestUser({ plan: 'free' });
@@ -93,11 +99,15 @@ Deno.test('FINDING-C: two concurrent checkout attempts from the same user -> one
   }
 });
 
-Deno.test('FINDING-C: a fresh pending lock blocks a second attempt even with no in-flight race', async () => {
+Deno.test('FINDING-C: a fresh checkout_pending_at with no session id yet blocks a concurrent second attempt', async () => {
+  // The narrower window the local mutex still covers post-fix: an attempt
+  // that acquired the lock but crashed before ever creating/storing a
+  // Stripe session id at all — nothing to verify with Stripe yet, so this
+  // must still be a plain time-based mutex.
   const mock = installFakeFetch();
   const user = await createTestUser({
     plan: 'free',
-    profile: { checkout_pending_at: new Date().toISOString(), checkout_session_id: 'cs_already_pending' },
+    profile: { checkout_pending_at: new Date().toISOString(), checkout_session_id: null },
   });
   try {
     mockNoActiveSubscription(mock);
@@ -106,31 +116,82 @@ Deno.test('FINDING-C: a fresh pending lock blocks a second attempt even with no 
     const res = await handler(checkoutReq(user.accessToken));
     assertEquals(res.status, 409);
     assertEquals(mock.countMatching('/v1/checkout/sessions'), 0);
-
-    const { data: p } = await profile(user.id);
-    assertEquals(p!.checkout_session_id, 'cs_already_pending'); // untouched
   } finally {
     mock.restore();
     await user.cleanup();
   }
 });
 
-Deno.test('a pending lock older than 15 minutes is treated as stale and does not block', async () => {
+Deno.test('independent audit 2026-09-07: a still-open prior session is reused, not duplicated, regardless of lock age', async () => {
+  // The old bug: once checkout_pending_at aged past its fixed 15-minute
+  // TTL, a second attempt could mint a brand new session while the first
+  // (created up to 24h earlier) was still perfectly completable — two live
+  // sessions, two possible subscriptions. The lock here is already stale
+  // by the old time-based rule; only the Stripe-verified status decides now.
   const mock = installFakeFetch();
   const staleAt = new Date(Date.now() - 16 * 60 * 1000).toISOString();
   const user = await createTestUser({
     plan: 'free',
-    profile: { checkout_pending_at: staleAt, checkout_session_id: 'cs_abandoned' },
+    profile: { checkout_pending_at: staleAt, checkout_session_id: 'cs_still_open' },
   });
   try {
     mockNoActiveSubscription(mock);
+    mockCheckoutSessionRetrieve(mock, 'cs_still_open', 'open');
+    mockCheckoutSessionCreate(mock); // must NOT be called
+
+    const res = await handler(checkoutReq(user.accessToken));
+    assertEquals(res.status, 200);
+    const body = await res.json();
+    assert(body.url.includes('cs_still_open'));
+    assertEquals(mock.countMatching('/v1/checkout/sessions'), 0); // no new session created
+
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.checkout_session_id, 'cs_still_open'); // untouched
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('independent audit 2026-09-07: a Stripe-confirmed-closed prior session releases the guard and lets a new checkout through', async () => {
+  const mock = installFakeFetch();
+  // Local lock still looks "fresh" by the old time-based rule — must not
+  // matter once Stripe confirms the session itself is done.
+  const user = await createTestUser({
+    plan: 'free',
+    profile: { checkout_pending_at: new Date().toISOString(), checkout_session_id: 'cs_abandoned' },
+  });
+  try {
+    mockNoActiveSubscription(mock);
+    mockCheckoutSessionRetrieve(mock, 'cs_abandoned', 'expired');
     const sessionId = mockCheckoutSessionCreate(mock);
 
     const res = await handler(checkoutReq(user.accessToken));
     assertEquals(res.status, 200);
+    assertEquals(mock.countMatching('/v1/checkout/sessions'), 1); // exactly one new session
 
     const { data: p } = await profile(user.id);
-    assertEquals(p!.checkout_session_id, sessionId); // overwritten, guard released the stale lock
+    assertEquals(p!.checkout_session_id, sessionId); // replaced, not the old id
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('independent audit 2026-09-07: a network failure verifying the prior session fails closed (no new session)', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({
+    plan: 'free',
+    profile: { checkout_pending_at: null, checkout_session_id: 'cs_unverifiable' },
+  });
+  try {
+    mockNoActiveSubscription(mock);
+    mock.on('GET', (u) => u.pathname === '/v1/checkout/sessions/cs_unverifiable', () => json({ error: { message: 'down' } }, { status: 500 }));
+    mockCheckoutSessionCreate(mock); // must NOT be called
+
+    const res = await handler(checkoutReq(user.accessToken));
+    assertEquals(res.status, 500);
+    assertEquals(mock.countMatching('/v1/checkout/sessions'), 0);
   } finally {
     mock.restore();
     await user.cleanup();
