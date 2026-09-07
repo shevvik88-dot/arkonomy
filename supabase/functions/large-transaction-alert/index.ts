@@ -17,15 +17,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 import { isRecurringTransaction } from '../_shared/recurringDetector.ts';
+import { resolveCorsHeaders } from '../_shared/cors.ts';
 
 type Tx = { id?: string; date: string; amount: number | string; type: string; description: string | null; category_name: string | null; created_at?: string; large_tx_notified?: boolean };
 
 initSentry('large-transaction-alert');
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
 
 // Fallback threshold for users without enough history for a statistical
 // threshold (see computeDynamicThreshold below) — new accounts, or accounts
@@ -61,6 +57,9 @@ const THRESHOLD_CACHE_HOURS = 24;
 const LOOKBACK_HOURS = 48;
 
 Deno.serve(async (req) => {
+  // prodOnly: pg_cron (every 4h) + manual service-role POST only — not called
+  // from any browser (grep of src/), so no preview origin is ever legitimate.
+  const corsHeaders = resolveCorsHeaders(req, { prodOnly: true });
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {

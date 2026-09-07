@@ -15,6 +15,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush, Sentry } from '../_shared/sentry.ts';
 import { getUpcomingCharges } from '../_shared/recurringDetector.ts';
+import { resolveCorsHeaders } from '../_shared/cors.ts';
 
 initSentry('push-notify');
 
@@ -67,11 +68,6 @@ function reportIfBlockedEndpoint(err: unknown, userId: string): boolean {
   return true;
 }
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
 // ── Recurring detection ─────────────────────────────────────────────────────
 // Migrated 2026-07-17 to the shared, alias-aware detector (_shared/recurringDetector.ts)
 // — the same one get-insights uses, live-verified on a real account. This file
@@ -107,6 +103,11 @@ async function sendPushNotification(
 // ── Edge Function handler ────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
+  // Browser-callable: Mode 1 is a real user-JWT POST from App.jsx (large-tx /
+  // budget-exceeded pushes) and Savings.jsx (savings reminders), which trigger
+  // a CORS preflight. Also pg_cron batch scan. Default allow-list (prod +
+  // preview) is intentional here — NOT prodOnly.
+  const corsHeaders = resolveCorsHeaders(req);
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }

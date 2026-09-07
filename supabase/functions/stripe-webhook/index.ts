@@ -1,15 +1,16 @@
 import Stripe from 'npm:stripe@14';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+import { resolveCorsHeaders } from '../_shared/cors.ts';
 
 initSentry('stripe-webhook');
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, stripe-signature',
-};
-
 export async function handler(req: Request): Promise<Response> {
+  // prodOnly: Stripe webhook, server-to-server only (no src/ caller, Stripe
+  // configures the endpoint out of band) — no browser Origin ever, so no
+  // preview origin is legitimate. stripe-signature kept in the allow-header
+  // list as documentation of what the endpoint accepts.
+  const corsHeaders = resolveCorsHeaders(req, { prodOnly: true, extraAllowHeaders: 'stripe-signature' });
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
