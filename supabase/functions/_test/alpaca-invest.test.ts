@@ -406,3 +406,67 @@ Deno.test('audit finding #4: a new purchase of the same amount+symbol is not blo
     await user.cleanup();
   }
 });
+
+// ── code-reviewer follow-up, same date: two gaps found in the first pass
+// of finding #4's fix, closed before handoff.
+
+Deno.test('audit finding #4 follow-up: two concurrent retries reconciling the same unknown row → exactly one places the order', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    await insertRow(user.id, { symbol: 'SPY', amount: 60, status: 'unknown' });
+    // Both concurrent requests read the same existingRow and both get 404
+    // from reconciliation — without the compare-and-swap claim on the row
+    // (status 'unknown' -> 'pending'), both would go on to POST /v2/orders
+    // with the identical client_order_id.
+    mock.on('GET', '/v2/orders:by_client_order_id', () => json({ message: 'not found' }, { status: 404 }));
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    mock.on('POST', '/v2/orders', () => json({ id: brokerOrderId, status: 'accepted' }));
+
+    const [a, b] = await Promise.all([
+      handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY' })),
+      handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY' })),
+    ]);
+    const statuses = [a.status, b.status].sort();
+    assertEquals(statuses, [200, 409]);
+    assertEquals(ordersPostCount(mock), 1);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1);
+    assertEquals(rows![0].order_id, brokerOrderId);
+    assertEquals(rows![0].status, 'accepted');
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('audit finding #4 follow-up: Alpaca rejects the order as a duplicate client_order_id → reconciled, not released', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    // A real, synchronous rejection from Alpaca saying "this client_order_id
+    // already exists" — the old code released the reservation unconditionally
+    // on any !orderRes.ok, which for exactly this response would delete the
+    // only trace of a real order placed under that id.
+    mock.on('POST', '/v2/orders', () => json({ message: 'client order id already exists' }, { status: 422 }));
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    mock.on('GET', '/v2/orders:by_client_order_id', () => json({ id: brokerOrderId, status: 'accepted' }));
+
+    const res = await handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY' }));
+    assertEquals(res.status, 200);
+    const bodyJson = await res.json();
+    assertEquals(bodyJson.success, true);
+    assertEquals(bodyJson.order_id, brokerOrderId);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1); // not deleted — reconciled onto the existing row instead
+    assertEquals(rows![0].order_id, brokerOrderId);
+    assertEquals(rows![0].status, 'accepted');
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});

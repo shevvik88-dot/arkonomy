@@ -30,6 +30,21 @@ export async function handler(req: Request): Promise<Response> {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
+  // Declared outside the try block on purpose (code-reviewer finding,
+  // 2026-09-07): a `let` inside try is not visible to the catch block below
+  // (separate scopes). Every code path that can THROW after a row is
+  // reserved either handles its own cleanup locally (the order-placement
+  // fetch's own try/catch marks 'unknown' and returns without rethrowing —
+  // this outer catch is never reached for that case) or leaves the
+  // exception to propagate here — e.g. the /v2/account fetch/json parse
+  // has no try/catch of its own. Without this outer-scope variable, that
+  // path fell into the outer catch with the row invisible to it: a stuck
+  // 'pending' row that reconciliation can never see, since only 'unknown'
+  // rows are reconciled (an unresolved 'pending' row is instead treated as
+  // FINDING-A's genuinely-concurrent-duplicate case and just told to wait —
+  // forever, for a request that already failed).
+  let pendingRowId: string | null = null;
+
   try {
     // ── Authenticate caller ──────────────────────────────────────
     const authHeader = req.headers.get('Authorization');
@@ -108,8 +123,13 @@ export async function handler(req: Request): Promise<Response> {
     }
     const alpacaToken = profile.alpaca_access_token;
 
-    async function releasePending(id: string) {
-      await supabase.from('investments').delete().eq('id', id);
+    // No-arg closure over the outer pendingRowId (not a parameter) so every
+    // call site stays correct even though pendingRowId's static type is
+    // `string | null` (TS can't narrow it across the reservation branches
+    // above) — passing it as a required `string` argument would be a type
+    // error `deno check` would catch that a plain reference here doesn't.
+    async function releasePending() {
+      await supabase.from('investments').delete().eq('id', pendingRowId);
     }
 
     // ── Reserve (or resume) an operation row ──────────────────────
@@ -130,8 +150,6 @@ export async function handler(req: Request): Promise<Response> {
     // sending a second order, while a genuinely new purchase (any
     // different amount or symbol, or the same one after this operation
     // reached a terminal status) is never blocked by it.
-    let pendingRowId: string;
-
     const { data: pendingRow, error: pendingErr } = await supabase
       .from('investments')
       .insert({ user_id: user.id, symbol: sym, amount: numAmount, status: 'pending' })
@@ -200,6 +218,32 @@ export async function handler(req: Request): Promise<Response> {
         // actually reached/was processed by the broker. Safe to place the
         // order now, reusing this same row and client_order_id rather than
         // creating a new reservation.
+        //
+        // Claim the row atomically first (code-reviewer finding, 2026-09-
+        // 07): two near-simultaneous retries can both read the same
+        // 'unknown' existingRow and both get 404 from this same lookup —
+        // without a compare-and-swap here, both would go on to POST
+        // /v2/orders with the identical client_order_id, and the loser
+        // would see Alpaca's own 422 "already exists" for a real order the
+        // winner just placed. Flipping status back to 'pending' here,
+        // gated on it still being 'unknown', makes only one of them win;
+        // the other sees 0 rows updated and backs off exactly like
+        // FINDING-A's original concurrent-duplicate case.
+        const { data: claimedRow, error: claimErr } = await supabase
+          .from('investments')
+          .update({ status: 'pending' })
+          .eq('id', existingRow.id)
+          .eq('status', 'unknown')
+          .select('id')
+          .single();
+        if (claimErr || !claimedRow) {
+          return new Response(JSON.stringify({
+            error: 'This order was already submitted. Please wait a moment before retrying.',
+          }), {
+            status: 409,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
         pendingRowId = existingRow.id;
       } else if (lookup.ok) {
         // Alpaca DOES have this order — the earlier "ambiguous" attempt
@@ -268,7 +312,7 @@ export async function handler(req: Request): Promise<Response> {
           })
           .eq('id', user.id);
 
-        await releasePending(pendingRowId);
+        await releasePending();
         return new Response(JSON.stringify({ error: 'alpaca_not_connected' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -283,7 +327,7 @@ export async function handler(req: Request): Promise<Response> {
       // same hygiene applied here defensively (security-auditor finding
       // on the sibling alpaca-portfolio function, 2026-08-24).
       console.error('Alpaca account error:', accountRes.status, account?.code, account?.message);
-      await releasePending(pendingRowId);
+      await releasePending();
       return new Response(JSON.stringify({ error: 'brokerage_account_error' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -292,7 +336,7 @@ export async function handler(req: Request): Promise<Response> {
 
     const buyingPower = parseFloat(account.buying_power);
     if (buyingPower < numAmount) {
-      await releasePending(pendingRowId);
+      await releasePending();
       return new Response(JSON.stringify({
         error: `Insufficient buying power. Available: $${buyingPower.toFixed(2)}`,
       }), {
@@ -351,21 +395,74 @@ export async function handler(req: Request): Promise<Response> {
     const order = await orderRes.json();
 
     if (!orderRes.ok) {
-      // A real, synchronous response FROM Alpaca saying no — definite,
-      // safe to release (unlike the network-failure case above).
       console.error('Alpaca order error:', JSON.stringify(order));
       const isDuplicate = orderRes.status === 422
         && typeof order?.message === 'string'
         && order.message.toLowerCase().includes('client order id');
-      await releasePending(pendingRowId);
+
       if (isDuplicate) {
+        // Alpaca says THIS client_order_id already exists — that can only
+        // mean a real order was placed under it already (by us, on an
+        // earlier attempt, or by a concurrent retry that won the CAS
+        // above). Releasing the row here would erase the only trace of
+        // that real order (code-reviewer finding, 2026-09-07) — reconcile
+        // instead, same as the 23505 branch does for a stale 'unknown' row.
+        let recheck: Response;
+        try {
+          recheck = await fetch(
+            `${BASE_URL}/v2/orders:by_client_order_id?client_order_id=${encodeURIComponent(clientOrderId)}`,
+            { headers: { Authorization: `Bearer ${alpacaToken}` } },
+          );
+        } catch (recheckErr) {
+          console.error('alpaca-invest: post-duplicate reconciliation failed:', recheckErr);
+          const { error: markErr } = await supabase.from('investments').update({ status: 'unknown' }).eq('id', pendingRowId);
+          if (markErr) console.error('alpaca-invest: failed to mark row unknown after post-duplicate reconcile failure:', markErr);
+          await captureAndFlush(recheckErr, { function_name: 'alpaca-invest', pendingRowId, phase: 'post-duplicate-reconcile' });
+          return new Response(JSON.stringify({
+            error: 'order_status_unknown',
+            message: "We couldn't confirm whether your order went through. Please check back shortly before retrying.",
+          }), {
+            status: 503,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        if (recheck.ok) {
+          const brokerOrder = await recheck.json();
+          const { error: syncErr } = await supabase
+            .from('investments')
+            .update({ order_id: brokerOrder.id, status: brokerOrder.status })
+            .eq('id', pendingRowId);
+          if (syncErr) console.error('alpaca-invest: failed to sync post-duplicate reconciled order:', syncErr);
+          return new Response(JSON.stringify({
+            success:  true,
+            order_id: brokerOrder.id,
+            status:   brokerOrder.status,
+            symbol:   sym,
+            amount:   numAmount,
+            message:  `Order placed: $${numAmount} in ${sym}`,
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        // Alpaca says duplicate but the lookup itself can't confirm it —
+        // still ambiguous, fail closed rather than release.
+        console.error('alpaca-invest: post-duplicate reconciliation lookup returned', recheck.status);
+        const { error: markErr } = await supabase.from('investments').update({ status: 'unknown' }).eq('id', pendingRowId);
+        if (markErr) console.error('alpaca-invest: failed to mark row unknown after inconclusive post-duplicate reconcile:', markErr);
         return new Response(JSON.stringify({
-          error: 'This order was already submitted. Please wait a moment before retrying.',
+          error: 'order_status_unknown',
+          message: "We couldn't confirm whether your order went through. Please check back shortly before retrying.",
         }), {
-          status: 409,
+          status: 503,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+
+      // A real, definite, non-duplicate rejection FROM Alpaca — safe to
+      // release (unlike the ambiguous cases above).
+      await releasePending();
       return new Response(JSON.stringify({ error: 'Order failed', details: order }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -405,6 +502,20 @@ export async function handler(req: Request): Promise<Response> {
 
   } catch (err) {
     console.error('alpaca-invest error:', err);
+    // Restored (code-reviewer finding, 2026-09-07): every path that can
+    // leave an order actually placed at Alpaca handles cleanup/reconcile
+    // locally and returns without rethrowing (the order-placement fetch's
+    // own try/catch, and the isDuplicate reconciliation above) — an
+    // exception reaching HERE only ever means no order attempt happened
+    // this request (e.g. the /v2/account fetch/json parse throwing), so
+    // releasing the reservation is always safe, never a risk of erasing a
+    // real order's only trace. Without this, that path left a permanently
+    // stuck 'pending' row: only 'unknown' rows get reconciled on retry, a
+    // 'pending' one is instead read as FINDING-A's genuinely-concurrent
+    // case and told to wait — forever, for a request that already failed.
+    if (pendingRowId) {
+      await supabase.from('investments').delete().eq('id', pendingRowId);
+    }
     await captureAndFlush(err, { function_name: 'alpaca-invest' });
     return new Response(JSON.stringify({ error: "Internal Server Error" }), {
       status: 500,
