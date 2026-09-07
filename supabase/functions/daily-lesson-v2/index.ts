@@ -20,26 +20,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { enforceRateLimit } from '../_shared/rateLimit.ts';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+import { resolveCorsHeaders } from '../_shared/cors.ts';
 
 initSentry('daily-lesson-v2');
-
-// ── CORS ─────────────────────────────────────────────────────────────────────
-const PROD_ORIGIN = Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com';
-const ALLOWED_ORIGINS: (string | RegExp)[] = [
-  PROD_ORIGIN,
-  /^https:\/\/arkonomy-[a-z0-9-]+-shevvik88-dots-projects\.vercel\.app$/,
-];
-function resolveCorsHeaders(req: Request) {
-  const origin = req.headers.get('origin') ?? '';
-  const allowedOrigin = ALLOWED_ORIGINS.some(o => typeof o === 'string' ? o === origin : o.test(origin))
-    ? origin
-    : PROD_ORIGIN;
-  return {
-    'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Vary': 'Origin',
-  };
-}
 
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -69,7 +52,7 @@ Deno.serve(async (req) => {
     // regardless of it. Same reasoning as financial-diagnosis: a degraded
     // rate_limits table shouldn't silently remove the cap on a real paid
     // Anthropic call (security-auditor finding, 2026-08-23).
-    const rateLimitResponse = await enforceRateLimit(user.id, 'daily-lesson-v2', { failClosed: true });
+    const rateLimitResponse = await enforceRateLimit(user.id, 'daily-lesson-v2', { failClosed: true, corsHeaders });
     if (rateLimitResponse) return rateLimitResponse;
 
     let body: Record<string, unknown> = {};

@@ -22,12 +22,13 @@
 //                        matches the hardening alpaca-portfolio already sets
 //                        inline (security-auditor, 2026-08-24).
 //
-// Intended as the single implementation; the ~10 functions that currently
-// carry their own inline copy of this logic (auth-login, market-data,
-// get-insights, plaid-get-accounts, check-bank-connection, and 5 more) are
-// meant to collapse onto this module in a follow-up pass.
+// The single implementation. Every edge function's CORS goes through here
+// (the last inline copies were collapsed onto this module 2026-09-07); the
+// only other holder of the prod-origin literal is exported below.
 
-const PROD_ORIGIN = Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com';
+// Also the GoTrue `redirect_to` target in auth-signup — exported so there is
+// one source of truth for "what is this app's prod origin".
+export const PROD_ORIGIN = Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com';
 
 const VERCEL_PREVIEW_RE =
   /^https:\/\/arkonomy-[a-z0-9-]+-shevvik88-dots-projects\.vercel\.app$/;
@@ -43,6 +44,8 @@ export interface CorsOptions {
   // e.g. auth-login passes `[/^http:\/\/localhost:\d+$/]` for local dev — see
   // its own comment for the 2026-08-28 incident that needs it. Deliberately
   // NOT a default: the Plaid/money functions stay prod + preview only.
+  // RegExp entries must NOT carry the `g`/`y` flag (stateful `lastIndex`);
+  // resolveCorsHeaders strips flags defensively anyway.
   extraOrigins?: (string | RegExp)[];
   // Extra request headers to allow, appended to the base list
   // (e.g. 'x-firebase-appcheck').
@@ -60,9 +63,12 @@ export function resolveCorsHeaders(
   const allowList: (string | RegExp)[] = opts.prodOnly
     ? [PROD_ORIGIN]
     : [PROD_ORIGIN, VERCEL_PREVIEW_RE, ...(opts.extraOrigins ?? [])];
-  const allowedOrigin = allowList.some(o =>
-    typeof o === 'string' ? o === origin : o.test(origin),
-  )
+  const allowedOrigin = allowList.some(o => {
+    if (typeof o === 'string') return o === origin;
+    // Strip g/y flags so a caller-supplied regex can't carry stateful
+    // lastIndex across requests (module-scoped literals persist it).
+    return (o.flags ? new RegExp(o.source, o.flags.replace(/[gy]/g, '')) : o).test(origin);
+  })
     ? origin
     : PROD_ORIGIN;
 

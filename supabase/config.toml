@@ -25,6 +25,12 @@ verify_jwt = false
 [functions.plaid-refresh-balance]
 verify_jwt = false
 
+# Deployed verify_jwt=false (auth is internal via getUser(token), see file
+# header) but had no config entry until 2026-09-07 — same undeclared-drift
+# class as large-transaction-alert / plaid-batch-sync / weekly-report above.
+[functions.plaid-get-accounts]
+verify_jwt = false
+
 [functions.generate-monthly-report]
 verify_jwt = false
 

@@ -2,37 +2,16 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 import { requirePaidPlan } from '../_shared/requirePaidPlan.ts';
 import { enforceRateLimit } from '../_shared/rateLimit.ts';
+import { resolveCorsHeaders } from '../_shared/cors.ts';
 
 initSentry('alpaca-portfolio');
-
-// Same allow-list pattern as auth-login/check-bank-connection/market-data/
-// plaid-get-accounts/get-insights — preview deployments get a fresh random
-// subdomain hash on every push, so a single static origin can't cover them.
-const PROD_ORIGIN = Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com';
-const ALLOWED_ORIGINS: (string | RegExp)[] = [
-  PROD_ORIGIN,
-  /^https:\/\/arkonomy-[a-z0-9-]+-shevvik88-dots-projects\.vercel\.app$/,
-];
-
-function resolveCorsHeaders(req: Request) {
-  const origin = req.headers.get('origin') ?? '';
-  const allowedOrigin = ALLOWED_ORIGINS.some(o => typeof o === 'string' ? o === origin : o.test(origin))
-    ? origin
-    : PROD_ORIGIN;
-  return {
-    'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    // Security-auditor findings, 2026-08-24 (hardening, no active hole
-    // found — client uses POST and the service worker skips supabase.co,
-    // so nothing was actually caching this today).
-    'Vary': 'Origin',
-    'Cache-Control': 'no-store',
-  };
-}
 
 const BASE_URL = 'https://api.alpaca.markets';
 
 Deno.serve(async (req) => {
+  // resolveCorsHeaders always sets Vary: Origin + Cache-Control: no-store —
+  // the hardening this function used to carry inline (security-auditor,
+  // 2026-08-24).
   const corsHeaders = resolveCorsHeaders(req);
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -71,7 +50,7 @@ Deno.serve(async (req) => {
     // Cost/abuse guard — each call below fans out to 3 Alpaca REST requests
     // on the user's live OAuth token, and ai-chat now invokes this once per
     // chat message before its own rate check runs.
-    const rateLimitResponse = await enforceRateLimit(user.id, 'alpaca-portfolio');
+    const rateLimitResponse = await enforceRateLimit(user.id, 'alpaca-portfolio', { corsHeaders });
     if (rateLimitResponse) return rateLimitResponse;
 
     const { data: profile } = await supabase

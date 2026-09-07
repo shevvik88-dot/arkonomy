@@ -19,26 +19,7 @@
 import { getMarketSnapshot } from '../_shared/marketSnapshot.ts';
 import { getLogos } from '../_shared/logoCache.ts';
 import { enforceRateLimit } from '../_shared/rateLimit.ts';
-
-// Same allow-list pattern as auth-login/check-bank-connection — preview
-// deployments get a fresh random subdomain hash on every push, so a single
-// static origin can't cover them.
-const PROD_ORIGIN = Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com';
-const ALLOWED_ORIGINS: (string | RegExp)[] = [
-  PROD_ORIGIN,
-  /^https:\/\/arkonomy-[a-z0-9-]+-shevvik88-dots-projects\.vercel\.app$/,
-];
-
-function resolveCorsHeaders(req: Request) {
-  const origin = req.headers.get('origin') ?? '';
-  const allowedOrigin = ALLOWED_ORIGINS.some(o => typeof o === 'string' ? o === origin : o.test(origin))
-    ? origin
-    : PROD_ORIGIN;
-  return {
-    'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  };
-}
+import { resolveCorsHeaders } from '../_shared/cors.ts';
 
 // Crypto tickers → Finnhub exchange:pair notation (for quotes/stats)
 const CRYPTO_MAP: Record<string, string> = {
@@ -193,7 +174,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const rateLimitResponse = await enforceRateLimit(user.id, 'market-data');
+  const rateLimitResponse = await enforceRateLimit(user.id, 'market-data', { corsHeaders: CORS });
   if (rateLimitResponse) return rateLimitResponse;
 
   // Key is only needed for Finnhub endpoints (not chart)

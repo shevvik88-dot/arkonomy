@@ -4,28 +4,9 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+import { resolveCorsHeaders } from '../_shared/cors.ts';
 
 initSentry('check-bank-connection');
-
-// Same allow-list pattern as auth-login (see that file for the full
-// rationale) — preview deployments get a fresh random subdomain hash on
-// every push, so a single static origin can't cover them.
-const PROD_ORIGIN = Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com';
-const ALLOWED_ORIGINS: (string | RegExp)[] = [
-  PROD_ORIGIN,
-  /^https:\/\/arkonomy-[a-z0-9-]+-shevvik88-dots-projects\.vercel\.app$/,
-];
-
-function resolveCorsHeaders(req: Request) {
-  const origin = req.headers.get('origin') ?? '';
-  const allowedOrigin = ALLOWED_ORIGINS.some(o => typeof o === 'string' ? o === origin : o.test(origin))
-    ? origin
-    : PROD_ORIGIN;
-  return {
-    'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  };
-}
 
 Deno.serve(async (req) => {
   const CORS = resolveCorsHeaders(req);

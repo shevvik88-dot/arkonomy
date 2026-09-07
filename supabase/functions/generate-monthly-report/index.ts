@@ -15,6 +15,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import ExcelJS from 'npm:exceljs@4.4.0';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 import { isRealExpense, isRealIncome, isTransferCategory } from '../_shared/financialConstants.ts';
+import { resolveCorsHeaders } from '../_shared/cors.ts';
 
 initSentry('generate-monthly-report');
 
@@ -117,33 +118,13 @@ function fmt(n: number) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// CORS + SERVE
+// SERVE
 // ═════════════════════════════════════════════════════════════════════════════
 
-// Same allow-list pattern as auth-login/market-data (2026-09-02, found
-// while trying to manually trigger this function from a Vercel preview
-// deployment for verification — preview subdomains get a fresh random
-// hash on every push, so the previous single-origin CORS made this
-// function's "User path" (manual on-demand trigger, see header comment)
-// completely unreachable from any preview, only from production.
-const PROD_ORIGIN = Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com';
-const ALLOWED_ORIGINS: (string | RegExp)[] = [
-  PROD_ORIGIN,
-  /^https:\/\/arkonomy-[a-z0-9-]+-shevvik88-dots-projects\.vercel\.app$/,
-];
-
-function resolveCorsHeaders(req: Request) {
-  const origin = req.headers.get('origin') ?? '';
-  const allowedOrigin = ALLOWED_ORIGINS.some(o => typeof o === 'string' ? o === origin : o.test(origin))
-    ? origin
-    : PROD_ORIGIN;
-  return {
-    'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  };
-}
-
 Deno.serve(async (req) => {
+  // NOT prodOnly: the "User path" (manual on-demand POST, see header comment)
+  // is triggered from a Vercel preview for verification — 2026-09-02, the
+  // old single-origin CORS made that unreachable from any preview.
   const CORS = resolveCorsHeaders(req);
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 

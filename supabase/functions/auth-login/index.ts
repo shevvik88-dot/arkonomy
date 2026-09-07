@@ -1,41 +1,20 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { initSentry, captureAndFlush } from "../_shared/sentry.ts";
+import { resolveCorsHeaders } from "../_shared/cors.ts";
 
 initSentry("auth-login");
 
-// Preview deployments get a fresh random subdomain hash on every push
-// (arkonomy-<hash>-shevvik88-dots-projects.vercel.app) — a single static
-// origin can't cover that, so this is an allow-list/pattern match instead.
-// Never echoes back an arbitrary origin: only prod, a Vercel preview URL
-// under this exact project match, or a local Vite dev server; anything
-// else falls back to prod. localhost is safe to allow unconditionally
-// (not gated behind an env flag) — the browser only ever sends
-// `Origin: http://localhost:<port>` for a request that genuinely
-// originated from that machine's own local dev server; a remote attacker
-// cannot spoof it into a victim's browser. Added 2026-08-28 — local
-// dev login against this function was previously unreachable (CORS
+// localhost is in the allow-list (via extraOrigins below), not gated behind an
+// env flag: the browser only ever sends `Origin: http://localhost:<port>` for a
+// request that genuinely originated from that machine's own local dev server; a
+// remote attacker cannot spoof it into a victim's browser. Added 2026-08-28 —
+// local dev login against this function was previously unreachable (CORS
 // `Failed to fetch`, found while trying to screenshot a Dashboard change
 // against localhost:5173).
-const PROD_ORIGIN = Deno.env.get("APP_URL") ?? "https://app.arkonomy.com";
-const ALLOWED_ORIGINS: (string | RegExp)[] = [
-  PROD_ORIGIN,
-  /^https:\/\/arkonomy-[a-z0-9-]+-shevvik88-dots-projects\.vercel\.app$/,
-  /^http:\/\/localhost:\d+$/,
-];
-
-function resolveCorsHeaders(req: Request) {
-  const origin = req.headers.get("origin") ?? "";
-  const allowedOrigin = ALLOWED_ORIGINS.some(o => typeof o === "string" ? o === origin : o.test(origin))
-    ? origin
-    : PROD_ORIGIN;
-  return {
-    "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  };
-}
+const LOCAL_DEV_ORIGIN = /^http:\/\/localhost:\d+$/;
 
 Deno.serve(async (req, info) => {
-  const corsHeaders = resolveCorsHeaders(req);
+  const corsHeaders = resolveCorsHeaders(req, { extraOrigins: [LOCAL_DEV_ORIGIN] });
   function json(body: unknown, status = 200) {
     return new Response(JSON.stringify(body), {
       status,
