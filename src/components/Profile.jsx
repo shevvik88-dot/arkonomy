@@ -115,6 +115,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteInput, setDeleteInput] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [notifPrefs, setNotifPrefs] = useState({
     frequency: "weekly",
     include_spending: true,
@@ -263,11 +264,22 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
   async function handleDeleteAccount() {
     if (deleteInput !== "DELETE") return;
     setDeleting(true);
+    setDeleteError("");
     try {
-      await onDeleteAccount();
+      // onDeleteAccount returns { ok, message }. On failure the account still
+      // exists — keep the dialog open and show the reason inline (an app-level
+      // toast would render behind this fixed overlay), so the user can retry.
+      const result = await onDeleteAccount();
+      if (result?.ok) setShowDeleteConfirm(false);
+      else setDeleteError(result?.message || "Couldn't delete your account. Please try again.");
+    } catch (e) {
+      // deleteAccount shouldn't throw (it returns { ok, message }), but its
+      // signOut/cache-clear calls sit outside its own try — belt-and-suspenders
+      // so a rejection there still leaves the user with a message, not a
+      // silently-stopped spinner.
+      setDeleteError("Couldn't delete your account. Please try again.");
     } finally {
       setDeleting(false);
-      setShowDeleteConfirm(false);
     }
   }
 
@@ -791,7 +803,7 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
       </button>
 
       <button
-        onClick={() => { setShowDeleteConfirm(true); setDeleteInput(""); }}
+        onClick={() => { setShowDeleteConfirm(true); setDeleteInput(""); setDeleteError(""); }}
         style={{ width: "100%", padding: "11px 0", borderRadius: RADIUS.sm, border: `1px solid ${DC.ruby}33`, background: "none", color: DC.ruby, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: FONT, marginBottom: 16, opacity: 0.7 }}
       >
         {t("profile.delete_account")}
@@ -829,6 +841,11 @@ export default function Profile({ profile, user, onSave, onSignOut, onDeleteAcco
             >
               {deleting ? t("profile.deleting") : t("profile.delete_permanently")}
             </button>
+            {deleteError && (
+              <div style={{ color: DC.ruby, fontSize: 13, lineHeight: 1.5, marginBottom: 10, textAlign: "center" }}>
+                {deleteError}
+              </div>
+            )}
             <button
               onClick={() => setShowDeleteConfirm(false)}
               style={{ width: "100%", padding: 13, background: "none", border: `1px solid ${DC.faint}33`, borderRadius: RADIUS.md, color: DC.muted, fontWeight: 500, fontSize: 14, cursor: "pointer", fontFamily: FONT }}
