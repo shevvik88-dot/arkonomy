@@ -62,6 +62,7 @@
 * RLS policies must be verified after any schema change.
 * See docs/security-log.md before touching auth, RLS, payment, or race-condition-sensitive code.
 * Edge functions deploy via `supabase functions deploy <name>`.
+* When a security control looks wired (client lib + server verifier + config), trace each layer to a live call site before trusting it — a control can sit fully connected yet enforce nothing.
 
 ## Business context
 
