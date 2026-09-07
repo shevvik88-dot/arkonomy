@@ -466,18 +466,29 @@ async function syncItemTransactions(
   const dedupedAdded    = dedup(addedRows);
   const dedupedModified = dedup(modifiedRows);
 
+  // Any of these three writes failing must stop the sync for this item
+  // right here, before the cursor update below — a write failure that was
+  // only logged (previous behavior) let the cursor advance past data that
+  // was never actually persisted, permanently skipping it on every future
+  // incremental sync (FINDING, independent audit 2026-09-07). Throwing
+  // propagates to the per-item try/catch in the resync/batch callers (item
+  // just isn't counted as synced, next run retries it from the same
+  // startCursor) or to the normal-sync handler's own catch (500, so the
+  // caller doesn't see a false "synced" result). Retrying is safe: both
+  // upserts are keyed on plaid_transaction_id and the delete is
+  // idempotent, so replaying the same unadvanced page repeats cleanly.
   if (dedupedAdded.length > 0) {
     const { error } = await supabase
       .from('transactions')
       .upsert(dedupedAdded, { onConflict: 'plaid_transaction_id', ignoreDuplicates: false });
-    if (error) console.error('upsert added error:', error);
+    if (error) { console.error('upsert added error:', error); throw error; }
   }
 
   if (dedupedModified.length > 0) {
     const { error } = await supabase
       .from('transactions')
       .upsert(dedupedModified, { onConflict: 'plaid_transaction_id', ignoreDuplicates: false });
-    if (error) console.error('upsert modified error:', error);
+    if (error) { console.error('upsert modified error:', error); throw error; }
   }
 
   if (removedIds.length > 0) {
@@ -486,7 +497,7 @@ async function syncItemTransactions(
       .delete()
       .in('plaid_transaction_id', removedIds)
       .eq('user_id', item.user_id);
-    if (error) console.error('delete removed error:', error);
+    if (error) { console.error('delete removed error:', error); throw error; }
   }
 
   if (cursor) {
@@ -649,6 +660,13 @@ export async function handler(req: Request): Promise<Response> {
 
     let totalAdded = 0, totalModified = 0, totalRemoved = 0;
     const seenKeys = new Set<string>();
+    // One bank's write failure (thrown by syncItemTransactions, see above)
+    // must not silently swallow the user's other connected banks — each
+    // item gets its own try/catch, exactly like resync_all's per-item
+    // handling below. A failed item is simply not counted and its cursor
+    // stayed put, so the client's own retry (or the next batch-sync run)
+    // picks it up again; independent audit 2026-09-07.
+    const failedItemIds: string[] = [];
 
     for (const item of items) {
       // Non-production item (e.g. demo account's Plaid Sandbox connection) —
@@ -656,20 +674,36 @@ export async function handler(req: Request): Promise<Response> {
       // instead of throwing "wrong Plaid environment" if the user manually
       // triggers a sync.
       if (item.plaid_environment !== 'production') continue;
-      const counts = await syncItemTransactions(
-        supabase, plaidBase, clientId, secret,
-        { ...item, user_id: user.id },
-        seenKeys,
-      );
-      totalAdded    += counts.added;
-      totalModified += counts.modified;
-      totalRemoved  += counts.removed;
-      await syncItemAccounts(supabase, plaidBase, clientId, secret, { ...item, user_id: user.id });
+      try {
+        const counts = await syncItemTransactions(
+          supabase, plaidBase, clientId, secret,
+          { ...item, user_id: user.id },
+          seenKeys,
+        );
+        totalAdded    += counts.added;
+        totalModified += counts.modified;
+        totalRemoved  += counts.removed;
+        await syncItemAccounts(supabase, plaidBase, clientId, secret, { ...item, user_id: user.id });
+      } catch (err) {
+        console.error(`Sync failed for item ${item.id}:`, err);
+        failedItemIds.push(item.id);
+      }
     }
 
     // Link intra-user transfers once, after every item for this user is
     // synced (both legs of a pair may live on different items/accounts).
     await linkIntraUserTransfers(supabase, user.id);
+
+    // A partial failure must not read as a clean sync — 207 plus the
+    // failed item ids, added/modified/removed only reflect what actually
+    // persisted (never the failed item's data).
+    if (failedItemIds.length > 0) {
+      return json(
+        { added: totalAdded, modified: totalModified, removed: totalRemoved, synced: totalAdded + totalModified, failed_items: failedItemIds },
+        207,
+        corsHeaders,
+      );
+    }
 
     return json(
       { added: totalAdded, modified: totalModified, removed: totalRemoved, synced: totalAdded + totalModified },

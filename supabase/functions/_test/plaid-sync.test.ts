@@ -325,6 +325,97 @@ Deno.test('admin sync_item: 403 on wrong token, 404 unknown item, skipped for sa
   }
 });
 
+Deno.test('independent audit 2026-09-07: a DB write failure does not advance the cursor', async () => {
+  // amount: 0 fails `transactions_amount_positive` (amount > 0) on insert —
+  // a real DB write failure via the actual constraint, not a mocked client.
+  const mock = installFakeFetch();
+  const user = await createTestUser({});
+  const { id } = await addItem(user.id, { cursor: 'c0' });
+  try {
+    stubAccounts(mock);
+    mock.on('POST', '/transactions/sync', () =>
+      json(page({ added: [tx({ amount: 0 })], next_cursor: 'c1', has_more: false })));
+
+    const res = await handler(syncReq(user.accessToken));
+    assertEquals(res.status, 500); // no false "success" reported after the write failed
+    assertEquals(await itemCursor(id), 'c0'); // not advanced to c1
+    assertEquals((await txRows(user.id)).length, 0); // nothing persisted either
+  } finally {
+    mock.restore();
+    await cleanTx(user.id);
+    await user.cleanup();
+  }
+});
+
+Deno.test('independent audit 2026-09-07: retry after a write failure is safe (idempotent replay)', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({});
+  const { id } = await addItem(user.id, { cursor: 'c0' });
+  try {
+    stubAccounts(mock);
+    const bad = tx({ transaction_id: 'tx_bad', amount: 0 });
+    mock.on('POST', '/transactions/sync', () =>
+      json(page({ added: [bad], next_cursor: 'c1', has_more: false })));
+
+    const failed = await handler(syncReq(user.accessToken));
+    assertEquals(failed.status, 500);
+    assertEquals(await itemCursor(id), 'c0');
+
+    // Plaid replays the same unadvanced page on the next sync — fix the
+    // data and confirm the retry succeeds and now advances the cursor.
+    mock.restore();
+    const mock2 = installFakeFetch();
+    stubAccounts(mock2);
+    const fixed = tx({ transaction_id: 'tx_bad', amount: 12.5 });
+    mock2.on('POST', '/transactions/sync', () =>
+      json(page({ added: [fixed], next_cursor: 'c1', has_more: false })));
+
+    const retried = await handler(syncReq(user.accessToken));
+    assertEquals(retried.status, 200);
+    assertEquals(await itemCursor(id), 'c1');
+    assertEquals((await txRows(user.id)).length, 1);
+    mock2.restore();
+  } finally {
+    mock.restore();
+    await cleanTx(user.id);
+    await user.cleanup();
+  }
+});
+
+Deno.test('independent audit 2026-09-07: one bank failing does not block or hide another bank succeeding (207)', async () => {
+  const user = await createTestUser({});
+  const good = await addItem(user.id, { itemId: 'item_good', cursor: 'g0' });
+  const bad  = await addItem(user.id, { itemId: 'item_bad',  cursor: 'b0' });
+  // Plaid_items are fetched with no ORDER BY, so don't assume iteration
+  // order — key the mock response off each item's own access_token
+  // (unique per addItem call) instead of call sequence.
+  const goodToken = (await dbAdmin().from('plaid_items').select('access_token').eq('id', good.id).single()).data!.access_token;
+
+  const mock = installFakeFetch();
+  try {
+    stubAccounts(mock);
+    mock.on('POST', '/transactions/sync', async (req) => {
+      const body = await req.clone().json();
+      return body.access_token === goodToken
+        ? json(page({ added: [tx({ transaction_id: 'tx_good' })], next_cursor: 'g1', has_more: false }))
+        : json(page({ added: [tx({ transaction_id: 'tx_bad', amount: 0 })], next_cursor: 'b1', has_more: false }));
+    });
+
+    const res = await handler(syncReq(user.accessToken));
+    assertEquals(res.status, 207);
+    const body = await res.json();
+    assertEquals(body.failed_items, [bad.id]);
+    assertEquals(body.added, 1); // only the good item's transaction counted
+
+    assertEquals(await itemCursor(good.id), 'g1');
+    assertEquals(await itemCursor(bad.id), 'b0'); // unchanged
+  } finally {
+    mock.restore();
+    await cleanTx(user.id);
+    await user.cleanup();
+  }
+});
+
 Deno.test('category mapping is applied on the way in', async () => {
   const mock = installFakeFetch();
   const user = await createTestUser({});

@@ -133,21 +133,39 @@ async function syncItem(
     hasMore = page.has_more;
   }
 
-  if (addedRows.length > 0)
-    await supabase.from('transactions').upsert(addedRows, { onConflict: 'plaid_transaction_id', ignoreDuplicates: false });
-  if (modifiedRows.length > 0)
-    await supabase.from('transactions').upsert(modifiedRows, { onConflict: 'plaid_transaction_id', ignoreDuplicates: false });
-  if (removedIds.length > 0)
-    await supabase.from('transactions').delete().in('plaid_transaction_id', removedIds).eq('user_id', item.user_id);
-  if (cursor)
-    await supabase.from('plaid_items').update({ plaid_cursor: cursor }).eq('id', item.id);
+  // Errors here were previously not even checked (the calls' results were
+  // discarded outright) — a failed upsert/delete was invisible and the
+  // cursor below still advanced past it. Throw on any write failure so
+  // this item is counted as failed by the caller's per-item try/catch
+  // and the cursor update is never reached; independent audit 2026-09-07.
+  // Retrying from the same cursor is safe: both upserts key on
+  // plaid_transaction_id and the delete is idempotent.
+  if (addedRows.length > 0) {
+    const { error } = await supabase.from('transactions').upsert(addedRows, { onConflict: 'plaid_transaction_id', ignoreDuplicates: false });
+    if (error) throw error;
+  }
+  if (modifiedRows.length > 0) {
+    const { error } = await supabase.from('transactions').upsert(modifiedRows, { onConflict: 'plaid_transaction_id', ignoreDuplicates: false });
+    if (error) throw error;
+  }
+  if (removedIds.length > 0) {
+    const { error } = await supabase.from('transactions').delete().in('plaid_transaction_id', removedIds).eq('user_id', item.user_id);
+    if (error) throw error;
+  }
+  if (cursor) {
+    const { error } = await supabase.from('plaid_items').update({ plaid_cursor: cursor }).eq('id', item.id);
+    if (error) throw error;
+  }
 
   return { added: addedRows.length, modified: modifiedRows.length, removed: removedIds.length };
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
+// Exported (rather than inlined into Deno.serve) and served conditionally so
+// the edge-function test harness can import and call it directly — same
+// pattern as every other tested function in this codebase.
 
-Deno.serve(async (req) => {
+export async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -213,4 +231,8 @@ Deno.serve(async (req) => {
     await captureAndFlush(err, { function_name: 'plaid-batch-sync' });
     return json({ error: "Internal Server Error" }, 500);
   }
-});
+}
+
+// Serve unless imported by the edge-function test harness, which sets
+// ARK_EDGE_TEST and calls handler() directly. Unset in prod — serves normally.
+if (!Deno.env.get('ARK_EDGE_TEST')) Deno.serve(handler);
