@@ -11,15 +11,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Stripe from 'npm:stripe@14';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+import { resolveCorsHeaders } from '../_shared/cors.ts';
 
 initSentry('delete-account');
 
-const CORS = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
 Deno.serve(async (req) => {
+  // prodOnly: a preview build has no legitimate reason to permanently delete
+  // an account against production data — a foreign origin gets the prod
+  // fallback and the browser blocks the call (security-auditor + code-reviewer,
+  // 2026-09-06).
+  const CORS = resolveCorsHeaders(req, { prodOnly: true });
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 
   try {

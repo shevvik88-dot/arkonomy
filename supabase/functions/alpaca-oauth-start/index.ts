@@ -11,16 +11,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 import { requirePaidPlan } from '../_shared/requirePaidPlan.ts';
+import { resolveCorsHeaders } from '../_shared/cors.ts';
 
 initSentry('alpaca-oauth-start');
 
 const NONCE_TTL_MS = 5 * 60 * 1000;
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
 
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -30,6 +25,7 @@ function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = resolveCorsHeaders(req);
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {

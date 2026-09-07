@@ -10,17 +10,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 import { requirePaidPlan } from '../_shared/requirePaidPlan.ts';
+import { resolveCorsHeaders } from '../_shared/cors.ts';
 
 initSentry('alpaca-invest');
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
 
 const BASE_URL = 'https://api.alpaca.markets';
 
 export async function handler(req: Request): Promise<Response> {
+  const corsHeaders = resolveCorsHeaders(req);
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
