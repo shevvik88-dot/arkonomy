@@ -2,16 +2,19 @@ import Stripe from 'npm:stripe@14';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
 import { findActiveSubscription } from '../_shared/stripeSubscription.ts';
+import { resolveCorsHeaders } from '../_shared/cors.ts';
 
 initSentry('stripe-checkout');
 
+// Static prod origin, used ONLY for the Stripe success_url/cancel_url below.
+// Must NOT be derived from the request Origin — a preview-origin caller can
+// create a live subscription, and an attacker-influenceable Origin must never
+// become a Stripe redirect target. CORS origin is resolved separately per
+// request via resolveCorsHeaders().
 const APP_URL = Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com';
-const corsHeaders = {
-  'Access-Control-Allow-Origin': APP_URL,
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
 
 export async function handler(req: Request): Promise<Response> {
+  const corsHeaders = resolveCorsHeaders(req);
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
