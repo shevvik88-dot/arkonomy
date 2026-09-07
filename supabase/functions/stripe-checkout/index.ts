@@ -91,11 +91,26 @@ export async function handler(req: Request): Promise<Response> {
     // profile's last known session is still open, and if so reuse it —
     // this is authoritative regardless of how much time has passed,
     // unlike any local timestamp heuristic.
-    const { data: profileBefore } = await supabase
+    // Code-reviewer finding, 2026-09-07: this used to discard `error`
+    // entirely. Everything below — the reuse-or-close check, which
+    // customer to bill, whether a lock is even held — depends on reading
+    // this row correctly; proceeding on a failed read as if the profile
+    // had no prior session/customer at all is exactly how two sessions end
+    // up simultaneously completable. Fail closed instead.
+    const { data: profileBefore, error: profileBeforeErr } = await supabase
       .from('profiles')
       .select('stripe_customer_id, checkout_session_id')
       .eq('id', user.id)
       .single();
+
+    if (profileBeforeErr) {
+      console.error('stripe-checkout: failed to read profile before checkout:', profileBeforeErr);
+      await captureAndFlush(profileBeforeErr, { function_name: 'stripe-checkout' });
+      return new Response(JSON.stringify({ error: "Internal Server Error" }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     if (profileBefore?.checkout_session_id) {
       const staleSessionId = profileBefore.checkout_session_id;
@@ -212,7 +227,30 @@ export async function handler(req: Request): Promise<Response> {
       .from('profiles')
       .update({ checkout_session_id: session.id })
       .eq('id', user.id);
-    if (sessionIdErr) console.error('stripe-checkout: failed to store checkout_session_id:', sessionIdErr);
+
+    if (sessionIdErr) {
+      // Code-reviewer finding, 2026-09-07: a real, live, completable Stripe
+      // session now exists with nothing locally recording it — exactly the
+      // state this whole fix exists to prevent (a later request's
+      // reuse-or-close check has no session id to find, so it would go on
+      // to mint a second one while this first one is still payable). Best-
+      // effort expire the session we just created so it can't be
+      // completed, release the mutex so a clean retry isn't blocked for up
+      // to 15 minutes, and fail the request rather than hand back a URL
+      // this system no longer knows about.
+      console.error('stripe-checkout: failed to store checkout_session_id, expiring the session:', sessionIdErr);
+      try {
+        await stripe.checkout.sessions.expire(session.id);
+      } catch (expireErr) {
+        console.error('stripe-checkout: failed to expire orphaned session:', expireErr);
+      }
+      await supabase.from('profiles').update({ checkout_pending_at: null }).eq('id', user.id);
+      await captureAndFlush(sessionIdErr, { function_name: 'stripe-checkout', checkout_session_id: session.id });
+      return new Response(JSON.stringify({ error: "Internal Server Error" }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     return new Response(JSON.stringify({ url: session.url }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
