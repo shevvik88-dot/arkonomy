@@ -26,11 +26,24 @@ const RATE_LIMITS: Record<string, number> = {
   'alpaca-portfolio':  60,
 };
 
-function corsHeaders() {
+// The 429/503 responses below go straight to the browser, short-circuiting the
+// caller. Pass the caller's ALREADY-resolved CORS headers via `{ corsHeaders }`
+// so the 429/503 reflects the same origin (and same `prodOnly`/`extraOrigins`
+// decision) as every other response from that function — same contract as
+// `enforceIpRateLimit` and `requirePaidPlan`. A caller that omits it falls
+// back to the static prod origin, which is wrong for a preview-origin request
+// (the browser discards the 429 and the user sees a generic network error
+// instead of "Rate limit exceeded"). Batch 3 wires ai-chat + stock-ai-analysis;
+// the other five callers land in a later batch (BACKLOG.md CORS item).
+function responseHeaders(corsHeaders?: Record<string, string>) {
   return {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    ...(corsHeaders ?? {
+      'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+      'Vary': 'Origin',
+      'Cache-Control': 'no-store',
+    }),
   };
 }
 
@@ -47,7 +60,7 @@ function corsHeaders() {
 export async function enforceRateLimit(
   userId: string,
   functionName: string,
-  options?: { failClosed?: boolean },
+  options?: { failClosed?: boolean; corsHeaders?: Record<string, string> },
 ): Promise<Response | null> {
   const maxRequests = RATE_LIMITS[functionName];
   if (!maxRequests) return null; // No limit configured — allow.
@@ -67,7 +80,7 @@ export async function enforceRateLimit(
     if (options?.failClosed) {
       return new Response(
         JSON.stringify({ error: 'Unable to verify rate limit right now. Please try again shortly.' }),
-        { status: 503, headers: corsHeaders() },
+        { status: 503, headers: responseHeaders(options?.corsHeaders) },
       );
     }
     return null; // Fail open — don't block users if the DB call errors.
@@ -76,7 +89,7 @@ export async function enforceRateLimit(
   if ((count as number) > maxRequests) {
     return new Response(
       JSON.stringify({ error: 'Rate limit exceeded. Try again later.' }),
-      { status: 429, headers: corsHeaders() },
+      { status: 429, headers: responseHeaders(options?.corsHeaders) },
     );
   }
 
