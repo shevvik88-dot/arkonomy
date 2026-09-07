@@ -25,16 +25,10 @@ export async function handler(req: Request): Promise<Response> {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  // Declared outside the try block on purpose: a `const` inside try is not
-  // visible to the catch block below (separate scopes), so if fetch() itself
-  // throws (network failure, not just a non-ok response) after the pending
-  // row is reserved, the catch block still needs both of these to clean it
-  // up — otherwise a thrown exception leaks a permanent dead reservation.
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
-  let pendingRowId: string | null = null;
 
   try {
     // ── Authenticate caller ──────────────────────────────────────
@@ -95,34 +89,71 @@ export async function handler(req: Request): Promise<Response> {
       });
     }
 
-    // ── Reject a duplicate: atomic pending-row insert, not a racy read ──
-    // Replaces the old SELECT-then-later-INSERT check (real TOCTOU gap —
-    // the SELECT and the eventual INSERT were separated by two Alpaca
-    // network calls, so two near-simultaneous requests could both pass
-    // the check before either had written a row). windowBucket reuses the
-    // exact same per-minute bucket client_order_id already used below —
-    // one definition of "window", not two. This does reintroduce the
-    // calendar-minute boundary edge case the old SELECT-based check
-    // specifically avoided (two submits straddling a minute mark, e.g.
-    // :59.9 and :00.1, land in different buckets and won't collide) —
-    // accepted tradeoff: atomicity via a DB unique constraint beats a
-    // wider-but-racy window check. See SECURITY_THREAT_MODEL.md FINDING-A.
-    const windowBucket = Math.floor(Date.now() / 60_000);
+    // ── Load user's Alpaca access token from profiles ────────────
+    // Moved ahead of the pending-row reservation (independent audit
+    // 2026-09-07) — the reconcile-with-broker path below needs it too, and
+    // there's no reason to reserve a row at all for a user who isn't even
+    // connected.
+    const { data: profile, error: profileErr } = await supabase
+      .from('profiles')
+      .select('alpaca_access_token, alpaca_refresh_token')
+      .eq('id', user.id)
+      .single();
+
+    if (profileErr || !profile?.alpaca_access_token) {
+      return new Response(JSON.stringify({ error: 'alpaca_not_connected' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const alpacaToken = profile.alpaca_access_token;
+
+    async function releasePending(id: string) {
+      await supabase.from('investments').delete().eq('id', id);
+    }
+
+    // ── Reserve (or resume) an operation row ──────────────────────
+    // Independent audit 2026-09-07 (finding #4): the old scheme keyed both
+    // the pending-row dedup constraint and Alpaca's client_order_id off a
+    // per-minute window_bucket, and any failure — including an ambiguous
+    // NETWORK failure where Alpaca may have already accepted the order —
+    // deleted the reservation outright. A retry landing in the next minute
+    // got a fresh client_order_id, so Alpaca's own client_order_id dedup
+    // couldn't catch it either: same operation, placed twice.
+    //
+    // Fix: investments.id (stable for the row's whole lifecycle) is now
+    // the Alpaca client_order_id, and the dedup key is (user, symbol,
+    // amount) restricted to *unresolved* rows (status pending/unknown —
+    // see investments_user_symbol_amount_open_key). An ambiguous outcome
+    // marks the row 'unknown' instead of deleting it; a retry of the same
+    // (symbol, amount) then reconciles with the broker before ever
+    // sending a second order, while a genuinely new purchase (any
+    // different amount or symbol, or the same one after this operation
+    // reached a terminal status) is never blocked by it.
+    let pendingRowId: string;
 
     const { data: pendingRow, error: pendingErr } = await supabase
       .from('investments')
-      .insert({
-        user_id:       user.id,
-        symbol:        sym,
-        amount:        numAmount,
-        window_bucket: windowBucket,
-        status:        'pending',
-      })
+      .insert({ user_id: user.id, symbol: sym, amount: numAmount, status: 'pending' })
       .select('id')
       .single();
 
-    if (pendingErr) {
-      if (pendingErr.code === '23505') {
+    if (!pendingErr) {
+      pendingRowId = pendingRow.id;
+    } else if (pendingErr.code === '23505') {
+      const { data: existingRow, error: existingErr } = await supabase
+        .from('investments')
+        .select('id, status, order_id')
+        .eq('user_id', user.id)
+        .eq('symbol', sym)
+        .eq('amount', numAmount)
+        .in('status', ['pending', 'unknown'])
+        .single();
+
+      if (existingErr || !existingRow) {
+        // Conflicted against a row that vanished before we could read it
+        // back (e.g. a concurrent request's own cleanup) — safe to treat
+        // as "try again", same as any other transient 409.
         return new Response(JSON.stringify({
           error: 'This order was already submitted. Please wait a moment before retrying.',
         }), {
@@ -130,6 +161,79 @@ export async function handler(req: Request): Promise<Response> {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+
+      if (existingRow.status === 'pending') {
+        // Genuinely concurrent duplicate (FINDING-A, unchanged) — another
+        // request for this exact operation is actively in flight right now.
+        return new Response(JSON.stringify({
+          error: 'This order was already submitted. Please wait a moment before retrying.',
+        }), {
+          status: 409,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // status === 'unknown': a PRIOR attempt at this exact (symbol,
+      // amount) got an ambiguous network outcome. Ask Alpaca directly
+      // whether it actually has this operation before doing anything else.
+      const clientOrderId = `ark-${existingRow.id}`;
+      let lookup: Response;
+      try {
+        lookup = await fetch(
+          `${BASE_URL}/v2/orders:by_client_order_id?client_order_id=${encodeURIComponent(clientOrderId)}`,
+          { headers: { Authorization: `Bearer ${alpacaToken}` } },
+        );
+      } catch (lookupErr) {
+        console.error('alpaca-invest: broker reconciliation lookup failed:', lookupErr);
+        await captureAndFlush(lookupErr, { function_name: 'alpaca-invest', pendingRowId: existingRow.id, phase: 'reconcile-lookup' });
+        return new Response(JSON.stringify({
+          error: 'order_status_unknown',
+          message: "We couldn't confirm the status of your previous order. Please try again shortly.",
+        }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (lookup.status === 404) {
+        // Alpaca has no record of it — the earlier attempt's request never
+        // actually reached/was processed by the broker. Safe to place the
+        // order now, reusing this same row and client_order_id rather than
+        // creating a new reservation.
+        pendingRowId = existingRow.id;
+      } else if (lookup.ok) {
+        // Alpaca DOES have this order — the earlier "ambiguous" attempt
+        // was in fact accepted. Reflect that in our row (idempotent if
+        // already set) and return success without placing anything new.
+        const brokerOrder = await lookup.json();
+        const { error: syncErr } = await supabase
+          .from('investments')
+          .update({ order_id: brokerOrder.id, status: brokerOrder.status })
+          .eq('id', existingRow.id);
+        if (syncErr) console.error('alpaca-invest: failed to sync reconciled order onto existing row:', syncErr);
+        return new Response(JSON.stringify({
+          success:  true,
+          order_id: brokerOrder.id,
+          status:   brokerOrder.status,
+          symbol:   sym,
+          amount:   numAmount,
+          message:  `Order placed: $${numAmount} in ${sym}`,
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } else {
+        // Some other non-2xx/non-404 from the lookup itself — can't
+        // confirm either way, fail closed rather than risk a duplicate.
+        console.error('alpaca-invest: broker reconciliation lookup returned', lookup.status);
+        return new Response(JSON.stringify({
+          error: 'order_status_unknown',
+          message: "We couldn't confirm the status of your previous order. Please try again shortly.",
+        }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    } else {
       console.error('alpaca-invest: pending row insert failed:', pendingErr);
       await captureAndFlush(pendingErr, { function_name: 'alpaca-invest' });
       return new Response(JSON.stringify({ error: "Internal Server Error" }), {
@@ -138,35 +242,10 @@ export async function handler(req: Request): Promise<Response> {
       });
     }
 
-    // Assign to the outer-scoped variable (see comment at the top of the
-    // function) so the catch block can still find it if something throws.
-    pendingRowId = pendingRow.id;
-
-    // From here on, any early return must clean up the reserved pending
-    // row first — otherwise a legitimate retry after a real failure
-    // (network blip, insufficient funds, Alpaca rejection) would stay
-    // blocked by its own dead reservation until the minute bucket rolls
-    // over.
-    async function releasePending() {
-      await supabase.from('investments').delete().eq('id', pendingRowId);
-    }
-
-    // ── Load user's Alpaca access token from profiles ────────────
-    const { data: profile, error: profileErr } = await supabase
-      .from('profiles')
-      .select('alpaca_access_token, alpaca_refresh_token')
-      .eq('id', user.id)
-      .single();
-
-    if (profileErr || !profile?.alpaca_access_token) {
-      await releasePending();
-      return new Response(JSON.stringify({ error: 'alpaca_not_connected' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const alpacaToken = profile.alpaca_access_token;
+    // From here on, any definite-failure early return must clean up the
+    // reservation first — otherwise a legitimate retry after a real
+    // failure (network blip, insufficient funds, Alpaca rejection) would
+    // stay blocked by its own dead reservation.
 
     // ── Check account / buying power ─────────────────────────────
     const accountRes = await fetch(`${BASE_URL}/v2/account`, {
@@ -189,7 +268,7 @@ export async function handler(req: Request): Promise<Response> {
           })
           .eq('id', user.id);
 
-        await releasePending();
+        await releasePending(pendingRowId);
         return new Response(JSON.stringify({ error: 'alpaca_not_connected' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -204,7 +283,7 @@ export async function handler(req: Request): Promise<Response> {
       // same hygiene applied here defensively (security-auditor finding
       // on the sibling alpaca-portfolio function, 2026-08-24).
       console.error('Alpaca account error:', accountRes.status, account?.code, account?.message);
-      await releasePending();
+      await releasePending(pendingRowId);
       return new Response(JSON.stringify({ error: 'brokerage_account_error' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -212,8 +291,8 @@ export async function handler(req: Request): Promise<Response> {
     }
 
     const buyingPower = parseFloat(account.buying_power);
-    if (buyingPower < Number(amount)) {
-      await releasePending();
+    if (buyingPower < numAmount) {
+      await releasePending(pendingRowId);
       return new Response(JSON.stringify({
         error: `Insufficient buying power. Available: $${buyingPower.toFixed(2)}`,
       }), {
@@ -223,35 +302,62 @@ export async function handler(req: Request): Promise<Response> {
     }
 
     // ── Place fractional order ───────────────────────────────────
-    // client_order_id is a secondary backstop, kept as defense-in-depth —
-    // the pending row above is now the primary defense against a double
-    // submission ever reaching Alpaca at all.
-    const clientOrderId = `ark-${user.id.slice(0, 8)}-${sym}-${Number(amount).toFixed(2)}-${windowBucket}`;
+    // client_order_id is investments.id itself — stable across every retry
+    // of this exact (user, symbol, amount) operation for as long as the
+    // row stays unresolved (pending/unknown), and kept as defense-in-depth
+    // alongside the DB-level dedup above, not the primary guard.
+    const clientOrderId = `ark-${pendingRowId}`;
 
-    const orderRes = await fetch(`${BASE_URL}/v2/orders`, {
-      method: 'POST',
-      headers: {
-        Authorization:   `Bearer ${alpacaToken}`,
-        'Content-Type':  'application/json',
-      },
-      body: JSON.stringify({
-        symbol:          sym,
-        notional:        String(Number(amount).toFixed(2)),
-        side:            'buy',
-        type:            'market',
-        time_in_force:   'day',
-        client_order_id: clientOrderId,
-      }),
-    });
+    let orderRes: Response;
+    try {
+      orderRes = await fetch(`${BASE_URL}/v2/orders`, {
+        method: 'POST',
+        headers: {
+          Authorization:   `Bearer ${alpacaToken}`,
+          'Content-Type':  'application/json',
+        },
+        body: JSON.stringify({
+          symbol:          sym,
+          notional:        String(numAmount.toFixed(2)),
+          side:            'buy',
+          type:            'market',
+          time_in_force:   'day',
+          client_order_id: clientOrderId,
+        }),
+      });
+    } catch (networkErr) {
+      // Ambiguous: the request may or may not have reached Alpaca before
+      // the connection failed. Do NOT delete the reservation — that would
+      // erase the only trace of a potentially-accepted order and let a
+      // retry place a second one. Mark it 'unknown' instead; the next
+      // request for this same (symbol, amount) will reconcile with the
+      // broker before doing anything else (see the 23505 branch above).
+      console.error('alpaca-invest: order placement network error:', networkErr);
+      const { error: markErr } = await supabase
+        .from('investments')
+        .update({ status: 'unknown' })
+        .eq('id', pendingRowId);
+      if (markErr) console.error('alpaca-invest: failed to mark row unknown after network error:', markErr);
+      await captureAndFlush(networkErr, { function_name: 'alpaca-invest', pendingRowId, phase: 'order-placement' });
+      return new Response(JSON.stringify({
+        error: 'order_status_unknown',
+        message: "We couldn't confirm whether your order went through. Please check back shortly before retrying.",
+      }), {
+        status: 503,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const order = await orderRes.json();
 
     if (!orderRes.ok) {
+      // A real, synchronous response FROM Alpaca saying no — definite,
+      // safe to release (unlike the network-failure case above).
       console.error('Alpaca order error:', JSON.stringify(order));
       const isDuplicate = orderRes.status === 422
         && typeof order?.message === 'string'
         && order.message.toLowerCase().includes('client order id');
-      await releasePending();
+      await releasePending(pendingRowId);
       if (isDuplicate) {
         return new Response(JSON.stringify({
           error: 'This order was already submitted. Please wait a moment before retrying.',
@@ -291,26 +397,14 @@ export async function handler(req: Request): Promise<Response> {
       order_id: order.id,
       status:   order.status,
       symbol:   sym,
-      amount:   Number(amount),
-      message:  `Order placed: $${amount} in ${sym}`,
+      amount:   numAmount,
+      message:  `Order placed: $${numAmount} in ${sym}`,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (err) {
     console.error('alpaca-invest error:', err);
-    // A thrown exception (e.g. fetch() itself failing on a network error,
-    // not just a non-ok response) after the pending row was reserved would
-    // otherwise leak a permanent dead reservation — clean it up here too.
-    //
-    // Known gap: catch treats fetch timeout on order-placement (line 200)
-    // same as any other error — releasePending() runs even if Alpaca may
-    // have already processed the order. Real fix requires reconciliation
-    // job against Alpaca order history, not just retry-blocking. See
-    // SECURITY_THREAT_MODEL.md.
-    if (pendingRowId) {
-      await supabase.from('investments').delete().eq('id', pendingRowId);
-    }
     await captureAndFlush(err, { function_name: 'alpaca-invest' });
     return new Response(JSON.stringify({ error: "Internal Server Error" }), {
       status: 500,
