@@ -12,19 +12,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { enforceRateLimit } from '../_shared/rateLimit.ts';
 import { initSentry, captureAndFlush } from '../_shared/sentry.ts';
+import { resolveCorsHeaders } from '../_shared/cors.ts';
 
 initSentry('stock-ai-analysis');
-
-const CORS = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
 
 const DISCLAIMER =
   'This is not financial advice. Do your own research before investing. ' +
   'Past performance does not guarantee future results.';
 
 Deno.serve(async (req) => {
+  const CORS = resolveCorsHeaders(req);
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 
   const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
@@ -47,7 +44,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const rateLimitResponse = await enforceRateLimit(user.id, 'stock-ai-analysis');
+  const rateLimitResponse = await enforceRateLimit(user.id, 'stock-ai-analysis', { corsHeaders: CORS });
   if (rateLimitResponse) return rateLimitResponse;
 
   try {

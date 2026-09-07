@@ -2,15 +2,12 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { initSentry, captureAndFlush } from "../_shared/sentry.ts";
+import { resolveCorsHeaders } from "../_shared/cors.ts";
 
 initSentry("ai-chat");
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": Deno.env.get('APP_URL') ?? 'https://app.arkonomy.com',
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-firebase-appcheck",
-};
-
 Deno.serve(async (req) => {
+  const corsHeaders = resolveCorsHeaders(req, { extraAllowHeaders: "x-firebase-appcheck" });
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -38,7 +35,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const rateLimitResponse = await enforceRateLimit(user.id, "ai-chat");
+    const rateLimitResponse = await enforceRateLimit(user.id, "ai-chat", { corsHeaders });
     if (rateLimitResponse) return rateLimitResponse;
 
     // req.json() throws a SyntaxError on a malformed body — caught here
