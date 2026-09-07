@@ -78,11 +78,25 @@ export async function handler(req: Request): Promise<Response> {
         .eq('event_id', event.id)
         .single();
 
-      // Row vanished between the conflict and this read (e.g. a concurrent
-      // failed attempt's own cleanup deleted it) — ack as duplicate rather
-      // than risk two attempts reapplying the effect at once; a genuinely
-      // dropped event still comes back on Stripe's own retry cadence.
-      if (fetchErr || !existing || existing.status === 'completed') {
+      // Row vanished between the conflict and this read — the only way
+      // that happens is a concurrent attempt's own catch block deleting it
+      // after a failed side effect (code-reviewer finding, 2026-09-07:
+      // acking 200/duplicate here, as this branch originally did, is
+      // exactly what stops Stripe from ever redelivering — the effect may
+      // never have been applied at all, "it'll come back on its own retry
+      // cadence" was false). Fail closed instead so Stripe redelivers; the
+      // next attempt finds no row and inserts fresh, running the effect
+      // for real.
+      if (fetchErr || !existing) {
+        console.error('stripe-webhook: dedup row vanished mid-flight for event', event.id, fetchErr);
+        await captureAndFlush(fetchErr ?? new Error('stripe-webhook: dedup row vanished mid-flight'), { function_name: 'stripe-webhook', event_id: event.id });
+        return new Response(JSON.stringify({ error: "Internal Server Error" }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (existing.status === 'completed') {
         return new Response(JSON.stringify({ received: true, duplicate: true }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
