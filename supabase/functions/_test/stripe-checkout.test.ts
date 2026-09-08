@@ -41,9 +41,19 @@ function mockCheckoutSessionCreate(mock: ReturnType<typeof installFakeFetch>, id
 }
 
 // stripe.checkout.sessions.retrieve(id) -> GET /v1/checkout/sessions/{id}
-function mockCheckoutSessionRetrieve(mock: ReturnType<typeof installFakeFetch>, id: string, status: string) {
+function mockCheckoutSessionRetrieve(
+  mock: ReturnType<typeof installFakeFetch>,
+  id: string,
+  status: string,
+  extra: Record<string, unknown> = {},
+) {
   mock.on('GET', (u) => u.pathname === `/v1/checkout/sessions/${id}`, () =>
-    json({ id, status, url: `https://checkout.stripe.com/pay/${id}` }));
+    json({ id, status, url: `https://checkout.stripe.com/pay/${id}`, ...extra }));
+}
+
+// stripe.subscriptions.retrieve(id) -> GET /v1/subscriptions/{id}
+function mockSubscriptionRetrieve(mock: ReturnType<typeof installFakeFetch>, id: string, status: string) {
+  mock.on('GET', (u) => u.pathname === `/v1/subscriptions/${id}`, () => json({ id, status }));
 }
 
 // Count only genuine new-session creations — POST to exactly
@@ -358,6 +368,79 @@ Deno.test('audit 2026-09-08: a failed checkout_session_id write expires the orph
     const { data: p } = await profile(user.id);
     assertEquals(p!.checkout_pending_at, null);  // mutex released for a clean retry
     assertEquals(p!.checkout_session_id, null);  // nothing stored
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+// ── independent review of #97, P1a: Checkout A completes in the window
+// between request B's findActiveSubscription and its retrieve(A). B must
+// NOT mint a second session — 'complete' is not 'abandoned'.
+
+Deno.test('review #97 P1a: a prior session that COMPLETED between the sub-check and retrieve blocks a new checkout (409, no new session)', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({
+    plan: 'free',
+    profile: { checkout_pending_at: new Date().toISOString(), checkout_session_id: 'cs_A' },
+  });
+  try {
+    mockNoActiveSubscription(mock);                       // sub not visible yet (webhook lag)
+    mockCheckoutSessionRetrieve(mock, 'cs_A', 'complete'); // ...but A already completed
+    mockCheckoutSessionCreate(mock);                       // must NOT be called
+
+    const res = await handler(checkoutReq(user.accessToken));
+    assertEquals(res.status, 409);
+    assertEquals((await res.json()).error, 'checkout_already_completed');
+    assertEquals(newSessionsCreated(mock), 0);
+
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.checkout_session_id, 'cs_A'); // guard not released
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('review #97 P1a: a COMPLETED session whose subscription is itself already cancelled does let a fresh checkout through', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({
+    plan: 'free',
+    profile: { checkout_pending_at: new Date().toISOString(), checkout_session_id: 'cs_A' },
+  });
+  try {
+    mockNoActiveSubscription(mock);
+    mockCheckoutSessionRetrieve(mock, 'cs_A', 'complete', { subscription: 'sub_dead' });
+    mockSubscriptionRetrieve(mock, 'sub_dead', 'canceled');
+    const newId = mockCheckoutSessionCreate(mock);
+
+    const res = await handler(checkoutReq(user.accessToken));
+    assertEquals(res.status, 200);
+    assertEquals(newSessionsCreated(mock), 1);
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.checkout_session_id, newId);
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('review #97 P1a: an EXPIRED prior session still releases the guard and lets a new checkout through', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({
+    plan: 'free',
+    profile: { checkout_pending_at: new Date().toISOString(), checkout_session_id: 'cs_A' },
+  });
+  try {
+    mockNoActiveSubscription(mock);
+    mockCheckoutSessionRetrieve(mock, 'cs_A', 'expired');
+    const newId = mockCheckoutSessionCreate(mock);
+
+    const res = await handler(checkoutReq(user.accessToken));
+    assertEquals(res.status, 200);
+    assertEquals(newSessionsCreated(mock), 1);
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.checkout_session_id, newId);
   } finally {
     mock.restore();
     await user.cleanup();

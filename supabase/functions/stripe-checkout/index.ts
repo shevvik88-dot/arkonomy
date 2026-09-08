@@ -114,20 +114,41 @@ export async function handler(req: Request): Promise<Response> {
 
     if (profileBefore?.checkout_session_id) {
       const staleSessionId = profileBefore.checkout_session_id;
-      let stillOpen: boolean;
+      // 'open'     — still payable, reuse it.
+      // 'complete' — the user already paid on this session; a subscription
+      //              exists (or is about to, via the webhook). Must NOT
+      //              mint a second session even though findActiveSubscription
+      //              above didn't see the subscription yet — that check ran
+      //              before this session completed. 409.
+      // 'expired'  — abandoned; release the guard and let a new checkout
+      //              through below.
+      // 404        — Stripe no longer knows this id; treat as abandoned.
+      // anything else / a Stripe error — can't confirm, fail closed.
+      let sessionStatus: 'open' | 'complete' | 'expired' | 'gone' = 'gone';
       let reusableUrl: string | null = null;
+      let completedSubId: string | null = null;
       try {
         const existingSession = await stripe.checkout.sessions.retrieve(staleSessionId);
-        stillOpen = existingSession.status === 'open';
         reusableUrl = existingSession.url;
+        completedSubId = typeof existingSession.subscription === 'string'
+          ? existingSession.subscription
+          : (existingSession.subscription?.id ?? null);
+        if (existingSession.status === 'open') sessionStatus = 'open';
+        else if (existingSession.status === 'complete') sessionStatus = 'complete';
+        else if (existingSession.status === 'expired') sessionStatus = 'expired';
+        else {
+          // A status Stripe may add later — do not assume it's safe to
+          // mint a second session.
+          console.error('stripe-checkout: unexpected existing session status:', existingSession.status);
+          return new Response(JSON.stringify({ error: 'checkout_state_unclear', message: 'A previous checkout is still being finalised. Please try again shortly.' }), {
+            status: 409,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
       } catch (err: any) {
         if (err?.statusCode === 404) {
-          // Session id Stripe no longer recognizes — safe to treat as not open.
-          stillOpen = false;
+          sessionStatus = 'gone';
         } else {
-          // Can't confirm either way (network/Stripe-side error) — fail
-          // closed rather than risk minting a second session while the
-          // first might still be completable.
           console.error('stripe-checkout: failed to verify existing session:', err);
           await captureAndFlush(err, { function_name: 'stripe-checkout', checkout_session_id: staleSessionId });
           return new Response(JSON.stringify({ error: "Internal Server Error" }), {
@@ -137,7 +158,7 @@ export async function handler(req: Request): Promise<Response> {
         }
       }
 
-      if (stillOpen) {
+      if (sessionStatus === 'open') {
         // Reuse rather than create a second concurrently-completable
         // session — safe to return unconditionally: a concurrent duplicate
         // request landing here too just gets handed the same URL back.
@@ -146,13 +167,44 @@ export async function handler(req: Request): Promise<Response> {
         });
       }
 
-      // Confirmed closed (completed/expired/canceled) — release the guard
-      // fields ourselves rather than wait for stripe-webhook's own
-      // checkout.session.expired handling, scoped to this exact session id
+      if (sessionStatus === 'complete') {
+        // The prior session was paid. The webhook will (or already did)
+        // set plan=pro; either way there's a live subscription for this
+        // customer, so do not start another checkout. Verify against the
+        // subscription when the session carries one, to fail closed rather
+        // than open if Stripe's data is momentarily inconsistent.
+        let subActive = true;
+        if (completedSubId) {
+          try {
+            const sub = await stripe.subscriptions.retrieve(completedSubId);
+            subActive = sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due' || sub.status === 'incomplete';
+          } catch (subErr) {
+            console.error('stripe-checkout: failed to verify the completed session subscription:', subErr);
+            await captureAndFlush(subErr, { function_name: 'stripe-checkout', checkout_session_id: staleSessionId });
+            return new Response(JSON.stringify({ error: "Internal Server Error" }), {
+              status: 500,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+        if (subActive) {
+          return new Response(JSON.stringify({
+            error: 'checkout_already_completed',
+            message: 'Your previous checkout already went through. Refresh to see your plan.',
+          }), {
+            status: 409,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        // The completed session's subscription is itself already terminal
+        // (cancelled immediately, etc.) — fall through: releasing the guard
+        // and letting a fresh checkout through is correct here.
+      }
+
+      // 'expired' or 'gone' (or a completed-but-cancelled subscription) —
+      // release the guard fields ourselves, scoped to this exact session id
       // so we never clobber a different session another request may have
-      // just started. Best-effort: if this loses a race to a concurrent
-      // request already past this point, that request's own CAS below is
-      // still the real guard.
+      // just started.
       await supabase
         .from('profiles')
         .update({ checkout_pending_at: null, checkout_session_id: null })

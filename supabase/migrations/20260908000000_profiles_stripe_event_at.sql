@@ -1,0 +1,33 @@
+-- Independent review of PR #97, P1b: the event_id compare-and-swap in
+-- stripe-webhook only orders REDELIVERIES OF ONE EVENT. It does nothing to
+-- order two DIFFERENT events against each other. Sequence that broke:
+--
+--   1. checkout.session.completed (E1) sets plan='pro', then the isolate
+--      dies before writing stripe_webhook_events.status='completed' — E1's
+--      dedup row is left 'processing'.
+--   2. customer.subscription.deleted (E2) sets plan='free'.
+--   3. Stripe redelivers E1 (> the 60s staleness window). It's now treated
+--      as a crashed attempt, claims the stale row, and RE-RUNS its side
+--      effect — plan back to 'pro' on an already-cancelled subscription,
+--      and the current checkout guard fields wiped.
+--
+-- stripe_event_at records the `created` timestamp of the last Stripe event
+-- applied to this profile. Every subscription-state branch in
+-- stripe-webhook now updates only when the incoming event's `created` is
+-- strictly newer, so a redelivered older event is a no-op regardless of
+-- type. (Redeliveries of the SAME event still short-circuit earlier on the
+-- dedup/status row; this guards the cross-event case.)
+--
+-- NOT NULL DEFAULT epoch, not nullable: the handler's ordering check is a
+-- single `stripe_event_at < :event_at` filter. Making it never-NULL keeps
+-- that to one comparison (no `col.is.null OR col.lt.x`, which postgrest-js
+-- mis-compiles when a RETURNING/`.select()` is chained onto the update).
+-- Every existing row starts at the epoch, so the first real Stripe event a
+-- profile sees always passes.
+--
+-- Additive. Only the service-role webhook function reads or writes it — no
+-- client grant change needed, same posture as checkout_pending_at / plan /
+-- stripe_customer_id.
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS stripe_event_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01T00:00:00Z';

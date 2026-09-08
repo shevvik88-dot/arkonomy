@@ -24,8 +24,16 @@ async function stripeSig(payload: string, secret = STRIPE_WEBHOOK_SECRET): Promi
   return `t=${t},v1=${hex}`;
 }
 
-function evt(type: string, obj: Record<string, unknown>, id = `evt_${crypto.randomUUID()}`): { id: string; payload: string } {
-  return { id, payload: JSON.stringify({ id, object: 'event', type, data: { object: obj } }) };
+function evt(
+  type: string,
+  obj: Record<string, unknown>,
+  opts: { id?: string; created?: number } = {},
+): { id: string; created: number; payload: string } {
+  const id = opts.id ?? `evt_${crypto.randomUUID()}`;
+  // event.created (Stripe event emission time, Unix seconds) — distinct
+  // from data.object.created (e.g. a Checkout Session's own creation).
+  const created = opts.created ?? Math.floor(Date.now() / 1000);
+  return { id, created, payload: JSON.stringify({ id, object: 'event', type, created, data: { object: obj } }) };
 }
 
 async function post(payload: string, sig?: string | null): Promise<Response> {
@@ -46,7 +54,9 @@ function profile(id: string) {
 Deno.test('checkout.session.completed → profile upgraded to Pro trial', async () => {
   const user = await createTestUser({ plan: 'free', profile: { checkout_pending_at: new Date().toISOString(), checkout_session_id: 'cs_1' } });
   const cust = `cus_${crypto.randomUUID()}`;
-  const e = evt('checkout.session.completed', { client_reference_id: user.id, customer: cust });
+  // A real checkout.session.completed carries the session's own id in
+  // data.object.id — the guard-clear is scoped to it.
+  const e = evt('checkout.session.completed', { id: 'cs_1', client_reference_id: user.id, customer: cust });
   try {
     const res = await post(e.payload);
     assertEquals(res.status, 200);
@@ -382,6 +392,68 @@ Deno.test('independent audit 2026-09-08: a crash between the profile update and 
     assertEquals(row!.status, 'completed');
   } finally {
     await delEvents(e.id);
+    await user.cleanup();
+  }
+});
+
+Deno.test('independent review #97 P1b: a redelivered stale checkout.session.completed does not overwrite a newer cancellation', async () => {
+  const cust = `cus_${crypto.randomUUID()}`;
+  const nowS = Math.floor(Date.now() / 1000);
+  const user = await createTestUser({ plan: 'free', profile: { checkout_session_id: 'cs_p1b' } });
+
+  // E1: checkout completed at T-300s. It applied plan=pro, then the isolate
+  // died before marking its dedup row 'completed'.
+  const e1 = evt('checkout.session.completed',
+    { client_reference_id: user.id, customer: cust, id: 'cs_p1b', created: nowS - 300 },
+    { created: nowS - 300 });
+  // E2: subscription cancelled at T-120s → plan=free.
+  const e2 = evt('customer.subscription.deleted', { customer: cust, status: 'canceled' }, { created: nowS - 120 });
+
+  try {
+    // Replay real history: E1 applied then crashed; E2 applied.
+    await post(e1.payload);
+    await dbAdmin().from('stripe_webhook_events')
+      .update({ status: 'processing', processed_at: new Date(Date.now() - 300_000).toISOString() })
+      .eq('event_id', e1.id); // simulate the crash — dedup row left 'processing'
+    await post(e2.payload);
+
+    let { data: p } = await profile(user.id);
+    assertEquals(p!.plan, 'free', 'E2 (cancellation) applied');
+
+    // Stripe redelivers E1 (older event, stale processing row).
+    const res = await post(e1.payload);
+    assertEquals(res.status, 200);
+
+    ({ data: p } = await profile(user.id));
+    assertEquals(p!.plan, 'free', 'the redelivered older completed event must NOT re-grant pro');
+  } finally {
+    await delEvents(e1.id, e2.id);
+    await user.cleanup();
+  }
+});
+
+Deno.test('independent review #97 P1b: normal ordering still applies (completed then a later invoice)', async () => {
+  const cust = `cus_${crypto.randomUUID()}`;
+  const nowS = Math.floor(Date.now() / 1000);
+  const user = await createTestUser({ plan: 'free' });
+  const completed = evt('checkout.session.completed',
+    { client_reference_id: user.id, customer: cust, created: nowS - 60 },
+    { created: nowS - 60 });
+  const cycle = evt('invoice.payment_succeeded',
+    { customer: cust, billing_reason: 'subscription_cycle', amount_paid: 2000 },
+    { created: nowS });
+  try {
+    await post(completed.payload);
+    let { data: p } = await profile(user.id);
+    assertEquals(p!.plan, 'pro');
+    assert(p!.trial_ends_at !== null);
+
+    await post(cycle.payload); // newer event — must apply
+    ({ data: p } = await profile(user.id));
+    assertEquals(p!.trial_ends_at, null, 'the later subscription_cycle cleared the trial');
+    assertEquals(p!.plan, 'pro');
+  } finally {
+    await delEvents(completed.id, cycle.id);
     await user.cleanup();
   }
 });

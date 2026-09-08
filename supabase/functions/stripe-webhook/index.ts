@@ -156,6 +156,33 @@ export async function handler(req: Request): Promise<Response> {
     console.warn(`stripe-webhook: retrying stale 'processing' event ${event.id} (previous attempt never completed)`);
   }
 
+  // Cross-event ordering (independent review of #97, P1b). The event_id
+  // dedup/CAS above orders redeliveries of ONE event; it does nothing
+  // between DIFFERENT events. profiles.stripe_event_at records the
+  // `created` of the last event applied to a row, so a redelivered older
+  // event (e.g. a stale checkout.session.completed after a
+  // customer.subscription.deleted) becomes a no-op regardless of type.
+  const eventAt = new Date(
+    (typeof event.created === 'number' ? event.created : Math.floor(Date.now() / 1000)) * 1000,
+  ).toISOString();
+
+  // Apply subscription-state `fields` to the profile matched by col=val
+  // only if THIS event is strictly newer than the last one applied there.
+  // stripe_event_at is NOT NULL (epoch default), so a single `lt` filter
+  // is enough — no `is.null OR lt.x`, which postgrest-js mis-compiles into
+  // a "column does not exist" when `.select()` is also chained.
+  // Returns the matched rows ([] = superseded, or no such row).
+  async function applyOrdered(col: 'id' | 'stripe_customer_id', val: string, fields: Record<string, unknown>) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ ...fields, stripe_event_at: eventAt })
+      .eq(col, val)
+      .lt('stripe_event_at', eventAt)
+      .select('id');
+    if (error) throw error;
+    return data ?? [];
+  }
+
   try {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
@@ -166,37 +193,44 @@ export async function handler(req: Request): Promise<Response> {
         // Derive the trial end from the Checkout Session's own immutable
         // creation timestamp, NOT Date.now(): a stale-'processing' retry
         // (or any redelivery that reaches this side effect) must compute
-        // the IDENTICAL value every time, so re-running the profile UPDATE
-        // is a true no-op instead of pushing trial_ends_at ~minutes further
-        // out on each Stripe retry. session.created is Unix seconds.
+        // the IDENTICAL value every time. session.created is Unix seconds.
         const createdMs = typeof session.created === 'number'
           ? session.created * 1000
-          : Date.now(); // malformed payload — real Stripe always sends `created`
+          : Date.now();
         const trialEndsAt = new Date(createdMs + 7 * 24 * 60 * 60 * 1000).toISOString();
-        // A real Stripe charge/subscription was just created above (Stripe
-        // itself, before this handler ever runs) — if this UPDATE matches 0
-        // rows, the profile was deleted out from under it (delete-account
-        // race — a Checkout Session stays completable up to 24h after
-        // creation, well past delete-account's own short-lived guards) and
-        // Arkonomy has been paid for a service it can no longer grant to
-        // anyone. Alert on it rather than let it stay silent (previously:
-        // `if (error)` never fired because a 0-row-match isn't an error).
-        const { data: updatedRows, error } = await supabase
-          .from('profiles')
-          .update({ plan: 'pro', stripe_customer_id: customerId, trial_ends_at: trialEndsAt, checkout_pending_at: null, checkout_session_id: null })
-          .eq('id', userId)
-          .select('id');
 
-        // A real DB error here (as opposed to the legitimate 0-row
-        // delete-account race handled below) must fail this delivery so
-        // Stripe retries it — silently logging it was the exact gap
-        // independent-audit finding #2 named.
-        if (error) { console.error('Failed to update profile to trial:', error); throw error; }
-        if (!updatedRows?.length) {
-          await captureAndFlush(
-            new Error('stripe-webhook: checkout.session.completed update matched 0 rows — possible delete-account race'),
-            { function_name: 'stripe-webhook', event_id: event.id, user_id: userId },
-          );
+        // Plan/customer/trial — gated on cross-event ordering.
+        const applied = await applyOrdered('id', userId, {
+          plan: 'pro', stripe_customer_id: customerId, trial_ends_at: trialEndsAt,
+        });
+        if (!applied.length) {
+          // 0 rows: either a newer event already moved this profile on
+          // (benign no-op) or the profile was deleted mid-flight
+          // (delete-account race — Arkonomy was paid for a plan it can no
+          // longer grant). Distinguish the two.
+          const { data: exists } = await supabase
+            .from('profiles').select('id').eq('id', userId).maybeSingle();
+          if (!exists) {
+            await captureAndFlush(
+              new Error('stripe-webhook: checkout.session.completed update matched 0 rows — possible delete-account race'),
+              { function_name: 'stripe-webhook', event_id: event.id, user_id: userId },
+            );
+          } else {
+            console.warn(`stripe-webhook: checkout.session.completed ${event.id} superseded by a newer event — not re-applying pro`);
+          }
+        }
+
+        // Clear the checkout guard fields ONLY if they still point at THIS
+        // session — a stale completed event must not wipe a newer checkout
+        // the user has since started. Independent of the ordering guard
+        // above (that keys on `id`; this keys on the session).
+        if (session.id) {
+          const { error: clearErr } = await supabase
+            .from('profiles')
+            .update({ checkout_pending_at: null, checkout_session_id: null })
+            .eq('id', userId)
+            .eq('checkout_session_id', session.id);
+          if (clearErr) { console.error('stripe-webhook: failed to clear checkout guard fields:', clearErr); throw clearErr; }
         }
       }
     }
@@ -229,11 +263,7 @@ export async function handler(req: Request): Promise<Response> {
       const customerId = invoice.customer as string;
       // Only clear trial on subscription cycle (not the $0 trial invoice)
       if ((invoice as any).billing_reason === 'subscription_cycle' && Number(invoice.amount_paid) > 0) {
-        const { error } = await supabase
-          .from('profiles')
-          .update({ trial_ends_at: null })
-          .eq('stripe_customer_id', customerId);
-        if (error) { console.error('Failed to clear trial_ends_at:', error); throw error; }
+        await applyOrdered('stripe_customer_id', customerId, { trial_ends_at: null });
       }
     }
 
@@ -248,36 +278,27 @@ export async function handler(req: Request): Promise<Response> {
       // — invalidate it the same way alpaca-invest does on a stale token
       // (null the columns; no app path can use them after this).
       // PENETRATION_TEST_PLAN.md 6.4.
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          plan: 'free',
-          trial_ends_at: null,
-          alpaca_access_token: null,
-          alpaca_refresh_token: null,
-          alpaca_account_id: null,
-          alpaca_connected_at: null,
-        })
-        .eq('stripe_customer_id', customerId);
-
-      if (error) { console.error('Failed to downgrade profile:', error); throw error; }
+      await applyOrdered('stripe_customer_id', customerId, {
+        plan: 'free',
+        trial_ends_at: null,
+        alpaca_access_token: null,
+        alpaca_refresh_token: null,
+        alpaca_account_id: null,
+        alpaca_connected_at: null,
+      });
     }
 
     if (event.type === 'invoice.payment_failed') {
       const invoice = event.data.object as Stripe.Invoice;
       const customerId = invoice.customer as string;
       if (invoice.next_payment_attempt === null) {
-        const { error } = await supabase
-          .from('profiles')
-          .update({
-            plan: 'free',
-            alpaca_access_token: null,
-            alpaca_refresh_token: null,
-            alpaca_account_id: null,
-            alpaca_connected_at: null,
-          })
-          .eq('stripe_customer_id', customerId);
-        if (error) { console.error('Failed to downgrade profile on payment failure:', error); throw error; }
+        await applyOrdered('stripe_customer_id', customerId, {
+          plan: 'free',
+          alpaca_access_token: null,
+          alpaca_refresh_token: null,
+          alpaca_account_id: null,
+          alpaca_connected_at: null,
+        });
       }
     }
 
@@ -296,11 +317,7 @@ export async function handler(req: Request): Promise<Response> {
             alpaca_account_id: null,
             alpaca_connected_at: null,
           };
-      const { error } = await supabase
-        .from('profiles')
-        .update({ plan, ...downgradeFields })
-        .eq('stripe_customer_id', customerId);
-      if (error) { console.error('Failed to sync subscription update:', error); throw error; }
+      await applyOrdered('stripe_customer_id', customerId, { plan, ...downgradeFields });
     }
 
     // Mark this event fully applied so a later redelivery short-circuits
