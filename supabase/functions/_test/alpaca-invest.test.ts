@@ -102,7 +102,17 @@ Deno.test('FINDING-A: two concurrent identical requests → one 200, one 409, on
   const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
   try {
     mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
-    mock.on('POST', '/v2/orders', () => json({ id: `ord_${crypto.randomUUID()}`, status: 'accepted' }));
+    // A real broker call is never instant. Hold ~40ms so the winning
+    // request demonstrably still owns its 'pending' reservation while the
+    // loser runs its own reservation INSERT — that INSERT must then hit the
+    // partial unique index (status IN ('pending','unknown')) and 409. With
+    // an instant mock the winner can occasionally reach a terminal status
+    // first, moving its row out of the index's predicate before the loser
+    // inserts, which is not the race this test is about.
+    mock.on('POST', '/v2/orders', async () => {
+      await new Promise((r) => setTimeout(r, 40));
+      return json({ id: `ord_${crypto.randomUUID()}`, status: 'accepted' });
+    });
 
     const [a, b] = await Promise.all([
       handler(invReq(user.accessToken, { amount: 30, symbol: 'SPY' })),
