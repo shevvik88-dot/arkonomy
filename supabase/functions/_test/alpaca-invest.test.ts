@@ -585,3 +585,140 @@ Deno.test('concern #3: an unreadable order-response body marks the row unknown (
     await user.cleanup();
   }
 });
+
+// ── independent audit re-verification 2026-09-08: REQ-3 full scope —
+// operation_id (client idempotency key) so a retry that arrives AFTER a
+// prior attempt already reached 'accepted' (our own 200 was lost) replays
+// that outcome instead of placing a second order. The (symbol, amount)
+// partial index only covered the unresolved window.
+
+const OP = () => crypto.randomUUID();
+
+Deno.test('REQ-3: a retry with the same operation_id after the order was accepted replays it, places no second order', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    const op = OP();
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    // First attempt already succeeded — row is terminal, our 200 never landed.
+    const rowId = await insertRow(user.id, { symbol: 'SPY', amount: 60, status: 'accepted', order_id: brokerOrderId, operation_id: op });
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    mock.on('POST', '/v2/orders', () => json({ id: 'ord_SHOULD_NOT_HAPPEN', status: 'accepted' }));
+
+    const res = await handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY', operation_id: op }));
+    assertEquals(res.status, 200);
+    const body = await res.json();
+    assertEquals(body.success, true);
+    assertEquals(body.order_id, brokerOrderId); // the ORIGINAL order
+    assertEquals(ordersPostCount(mock), 0);     // nothing new placed
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1);
+    assertEquals(rows![0].id, rowId);
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('REQ-3: two concurrent requests with one operation_id place exactly one order', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    const op = OP();
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    mock.on('POST', '/v2/orders', async () => {
+      await new Promise((r) => setTimeout(r, 40)); // real broker call is never instant
+      return json({ id: `ord_${crypto.randomUUID()}`, status: 'accepted' });
+    });
+
+    const [a, b] = await Promise.all([
+      handler(invReq(user.accessToken, { amount: 30, symbol: 'SPY', operation_id: op })),
+      handler(invReq(user.accessToken, { amount: 30, symbol: 'SPY', operation_id: op })),
+    ]);
+    // One places the order; the other loses the (user_id, operation_id)
+    // unique insert and either replays (200) or is told the op is in flight
+    // (409) — never a second order.
+    assert([a.status, b.status].every((s) => s === 200 || s === 409));
+    assert([a.status, b.status].includes(200));
+    assertEquals(ordersPostCount(mock), 1);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1);
+    assertEquals(rows![0].operation_id, op);
+    assertEquals(rows![0].status, 'accepted');
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('REQ-3: the same operation_id with a different amount or symbol is rejected, nothing placed', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    const op = OP();
+    await insertRow(user.id, { symbol: 'SPY', amount: 60, status: 'accepted', order_id: `ord_${crypto.randomUUID()}`, operation_id: op });
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    mock.on('POST', '/v2/orders', () => json({ id: 'ord_SHOULD_NOT_HAPPEN', status: 'accepted' }));
+
+    const diffAmount = await handler(invReq(user.accessToken, { amount: 999, symbol: 'SPY', operation_id: op }));
+    assertEquals(diffAmount.status, 409);
+    assertEquals((await diffAmount.json()).error, 'operation_parameters_mismatch');
+
+    const diffSymbol = await handler(invReq(user.accessToken, { amount: 60, symbol: 'QQQ', operation_id: op }));
+    assertEquals(diffSymbol.status, 409);
+    assertEquals((await diffSymbol.json()).error, 'operation_parameters_mismatch');
+
+    assertEquals(ordersPostCount(mock), 0);
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1); // untouched
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('REQ-3: a new intentional purchase with a fresh operation_id is not blocked by a resolved prior one', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    await insertRow(user.id, { symbol: 'SPY', amount: 60, status: 'accepted', order_id: `ord_${crypto.randomUUID()}`, operation_id: OP() });
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    mock.on('POST', '/v2/orders', () => json({ id: brokerOrderId, status: 'accepted' }));
+
+    const res = await handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY', operation_id: OP() })); // NEW key, same symbol+amount
+    assertEquals(res.status, 200);
+    assertEquals((await res.json()).order_id, brokerOrderId);
+    assertEquals(ordersPostCount(mock), 1);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 2); // both purchases recorded
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('REQ-3 rollout compat: a request with no operation_id still places an order (older client)', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    mock.on('POST', '/v2/orders', () => json({ id: brokerOrderId, status: 'accepted' }));
+
+    const res = await handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY' })); // no operation_id
+    assertEquals(res.status, 200);
+    assertEquals((await res.json()).order_id, brokerOrderId);
+    assertEquals(ordersPostCount(mock), 1);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1);
+    assertEquals(rows![0].operation_id, null); // stays out of the operation_id index
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});

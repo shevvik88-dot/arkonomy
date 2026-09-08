@@ -27,6 +27,15 @@ const BASE_URL = 'https://api.alpaca.markets';
 // legitimate in-flight window without being so long it strands a user.
 const STALE_PENDING_MS = 2 * 60 * 1000;
 
+// Alpaca order statuses that mean "the broker has this order" — a retry
+// that finds its operation_id row in one of these replays success rather
+// than placing again. Anything not here and not pending/unknown is treated
+// as a spent key.
+const PLACED_STATUSES = new Set([
+  'accepted', 'new', 'pending_new', 'accepted_for_bidding', 'calculated',
+  'partially_filled', 'filled', 'done_for_day', 'replaced',
+]);
+
 export async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -95,7 +104,7 @@ export async function handler(req: Request): Promise<Response> {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    const { amount, symbol = 'SPY' } = body as { amount: unknown; symbol?: string };
+    const { amount, symbol = 'SPY', operation_id } = body as { amount: unknown; symbol?: string; operation_id?: unknown };
     const numAmount = Number(amount);
     if (!Number.isFinite(numAmount) || numAmount < 1) {
       return new Response(JSON.stringify({ error: 'Minimum amount is $1' }), {
@@ -106,6 +115,18 @@ export async function handler(req: Request): Promise<Response> {
     const sym = String(symbol ?? 'SPY').toUpperCase();
     if (!/^[A-Z]{1,5}$/.test(sym)) {
       return new Response(JSON.stringify({ error: 'Invalid symbol' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    // Client-supplied idempotency key for one intentional purchase — sent
+    // by newer clients and reused verbatim on every retry of the SAME
+    // purchase (a lost response, an auto-retry). Absent from older clients:
+    // those fall back to the (user, symbol, amount) unresolved-row dedup
+    // only, exactly as before. When present it must be a UUID.
+    const opId = operation_id == null ? null : String(operation_id);
+    if (opId !== null && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(opId)) {
+      return new Response(JSON.stringify({ error: 'Invalid operation_id' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -181,25 +202,103 @@ export async function handler(req: Request): Promise<Response> {
     // sending a second order, while a genuinely new purchase (any
     // different amount or symbol, or the same one after this operation
     // reached a terminal status) is never blocked by it.
+    // operation_id (newer clients) makes the reservation unique per
+    // intentional purchase for its whole lifetime — NOT just while
+    // unresolved. That is what closes REQ-3's full scope: a retry that
+    // arrives AFTER a prior attempt already reached 'accepted' (our own 200
+    // was lost in transit) resolves to the original row and replays its
+    // outcome instead of placing a second order. investments_user_operation_key
+    // raises 23505 on the second insert; the branch below reads the prior
+    // row back by operation_id and replays it.
     const { data: pendingRow, error: pendingErr } = await supabase
       .from('investments')
-      .insert({ user_id: user.id, symbol: sym, amount: numAmount, status: 'pending' })
+      .insert({ user_id: user.id, symbol: sym, amount: numAmount, status: 'pending', operation_id: opId })
       .select('id')
       .single();
 
     if (!pendingErr) {
       pendingRowId = pendingRow.id;
     } else if (pendingErr.code === '23505') {
-      const { data: existingRow, error: existingErr } = await supabase
-        .from('investments')
-        .select('id, status, order_id, created_at')
-        .eq('user_id', user.id)
-        .eq('symbol', sym)
-        .eq('amount', numAmount)
-        .in('status', ['pending', 'unknown'])
-        .single();
+      // Prefer the operation_id row when the client supplied one — it is
+      // the authoritative key and, unlike the (symbol, amount) partial
+      // index, it also matches a prior attempt that already resolved.
+      let existingRow: { id: string; status: string; order_id: string | null; created_at: string; symbol?: string; amount?: number } | null = null;
+      if (opId) {
+        const { data: opRow, error: opErr } = await supabase
+          .from('investments')
+          .select('id, status, order_id, created_at, symbol, amount')
+          .eq('user_id', user.id)
+          .eq('operation_id', opId)
+          .maybeSingle();
+        if (opErr) {
+          console.error('alpaca-invest: operation_id lookup failed:', opErr);
+          await captureAndFlush(opErr, { function_name: 'alpaca-invest', phase: 'operation-id-lookup' });
+          return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        if (opRow) {
+          // Same key, different intent — never act on it, and don't leak
+          // which is stored.
+          if (opRow.symbol !== sym || Number(opRow.amount) !== numAmount) {
+            return new Response(JSON.stringify({
+              error: 'operation_parameters_mismatch',
+              message: 'This purchase reference is already in use for a different amount or symbol. Start a new purchase.',
+            }), {
+              status: 409,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          const unresolved = opRow.status === 'pending' || opRow.status === 'unknown';
+          // A real order was placed on the earlier attempt (our 200 was
+          // lost) — replay it, place nothing.
+          if (opRow.order_id || PLACED_STATUSES.has(opRow.status)) {
+            return new Response(JSON.stringify({
+              success:  true,
+              order_id: opRow.order_id,
+              status:   opRow.status,
+              symbol:   sym,
+              amount:   numAmount,
+              message:  `Order placed: $${numAmount} in ${sym}`,
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          // Terminal but no order was placed (a prior attempt was rejected
+          // and released; the row shouldn't normally survive that, but if
+          // it does, don't act on this key again).
+          if (!unresolved) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'previous_attempt_incomplete',
+              message: 'This purchase reference is spent. Start a new purchase to try again.',
+              symbol: sym,
+              amount: numAmount,
+            }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          // Still unresolved — hand off to the existing reconcile / wait
+          // logic below with this exact row.
+          existingRow = opRow;
+        }
+      }
 
-      if (existingErr || !existingRow) {
+      if (!existingRow) {
+        const { data: saRow } = await supabase
+          .from('investments')
+          .select('id, status, order_id, created_at')
+          .eq('user_id', user.id)
+          .eq('symbol', sym)
+          .eq('amount', numAmount)
+          .in('status', ['pending', 'unknown'])
+          .single();
+        existingRow = saRow ?? null;
+      }
+
+      if (!existingRow) {
         // Conflicted against a row that vanished before we could read it
         // back (e.g. a concurrent request's own cleanup) — safe to treat
         // as "try again", same as any other transient 409.

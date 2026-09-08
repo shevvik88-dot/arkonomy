@@ -31,7 +31,7 @@
 --     actually enforces dedup from here on.
 --
 -- The DROPs are staged in a SEPARATE, NOT-YET-APPLIED migration:
---   supabase/migrations-pending/20260907000002_investments_drop_window_bucket.sql
+--   supabase/migrations-pending/20260907000003_investments_drop_window_bucket.sql
 -- Move it into supabase/migrations/ and apply it only AFTER the new
 -- alpaca-invest handler is confirmed live in production and exercised.
 --

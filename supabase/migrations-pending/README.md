@@ -10,4 +10,4 @@ production.
 
 | File | Prerequisite |
 |---|---|
-| `20260907000002_investments_drop_window_bucket.sql` | New `alpaca-invest` handler from PHASE A (`20260907000001_investments_stable_idempotency.sql`) confirmed live in production and exercised. |
+| `20260907000003_investments_drop_window_bucket.sql` | New `alpaca-invest` handler from PHASE A (`20260907000001_investments_stable_idempotency.sql`) confirmed live in production and exercised. |

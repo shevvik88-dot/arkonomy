@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import { supabase } from "../utils/supabase";
 import { SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
+import { operationIdFor, clearOperationId } from "../lib/alpacaOperation";
 import { C, FONT, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmtPct } from "../utils/helpers";
 import GlassCard from "./shared/GlassCard";
@@ -397,9 +398,13 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
     if (buying || !buyAmt || Number(buyAmt) < 1) return;
     setBuying(true);
     setBuyResult(null);
+    const sendSym = alpacaSym(symbol);
+    // Same key while the Buy form is unchanged — a retry after a lost
+    // response replays the first order instead of placing a second.
+    const operation_id = operationIdFor(sendSym, Number(buyAmt));
     try {
       const { data: result, error } = await supabase.functions.invoke("alpaca-invest", {
-        body: { amount: Number(buyAmt), symbol: alpacaSym(symbol) },
+        body: { amount: Number(buyAmt), symbol: sendSym, operation_id },
       });
       if (error) {
         // supabase.functions.invoke wraps non-2xx in FunctionsHttpError —
@@ -425,6 +430,7 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
           setBuyResult({ error: result.error });
         }
       } else {
+        clearOperationId(); // confirmed — the next Buy is a new operation
         setBuyResult({ success: true, message: result?.message ?? `$${buyAmt} order placed` });
       }
     } catch (e) { setBuyResult({ error: String(e) }); }
