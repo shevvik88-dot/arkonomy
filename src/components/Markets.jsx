@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import { supabase } from "../utils/supabase";
 import { SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
-import { operationIdFor, clearOperationId } from "../lib/alpacaOperation";
+import { beginOperation, settleOperation } from "../lib/alpacaOperation";
 import { C, FONT, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmtPct } from "../utils/helpers";
 import GlassCard from "./shared/GlassCard";
@@ -399,12 +399,14 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
     setBuying(true);
     setBuyResult(null);
     const sendSym = alpacaSym(symbol);
-    // Same key while the Buy form is unchanged — a retry after a lost
-    // response replays the first order instead of placing a second.
-    const operation_id = operationIdFor(sendSym, Number(buyAmt));
+    const numAmt = Number(buyAmt);
+    // One key per intentional purchase. A retry while the form is unchanged
+    // reuses it (server replays the first order, never a second); any
+    // non-ambiguous result settles it so the next Buy is a new operation.
+    const { id: operation_id } = beginOperation(user.id, sendSym, numAmt);
     try {
       const { data: result, error } = await supabase.functions.invoke("alpaca-invest", {
-        body: { amount: Number(buyAmt), symbol: sendSym, operation_id },
+        body: { amount: numAmt, symbol: sendSym, operation_id },
       });
       if (error) {
         // supabase.functions.invoke wraps non-2xx in FunctionsHttpError —
@@ -418,22 +420,27 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
           if (body?.details) logger.error("[Buy] Alpaca details:", body.details);
         } catch {}
         logger.error("[Buy] invoke error:", msg);
+        if (msg !== "order_status_unknown") settleOperation(user.id, operation_id);
         if (msg.includes("Insufficient buying power") || msg.includes("not configured") || msg.includes("ALPACA_API_KEY")) {
           setBuyResult({ notConnected: true });
         } else {
           setBuyResult({ error: msg });
         }
       } else if (result?.error) {
+        if (result.error !== "order_status_unknown") settleOperation(user.id, operation_id);
         if (result.error.includes("Insufficient buying power") || result.error.includes("not configured")) {
           setBuyResult({ notConnected: true });
         } else {
           setBuyResult({ error: result.error });
         }
       } else {
-        clearOperationId(); // confirmed — the next Buy is a new operation
+        settleOperation(user.id, operation_id); // confirmed placement
         setBuyResult({ success: true, message: result?.message ?? `$${buyAmt} order placed` });
       }
-    } catch (e) { setBuyResult({ error: String(e) }); }
+    } catch (e) {
+      // No response — ambiguous. Leave the key open so a retry reuses it.
+      setBuyResult({ error: String(e) });
+    }
     setBuying(false);
   }
 

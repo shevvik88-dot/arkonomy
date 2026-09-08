@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
 import { detectBrowserLanguage } from "./i18n";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "./utils/supabase";
 import { callEdgeFunction } from "./lib/callEdgeFunction";
-import { operationIdFor, clearOperationId } from "./lib/alpacaOperation";
+import { beginOperation, settleOperation } from "./lib/alpacaOperation";
 import { getCachedAccounts, setCachedAccounts, clearAccountsCache, sumDepositoryBalance, getCreditAccounts } from "./utils/accountsCache";
 import { clearDiagnosisLessonCache } from "./utils/diagnosisLessonCache";
 import { App as CapApp } from "@capacitor/app";
@@ -1590,13 +1590,16 @@ export default function App() {
     // a second-layer guard, not the primary source of the default, for the
     // window where profile might not have loaded yet.
     const symbol = profile?.roundup_symbol ?? "SPY";
-    // Stable across retries of this same round-up purchase; regenerated once
-    // it confirms (clearOperationId below) so the next month's is distinct.
-    const operation_id = operationIdFor(symbol, Number(amount));
+    // One key per intentional round-up purchase. A retry of THIS purchase
+    // reuses it (server replays the prior outcome, never a second order);
+    // settleOperation on any non-ambiguous result ends it, so the next
+    // round-up invest is a distinct operation.
+    const numAmount = Number(amount);
+    const { id: operation_id } = beginOperation(user.id, symbol, numAmount);
     setAlpacaToast({ loading: true, message: `Investing $${amount} in ${symbol}…` });
     try {
       const { data: result, error } = await supabase.functions.invoke("alpaca-invest", {
-        body: { amount: Number(amount), symbol, operation_id },
+        body: { amount: numAmount, symbol, operation_id },
       });
       if (error || result?.error) {
         let errMsg = result?.error || error?.message || "Investment failed";
@@ -1608,6 +1611,10 @@ export default function App() {
             details = errBody?.details ? JSON.stringify(errBody.details) : details;
           } catch {}
         }
+        // 'order_status_unknown' = the server couldn't confirm the outcome;
+        // keep the key OPEN so the next tap retries the same operation.
+        // Every other error is definite (the server placed nothing) — end it.
+        if (errMsg !== 'order_status_unknown') settleOperation(user.id, operation_id);
         if (errMsg === 'alpaca_not_connected') {
           setAlpacaToast(null);
           connectAlpaca();
@@ -1620,10 +1627,12 @@ export default function App() {
           setAlpacaToast({ error: errMsg + (details ? ` | ${details}` : '') });
         }
       } else {
-        clearOperationId(); // confirmed — the next round-up invest is a new operation
+        settleOperation(user.id, operation_id); // confirmed placement
         setAlpacaToast({ success: true, message: result.message || `$${amount} invested in ${symbol}` });
       }
     } catch (err) {
+      // Never reached the server (or no response) — ambiguous. Leave the
+      // key open; a retry reuses it.
       setAlpacaToast({ error: String(err) });
     }
     clearTimeout(alpacaToastTimerRef.current);
