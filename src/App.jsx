@@ -12,7 +12,7 @@ import { usePostHog } from "@posthog/react";
 import { useTranslation } from "react-i18next";
 import { detectBrowserLanguage } from "./i18n";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "./utils/supabase";
-import { callEdgeFunction } from "./lib/callEdgeFunction";
+import { callEdgeFunction, callEdgeFunctionWithStatus } from "./lib/callEdgeFunction";
 import { getCachedAccounts, setCachedAccounts, clearAccountsCache, sumDepositoryBalance, getCreditAccounts } from "./utils/accountsCache";
 import { clearDiagnosisLessonCache } from "./utils/diagnosisLessonCache";
 import { App as CapApp } from "@capacitor/app";
@@ -836,14 +836,29 @@ export default function App() {
     setSyncingBank(true);
     clearAccountsCache();
     try {
-      const data = await callEdgeFunction("plaid-sync-transactions", {});
-      if (data.error) {
+      const { status, data } = await callEdgeFunctionWithStatus("plaid-sync-transactions", {});
+      if (data?.error) {
         logger.error("[Plaid] sync-transactions error:", data);
       }
-      const now = new Date().toISOString();
-      setLastSyncedAt(now);
-      try { localStorage.setItem("arkonomy_last_synced", now); } catch {}
-      await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
+      // 207 Multi-Status: some of the user's banks synced, others failed
+      // (server advanced no cursor past a failed write). Must not read as a
+      // clean full sync — surface it, and leave last_synced_at untouched so
+      // bgSync retries the failed banks on its next cycle instead of
+      // treating them as fresh for an hour.
+      const failed = Array.isArray(data?.failed_items) ? data.failed_items : [];
+      const partial = status === 207 || failed.length > 0;
+      if (partial) {
+        logger.warn("[Plaid] partial sync — failed items:", failed);
+        showAlertRef.current(
+          `Couldn't sync ${failed.length || "some"} of your banks. We'll try again automatically.`,
+          "warning", "alert-circle",
+        );
+      } else {
+        const now = new Date().toISOString();
+        setLastSyncedAt(now);
+        try { localStorage.setItem("arkonomy_last_synced", now); } catch {}
+        await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
+      }
       await loadAll(true); // silent — keep Dashboard mounted, accountBalance must not reset
     } catch (err) {
       logger.error("[Plaid] sync-transactions exception:", err);
@@ -870,13 +885,21 @@ export default function App() {
 
     setBackgroundSyncing(true);
     try {
-      const data = await callEdgeFunction("plaid-sync-transactions", {});
-      if (!data.error) {
+      const { status, data } = await callEdgeFunctionWithStatus("plaid-sync-transactions", {});
+      const failed = Array.isArray(data?.failed_items) ? data.failed_items : [];
+      const partial = status === 207 || failed.length > 0;
+      if (!data?.error && !partial) {
         const now = new Date().toISOString();
         setLastSyncedAt(now);
         try { localStorage.setItem("arkonomy_last_synced", now); } catch {}
         clearAccountsCache();
         await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
+        await loadAll(true);
+      } else if (partial) {
+        // Load whatever did sync, but leave last_synced_at stale so the
+        // next bgSync cycle retries the banks that failed.
+        logger.warn("[Plaid] bgSync partial — failed items:", failed);
+        clearAccountsCache();
         await loadAll(true);
       }
     } catch {
