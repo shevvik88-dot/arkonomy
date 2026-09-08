@@ -316,6 +316,17 @@ it stops being true."
   staged, unapplied, in `supabase/migrations-pending/` pending the new
   handler being live in production. See the final report for full results
   and remaining limitations.
+  (c) **REQ-3 full scope** — the partial index dedups only *unresolved*
+  operations, so a retry arriving after the prior attempt already reached
+  `'accepted'` (our own HTTP 200 was lost in transit) was not caught: the
+  terminal row is outside the index, the retry INSERT succeeds, a second
+  real order is placed. Closed with a client-supplied `operation_id`
+  (`investments.operation_id`, migration `20260907000002`, partial unique
+  index on `(user_id, operation_id)` regardless of status). alpaca-invest
+  replays a resolved operation's outcome instead of acting again; a
+  mismatched symbol/amount for a known key is rejected; a new intentional
+  purchase carries a new key. Absent `operation_id` (older client / older
+  handler) → prior behaviour unchanged, so the rollout is order-independent.
 - **Entry point:** `alpaca-invest/index.ts`, the outer `catch (err)` block
   (originally FINDING-A of the 2026-08-17 race-condition audit — the fix for
   the double-order TOCTOU gap is what introduced this narrower, distinct
