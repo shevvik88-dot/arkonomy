@@ -113,8 +113,35 @@ export async function handler(req: Request): Promise<Response> {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      // Stale — fall through and actually (re)run the side effect below,
-      // reusing the existing row (no new insert needed).
+      // Stale — a prior attempt crashed before finishing. Claim the row
+      // atomically before falling through: two concurrent retries can both
+      // read the same stale 'processing' row here, and without this
+      // compare-and-swap both would re-run the side effect. The optimistic
+      // lock is on the exact processed_at we just read — only one retry
+      // wins the UPDATE; the loser sees 0 rows and acks as a duplicate,
+      // exactly like the genuinely-concurrent fresh case above.
+      const { data: claimed, error: claimErr } = await supabase
+        .from('stripe_webhook_events')
+        .update({ processed_at: new Date().toISOString() })
+        .eq('event_id', event.id)
+        .eq('status', 'processing')
+        .eq('processed_at', existing.processed_at as string)
+        .select('event_id');
+      if (claimErr) {
+        console.error('stripe-webhook: failed to claim stale processing row:', claimErr);
+        await captureAndFlush(claimErr, { function_name: 'stripe-webhook', event_id: event.id });
+        return new Response(JSON.stringify({ error: "Internal Server Error" }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (!claimed?.length) {
+        return new Response(JSON.stringify({ received: true, duplicate: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      // Won the claim — fall through and (re)run the side effect, reusing
+      // the existing row (no new insert needed).
       retryingStale = true;
     } else {
       console.error('stripe-webhook: dedup insert failed:', dedupErr);
@@ -136,7 +163,16 @@ export async function handler(req: Request): Promise<Response> {
       const customerId = session.customer as string;
 
       if (userId) {
-        const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        // Derive the trial end from the Checkout Session's own immutable
+        // creation timestamp, NOT Date.now(): a stale-'processing' retry
+        // (or any redelivery that reaches this side effect) must compute
+        // the IDENTICAL value every time, so re-running the profile UPDATE
+        // is a true no-op instead of pushing trial_ends_at ~minutes further
+        // out on each Stripe retry. session.created is Unix seconds.
+        const createdMs = typeof session.created === 'number'
+          ? session.created * 1000
+          : Date.now(); // malformed payload — real Stripe always sends `created`
+        const trialEndsAt = new Date(createdMs + 7 * 24 * 60 * 60 * 1000).toISOString();
         // A real Stripe charge/subscription was just created above (Stripe
         // itself, before this handler ever runs) — if this UPDATE matches 0
         // rows, the profile was deleted out from under it (delete-account

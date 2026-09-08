@@ -314,6 +314,78 @@ Deno.test('independent audit 2026-09-07: a fresh processing row (genuinely concu
   }
 });
 
+Deno.test('independent audit 2026-09-08: two concurrent stale-processing retries apply the effect once, do not extend the trial', async () => {
+  const user = await createTestUser({ plan: 'free' });
+  const cust = `cus_${crypto.randomUUID()}`;
+  // `created` fixed and in the past so the derived trial_ends_at is a
+  // stable value both retries must compute identically.
+  const created = Math.floor(Date.now() / 1000) - 3600;
+  const e = evt('checkout.session.completed', { client_reference_id: user.id, customer: cust, created });
+  try {
+    // A crashed prior attempt: dedup row inserted, processed_at well past
+    // the staleness window, side effect never confirmed.
+    await dbAdmin().from('stripe_webhook_events').insert({
+      event_id: e.id, status: 'processing', processed_at: new Date(Date.now() - 120_000).toISOString(),
+    });
+
+    const [a, b] = await Promise.all([post(e.payload), post(e.payload)]);
+    const bodies = [await a.json(), await b.json()];
+    // Exactly one retry claims the stale row (CAS on processed_at) and
+    // re-runs; the other loses the claim and acks as a duplicate.
+    assertEquals(bodies.filter((x) => x.duplicate === true).length, 1);
+    assertEquals([a.status, b.status].sort(), [200, 200]);
+
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.plan, 'pro');
+    // trial_ends_at === created + 7d exactly — not now()+7d, and not
+    // pushed further by the second retry.
+    assertEquals(
+      new Date(p!.trial_ends_at).getTime(),
+      (created + 7 * 24 * 60 * 60) * 1000,
+    );
+
+    const { data: row } = await dbAdmin().from('stripe_webhook_events').select('status').eq('event_id', e.id).single();
+    assertEquals(row!.status, 'completed');
+  } finally {
+    await delEvents(e.id);
+    await user.cleanup();
+  }
+});
+
+Deno.test('independent audit 2026-09-08: a crash between the profile update and the completed mark does not extend the trial on redelivery', async () => {
+  const created = Math.floor(Date.now() / 1000) - 7200;
+  const expectedTrialEndMs = (created + 7 * 24 * 60 * 60) * 1000;
+  const cust = `cus_${crypto.randomUUID()}`;
+  // The user is ALREADY on the trial the first attempt granted — it updated
+  // profiles, then crashed before writing status='completed'.
+  const user = await createTestUser({
+    plan: 'pro',
+    profile: { trial_ends_at: new Date(expectedTrialEndMs).toISOString(), stripe_customer_id: cust },
+  });
+  const e = evt('checkout.session.completed', { client_reference_id: user.id, customer: cust, created });
+  try {
+    await dbAdmin().from('stripe_webhook_events').insert({
+      event_id: e.id, status: 'processing', processed_at: new Date(Date.now() - 300_000).toISOString(),
+    });
+
+    const res = await post(e.payload); // Stripe redelivers minutes later
+    assertEquals(res.status, 200);
+
+    const { data: p } = await profile(user.id);
+    // Re-running the side effect is a true no-op: the value is derived from
+    // session.created, so it lands on the same instant already stored — not
+    // pushed ~2h further out (which Date.now()+7d would have done).
+    assertEquals(new Date(p!.trial_ends_at).getTime(), expectedTrialEndMs);
+    assertEquals(p!.plan, 'pro');
+
+    const { data: row } = await dbAdmin().from('stripe_webhook_events').select('status').eq('event_id', e.id).single();
+    assertEquals(row!.status, 'completed');
+  } finally {
+    await delEvents(e.id);
+    await user.cleanup();
+  }
+});
+
 Deno.test('checkout.session.completed for an unknown user → 200, no crash', async () => {
   const e = evt('checkout.session.completed', { client_reference_id: crypto.randomUUID(), customer: 'cus_ghost' });
   try {
