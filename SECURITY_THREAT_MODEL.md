@@ -291,7 +291,31 @@ it stops being true."
   (compare-and-swap `'unknown' -> 'pending'`) — and a 422 "client order id
   already exists" rejection from Alpaca (a real duplicate, not an
   ambiguous one) was still releasing the reservation instead of
-  reconciling onto it. Not run against a live stack — see final report.
+  reconciling onto it.
+- **Follow-up fix (2026-09-08, re-verification on a live local stack):**
+  the edge-function integration suite was run for the first time against a
+  real local Supabase stack (`npx supabase start` + `deno test`) — the
+  sandbox that produced the fixes above could not. The stable-idempotency
+  regression tests all pass; two further gaps surfaced and were closed:
+  (a) **concern #3** — `await orderRes.json()` (and the post-duplicate
+  `await recheck.json()`) sat *outside* any try/catch, so an unreadable
+  response body *after* the POST returned — a truncated payload, a
+  connection dropped mid-body — threw into the outer `catch`, which
+  deleted the reservation even though Alpaca may have accepted the order.
+  Both parses are now guarded and route to the same mark-`'unknown'` + 503
+  path as a network throw on the POST itself (`ambiguousAfterSend()`).
+  (b) **process-kill recovery** — a `'pending'` row is only ever written by
+  this handler and only stays `'pending'` for one in-flight run; an
+  isolate torn down between the reservation INSERT and order placement left
+  it `'pending'` forever, 409-ing every future attempt at that
+  (symbol, amount). A `'pending'` row older than `STALE_PENDING_MS` (2 min,
+  well beyond any real run) is now demoted to `'unknown'` (CAS on status)
+  so the existing reconcile-with-broker path recovers it. The
+  `window_bucket` column + its old 4-column constraint are **not** dropped
+  in this round — `20260907000001` is now additive-only and the drop is
+  staged, unapplied, in `supabase/migrations-pending/` pending the new
+  handler being live in production. See the final report for full results
+  and remaining limitations.
 - **Entry point:** `alpaca-invest/index.ts`, the outer `catch (err)` block
   (originally FINDING-A of the 2026-08-17 race-condition audit — the fix for
   the double-order TOCTOU gap is what introduced this narrower, distinct

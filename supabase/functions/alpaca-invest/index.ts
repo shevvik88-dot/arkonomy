@@ -20,6 +20,13 @@ const corsHeaders = {
 
 const BASE_URL = 'https://api.alpaca.markets';
 
+// A pending reservation older than this can only be an orphan — the request
+// that created it died before resolving it. One full run of this handler
+// (reservation INSERT → /v2/account → /v2/orders → confirm UPDATE) is a
+// few hundred ms even with a slow broker; 2 min is comfortably beyond any
+// legitimate in-flight window without being so long it strands a user.
+const STALE_PENDING_MS = 2 * 60 * 1000;
+
 export async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -132,6 +139,30 @@ export async function handler(req: Request): Promise<Response> {
       await supabase.from('investments').delete().eq('id', pendingRowId);
     }
 
+    // Post-send ambiguity: the /v2/orders POST returned an HTTP response, so
+    // Alpaca may have accepted the order, but we can't read the outcome
+    // (body parse failed — truncated response, connection dropped mid-body).
+    // Same handling as a network failure ON the POST: NEVER delete the row
+    // (that erases the client_order_id link a retry needs to reconcile) —
+    // mark it 'unknown' and 503 so the next attempt confirms with the broker
+    // first. Must not rethrow: the outer catch deletes the reservation.
+    async function ambiguousAfterSend(phase: string, err: unknown): Promise<Response> {
+      console.error(`alpaca-invest: ${phase}:`, err);
+      const { error: markErr } = await supabase
+        .from('investments')
+        .update({ status: 'unknown' })
+        .eq('id', pendingRowId);
+      if (markErr) console.error(`alpaca-invest: failed to mark row unknown after ${phase}:`, markErr);
+      await captureAndFlush(err, { function_name: 'alpaca-invest', pendingRowId, phase });
+      return new Response(JSON.stringify({
+        error: 'order_status_unknown',
+        message: "We couldn't confirm whether your order went through. Please check back shortly before retrying.",
+      }), {
+        status: 503,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // ── Reserve (or resume) an operation row ──────────────────────
     // Independent audit 2026-09-07 (finding #4): the old scheme keyed both
     // the pending-row dedup constraint and Alpaca's client_order_id off a
@@ -161,7 +192,7 @@ export async function handler(req: Request): Promise<Response> {
     } else if (pendingErr.code === '23505') {
       const { data: existingRow, error: existingErr } = await supabase
         .from('investments')
-        .select('id, status, order_id')
+        .select('id, status, order_id, created_at')
         .eq('user_id', user.id)
         .eq('symbol', sym)
         .eq('amount', numAmount)
@@ -181,19 +212,40 @@ export async function handler(req: Request): Promise<Response> {
       }
 
       if (existingRow.status === 'pending') {
-        // Genuinely concurrent duplicate (FINDING-A, unchanged) — another
-        // request for this exact operation is actively in flight right now.
-        return new Response(JSON.stringify({
-          error: 'This order was already submitted. Please wait a moment before retrying.',
-        }), {
-          status: 409,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        const reservedForMs = Date.now() - new Date(existingRow.created_at).getTime();
+        if (reservedForMs < STALE_PENDING_MS) {
+          // Genuinely concurrent duplicate (FINDING-A, unchanged) — another
+          // request for this exact operation is actively in flight right now.
+          return new Response(JSON.stringify({
+            error: 'This order was already submitted. Please wait a moment before retrying.',
+          }), {
+            status: 409,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        // Older than any real in-flight run of this function could take —
+        // the request that reserved this row died before resolving it
+        // (process killed / isolate torn down between the reservation
+        // INSERT and order placement). Left as-is it blocks every future
+        // attempt at this (symbol, amount) with a 409 forever. Demote it to
+        // 'unknown' so the reconciliation path below treats it exactly like
+        // an ambiguous-outcome row: confirm with the broker via the stable
+        // client_order_id before placing anything. The CAS on status keeps
+        // two concurrent recoveries from both proceeding.
+        console.error('alpaca-invest: recovering a stale pending reservation', existingRow.id, `(${Math.round(reservedForMs / 1000)}s old)`);
+        const { error: demoteErr } = await supabase
+          .from('investments')
+          .update({ status: 'unknown' })
+          .eq('id', existingRow.id)
+          .eq('status', 'pending');
+        if (demoteErr) console.error('alpaca-invest: failed to demote stale pending row:', demoteErr);
+        existingRow.status = 'unknown';
       }
 
-      // status === 'unknown': a PRIOR attempt at this exact (symbol,
-      // amount) got an ambiguous network outcome. Ask Alpaca directly
-      // whether it actually has this operation before doing anything else.
+      // status === 'unknown' (or a stale 'pending' just demoted to it): a
+      // PRIOR attempt at this exact (symbol, amount) got an ambiguous
+      // outcome, or never finished. Ask Alpaca directly whether it actually
+      // has this operation before doing anything else.
       const clientOrderId = `ark-${existingRow.id}`;
       let lookup: Response;
       try {
@@ -392,7 +444,12 @@ export async function handler(req: Request): Promise<Response> {
       });
     }
 
-    const order = await orderRes.json();
+    let order: any;
+    try {
+      order = await orderRes.json();
+    } catch (parseErr) {
+      return await ambiguousAfterSend('order response body parse failed', parseErr);
+    }
 
     if (!orderRes.ok) {
       console.error('Alpaca order error:', JSON.stringify(order));
@@ -428,7 +485,12 @@ export async function handler(req: Request): Promise<Response> {
         }
 
         if (recheck.ok) {
-          const brokerOrder = await recheck.json();
+          let brokerOrder: any;
+          try {
+            brokerOrder = await recheck.json();
+          } catch (parseErr) {
+            return await ambiguousAfterSend('post-duplicate reconcile body parse failed', parseErr);
+          }
           const { error: syncErr } = await supabase
             .from('investments')
             .update({ order_id: brokerOrder.id, status: brokerOrder.status })
