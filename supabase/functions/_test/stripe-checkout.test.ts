@@ -9,9 +9,11 @@
 // Requires `npx supabase start`.
 
 import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts';
+import postgres from 'npm:postgres@3';
 import { installFakeFetch, json } from './_helpers/mod.ts';
 import { createTestUser } from './_helpers/mod.ts';
 import { dbAdmin } from './_helpers/mod.ts';
+import { localConfig } from './_helpers/mod.ts';
 import { handler } from '../stripe-checkout/index.ts';
 
 const STRIPE = 'https://api.stripe.com';
@@ -255,6 +257,108 @@ Deno.test('config: missing STRIPE_PRICE_ID -> 500, no side effects', async () =>
     assertEquals(mock.calls.length, 0);
   } finally {
     Deno.env.set('STRIPE_PRICE_ID', saved);
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+// ── independent audit follow-up 2026-09-08: the two write-failure paths
+// 0ee0bfc added (profile read before the reuse check; checkout_session_id
+// write after the session is live) had no automated coverage — the handoff
+// called them out as review-only. Forced here at the DB. A column-level
+// REVOKE is a no-op while the table-level privilege is held (Postgres
+// semantics), so: block the SELECT by revoking it table-wide (the profile
+// read is the first thing that touches profiles), and block just the
+// checkout_session_id write with a column-scoped BEFORE UPDATE trigger so
+// the mutex UPDATE on checkout_pending_at still goes through. Deno runs
+// test files sequentially, so nothing else hits profiles in the window.
+
+async function withProfileSelectDenied(fn: () => Promise<void>) {
+  const sql = postgres(localConfig.dbUrl, { max: 1 });
+  try {
+    await sql.unsafe(`REVOKE SELECT ON public.profiles FROM service_role`);
+    try { await fn(); }
+    finally { await sql.unsafe(`GRANT SELECT ON public.profiles TO service_role`); }
+  } finally {
+    await sql.end();
+  }
+}
+
+async function withCheckoutSessionIdWriteBlocked(fn: () => Promise<void>) {
+  const sql = postgres(localConfig.dbUrl, { max: 1 });
+  try {
+    await sql.unsafe(`
+      CREATE OR REPLACE FUNCTION _test_block_session_id() RETURNS trigger
+        LANGUAGE plpgsql AS $fn$
+      BEGIN
+        IF NEW.checkout_session_id IS DISTINCT FROM OLD.checkout_session_id THEN
+          RAISE EXCEPTION 'checkout_session_id write blocked for test';
+        END IF;
+        RETURN NEW;
+      END $fn$;
+      CREATE TRIGGER _test_block_session_id BEFORE UPDATE ON public.profiles
+        FOR EACH ROW EXECUTE FUNCTION _test_block_session_id();
+    `);
+    try { await fn(); }
+    finally {
+      await sql.unsafe(`
+        DROP TRIGGER IF EXISTS _test_block_session_id ON public.profiles;
+        DROP FUNCTION IF EXISTS _test_block_session_id();
+      `);
+    }
+  } finally {
+    await sql.end();
+  }
+}
+
+Deno.test('audit 2026-09-08: a failed profile read before the reuse check fails closed — 500, no session, no lock', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'free' });
+  try {
+    mockNoActiveSubscription(mock);
+    mockCheckoutSessionCreate(mock); // must NOT be reached
+
+    await withProfileSelectDenied(async () => {
+      const res = await handler(checkoutReq(user.accessToken));
+      assertEquals(res.status, 500);
+    });
+
+    assertEquals(newSessionsCreated(mock), 0);
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.checkout_pending_at, null); // the mutex was never acquired
+    assertEquals(p!.checkout_session_id, null);
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('audit 2026-09-08: a failed checkout_session_id write expires the orphaned session, releases the lock, and 500s', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'free' });
+  try {
+    mockNoActiveSubscription(mock);
+    const sessionId = mockCheckoutSessionCreate(mock);
+    let expired = false;
+    mock.on('POST', (u) => u.pathname === `/v1/checkout/sessions/${sessionId}/expire`, () => {
+      expired = true;
+      return json({ id: sessionId, status: 'expired' });
+    });
+
+    await withCheckoutSessionIdWriteBlocked(async () => {
+      const res = await handler(checkoutReq(user.accessToken));
+      assertEquals(res.status, 500);
+    });
+
+    // It DID create a live session (the mutex was acquired, Stripe call
+    // made) — then, unable to record it, expired it and backed everything
+    // out rather than hand back an untracked, still-payable URL.
+    assertEquals(newSessionsCreated(mock), 1);
+    assertEquals(expired, true);
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.checkout_pending_at, null);  // mutex released for a clean retry
+    assertEquals(p!.checkout_session_id, null);  // nothing stored
+  } finally {
     mock.restore();
     await user.cleanup();
   }
