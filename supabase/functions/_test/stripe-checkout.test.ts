@@ -44,6 +44,17 @@ function mockCheckoutSessionRetrieve(mock: ReturnType<typeof installFakeFetch>, 
     json({ id, status, url: `https://checkout.stripe.com/pay/${id}` }));
 }
 
+// Count only genuine new-session creations — POST to exactly
+// /v1/checkout/sessions. mock.countMatching() is a substring match, so it
+// also counts the GET /v1/checkout/sessions/{id} verification retrieves the
+// session-reuse tests mock (and the Stripe SDK's automatic retry of a
+// failed GET), which would make "no new session created" assertions flaky.
+function newSessionsCreated(mock: ReturnType<typeof installFakeFetch>): number {
+  return mock.calls.filter(
+    (c) => c.method === 'POST' && new URL(c.url).pathname === '/v1/checkout/sessions',
+  ).length;
+}
+
 Deno.test('happy path: no existing lock, no active subscription -> session created, guard fields set', async () => {
   const mock = installFakeFetch();
   const user = await createTestUser({ plan: 'free' });
@@ -59,7 +70,7 @@ Deno.test('happy path: no existing lock, no active subscription -> session creat
     const { data: p } = await profile(user.id);
     assert(p!.checkout_pending_at !== null);
     assertEquals(p!.checkout_session_id, sessionId);
-    assertEquals(mock.countMatching('/v1/checkout/sessions'), 1);
+    assertEquals(newSessionsCreated(mock), 1);
   } finally {
     mock.restore();
     await user.cleanup();
@@ -88,7 +99,7 @@ Deno.test('FINDING-C: two concurrent checkout attempts from the same user -> one
     // request BEFORE it reaches stripe.checkout.sessions.create(), not
     // after (that would double-bill on Stripe's side even if only one row
     // got recorded locally).
-    assertEquals(mock.countMatching('/v1/checkout/sessions'), 1);
+    assertEquals(newSessionsCreated(mock), 1);
 
     const { data: p } = await profile(user.id);
     assert(p!.checkout_pending_at !== null);
@@ -115,7 +126,7 @@ Deno.test('FINDING-C: a fresh checkout_pending_at with no session id yet blocks 
 
     const res = await handler(checkoutReq(user.accessToken));
     assertEquals(res.status, 409);
-    assertEquals(mock.countMatching('/v1/checkout/sessions'), 0);
+    assertEquals(newSessionsCreated(mock), 0);
   } finally {
     mock.restore();
     await user.cleanup();
@@ -143,7 +154,7 @@ Deno.test('independent audit 2026-09-07: a still-open prior session is reused, n
     assertEquals(res.status, 200);
     const body = await res.json();
     assert(body.url.includes('cs_still_open'));
-    assertEquals(mock.countMatching('/v1/checkout/sessions'), 0); // no new session created
+    assertEquals(newSessionsCreated(mock), 0); // no new session created
 
     const { data: p } = await profile(user.id);
     assertEquals(p!.checkout_session_id, 'cs_still_open'); // untouched
@@ -168,7 +179,7 @@ Deno.test('independent audit 2026-09-07: a Stripe-confirmed-closed prior session
 
     const res = await handler(checkoutReq(user.accessToken));
     assertEquals(res.status, 200);
-    assertEquals(mock.countMatching('/v1/checkout/sessions'), 1); // exactly one new session
+    assertEquals(newSessionsCreated(mock), 1); // exactly one new session
 
     const { data: p } = await profile(user.id);
     assertEquals(p!.checkout_session_id, sessionId); // replaced, not the old id
@@ -191,7 +202,7 @@ Deno.test('independent audit 2026-09-07: a network failure verifying the prior s
 
     const res = await handler(checkoutReq(user.accessToken));
     assertEquals(res.status, 500);
-    assertEquals(mock.countMatching('/v1/checkout/sessions'), 0);
+    assertEquals(newSessionsCreated(mock), 0);
   } finally {
     mock.restore();
     await user.cleanup();
@@ -209,7 +220,7 @@ Deno.test('an already-active Stripe subscription blocks with 409 before the pend
     const res = await handler(checkoutReq(user.accessToken));
     assertEquals(res.status, 409);
     assertEquals((await res.json()).status, 'active');
-    assertEquals(mock.countMatching('/v1/checkout/sessions'), 0);
+    assertEquals(newSessionsCreated(mock), 0);
 
     // The pending-lock guard never even ran — checkout_pending_at should
     // still be untouched (null), confirming the two guards are ordered
