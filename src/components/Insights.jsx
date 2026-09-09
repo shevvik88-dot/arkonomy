@@ -39,24 +39,6 @@ const DUPLICATE_CATEGORY_I18N_KEY = {
   'News & media':    'insights.category_news_media',
 };
 
-const FORECAST_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function formatForecastDate(date) { return FORECAST_MONTHS[date.getMonth()] + ' ' + date.getFullYear(); }
-function computeGoalForecast(remaining, monthlySurplus, numGoals) {
-  if (remaining <= 0) return { type: 'complete' };
-  const rate = Math.max(monthlySurplus, 0) / Math.max(numGoals, 1);
-  if (rate >= 5) {
-    const months = Math.ceil(remaining / rate);
-    const date = new Date();
-    date.setMonth(date.getMonth() + months);
-    return { type: 'on_track', date, months, monthlyRate: Math.round(rate) };
-  }
-  const horizonMonths = 12;
-  const needed = Math.ceil(remaining / horizonMonths);
-  const targetDate = new Date();
-  targetDate.setMonth(targetDate.getMonth() + horizonMonths);
-  return { type: 'off_track', shortfall: Math.max(needed - Math.round(Math.max(rate, 0)), needed), targetDate };
-}
-
 // ── highlightNumbers ─────────────────────────────────────────────────────────
 // Splits a string on $amounts and X% percentages and wraps them in bold
 // colored spans: explicit negative (−$X / −X%) → red, positive → green,
@@ -1248,57 +1230,6 @@ export default function Insights({ totalSpent, totalIncome, lastSpent, lastIncom
           </div>
         </GlassCard>
       )}
-
-      {/* Savings goal progress */}
-      {savings && savings.length > 0 && (() => {
-        const surplus = totalIncome - totalSpent;
-        const active = savings.filter(sv => Number(sv.target) > 0 && Number(sv.current) < Number(sv.target));
-        if (active.length === 0) return null;
-        const totalSaved = active.reduce((s, sv) => s + Number(sv.current), 0);
-        const totalTarget = active.reduce((s, sv) => s + Number(sv.target), 0);
-        const overallPct = totalTarget > 0 ? Math.min((totalSaved / totalTarget) * 100, 100) : 0;
-        return (
-          <GlassCard style={{ background: `linear-gradient(135deg,${HUES.green}10,${DC.card})`, border: `1px solid ${HUES.green}35` }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ width: 32, height: 32, borderRadius: RADIUS.sm, background: HUES.green + "22", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 10px ${HUES.green}33` }}>
-                  <Icon name="target" size={14} color={HUES.green} />
-                </div>
-                <span style={{ fontWeight: 700, fontSize: 14, color: HUES.green }}>{t("insights.goal_progress")}</span>
-              </div>
-              <div style={{ background: HUES.green + "22", borderRadius: RADIUS.full, padding: "3px 10px" }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: HUES.green }}>{overallPct.toFixed(0)}% {t("insights.pct_total")}</span>
-              </div>
-            </div>
-            <div style={{ height: 5, background: DC.bg, borderRadius: RADIUS.full, marginBottom: 14, overflow: "visible" }}>
-              <div style={{ height: '100%', width: `${overallPct}%`, background: `linear-gradient(90deg,${HUES.green}CC,${HUES.green})`, borderRadius: RADIUS.full, boxShadow: overallPct > 0 ? `0 0 8px ${HUES.green}55, 0 0 16px ${HUES.green}22` : 'none', transition: "width 0.6s ease" }} />
-            </div>
-            {active.slice(0, 3).map((sv, i) => {
-              const cur = Number(sv.current), tgt = Number(sv.target);
-              const pct = Math.min((cur / tgt) * 100, 100);
-              const fc  = computeGoalForecast(tgt - cur, surplus, savings.length);
-              return (
-                <div key={sv.id} style={{ marginTop: i > 0 ? 12 : 0, paddingTop: i > 0 ? 12 : 0, borderTop: i > 0 ? `1px solid ${DC.faint}22` : 'none' }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 5 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: DC.text }}>{sv.name}</span>
-                    <span className="ph-mask" style={{ fontSize: 11, color: DC.muted }}>${fmt(cur, 0)} / ${fmt(tgt, 0)}</span>
-                  </div>
-                  <div style={{ height: 6, background: DC.bg, borderRadius: RADIUS.full, marginBottom: 4, overflow: "visible" }}>
-                    <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg,${HUES.green}AA,${HUES.green})`, borderRadius: RADIUS.full, boxShadow: pct > 0 ? `0 0 8px ${HUES.green}44` : 'none', transition: "width 0.6s ease" }} />
-                  </div>
-                  {fc.type !== 'complete' && (
-                    <div className="ph-mask" style={{ fontSize: 11, color: fc.type === 'on_track' ? HUES.green : DC.gold, lineHeight: 1.4 }}>
-                      {fc.type === 'on_track'
-                        ? t("insights.on_track_for", { date: formatForecastDate(fc.date) })
-                        : t("insights.need_more_for", { amount: fmt(fc.shortfall, 0), date: formatForecastDate(fc.targetDate) })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </GlassCard>
-        );
-      })()}
 
       <div style={{ fontSize: 11, color: DC.faint, textAlign: "center", lineHeight: 1.5, padding: "0 8px", opacity: 0.55 }}>
         {t("chat.disclaimer")}
