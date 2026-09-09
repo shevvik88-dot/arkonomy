@@ -156,22 +156,64 @@ export async function handler(req: Request): Promise<Response> {
     console.warn(`stripe-webhook: retrying stale 'processing' event ${event.id} (previous attempt never completed)`);
   }
 
-  // Cross-event ordering (independent review of #97, P1b). The event_id
-  // dedup/CAS above orders redeliveries of ONE event; it does nothing
-  // between DIFFERENT events. profiles.stripe_event_at records the
-  // `created` of the last event applied to a row, so a redelivered older
-  // event (e.g. a stale checkout.session.completed after a
-  // customer.subscription.deleted) becomes a no-op regardless of type.
+  // Cross-event ordering (independent review of #97, P1b then item 2). The
+  // event_id dedup/CAS above orders redeliveries of ONE event; it does
+  // nothing between DIFFERENT events, and `created` is only second-
+  // granular, so two events in the same second could be misordered.
+  //
+  // The robust fix: when an event carries a subscription id, RE-FETCH the
+  // live subscription from Stripe and derive plan/trial/brokerage state
+  // from THAT — authoritative regardless of which event arrived first.
+  // A retrieve failure fails the delivery (500) so Stripe retries.
   const eventAt = new Date(
     (typeof event.created === 'number' ? event.created : Math.floor(Date.now() / 1000)) * 1000,
   ).toISOString();
 
-  // Apply subscription-state `fields` to the profile matched by col=val
-  // only if THIS event is strictly newer than the last one applied there.
+  const ALPACA_TEARDOWN = {
+    alpaca_access_token: null,
+    alpaca_refresh_token: null,
+    alpaca_account_id: null,
+    alpaca_connected_at: null,
+  } as const;
+
+  // Retrieve the live subscription and write the profile it belongs to.
+  // matchCol/matchVal say which profile (checkout.session.completed knows
+  // the user id; the subscription/invoice events match on stripe_customer_id).
+  // Returns the matched rows ([] = no such profile).
+  async function reconcileSubscription(subId: string, matchCol: 'id' | 'stripe_customer_id', matchVal: string) {
+    let sub: Stripe.Subscription;
+    try {
+      sub = await stripe.subscriptions.retrieve(subId);
+    } catch (err) {
+      console.error('stripe-webhook: failed to retrieve subscription', subId, err);
+      await captureAndFlush(err, { function_name: 'stripe-webhook', event_id: event.id, subscription: subId });
+      throw err; // -> 500, Stripe redelivers
+    }
+    const active = sub.status === 'active' || sub.status === 'trialing'
+      || sub.status === 'past_due' || sub.status === 'incomplete';
+    const plan = active ? 'pro' : 'free';
+    const trialEndMs = typeof sub.trial_end === 'number' ? sub.trial_end * 1000 : null;
+    const trial_ends_at = active && trialEndMs && trialEndMs > Date.now()
+      ? new Date(trialEndMs).toISOString()
+      : null;
+    const fields: Record<string, unknown> = {
+      plan,
+      trial_ends_at,
+      stripe_customer_id: typeof sub.customer === 'string' ? sub.customer : sub.customer?.id ?? matchVal,
+      stripe_event_at: eventAt,
+      ...(active ? {} : ALPACA_TEARDOWN),
+    };
+    const { data, error } = await supabase.from('profiles').update(fields).eq(matchCol, matchVal).select('id');
+    if (error) throw error;
+    return data ?? [];
+  }
+
+  // Fallback for the rare event with no subscription id (older/degenerate
+  // payloads): apply `fields` to the profile matched by col=val only if
+  // THIS event is strictly newer than the last one applied there.
   // stripe_event_at is NOT NULL (epoch default), so a single `lt` filter
   // is enough — no `is.null OR lt.x`, which postgrest-js mis-compiles into
   // a "column does not exist" when `.select()` is also chained.
-  // Returns the matched rows ([] = superseded, or no such row).
   async function applyOrdered(col: 'id' | 'stripe_customer_id', val: string, fields: Record<string, unknown>) {
     const { data, error } = await supabase
       .from('profiles')
@@ -190,19 +232,24 @@ export async function handler(req: Request): Promise<Response> {
       const customerId = session.customer as string;
 
       if (userId) {
-        // Derive the trial end from the Checkout Session's own immutable
-        // creation timestamp, NOT Date.now(): a stale-'processing' retry
-        // (or any redelivery that reaches this side effect) must compute
-        // the IDENTICAL value every time. session.created is Unix seconds.
-        const createdMs = typeof session.created === 'number'
-          ? session.created * 1000
-          : Date.now();
-        const trialEndsAt = new Date(createdMs + 7 * 24 * 60 * 60 * 1000).toISOString();
+        const subId = typeof session.subscription === 'string'
+          ? session.subscription
+          : (session.subscription as Stripe.Subscription | null)?.id ?? null;
 
-        // Plan/customer/trial — gated on cross-event ordering.
-        const applied = await applyOrdered('id', userId, {
-          plan: 'pro', stripe_customer_id: customerId, trial_ends_at: trialEndsAt,
-        });
+        // Plan/customer/trial from the LIVE subscription when we have its
+        // id (every real `mode: subscription` completion does); the
+        // session.created + 7d path is only a fallback for a degenerate
+        // payload with no subscription reference.
+        const applied = subId
+          ? await reconcileSubscription(subId, 'id', userId)
+          : await applyOrdered('id', userId, {
+              plan: 'pro',
+              stripe_customer_id: customerId,
+              trial_ends_at: new Date(
+                (typeof session.created === 'number' ? session.created * 1000 : Date.now())
+                + 7 * 24 * 60 * 60 * 1000,
+              ).toISOString(),
+            });
         if (!applied.length) {
           // 0 rows: either a newer event already moved this profile on
           // (benign no-op) or the profile was deleted mid-flight
@@ -261,63 +308,43 @@ export async function handler(req: Request): Promise<Response> {
     if (event.type === 'invoice.payment_succeeded') {
       const invoice = event.data.object as Stripe.Invoice;
       const customerId = invoice.customer as string;
-      // Only clear trial on subscription cycle (not the $0 trial invoice)
+      const subId = typeof (invoice as any).subscription === 'string' ? (invoice as any).subscription as string : null;
+      // Only reconcile on subscription cycle (not the $0 trial invoice).
       if ((invoice as any).billing_reason === 'subscription_cycle' && Number(invoice.amount_paid) > 0) {
-        await applyOrdered('stripe_customer_id', customerId, { trial_ends_at: null });
+        if (subId) await reconcileSubscription(subId, 'stripe_customer_id', customerId);
+        else await applyOrdered('stripe_customer_id', customerId, { trial_ends_at: null });
       }
     }
 
-    if (event.type === 'customer.subscription.deleted') {
+    // Downgrade AND cut the brokerage connection (reconcileSubscription
+    // nulls the alpaca_* columns whenever the live subscription is not
+    // active). alpaca-invest / alpaca-oauth-start / alpaca-portfolio gate
+    // on plan (E4 fix), but a stored, still-valid Alpaca token on a
+    // now-free account is dead weight and a standing risk if any future
+    // code path forgets the gate. PENETRATION_TEST_PLAN.md 6.4.
+    if (event.type === 'customer.subscription.deleted' || event.type === 'customer.subscription.updated') {
       const sub = event.data.object as Stripe.Subscription;
       const customerId = sub.customer as string;
-
-      // Downgrade AND cut the brokerage connection. alpaca-invest /
-      // alpaca-oauth-start / alpaca-portfolio now gate on plan (E4 fix), but
-      // a stored, still-valid Alpaca token on a now-free account is dead
-      // weight and a standing risk if any future code path forgets the gate
-      // — invalidate it the same way alpaca-invest does on a stale token
-      // (null the columns; no app path can use them after this).
-      // PENETRATION_TEST_PLAN.md 6.4.
-      await applyOrdered('stripe_customer_id', customerId, {
-        plan: 'free',
-        trial_ends_at: null,
-        alpaca_access_token: null,
-        alpaca_refresh_token: null,
-        alpaca_account_id: null,
-        alpaca_connected_at: null,
-      });
+      if (sub.id) {
+        await reconcileSubscription(sub.id, 'stripe_customer_id', customerId);
+      } else {
+        // No subscription id on the payload — fall back to its own status.
+        const isActive = sub.status === 'active' || sub.status === 'trialing';
+        await applyOrdered('stripe_customer_id', customerId, {
+          plan: isActive ? 'pro' : 'free',
+          ...(isActive ? {} : { trial_ends_at: null, ...ALPACA_TEARDOWN }),
+        });
+      }
     }
 
     if (event.type === 'invoice.payment_failed') {
       const invoice = event.data.object as Stripe.Invoice;
       const customerId = invoice.customer as string;
+      const subId = typeof (invoice as any).subscription === 'string' ? (invoice as any).subscription as string : null;
       if (invoice.next_payment_attempt === null) {
-        await applyOrdered('stripe_customer_id', customerId, {
-          plan: 'free',
-          alpaca_access_token: null,
-          alpaca_refresh_token: null,
-          alpaca_account_id: null,
-          alpaca_connected_at: null,
-        });
+        if (subId) await reconcileSubscription(subId, 'stripe_customer_id', customerId);
+        else await applyOrdered('stripe_customer_id', customerId, { plan: 'free', ...ALPACA_TEARDOWN });
       }
-    }
-
-    if (event.type === 'customer.subscription.updated') {
-      const sub = event.data.object as Stripe.Subscription;
-      const customerId = sub.customer as string;
-      const isActive = sub.status === 'active' || sub.status === 'trialing';
-      const plan = isActive ? 'pro' : 'free';
-      // Same brokerage-token teardown as the delete/payment-failed branches
-      // when this update is the one that drops the user to free.
-      const downgradeFields = isActive
-        ? {}
-        : {
-            alpaca_access_token: null,
-            alpaca_refresh_token: null,
-            alpaca_account_id: null,
-            alpaca_connected_at: null,
-          };
-      await applyOrdered('stripe_customer_id', customerId, { plan, ...downgradeFields });
     }
 
     // Mark this event fully applied so a later redelivery short-circuits

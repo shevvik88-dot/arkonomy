@@ -12,6 +12,7 @@ import { assert, assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.t
 import { STRIPE_WEBHOOK_SECRET } from './_helpers/mod.ts';
 import { createTestUser } from './_helpers/mod.ts';
 import { dbAdmin } from './_helpers/mod.ts';
+import { installFakeFetch, json } from './_helpers/mod.ts';
 import { handler } from '../stripe-webhook/index.ts';
 
 const enc = new TextEncoder();
@@ -41,6 +42,16 @@ async function post(payload: string, sig?: string | null): Promise<Response> {
   const s = sig === undefined ? await stripeSig(payload) : sig;
   if (s) headers['stripe-signature'] = s;
   return handler(new Request('http://localhost/stripe-webhook', { method: 'POST', headers, body: payload }));
+}
+
+// stripe.subscriptions.retrieve(id) -> GET /v1/subscriptions/{id}
+function mockSub(
+  mock: ReturnType<typeof installFakeFetch>,
+  id: string,
+  fields: { status: string; customer: string; trial_end?: number | null },
+) {
+  mock.on('GET', (u) => u.pathname === `/v1/subscriptions/${id}`, () =>
+    json({ id, object: 'subscription', ...fields }));
 }
 
 async function delEvents(...ids: string[]) {
@@ -455,6 +466,90 @@ Deno.test('independent review #97 P1b: normal ordering still applies (completed 
   } finally {
     await delEvents(completed.id, cycle.id);
     await user.cleanup();
+  }
+});
+
+// ── independent review of #97, item 2: `stripe_event_at` was second-
+// granular, so two events sharing one `created` second could be misordered
+// and an older payment/subscription event could overwrite a newer plan
+// change. When the event carries a subscription id the handler now
+// re-fetches the LIVE subscription from Stripe and derives plan/trial from
+// that — authoritative regardless of event ordering.
+
+Deno.test('review #97 item2: two equal-second subscription events reconcile to Stripe\'s CURRENT (canceled) state — plan free', async () => {
+  const mock = installFakeFetch();
+  const cust = `cus_${crypto.randomUUID()}`;
+  const subId = `sub_${crypto.randomUUID()}`;
+  const nowS = Math.floor(Date.now() / 1000);
+  const user = await createTestUser({
+    plan: 'pro',
+    profile: { stripe_customer_id: cust, alpaca_access_token: 'tok', alpaca_refresh_token: 'ref' },
+  });
+  // Stripe's live subscription is already canceled by the time either
+  // event is processed.
+  mockSub(mock, subId, { status: 'canceled', customer: cust, trial_end: null });
+  // Both events emitted in the SAME second. Delivered in the order that a
+  // second-granular ordering guard mishandles: the stale "still active"
+  // update FIRST, the cancellation SECOND (same `created`, so `lt` rejects
+  // it and the profile would stay 'pro').
+  const del = evt('customer.subscription.deleted', { id: subId, customer: cust, status: 'canceled' }, { created: nowS });
+  const upd = evt('customer.subscription.updated', { id: subId, customer: cust, status: 'active' }, { created: nowS });
+  try {
+    assertEquals((await post(upd.payload)).status, 200); // older truth, arrives first
+    assertEquals((await post(del.payload)).status, 200); // newer truth, same second
+
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.plan, 'free', 'the live canceled subscription wins regardless of event order');
+    assertEquals(p!.alpaca_access_token, null);
+  } finally {
+    await delEvents(del.id, upd.id);
+    await user.cleanup();
+    mock.restore();
+  }
+});
+
+Deno.test('review #97 item2: checkout.session.completed uses the live subscription trial_end, not session.created + 7d', async () => {
+  const mock = installFakeFetch();
+  const cust = `cus_${crypto.randomUUID()}`;
+  const subId = `sub_${crypto.randomUUID()}`;
+  const nowS = Math.floor(Date.now() / 1000);
+  // Stripe's actual trial end: 12h + 7d from now — deliberately NOT
+  // session.created + exactly 7d.
+  const realTrialEnd = nowS + 12 * 3600 + 7 * 86400;
+  const user = await createTestUser({ plan: 'free', profile: { checkout_session_id: 'cs_x' } });
+  mockSub(mock, subId, { status: 'trialing', customer: cust, trial_end: realTrialEnd });
+  const e = evt('checkout.session.completed', {
+    id: 'cs_x', client_reference_id: user.id, customer: cust, subscription: subId, created: nowS,
+  });
+  try {
+    assertEquals((await post(e.payload)).status, 200);
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.plan, 'pro');
+    assertEquals(new Date(p!.trial_ends_at).getTime(), realTrialEnd * 1000);
+    assertEquals(p!.checkout_session_id, null); // guard cleared, scoped to this session
+  } finally {
+    await delEvents(e.id);
+    await user.cleanup();
+    mock.restore();
+  }
+});
+
+Deno.test('review #97 item2: a subscription re-fetch failure fails the delivery (500) so Stripe retries', async () => {
+  const mock = installFakeFetch();
+  const cust = `cus_${crypto.randomUUID()}`;
+  const subId = `sub_${crypto.randomUUID()}`;
+  const user = await createTestUser({ plan: 'pro', profile: { stripe_customer_id: cust } });
+  mock.on('GET', (u) => u.pathname === `/v1/subscriptions/${subId}`, () => json({ error: { message: 'down' } }, { status: 500 }));
+  const e = evt('customer.subscription.deleted', { id: subId, customer: cust, status: 'canceled' });
+  try {
+    assertEquals((await post(e.payload)).status, 500);
+    // the dedup row must not be left 'completed'
+    const { data: row } = await dbAdmin().from('stripe_webhook_events').select('status').eq('event_id', e.id).maybeSingle();
+    assert(row === null || row.status !== 'completed');
+  } finally {
+    await delEvents(e.id);
+    await user.cleanup();
+    mock.restore();
   }
 });
 
