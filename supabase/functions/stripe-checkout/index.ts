@@ -287,10 +287,55 @@ export async function handler(req: Request): Promise<Response> {
       // idempotency key from its checkout_pending_at and re-run
       // sessions.create() under it, so Stripe returns the ORIGINAL session.
       effectiveLockedAt = held.checkout_pending_at;
+    } else if (profileBefore?.checkout_pending_at && !profileBefore?.checkout_session_id) {
+      // We just ACQUIRED a lock that replaced a stale one (older than the
+      // 15-min mutex TTL) whose holder never recorded a session id — it
+      // may have created a session at Stripe under its own derived key and
+      // lost the response. Reconcile under THAT key so Stripe hands back
+      // the original session instead of minting a second (ROUND5 1d).
+      const priorAgeMs = Date.now() - new Date(profileBefore.checkout_pending_at).getTime();
+      // Stripe retains idempotency keys for ~24h. Past that there is
+      // nothing left to dedupe against; a real session from then is itself
+      // long expired, but at the boundary we can't be certain, so don't
+      // gamble on a second live session — return an explicit state to
+      // reconcile rather than creating a new one.
+      const KEY_RETENTION_SAFE_MS = 23 * 60 * 60 * 1000;
+      if (priorAgeMs < KEY_RETENTION_SAFE_MS) {
+        effectiveLockedAt = profileBefore.checkout_pending_at;
+      } else {
+        return new Response(JSON.stringify({
+          error: 'checkout_reconcile_required',
+          message: 'A previous checkout could not be confirmed. Please try again in a moment, or contact support if this keeps happening.',
+        }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
     }
     // Canonicalise to epoch ms so the winner (`...Z`) and a retry reading
     // the DB (`...+00:00`) derive the SAME key.
     const idemKey = `chk_${user.id}_${new Date(effectiveLockedAt).getTime()}`;
+
+    // ROUND5 1a: a Checkout that COMPLETED between our pre-lock
+    // findActiveSubscription and here — its webhook having cleared the
+    // guard fields before we read the profile, so the reuse-or-close block
+    // above saw nothing — would otherwise slip through to a second
+    // concurrently-completable session. Re-check now, holding the lock,
+    // right before we create.
+    const nowActive = await findActiveSubscription(stripe, user.email);
+    if (nowActive) {
+      // Release only the lock WE just took (scoped to our exact timestamp;
+      // a reconcile under a prior holder's key leaves theirs alone).
+      await supabase
+        .from('profiles')
+        .update({ checkout_pending_at: null })
+        .eq('id', user.id)
+        .eq('checkout_pending_at', lockedAt);
+      return new Response(JSON.stringify({
+        error: 'checkout_already_completed',
+        message: 'Your subscription is already active. Refresh to see your plan.',
+      }), {
+        status: 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const session = await stripe.checkout.sessions.create({
       mode:                'subscription',

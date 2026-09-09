@@ -547,3 +547,99 @@ Deno.test('review #97 item3: a failed checkout_session_id write keeps the mutex 
     await user.cleanup();
   }
 });
+
+// ── ROUND 5, risk 1a: Checkout A completes AFTER request B's
+// findActiveSubscription came back empty, and the webhook clears B's view
+// of the guard fields (checkout_session_id / checkout_pending_at → null)
+// before B reads the profile. B then skips the reuse-or-close block
+// entirely and, with only a pre-lock subscription check, mints a second
+// concurrently-completable session. Fix: re-check for an active
+// subscription AFTER the lock, right before sessions.create.
+
+Deno.test('review ROUND5 1a: an active subscription that appears after the pre-lock check blocks session creation (409, no new session)', async () => {
+  const mock = installFakeFetch();
+  // Webhook already ran for Checkout A: guard fields cleared.
+  const user = await createTestUser({
+    plan: 'free',
+    profile: { checkout_pending_at: null, checkout_session_id: null },
+  });
+  try {
+    // findActiveSubscription: empty on the pre-lock call, active on the
+    // post-lock re-check (A's subscription became visible in between).
+    let custCall = 0;
+    mock.on('GET', '/v1/customers', () => {
+      custCall++;
+      return custCall === 1 ? json({ data: [] }) : json({ data: [{ id: 'cus_A' }] });
+    });
+    mock.on('GET', '/v1/subscriptions', () => json({ data: [{ id: 'sub_A', status: 'active' }] }));
+    mock.on('POST', '/v1/checkout/sessions', () => json({ id: 'cs_should_not_exist', url: 'x' })); // must NOT be called
+
+    const res = await handler(checkoutReq(user.accessToken));
+    assertEquals(res.status, 409);
+    assertEquals((await res.json()).error, 'checkout_already_completed');
+    assertEquals(newSessionsCreated(mock), 0);
+    assert(custCall >= 2, 'the subscription check must run again after the lock');
+
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.checkout_pending_at, null, 'the lock this request briefly took is released');
+    assertEquals(p!.checkout_session_id, null);
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+// ── ROUND 5, risk 1d: a lock older than the 15-min mutex TTL with no
+// recorded session id. Its holder may have created a session at Stripe
+// under chk_<user>_<epoch(that lock's checkout_pending_at)> and lost the
+// response. A retry must reconcile under THAT key (Stripe returns the
+// original), not acquire a fresh lock and mint a second session under a
+// new key. Stripe idempotency keys are only retained ~24h, so past that
+// there is nothing to dedupe against — return an explicit status instead
+// of gambling on a second session.
+
+Deno.test('review ROUND5 1d: a >15min stale lock with no session id reconciles under the prior key, one session', async () => {
+  const mock = installFakeFetch();
+  const staleAt = new Date(Date.now() - 20 * 60_000).toISOString(); // 20 min ago
+  const user = await createTestUser({
+    plan: 'free',
+    profile: { checkout_pending_at: staleAt, checkout_session_id: null },
+  });
+  try {
+    mockNoActiveSubscription(mock);
+    mock.on('POST', '/v1/checkout/sessions', () => json({ id: 'cs_recon_1d', url: 'https://checkout.stripe.com/pay/cs_recon_1d' }));
+
+    const res = await handler(checkoutReq(user.accessToken));
+    assertEquals(res.status, 200);
+    assertEquals(newSessionsCreated(mock), 1);
+    // Keyed off the STALE lock's timestamp, not a fresh one.
+    assertEquals(idemKeysOnCreate(mock), [`chk_${user.id}_${new Date(staleAt).getTime()}`]);
+
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.checkout_session_id, 'cs_recon_1d');
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('review ROUND5 1d: a stale lock older than the idempotency-key retention window returns an explicit reconcile status, no new session', async () => {
+  const mock = installFakeFetch();
+  const staleAt = new Date(Date.now() - 24 * 60 * 60_000).toISOString(); // 24h ago
+  const user = await createTestUser({
+    plan: 'free',
+    profile: { checkout_pending_at: staleAt, checkout_session_id: null },
+  });
+  try {
+    mockNoActiveSubscription(mock);
+    mock.on('POST', '/v1/checkout/sessions', () => json({ id: 'cs_should_not_exist', url: 'x' })); // must NOT be called
+
+    const res = await handler(checkoutReq(user.accessToken));
+    assertEquals(res.status, 409);
+    assertEquals((await res.json()).error, 'checkout_reconcile_required');
+    assertEquals(newSessionsCreated(mock), 0);
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
