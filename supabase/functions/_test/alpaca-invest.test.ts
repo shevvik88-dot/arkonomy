@@ -156,7 +156,7 @@ Deno.test('failure path: insufficient buying power → 400, reservation released
   }
 });
 
-Deno.test('failure path: Alpaca order rejected (500) → 400, reservation released', async () => {
+Deno.test('failure path: Alpaca 5xx on placement is AMBIGUOUS → 503 unknown, reservation KEPT (ROUND6 item 3)', async () => {
   const mock = installFakeFetch();
   const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
   try {
@@ -164,11 +164,15 @@ Deno.test('failure path: Alpaca order rejected (500) → 400, reservation releas
     mock.on('POST', '/v2/orders', () => json({ message: 'internal' }, { status: 500 }));
 
     const res = await handler(invReq(user.accessToken, { amount: 40, symbol: 'SPY' }));
-    assertEquals(res.status, 400);
-    assertEquals((await res.json()).error, 'Order failed');
+    // A 5xx may mean the order WAS accepted — must not be reported as a
+    // definite rejection (which the client settles on).
+    assertEquals(res.status, 503);
+    assertEquals((await res.json()).error, 'order_status_unknown');
 
     const { data: rows } = await investmentsOf(user.id);
-    assertEquals(rows!.length, 0);
+    assertEquals(rows!.length, 1);
+    assertEquals(rows![0].status, 'unknown');
+    assertEquals(rows![0].order_id, null);
   } finally {
     mock.restore();
     await user.cleanup();
@@ -717,6 +721,92 @@ Deno.test('REQ-3 rollout compat: a request with no operation_id still places an 
     const { data: rows } = await investmentsOf(user.id);
     assertEquals(rows!.length, 1);
     assertEquals(rows![0].operation_id, null); // stays out of the operation_id index
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+// ── ROUND 6, #98 item 3: a broker 5xx (with a JSON body) on order
+// placement is AMBIGUOUS — Alpaca may have accepted the order before its
+// gateway failed the response. The non-duplicate !orderRes.ok branch used
+// to releasePending() (delete the row) and return 400 "Order failed",
+// which the client classifies as a definite outcome and settles — so a
+// manual retry with a fresh operation_id places a SECOND real order.
+Deno.test('ROUND6 item3: a 502 (JSON body) on placement keeps the row unknown; the retry reconciles, no second order', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    const op = OP();
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    // Broker took the order but its gateway 502'd the response (JSON body).
+    let placementCalls = 0;
+    mock.on('POST', '/v2/orders', () => {
+      placementCalls++;
+      return json({ message: 'Bad Gateway', code: 50810000 }, { status: 502 });
+    });
+    // On the retry the broker confirms it DOES hold the order.
+    mock.on('GET', '/v2/orders:by_client_order_id', () => json({ id: brokerOrderId, status: 'accepted' }));
+
+    // Attempt 1 — ambiguous 502.
+    const r1 = await handler(invReq(user.accessToken, { amount: 40, symbol: 'SPY', operation_id: op }));
+    assertEquals(r1.status, 503);
+    assertEquals((await r1.json()).error, 'order_status_unknown');
+
+    const { data: after1 } = await investmentsOf(user.id);
+    assertEquals(after1!.length, 1, 'the reservation is NOT deleted');
+    assertEquals(after1![0].status, 'unknown');
+    assertEquals(after1![0].operation_id, op);   // identity preserved for the retry
+    assertEquals(after1![0].order_id, null);
+    const rowId = after1![0].id;
+
+    // Attempt 2 — same operation_id. Reconciles with the broker, places nothing.
+    const r2 = await handler(invReq(user.accessToken, { amount: 40, symbol: 'SPY', operation_id: op }));
+    assertEquals(r2.status, 200);
+    const b2 = await r2.json();
+    assertEquals(b2.success, true);
+    assertEquals(b2.order_id, brokerOrderId);
+    assertEquals(placementCalls, 1, 'no second POST /v2/orders');
+
+    const { data: after2 } = await investmentsOf(user.id);
+    assertEquals(after2!.length, 1);
+    assertEquals(after2![0].id, rowId);          // same row, not a new one
+    assertEquals(after2![0].order_id, brokerOrderId);
+    assertEquals(after2![0].status, 'accepted');
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+// The outer catch after the order POST returned a response must not delete
+// the row either — a throw between "order accepted" and the confirm-write
+// would otherwise erase the only trace. Here a 200 body of `null` parses
+// fine, then `order.id` in the confirm UPDATE throws a TypeError that lands
+// in the outer catch.
+Deno.test('ROUND6 item3: a throw after a 2xx placement marks the row unknown, does not delete it', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    const op = OP();
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    mock.on('POST', '/v2/orders', () => new Response('null', {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    }));
+    mock.on('GET', '/v2/orders:by_client_order_id', () => json({ message: 'not found' }, { status: 404 }));
+
+    const r1 = await handler(invReq(user.accessToken, { amount: 40, symbol: 'SPY', operation_id: op }));
+    // Whatever status it returns, the client must be able to keep the
+    // operation open (5xx / order_status_unknown / Internal Server Error
+    // all classify as 'keep') — the point is the row is NOT deleted.
+    assert(r1.status >= 500, `expected a keep-open status, got ${r1.status}`);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1, 'row survives a post-2xx throw');
+    assertEquals(rows![0].status, 'unknown');
+    assertEquals(rows![0].operation_id, op);
+    assertEquals(rows![0].order_id, null);
   } finally {
     mock.restore();
     await user.cleanup();

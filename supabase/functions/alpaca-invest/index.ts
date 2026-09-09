@@ -60,6 +60,10 @@ export async function handler(req: Request): Promise<Response> {
   // FINDING-A's genuinely-concurrent-duplicate case and just told to wait —
   // forever, for a request that already failed).
   let pendingRowId: string | null = null;
+  // Set once the /v2/orders POST returns ANY HTTP response: from that point
+  // the broker may hold the order, so the outer catch must not delete the
+  // row (ROUND6 #98 item 3).
+  let orderMayExist = false;
 
   try {
     // ── Authenticate caller ──────────────────────────────────────
@@ -520,6 +524,10 @@ export async function handler(req: Request): Promise<Response> {
           client_order_id: clientOrderId,
         }),
       });
+      // The POST got an HTTP response — Alpaca MAY hold this order now.
+      // From here on, no failure path may delete the reservation; the
+      // worst it may do is mark it 'unknown' for the retry to reconcile.
+      orderMayExist = true;
     } catch (networkErr) {
       // Ambiguous: the request may or may not have reached Alpaca before
       // the connection failed. Do NOT delete the reservation — that would
@@ -621,7 +629,16 @@ export async function handler(req: Request): Promise<Response> {
         });
       }
 
-      // A real, definite, non-duplicate rejection FROM Alpaca — safe to
+      // A 5xx is AMBIGUOUS, not a rejection: Alpaca may have accepted the
+      // order before its gateway failed the response. Treat it like the
+      // network / parse-failure paths — mark the row 'unknown' and 503 so
+      // the retry reconciles via client_order_id, never releasePending()
+      // (ROUND6 #98 item 3).
+      if (orderRes.status >= 500) {
+        return await ambiguousAfterSend(`Alpaca ${orderRes.status} on order placement`, order);
+      }
+
+      // A real, definite, non-duplicate 4xx rejection FROM Alpaca — safe to
       // release (unlike the ambiguous cases above).
       await releasePending();
       return new Response(JSON.stringify({ error: 'Order failed', details: order }), {
@@ -663,19 +680,25 @@ export async function handler(req: Request): Promise<Response> {
 
   } catch (err) {
     console.error('alpaca-invest error:', err);
-    // Restored (code-reviewer finding, 2026-09-07): every path that can
-    // leave an order actually placed at Alpaca handles cleanup/reconcile
-    // locally and returns without rethrowing (the order-placement fetch's
-    // own try/catch, and the isDuplicate reconciliation above) — an
-    // exception reaching HERE only ever means no order attempt happened
-    // this request (e.g. the /v2/account fetch/json parse throwing), so
-    // releasing the reservation is always safe, never a risk of erasing a
-    // real order's only trace. Without this, that path left a permanently
-    // stuck 'pending' row: only 'unknown' rows get reconciled on retry, a
-    // 'pending' one is instead read as FINDING-A's genuinely-concurrent
-    // case and told to wait — forever, for a request that already failed.
+    // A throw reaching here after the /v2/orders POST already returned a
+    // response (e.g. the confirm-write path throwing on a `null` body) must
+    // NOT delete the row — the broker may hold the order. Mark it 'unknown'
+    // so the retry reconciles via client_order_id (ROUND6 #98 item 3).
+    // Only when no order POST got a response this request (the /v2/account
+    // fetch/json parse throwing, a reservation-path error) is deleting the
+    // reservation safe — otherwise a stuck 'pending' row blocks this
+    // (symbol, amount) forever, since reconciliation only ever picks up
+    // 'unknown' rows.
     if (pendingRowId) {
-      await supabase.from('investments').delete().eq('id', pendingRowId);
+      if (orderMayExist) {
+        const { error: markErr } = await supabase
+          .from('investments')
+          .update({ status: 'unknown' })
+          .eq('id', pendingRowId);
+        if (markErr) console.error('alpaca-invest: failed to mark row unknown in outer catch:', markErr);
+      } else {
+        await supabase.from('investments').delete().eq('id', pendingRowId);
+      }
     }
     await captureAndFlush(err, { function_name: 'alpaca-invest' });
     return new Response(JSON.stringify({ error: "Internal Server Error" }), {
