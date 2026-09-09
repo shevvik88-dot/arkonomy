@@ -180,47 +180,82 @@ export async function handler(req: Request): Promise<Response> {
   // matchCol/matchVal say which profile (checkout.session.completed knows
   // the user id; the subscription/invoice events match on stripe_customer_id).
   // Returns the matched rows ([] = no such profile).
+  const isLiveStatus = (s: string) =>
+    s === 'active' || s === 'trialing' || s === 'past_due' || s === 'incomplete';
+
+  // ROUND6 item 1. A single subscriptions.retrieve() is NOT enough to order
+  // concurrent handlers: handler A can get an "active" snapshot, its
+  // response is delayed, handler B meanwhile gets "canceled" and writes
+  // free, then A's delayed response lands and A writes pro — a permanent
+  // resurrection, no clock skew required. Nudging the timestamp earlier
+  // doesn't fix it (A's whole retrieve can be the slow part).
+  //
+  // Fix: (a) a TERMINAL reading (canceled/unpaid/…) is monotone and final —
+  // Stripe never un-cancels — so it is applied UNCONDITIONALLY and can
+  // never be the stale-wrong write. (b) A LIVE reading is the only kind
+  // that can be a delayed/stale response, so it is applied under a
+  // compare-and-swap on the profile's stripe_event_at mark snapshotted
+  // BEFORE the Stripe read: if anything wrote the profile in between (a
+  // concurrent cancellation), the CAS misses and we loop — re-reading
+  // Stripe, which, if the subscription is really gone, now returns
+  // terminal. Lock-free: a handler that dies mid-reconcile simply doesn't
+  // write; Stripe redelivers and a fresh run reconciles.
   async function reconcileSubscription(subId: string, matchCol: 'id' | 'stripe_customer_id', matchVal: string) {
-    let sub: Stripe.Subscription;
-    try {
-      sub = await stripe.subscriptions.retrieve(subId);
-    } catch (err) {
-      console.error('stripe-webhook: failed to retrieve subscription', subId, err);
-      await captureAndFlush(err, { function_name: 'stripe-webhook', event_id: event.id, subscription: subId });
-      throw err; // -> 500, Stripe redelivers
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data: before, error: beforeErr } = await supabase
+        .from('profiles')
+        .select('stripe_event_at')
+        .eq(matchCol, matchVal)
+        .maybeSingle();
+      if (beforeErr) throw beforeErr;
+      if (!before) return [] as { id: string }[]; // no such profile (delete-account race)
+      const mark0 = before.stripe_event_at as string;
+
+      let sub: Stripe.Subscription;
+      try {
+        sub = await stripe.subscriptions.retrieve(subId);
+      } catch (err) {
+        console.error('stripe-webhook: failed to retrieve subscription', subId, err);
+        await captureAndFlush(err, { function_name: 'stripe-webhook', event_id: event.id, subscription: subId });
+        throw err; // -> 500, Stripe redelivers
+      }
+
+      const live = isLiveStatus(sub.status);
+      const plan = live ? 'pro' : 'free';
+      const trialEndMs = typeof sub.trial_end === 'number' ? sub.trial_end * 1000 : null;
+      const trial_ends_at = live && trialEndMs && trialEndMs > Date.now()
+        ? new Date(trialEndMs).toISOString()
+        : null;
+      const fields: Record<string, unknown> = {
+        plan,
+        trial_ends_at,
+        stripe_customer_id: typeof sub.customer === 'string' ? sub.customer : sub.customer?.id ?? matchVal,
+        stripe_event_at: new Date().toISOString(), // breadcrumb only, not an ordering gate
+        ...(live ? {} : ALPACA_TEARDOWN),
+      };
+
+      if (!live) {
+        // Terminal — apply unconditionally.
+        const { data, error } = await supabase
+          .from('profiles').update(fields).eq(matchCol, matchVal).select('id');
+        if (error) throw error;
+        return data ?? [];
+      }
+
+      // Live — compare-and-swap on the pre-read mark. `{ count: 'exact' }`
+      // with no `.select()` is the pattern that reports the UPDATE's own
+      // WHERE (a chained `.select()` re-applies the just-changed filter and
+      // comes back empty even on success — see stripe-checkout's mutex).
+      const { count, error } = await supabase
+        .from('profiles')
+        .update(fields, { count: 'exact' })
+        .eq(matchCol, matchVal)
+        .eq('stripe_event_at', mark0);
+      if (error) throw error;
+      if (count && count > 0) return [{ id: 'ok' }];
+      // CAS miss — the profile moved under us. Loop: re-read Stripe.
     }
-    // Timestamp of THIS observation of live state. The retrieve() above is
-    // strongly consistent, so a later retrieve reflects newer truth — but
-    // two concurrent handlers can still each retrieve and then write, and
-    // the one that retrieved earlier could commit last. Gate the write on
-    // this value so a stale observation can never overwrite a fresher one
-    // (ROUND5 1b). Not a hard guarantee across edge instances with clock
-    // skew, but strictly better than an unguarded last-writer-wins.
-    const observedAt = new Date().toISOString();
-    const active = sub.status === 'active' || sub.status === 'trialing'
-      || sub.status === 'past_due' || sub.status === 'incomplete';
-    const plan = active ? 'pro' : 'free';
-    const trialEndMs = typeof sub.trial_end === 'number' ? sub.trial_end * 1000 : null;
-    const trial_ends_at = active && trialEndMs && trialEndMs > Date.now()
-      ? new Date(trialEndMs).toISOString()
-      : null;
-    const fields: Record<string, unknown> = {
-      plan,
-      trial_ends_at,
-      stripe_customer_id: typeof sub.customer === 'string' ? sub.customer : sub.customer?.id ?? matchVal,
-      stripe_event_at: observedAt,
-      ...(active ? {} : ALPACA_TEARDOWN),
-    };
-    // Single `lt` filter only (stripe_event_at is NOT NULL) — see the
-    // applyOrdered note about postgrest-js mis-compiling `.or()` + `.select()`.
-    const { data, error } = await supabase
-      .from('profiles')
-      .update(fields)
-      .eq(matchCol, matchVal)
-      .lt('stripe_event_at', observedAt)
-      .select('id');
-    if (error) throw error;
-    return data ?? [];
+    throw new Error('stripe-webhook: reconcileSubscription lost the CAS 3x (concurrent contention) — redeliver');
   }
 
   // Fallback for the rare event with no subscription id (older/degenerate

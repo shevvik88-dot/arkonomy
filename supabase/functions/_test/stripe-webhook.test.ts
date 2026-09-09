@@ -584,31 +584,53 @@ Deno.test('unknown event type → 200 received, no-op', async () => {
 // essence: a newer observation has already committed (stripe_event_at is in
 // the future), and a handler carrying an "active" snapshot must NOT win.
 
-Deno.test('review ROUND5 1b: an obsolete subscription snapshot cannot overwrite a newer one already applied', async () => {
+// ── ROUND 6 item 1: a real barrier-based concurrency test (replacing the
+// ROUND5 future-date shortcut, which a re-fetch fix legitimately defeats).
+// Handler A's FIRST subscription retrieve parks mid-flight and then returns
+// a stale "active" snapshot; handler B meanwhile sees "canceled" and writes
+// free. When A resumes it must NOT resurrect the subscription.
+Deno.test('review ROUND6 1: a delayed retrieve response cannot resurrect a subscription a concurrent handler tore down', async () => {
   const mock = installFakeFetch();
   const cust = `cus_${crypto.randomUUID()}`;
   const subId = `sub_${crypto.randomUUID()}`;
-  // A newer handler already re-fetched Stripe, saw the subscription gone,
-  // and wrote plan=free with this (future) observation timestamp.
-  const newerObservation = new Date(Date.now() + 60_000).toISOString();
   const user = await createTestUser({
-    plan: 'free',
-    profile: { stripe_customer_id: cust, stripe_event_at: newerObservation },
+    plan: 'pro',
+    trialEndsAt: new Date(Date.now() + 5 * 86_400_000),
+    profile: { stripe_customer_id: cust, alpaca_access_token: 'tok', alpaca_refresh_token: 'ref' },
   });
-  // This handler's snapshot is stale: it still sees the subscription active.
-  mockSub(mock, subId, { status: 'active', customer: cust, trial_end: null });
-  const e = evt('customer.subscription.updated', { id: subId, customer: cust, status: 'active' });
+
+  let retrieves = 0;
+  let releaseFirst!: () => void;
+  const firstParked = new Promise<void>((r) => { releaseFirst = r; });
+  let firstEntered!: () => void;
+  const firstEnteredP = new Promise<void>((r) => { firstEntered = r; });
+  mock.on('GET', (u) => u.pathname === `/v1/subscriptions/${subId}`, async () => {
+    retrieves++;
+    if (retrieves === 1) {
+      firstEntered();
+      await firstParked;
+      return json({ id: subId, object: 'subscription', status: 'active', customer: cust, trial_end: null });
+    }
+    return json({ id: subId, object: 'subscription', status: 'canceled', customer: cust, trial_end: null });
+  });
+
+  const updEvt = evt('customer.subscription.updated', { id: subId, customer: cust, status: 'active' });
+  const delEvt = evt('customer.subscription.deleted', { id: subId, customer: cust, status: 'canceled' });
   try {
-    assertEquals((await post(e.payload)).status, 200);
-    const { data: p } = await profile(user.id);
-    assertEquals(p!.plan, 'free', 'the stale "active" snapshot must not overwrite the newer downgrade');
-    assertEquals(
-      new Date(p!.stripe_event_at).getTime(),
-      new Date(newerObservation).getTime(),
-      'the newer observation timestamp is preserved (no write happened)',
-    );
+    const aDone = post(updEvt.payload);          // A: retrieve #1 -> parks (stale "active")
+    await firstEnteredP;                         // A is parked inside its first retrieve
+    assertEquals((await post(delEvt.payload)).status, 200); // B: retrieve #2 "canceled" -> writes free
+    let { data: p } = await profile(user.id);
+    assertEquals(p!.plan, 'free', 'B applied the cancellation');
+
+    releaseFirst();                              // A resumes with the stale "active" snapshot
+    assertEquals((await aDone).status, 200);
+
+    ({ data: p } = await profile(user.id));
+    assertEquals(p!.plan, 'free', 'A must NOT resurrect the subscription with a stale snapshot');
+    assertEquals(p!.alpaca_access_token, null, 'teardown from the cancellation stands');
   } finally {
-    await delEvents(e.id);
+    await delEvents(updEvt.id, delEvt.id);
     await user.cleanup();
     mock.restore();
   }
