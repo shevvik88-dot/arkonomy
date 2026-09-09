@@ -343,7 +343,7 @@ Deno.test('audit 2026-09-08: a failed profile read before the reuse check fails 
   }
 });
 
-Deno.test('audit 2026-09-08: a failed checkout_session_id write expires the orphaned session, releases the lock, and 500s', async () => {
+Deno.test('audit 2026-09-08 (rev: item 3): a failed checkout_session_id write 500s but keeps the mutex + idempotency key for the retry', async () => {
   const mock = installFakeFetch();
   const user = await createTestUser({ plan: 'free' });
   try {
@@ -360,14 +360,15 @@ Deno.test('audit 2026-09-08: a failed checkout_session_id write expires the orph
       assertEquals(res.status, 500);
     });
 
-    // It DID create a live session (the mutex was acquired, Stripe call
-    // made) — then, unable to record it, expired it and backed everything
-    // out rather than hand back an untracked, still-payable URL.
+    // It created a live session, couldn't record its id, and 500s — but no
+    // longer expires it: the retry re-creates under the SAME idempotency
+    // key and Stripe hands back this exact session, which the retry then
+    // records. Blowing it away would just cost the user a round-trip.
     assertEquals(newSessionsCreated(mock), 1);
-    assertEquals(expired, true);
+    assertEquals(expired, false);
     const { data: p } = await profile(user.id);
-    assertEquals(p!.checkout_pending_at, null);  // mutex released for a clean retry
-    assertEquals(p!.checkout_session_id, null);  // nothing stored
+    assert(p!.checkout_pending_at !== null); // mutex retained for the reconciling retry
+    assertEquals(p!.checkout_session_id, null); // write was blocked
   } finally {
     mock.restore();
     await user.cleanup();
@@ -441,6 +442,106 @@ Deno.test('review #97 P1a: an EXPIRED prior session still releases the guard and
     assertEquals(newSessionsCreated(mock), 1);
     const { data: p } = await profile(user.id);
     assertEquals(p!.checkout_session_id, newId);
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+// ── independent review of #97, item 3: a lost response to
+// sessions.create (or a failed checkout_session_id write right after) must
+// not leave the mutex stuck or let a second concurrently-completable
+// session through. stripe-checkout now stores a per-attempt idempotency
+// key and passes it to Stripe, so a retry / concurrent request re-creates
+// under the SAME key and Stripe returns the original session.
+
+function idemKeysOnCreate(mock: ReturnType<typeof installFakeFetch>): string[] {
+  return mock.calls
+    .filter((c) => c.method === 'POST' && new URL(c.url).pathname === '/v1/checkout/sessions')
+    .map((c) => c.headers.get('Idempotency-Key') || '');
+}
+
+Deno.test('review #97 item3: mutex held too long + no session id → the retry reconciles under the derived key, one session', async () => {
+  const mock = installFakeFetch();
+  // The lost attempt acquired the lock ~90s ago and never came back — past
+  // the 30s reconcile threshold, well within the 15-min TTL.
+  const heldAt = new Date(Date.now() - 90_000).toISOString();
+  const user = await createTestUser({
+    plan: 'free',
+    profile: {
+      checkout_pending_at: heldAt,      // lock held by the crashed/lost attempt
+      checkout_session_id: null,        // its response never landed
+    },
+  });
+  try {
+    mockNoActiveSubscription(mock);
+    mock.on('POST', '/v1/checkout/sessions', () => json({ id: 'cs_recon', url: 'https://checkout.stripe.com/pay/cs_recon' }));
+
+    const res = await handler(checkoutReq(user.accessToken));
+    assertEquals(res.status, 200);
+    assert((await res.json()).url.includes('cs_recon'));
+    assertEquals(newSessionsCreated(mock), 1);
+    // The idempotency key is DERIVED from (user id | the held
+    // checkout_pending_at), so the retry re-creates under the exact key the
+    // lost attempt used and Stripe returns the original session.
+    assertEquals(idemKeysOnCreate(mock), [`chk_${user.id}_${new Date(heldAt).getTime()}`]);
+
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.checkout_session_id, 'cs_recon'); // now recorded
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('review #97 item3: the happy-path sessions.create carries a derived idempotency key (so a lost response is recoverable)', async () => {
+  // FINDING-C already covers the double-click race (one 200, one 409). This
+  // just pins the mechanism item 3 relies on: every create Stripe sees is
+  // idempotency-keyed off (user id | checkout_pending_at).
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'free' });
+  try {
+    mockNoActiveSubscription(mock);
+    mock.on('POST', '/v1/checkout/sessions', () => json({ id: 'cs_one', url: 'https://checkout.stripe.com/pay/cs_one' }));
+
+    const res = await handler(checkoutReq(user.accessToken));
+    assertEquals(res.status, 200);
+    assertEquals(newSessionsCreated(mock), 1);
+
+    const keys = idemKeysOnCreate(mock);
+    assertEquals(keys.length, 1);
+    assert(new RegExp(`^chk_${user.id}_\\d+$`).test(keys[0]), `create carried a derived idempotency key, got ${JSON.stringify(keys[0])}`);
+
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.checkout_session_id, 'cs_one');
+    // A second call now hits the reuse path (checkout_session_id set) — not
+    // relevant here, just confirming we didn't leave the mutex stuck.
+    assert(p!.checkout_pending_at !== null);
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('review #97 item3: a failed checkout_session_id write keeps the mutex + key so the retry reconciles (no expire)', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'free' });
+  try {
+    mockNoActiveSubscription(mock);
+    const sessionId = mockCheckoutSessionCreate(mock);
+    let expired = false;
+    mock.on('POST', (u) => u.pathname === `/v1/checkout/sessions/${sessionId}/expire`, () => { expired = true; return json({ id: sessionId, status: 'expired' }); });
+
+    await withCheckoutSessionIdWriteBlocked(async () => {
+      const res = await handler(checkoutReq(user.accessToken));
+      assertEquals(res.status, 500);
+    });
+
+    assertEquals(newSessionsCreated(mock), 1);
+    assertEquals(expired, false, 'the session is kept — a retry reconciles it under the idempotency key');
+    const { data: p } = await profile(user.id);
+    assert(p!.checkout_pending_at !== null, 'mutex retained for the reconciling retry');
+    assertEquals(p!.checkout_session_id, null); // still not recorded (write was blocked)
   } finally {
     mock.restore();
     await user.cleanup();

@@ -99,7 +99,7 @@ export async function handler(req: Request): Promise<Response> {
     // up simultaneously completable. Fail closed instead.
     const { data: profileBefore, error: profileBeforeErr } = await supabase
       .from('profiles')
-      .select('stripe_customer_id, checkout_session_id')
+      .select('stripe_customer_id, checkout_session_id, checkout_pending_at')
       .eq('id', user.id)
       .single();
 
@@ -231,9 +231,16 @@ export async function handler(req: Request): Promise<Response> {
     // when a filtered column is absent from the select list). `count: 'exact'`
     // reflects the UPDATE's own WHERE: 1 = we acquired it, 0 = someone else
     // holds a fresh lock.
+    // Acquire the mutex. checkout_pending_at is set to a fresh ISO string;
+    // the Stripe idempotency key is DERIVED from (user id | that exact
+    // string), so a retry — or a concurrent request that lost the lock —
+    // computes the SAME key from the still-held checkout_pending_at and
+    // re-runs sessions.create() idempotently: Stripe returns the ORIGINAL
+    // session instead of minting a second one (independent review, item 3).
+    const lockedAt = new Date().toISOString();
     const { count: lockAcquired, error: lockErr } = await supabase
       .from('profiles')
-      .update({ checkout_pending_at: new Date().toISOString() }, { count: 'exact' })
+      .update({ checkout_pending_at: lockedAt }, { count: 'exact' })
       .eq('id', user.id)
       .or('checkout_pending_at.is.null,checkout_pending_at.lt.' + new Date(Date.now() - 15 * 60 * 1000).toISOString());
 
@@ -245,14 +252,45 @@ export async function handler(req: Request): Promise<Response> {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // A real acquire→create→store cycle is sub-second. A lock held longer
+    // than this with still no session id means the holder lost its response
+    // or crashed after creating the session at Stripe — the retry that
+    // lands here should reconcile onto that session, not 409 forever.
+    const RECONCILE_AFTER_MS = 30_000;
+
+    let effectiveLockedAt = lockedAt;
     if (!lockAcquired) {
-      return new Response(JSON.stringify({
-        error: 'A checkout is already in progress. Please finish or cancel it before starting another.',
-      }), {
-        status: 409,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      const { data: held } = await supabase
+        .from('profiles')
+        .select('checkout_pending_at, checkout_session_id')
+        .eq('id', user.id)
+        .single();
+      if (held?.checkout_session_id) {
+        // The holder recorded a session — the reuse-or-close check above
+        // handles it; if we raced past it, 409 and let the client retry.
+        return new Response(JSON.stringify({
+          error: 'A checkout is already in progress. Please finish or cancel it before starting another.',
+        }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      const heldAgeMs = held?.checkout_pending_at
+        ? Date.now() - new Date(held.checkout_pending_at).getTime()
+        : 0;
+      if (!held?.checkout_pending_at || heldAgeMs < RECONCILE_AFTER_MS) {
+        // A genuine concurrent double-click: the holder is actively
+        // in flight. FINDING-C behaviour — tell the client to wait.
+        return new Response(JSON.stringify({
+          error: 'A checkout is already in progress. Please finish or cancel it before starting another.',
+        }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      // Held too long with no session id — reconcile: derive the holder's
+      // idempotency key from its checkout_pending_at and re-run
+      // sessions.create() under it, so Stripe returns the ORIGINAL session.
+      effectiveLockedAt = held.checkout_pending_at;
     }
+    // Canonicalise to epoch ms so the winner (`...Z`) and a retry reading
+    // the DB (`...+00:00`) derive the SAME key.
+    const idemKey = `chk_${user.id}_${new Date(effectiveLockedAt).getTime()}`;
 
     const session = await stripe.checkout.sessions.create({
       mode:                'subscription',
@@ -269,34 +307,23 @@ export async function handler(req: Request): Promise<Response> {
       subscription_data: { trial_period_days: 7 },
       success_url: `${APP_URL}?trial_started=true`,
       cancel_url:  `${APP_URL}?trial_cancelled=true`,
-    });
+    }, { idempotencyKey: idemKey });
 
-    // Recorded alongside checkout_pending_at (not instead of it) so
-    // delete-account can actively expire this specific Stripe session —
-    // checkout_pending_at's own 15-min TTL doesn't reflect how long the
-    // real session stays completable (up to 24h, Stripe's default).
+    // Record the session id, scoped so a concurrent reconcile that already
+    // wrote it isn't clobbered.
     const { error: sessionIdErr } = await supabase
       .from('profiles')
       .update({ checkout_session_id: session.id })
-      .eq('id', user.id);
+      .eq('id', user.id)
+      .is('checkout_session_id', null);
 
     if (sessionIdErr) {
-      // Code-reviewer finding, 2026-09-07: a real, live, completable Stripe
-      // session now exists with nothing locally recording it — exactly the
-      // state this whole fix exists to prevent (a later request's
-      // reuse-or-close check has no session id to find, so it would go on
-      // to mint a second one while this first one is still payable). Best-
-      // effort expire the session we just created so it can't be
-      // completed, release the mutex so a clean retry isn't blocked for up
-      // to 15 minutes, and fail the request rather than hand back a URL
-      // this system no longer knows about.
-      console.error('stripe-checkout: failed to store checkout_session_id, expiring the session:', sessionIdErr);
-      try {
-        await stripe.checkout.sessions.expire(session.id);
-      } catch (expireErr) {
-        console.error('stripe-checkout: failed to expire orphaned session:', expireErr);
-      }
-      await supabase.from('profiles').update({ checkout_pending_at: null }).eq('id', user.id);
+      // The session is live at Stripe and the idempotency key is stored, so
+      // the retry re-creates under it and gets THIS exact session, then
+      // records it. Don't expire it (that just costs the user a round-trip)
+      // and don't release the mutex/key (the retry needs both). Just fail
+      // so the client retries.
+      console.error('stripe-checkout: failed to store checkout_session_id (retry will reconcile under the idempotency key):', sessionIdErr);
       await captureAndFlush(sessionIdErr, { function_name: 'stripe-checkout', checkout_session_id: session.id });
       return new Response(JSON.stringify({ error: "Internal Server Error" }), {
         status: 500,
