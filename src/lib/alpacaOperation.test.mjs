@@ -198,3 +198,52 @@ test('30 other purchases never evict unresolved A, including after reload', asyn
   const reloaded = await freshModule();
   assert.equal(reloaded.beginOperation('user-1', 'SPY', 30).id, first.id);
 });
+
+// ── ROUND 5, risk 2: the full client path an ambiguous outcome takes.
+// classifyInvestOutcome() decides whether the call site settles; an
+// AMBIGUOUS result (network drop, 5xx, invalid body reported as an opaque
+// non-2xx message) must return 'keep', the call site then skips
+// settleOperation(), and the very next begin of THE SAME purchase must
+// hand back the same still-open id (a retry, not a new order) while a
+// genuinely different purchase gets a fresh id. Reload in between changes
+// nothing.
+test('ROUND5 risk 2: an ambiguous invest outcome keeps the id open for a same-purchase retry across a reload; a different purchase is new', async () => {
+  installStorage();
+  const m1 = await freshModule();
+  const { beginOperation, settleOperation, classifyInvestOutcome } = m1;
+  const U = 'user-1';
+
+  const a1 = beginOperation(U, 'SPY', 30);
+  assert.equal(a1.isRetry, false);
+
+  // Server accepted the order but the 200 was lost / the body was
+  // unreadable / a 5xx came back — all ambiguous. The call site consults
+  // classifyInvestOutcome and, on 'keep', does NOT settle.
+  for (const outcome of [
+    { threw: true },                                              // network drop / no response
+    { httpStatus: 500, errorCode: 'Internal Server Error' },      // broker 5xx
+    { httpStatus: 502, errorCode: 'Edge Function returned a non-2xx status code' }, // opaque body
+    { httpStatus: 409, errorCode: 'This order was already submitted. Please wait.' }, // still processing
+  ]) {
+    assert.equal(classifyInvestOutcome(outcome), 'keep', `${JSON.stringify(outcome)} must not settle`);
+  }
+  // (call site skipped settleOperation because every outcome was 'keep')
+
+  // Reload (process kill after send) — same sessionStorage, fresh module.
+  const m2 = await freshModule();
+  const aRetry = m2.beginOperation(U, 'SPY', 30);
+  assert.equal(aRetry.id, a1.id, 'same purchase after an ambiguous outcome replays the same operation_id');
+  assert.equal(aRetry.isRetry, true);
+
+  // A genuinely different intentional purchase is NOT the retry.
+  const b1 = m2.beginOperation(U, 'SPY', 45);
+  assert.notEqual(b1.id, a1.id);
+  assert.equal(b1.isRetry, false);
+
+  // Only a DEFINITE outcome frees the slot.
+  assert.equal(m2.classifyInvestOutcome({ success: true }), 'settle');
+  m2.settleOperation(U, aRetry.id);
+  const aAfterSettle = m2.beginOperation(U, 'SPY', 30);
+  assert.notEqual(aAfterSettle.id, a1.id, 'after a confirmed placement the next same-form purchase is new');
+  assert.equal(aAfterSettle.isRetry, false);
+});
