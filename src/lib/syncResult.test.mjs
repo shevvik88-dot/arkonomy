@@ -1,9 +1,12 @@
 // Unit tests for classifySyncResult — the plaid-sync-transactions result
-// classifier. Run: node --test src/lib/callEdgeFunction.test.mjs
+// classifier. Run: node --test src/lib/syncResult.test.mjs
+// The real call-site wiring (fetch -> decode -> classify -> App reaction)
+// is covered separately in syncPaths.test.mjs.
 //
-// #96 P2: a 502 with an HTML body, an empty body, or a 401/500 must NOT be
-// treated as a clean sync (which would stamp last_synced_at and make
-// bgSync skip the failed banks for an hour).
+// #96 P2: a 502 with an HTML body, an empty body, a 401/500, an unexpected
+// 2xx, or a 200 whose numbers are missing / negative / fractional /
+// internally inconsistent must NOT be treated as a clean sync (which would
+// stamp last_synced_at and make bgSync skip the failed banks for an hour).
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,9 +28,37 @@ test('a 207 Multi-Status with failed_items -> partial', () => {
 
 test('a 200 that still carries a non-empty failed_items -> partial', () => {
   assert.equal(
-    classifySyncResult({ status: 200, ok: true, data: { synced: 0, failed_items: ['item_x'] } }),
+    classifySyncResult({ status: 200, ok: true, data: { added: 0, modified: 0, removed: 0, synced: 0, failed_items: ['item_x'] } }),
     'partial',
   );
+});
+
+test('an unexpected 2xx (201/204) with an otherwise-valid body -> error', () => {
+  assert.equal(classifySyncResult({ status: 201, ok: true, data: { added: 3, modified: 1, removed: 0, synced: 4 } }), 'error');
+  assert.equal(classifySyncResult({ status: 204, ok: true, data: { added: 0, modified: 0, removed: 0, synced: 0 } }), 'error');
+});
+
+test('a 200 missing count fields -> error', () => {
+  assert.equal(classifySyncResult({ status: 200, ok: true, data: { synced: 4 } }), 'error');
+});
+
+test('a 200 with a negative or fractional count -> error', () => {
+  assert.equal(classifySyncResult({ status: 200, ok: true, data: { added: 3, modified: 1, removed: -1, synced: 4 } }), 'error');
+  assert.equal(classifySyncResult({ status: 200, ok: true, data: { added: 3, modified: 1, removed: 0.5, synced: 4 } }), 'error');
+});
+
+test('a 200 where synced != added + modified -> error', () => {
+  assert.equal(classifySyncResult({ status: 200, ok: true, data: { added: 3, modified: 1, removed: 0, synced: 5 } }), 'error');
+});
+
+test('a malformed failed_items (non-array, or empty/non-string ids) -> error', () => {
+  assert.equal(classifySyncResult({ status: 200, ok: true, data: { added: 3, modified: 1, removed: 0, synced: 4, failed_items: {} } }), 'error');
+  assert.equal(classifySyncResult({ status: 207, ok: true, data: { added: 3, modified: 1, removed: 0, synced: 4, failed_items: [null] } }), 'error');
+  assert.equal(classifySyncResult({ status: 207, ok: true, data: { added: 3, modified: 1, removed: 0, synced: 4, failed_items: ['  '] } }), 'error');
+});
+
+test('a bare 207 with no counts -> error', () => {
+  assert.equal(classifySyncResult({ status: 207, ok: true, data: {} }), 'error');
 });
 
 test('a 502 whose HTML body failed to parse (data null) -> error', () => {
