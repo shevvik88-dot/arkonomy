@@ -94,19 +94,81 @@ test('a retry after a page reload (fresh module, same sessionStorage) keeps the 
   assert.equal(retry.isRetry, true);
 });
 
-test('storage unavailable — retry still reuses the id within the page; settle still ends it', async () => {
+test('storage unavailable — a NEW operation fails closed (no in-memory-only id a reload would lose)', async () => {
   installStorage({ broken: true });
-  const { beginOperation, settleOperation } = await freshModule();
-  const U = 'user-1';
+  const { beginOperation } = await freshModule();
 
-  const first = beginOperation(U, 'SPY', 30);
-  const retry = beginOperation(U, 'SPY', 30);
-  assert.equal(retry.id, first.id, 'in-memory fallback must keep the key stable when sessionStorage throws');
+  const r = beginOperation('user-1', 'SPY', 30);
+  assert.equal(r.id, undefined, 'must not hand back an id it cannot durably persist');
+  assert.equal(r.error, 'storage_unavailable');
+});
+
+test('storage unavailable — an already-open operation is still reusable within the same page', async () => {
+  // The page starts an operation while storage works, storage then breaks
+  // (private-mode quirk, quota) — a retry within the same page must still
+  // reconcile against the same id.
+  const store = installStorage();
+  const { beginOperation } = await freshModule();
+  const first = beginOperation('user-1', 'SPY', 30);
+  assert.ok(first.id);
+
+  globalThis.sessionStorage.getItem = () => { throw new Error('blocked'); };
+  globalThis.sessionStorage.setItem = () => { throw new Error('blocked'); };
+  const retry = beginOperation('user-1', 'SPY', 30);
+  assert.equal(retry.id, first.id);
   assert.equal(retry.isRetry, true);
+});
 
-  settleOperation(U, first.id);
-  const afterSettle = beginOperation(U, 'SPY', 30);
-  assert.notEqual(afterSettle.id, first.id);
+// ── classifyInvestOutcome: which alpaca-invest results settle the operation
+// (definite success / definite rejection) vs. leave it open for
+// reconciliation (network failure, 409 "still processing", 5xx, 503).
+
+test('classifyInvestOutcome: a confirmed placement settles', async () => {
+  const { classifyInvestOutcome } = await freshModule();
+  assert.equal(classifyInvestOutcome({ success: true }), 'settle');
+});
+
+test('classifyInvestOutcome: a network failure (no response) keeps the operation open', async () => {
+  const { classifyInvestOutcome } = await freshModule();
+  assert.equal(classifyInvestOutcome({ threw: true }), 'keep');
+});
+
+test('classifyInvestOutcome: a 409 "already submitted / still processing" keeps it open', async () => {
+  const { classifyInvestOutcome } = await freshModule();
+  assert.equal(classifyInvestOutcome({ httpStatus: 409, errorCode: 'This order was already submitted. Please wait a moment before retrying.' }), 'keep');
+});
+
+test('classifyInvestOutcome: a 503 order_status_unknown keeps it open', async () => {
+  const { classifyInvestOutcome } = await freshModule();
+  assert.equal(classifyInvestOutcome({ httpStatus: 503, errorCode: 'order_status_unknown' }), 'keep');
+});
+
+test('classifyInvestOutcome: a 500 Internal Server Error keeps it open', async () => {
+  const { classifyInvestOutcome } = await freshModule();
+  assert.equal(classifyInvestOutcome({ httpStatus: 500, errorCode: 'Internal Server Error' }), 'keep');
+});
+
+test('classifyInvestOutcome: alpaca_not_connected keeps it open (transient — reconnect then retry)', async () => {
+  const { classifyInvestOutcome } = await freshModule();
+  assert.equal(classifyInvestOutcome({ httpStatus: 400, errorCode: 'alpaca_not_connected' }), 'keep');
+});
+
+test('classifyInvestOutcome: a definite Alpaca rejection settles', async () => {
+  const { classifyInvestOutcome } = await freshModule();
+  assert.equal(classifyInvestOutcome({ httpStatus: 400, errorCode: 'Insufficient buying power. Available: $0.00' }), 'settle');
+  assert.equal(classifyInvestOutcome({ httpStatus: 400, errorCode: 'Order failed' }), 'settle');
+  assert.equal(classifyInvestOutcome({ httpStatus: 400, errorCode: 'brokerage_account_error' }), 'settle');
+});
+
+test('classifyInvestOutcome: operation_parameters_mismatch and previous_attempt_incomplete settle', async () => {
+  const { classifyInvestOutcome } = await freshModule();
+  assert.equal(classifyInvestOutcome({ httpStatus: 409, errorCode: 'operation_parameters_mismatch' }), 'settle');
+  assert.equal(classifyInvestOutcome({ httpStatus: 200, errorCode: 'previous_attempt_incomplete', success: false }), 'settle');
+});
+
+test('classifyInvestOutcome: an unrecognised error defaults to keep-open (conservative)', async () => {
+  const { classifyInvestOutcome } = await freshModule();
+  assert.equal(classifyInvestOutcome({ httpStatus: 418, errorCode: 'something new' }), 'keep');
 });
 
 test('keys are per user', async () => {
@@ -116,4 +178,23 @@ test('keys are per user', async () => {
   const b = beginOperation('user-2', 'SPY', 30);
   assert.notEqual(a.id, b.id);
   assert.equal(b.isRetry, false);
+});
+
+test('25h retry preserves an unresolved operation', async () => {
+  installStorage();
+  const m = await freshModule();
+  let now = 1_000_000_000_000;
+  Date.now = () => now;
+  const first = m.beginOperation('user-1', 'SPY', 30);
+  now += 25 * 3600_000;
+  assert.equal(m.beginOperation('user-1', 'SPY', 30).id, first.id);
+});
+
+test('30 other purchases never evict unresolved A, including after reload', async () => {
+  installStorage();
+  const m = await freshModule();
+  const first = m.beginOperation('user-1', 'SPY', 30);
+  for (let n = 100; n < 130; n++) m.beginOperation('user-1', 'SPY', n);
+  const reloaded = await freshModule();
+  assert.equal(reloaded.beginOperation('user-1', 'SPY', 30).id, first.id);
 });

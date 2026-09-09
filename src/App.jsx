@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
 import { detectBrowserLanguage } from "./i18n";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "./utils/supabase";
 import { callEdgeFunction } from "./lib/callEdgeFunction";
-import { beginOperation, settleOperation } from "./lib/alpacaOperation";
+import { beginOperation, settleOperation, classifyInvestOutcome } from "./lib/alpacaOperation";
 import { getCachedAccounts, setCachedAccounts, clearAccountsCache, sumDepositoryBalance, getCreditAccounts } from "./utils/accountsCache";
 import { clearDiagnosisLessonCache } from "./utils/diagnosisLessonCache";
 import { App as CapApp } from "@capacitor/app";
@@ -1591,11 +1591,16 @@ export default function App() {
     // window where profile might not have loaded yet.
     const symbol = profile?.roundup_symbol ?? "SPY";
     // One key per intentional round-up purchase. A retry of THIS purchase
-    // reuses it (server replays the prior outcome, never a second order);
-    // settleOperation on any non-ambiguous result ends it, so the next
-    // round-up invest is a distinct operation.
+    // reuses it (server replays the prior outcome, never a second order).
     const numAmount = Number(amount);
-    const { id: operation_id } = beginOperation(user.id, symbol, numAmount);
+    const op = beginOperation(user.id, symbol, numAmount);
+    if (op.error === 'storage_unavailable') {
+      setAlpacaToast({ error: "Can't invest right now — your browser is blocking local storage. Enable it and try again." });
+      clearTimeout(alpacaToastTimerRef.current);
+      alpacaToastTimerRef.current = setTimeout(() => setAlpacaToast(null), 5000);
+      return;
+    }
+    const operation_id = op.id;
     setAlpacaToast({ loading: true, message: `Investing $${amount} in ${symbol}…` });
     try {
       const { data: result, error } = await supabase.functions.invoke("alpaca-invest", {
@@ -1604,6 +1609,7 @@ export default function App() {
       if (error || result?.error) {
         let errMsg = result?.error || error?.message || "Investment failed";
         let details = result?.details ? JSON.stringify(result.details) : '';
+        let httpStatus = error?.context?.status;
         if (error?.context) {
           try {
             const errBody = await error.context.json();
@@ -1611,10 +1617,12 @@ export default function App() {
             details = errBody?.details ? JSON.stringify(errBody.details) : details;
           } catch {}
         }
-        // 'order_status_unknown' = the server couldn't confirm the outcome;
-        // keep the key OPEN so the next tap retries the same operation.
-        // Every other error is definite (the server placed nothing) — end it.
-        if (errMsg !== 'order_status_unknown') settleOperation(user.id, operation_id);
+        // Only a DEFINITE outcome ends the operation. A network failure, a
+        // 409 "still processing", any 5xx, or order_status_unknown leave it
+        // OPEN so the next tap reconciles against the same id.
+        if (classifyInvestOutcome({ httpStatus, errorCode: errMsg }) === 'settle') {
+          settleOperation(user.id, operation_id);
+        }
         if (errMsg === 'alpaca_not_connected') {
           setAlpacaToast(null);
           connectAlpaca();
