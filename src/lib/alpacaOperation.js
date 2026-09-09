@@ -82,6 +82,22 @@ function save(userId, obj) {
   try { sessionStorage.setItem(STORE_PREFIX + key, JSON.stringify(obj)); } catch { /* mirror is best-effort */ }
 }
 
+// Like save(), but for the ONE case that must fail closed: minting a brand-
+// new operation. Attempts the real registry write and reports whether it
+// stuck. Does NOT touch `mem` — the caller commits to memory only on true.
+// (A tiny __probe__ sentinel can succeed while the full payload trips
+// QuotaExceededError, so storageWritable() alone is not enough.)
+function persistNew(userId, obj) {
+  const key = String(userId ?? '');
+  try {
+    const raw = JSON.stringify(obj);
+    sessionStorage.setItem(STORE_PREFIX + key, raw);
+    return sessionStorage.getItem(STORE_PREFIX + key) === raw;
+  } catch {
+    return false;
+  }
+}
+
 function prune(obj) {
   const now = Date.now();
   for (const sig of Object.keys(obj)) {
@@ -109,15 +125,20 @@ export function beginOperation(userId, symbol, amount) {
   if (cur && cur.id && !cur.settled) {
     return { id: cur.id, isRetry: true };
   }
-  // A brand-new operation must be durably trackable before we let an order
-  // go out under it.
+  // A brand-new operation must be durably PERSISTED before we let an order
+  // go out under it. Build the next state as a copy, write it for real, and
+  // only commit to memory + return the id if that write actually stuck — a
+  // passing probe does not prove the full payload fits (QuotaExceededError).
   if (!storageWritable()) {
     return { error: 'storage_unavailable' };
   }
   const id = uuid();
-  obj[sig] = { id, ts: Date.now(), settled: false };
-  prune(obj);
-  save(userId, obj);
+  const next = { ...obj, [sig]: { id, ts: Date.now(), settled: false } };
+  prune(next);
+  if (!persistNew(userId, next)) {
+    return { error: 'storage_unavailable' }; // no id, and `mem`/`obj` untouched
+  }
+  mem.set(String(userId ?? ''), next);
   return { id, isRetry: false };
 }
 

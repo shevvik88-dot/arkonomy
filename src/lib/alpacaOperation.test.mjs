@@ -199,6 +199,43 @@ test('30 other purchases never evict unresolved A, including after reload', asyn
   assert.equal(reloaded.beginOperation('user-1', 'SPY', 30).id, first.id);
 });
 
+// ── ROUND 6, #98 item 4: the storage probe (tiny __probe__ sentinel) can
+// pass while the actual registry write throws QuotaExceededError (payload
+// bigger than the headroom). beginOperation() must return a new id ONLY
+// after the operation itself is durably saved — otherwise a reload hands
+// back a different id and the same purchase places a second order.
+test('ROUND6 item4: probe passes but the registry write fails -> NEW operation fails closed, no phantom in memory', async () => {
+  installStorage();
+  const { beginOperation } = await freshModule();
+  const realSet = globalThis.sessionStorage.setItem.bind(globalThis.sessionStorage);
+  // the sentinel probe still works; the real per-user registry write blows quota
+  globalThis.sessionStorage.setItem = (k, v) => {
+    if (String(k).endsWith('__probe__')) return realSet(k, v);
+    const e = new Error('QuotaExceededError'); e.name = 'QuotaExceededError'; throw e;
+  };
+
+  const r1 = beginOperation('user-1', 'SPY', 30);
+  assert.equal(r1.id, undefined, 'must not hand back an id it could not persist');
+  assert.equal(r1.error, 'storage_unavailable');
+
+  // Same page, retry — still fails closed. No phantom op resurrected from mem.
+  const r2 = beginOperation('user-1', 'SPY', 30);
+  assert.equal(r2.id, undefined);
+  assert.equal(r2.error, 'storage_unavailable');
+
+  // Storage recovers → a genuinely fresh op is minted AND persisted.
+  globalThis.sessionStorage.setItem = realSet;
+  const r3 = beginOperation('user-1', 'SPY', 30);
+  assert.ok(r3.id);
+  assert.equal(r3.isRetry, false);
+
+  // Reload: because r3 WAS persisted, the same purchase replays the same id.
+  const reloaded = await freshModule();
+  const r4 = reloaded.beginOperation('user-1', 'SPY', 30);
+  assert.equal(r4.id, r3.id);
+  assert.equal(r4.isRetry, true);
+});
+
 // ── ROUND 5, risk 2: the full client path an ambiguous outcome takes.
 // classifyInvestOutcome() decides whether the call site settles; an
 // AMBIGUOUS result (network drop, 5xx, invalid body reported as an opaque
