@@ -189,6 +189,14 @@ export async function handler(req: Request): Promise<Response> {
       await captureAndFlush(err, { function_name: 'stripe-webhook', event_id: event.id, subscription: subId });
       throw err; // -> 500, Stripe redelivers
     }
+    // Timestamp of THIS observation of live state. The retrieve() above is
+    // strongly consistent, so a later retrieve reflects newer truth — but
+    // two concurrent handlers can still each retrieve and then write, and
+    // the one that retrieved earlier could commit last. Gate the write on
+    // this value so a stale observation can never overwrite a fresher one
+    // (ROUND5 1b). Not a hard guarantee across edge instances with clock
+    // skew, but strictly better than an unguarded last-writer-wins.
+    const observedAt = new Date().toISOString();
     const active = sub.status === 'active' || sub.status === 'trialing'
       || sub.status === 'past_due' || sub.status === 'incomplete';
     const plan = active ? 'pro' : 'free';
@@ -200,10 +208,17 @@ export async function handler(req: Request): Promise<Response> {
       plan,
       trial_ends_at,
       stripe_customer_id: typeof sub.customer === 'string' ? sub.customer : sub.customer?.id ?? matchVal,
-      stripe_event_at: eventAt,
+      stripe_event_at: observedAt,
       ...(active ? {} : ALPACA_TEARDOWN),
     };
-    const { data, error } = await supabase.from('profiles').update(fields).eq(matchCol, matchVal).select('id');
+    // Single `lt` filter only (stripe_event_at is NOT NULL) — see the
+    // applyOrdered note about postgrest-js mis-compiling `.or()` + `.select()`.
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(fields)
+      .eq(matchCol, matchVal)
+      .lt('stripe_event_at', observedAt)
+      .select('id');
     if (error) throw error;
     return data ?? [];
   }

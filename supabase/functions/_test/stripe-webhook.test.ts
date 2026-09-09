@@ -574,3 +574,92 @@ Deno.test('unknown event type → 200 received, no-op', async () => {
     await delEvents(e.id);
   }
 });
+
+// ── ROUND 5, risk 1b: a single subscriptions.retrieve() is not, on its
+// own, protection against two webhook handlers holding different snapshots
+// of the subscription and the one with the OLDER snapshot writing the
+// profile last. reconcileSubscription() must not overwrite a profile that a
+// newer observation has already moved on. The race itself needs a mid-
+// handler interleave the harness has no hook for; this reproduces its
+// essence: a newer observation has already committed (stripe_event_at is in
+// the future), and a handler carrying an "active" snapshot must NOT win.
+
+Deno.test('review ROUND5 1b: an obsolete subscription snapshot cannot overwrite a newer one already applied', async () => {
+  const mock = installFakeFetch();
+  const cust = `cus_${crypto.randomUUID()}`;
+  const subId = `sub_${crypto.randomUUID()}`;
+  // A newer handler already re-fetched Stripe, saw the subscription gone,
+  // and wrote plan=free with this (future) observation timestamp.
+  const newerObservation = new Date(Date.now() + 60_000).toISOString();
+  const user = await createTestUser({
+    plan: 'free',
+    profile: { stripe_customer_id: cust, stripe_event_at: newerObservation },
+  });
+  // This handler's snapshot is stale: it still sees the subscription active.
+  mockSub(mock, subId, { status: 'active', customer: cust, trial_end: null });
+  const e = evt('customer.subscription.updated', { id: subId, customer: cust, status: 'active' });
+  try {
+    assertEquals((await post(e.payload)).status, 200);
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.plan, 'free', 'the stale "active" snapshot must not overwrite the newer downgrade');
+    assertEquals(
+      new Date(p!.stripe_event_at).getTime(),
+      new Date(newerObservation).getTime(),
+      'the newer observation timestamp is preserved (no write happened)',
+    );
+  } finally {
+    await delEvents(e.id);
+    await user.cleanup();
+    mock.restore();
+  }
+});
+
+// ── ROUND 5, risk 1c: a retry of an OLD webhook after its earlier attempt
+// failed must not (a) restore pro after the subscription was cancelled, nor
+// (b) clear the guard fields of a DIFFERENT checkout the user has since
+// started. Expected to already hold — reconcileSubscription() re-fetches
+// live state (so a redelivery derives plan from truth, not the embedded
+// snapshot) and the completed-handler's guard clear is scoped to its own
+// session id. This locks both in for the reconcileSubscription() path.
+
+Deno.test('review ROUND5 1c: a redelivered stale completed event re-fetches live state (stays free) and does not clear a newer session', async () => {
+  const mock = installFakeFetch();
+  const cust = `cus_${crypto.randomUUID()}`;
+  const subId = `sub_${crypto.randomUUID()}`;
+  const nowS = Math.floor(Date.now() / 1000);
+  const user = await createTestUser({
+    plan: 'pro',
+    trialEndsAt: new Date(Date.now() + 5 * 86_400_000),
+    profile: { stripe_customer_id: cust, checkout_session_id: 'cs_old', alpaca_access_token: 'tok' },
+  });
+  // The subscription this old completed event references is already
+  // cancelled in Stripe by the time any delivery of it is processed.
+  mockSub(mock, subId, { status: 'canceled', customer: cust, trial_end: null });
+  const e1 = evt('checkout.session.completed',
+    { id: 'cs_old', client_reference_id: user.id, customer: cust, subscription: subId },
+    { created: nowS - 600 });
+  try {
+    // First delivery: applies (live sub already canceled -> free), then its
+    // isolate "crashes" before marking the dedup row completed.
+    assertEquals((await post(e1.payload)).status, 200);
+    await dbAdmin().from('stripe_webhook_events')
+      .update({ status: 'processing', processed_at: new Date(Date.now() - 600_000).toISOString() })
+      .eq('event_id', e1.id);
+    // The user has since started a brand-new checkout.
+    await dbAdmin().from('profiles')
+      .update({ checkout_session_id: 'cs_new', checkout_pending_at: new Date().toISOString() })
+      .eq('id', user.id);
+
+    // Stripe redelivers the old event.
+    assertEquals((await post(e1.payload)).status, 200);
+
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.plan, 'free', 'the redelivered old completed event must not re-grant pro');
+    assertEquals(p!.checkout_session_id, 'cs_new', 'the newer checkout session id is untouched');
+    assert(p!.checkout_pending_at !== null, 'the newer checkout lock is untouched');
+  } finally {
+    await delEvents(e1.id);
+    await user.cleanup();
+    mock.restore();
+  }
+});
