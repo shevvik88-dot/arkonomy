@@ -31,3 +31,7 @@ export async function callEdgeFunctionWithStatus(functionName, body) {
   try { data = await response.json(); } catch { /* empty / non-JSON body */ }
   return { status: response.status, ok: response.ok, data };
 }
+
+// Re-export for convenience; the implementation lives in a Vite-free module
+// so it can be unit-tested under `node --test`.
+export { classifySyncResult } from './syncResult.js';
