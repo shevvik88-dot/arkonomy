@@ -293,15 +293,32 @@ export async function handler(req: Request): Promise<Response> {
       // may have created a session at Stripe under its own derived key and
       // lost the response. Reconcile under THAT key so Stripe hands back
       // the original session instead of minting a second (ROUND5 1d).
-      const priorAgeMs = Date.now() - new Date(profileBefore.checkout_pending_at).getTime();
+      //
+      // ROUND6 item 2: the mutex acquire above already overwrote
+      // checkout_pending_at with `lockedAt`, so the ORIGINAL attempt's
+      // identity now lives only in `profileBefore`. Persist it back —
+      // scoped to the lock we just took — so it is NOT a function of who
+      // currently holds the lock: a retry 31s later, or this reconcile
+      // itself crashing before it stores a session id, still derives the
+      // SAME idempotency key and Stripe still de-dupes onto the one
+      // original session.
+      const priorPendingAt = profileBefore.checkout_pending_at as string;
+      const priorAgeMs = Date.now() - new Date(priorPendingAt).getTime();
+      await supabase
+        .from('profiles')
+        .update({ checkout_pending_at: priorPendingAt })
+        .eq('id', user.id)
+        .eq('checkout_pending_at', lockedAt);
       // Stripe retains idempotency keys for ~24h. Past that there is
       // nothing left to dedupe against; a real session from then is itself
       // long expired, but at the boundary we can't be certain, so don't
       // gamble on a second live session — return an explicit state to
-      // reconcile rather than creating a new one.
+      // reconcile rather than creating a new one. The identity is already
+      // restored above, so the next retry lands here again, not on a fresh
+      // key.
       const KEY_RETENTION_SAFE_MS = 23 * 60 * 60 * 1000;
       if (priorAgeMs < KEY_RETENTION_SAFE_MS) {
-        effectiveLockedAt = profileBefore.checkout_pending_at;
+        effectiveLockedAt = priorPendingAt;
       } else {
         return new Response(JSON.stringify({
           error: 'checkout_reconcile_required',
