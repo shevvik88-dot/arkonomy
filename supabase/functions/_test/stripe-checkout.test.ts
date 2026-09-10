@@ -25,7 +25,7 @@ function checkoutReq(token: string | null): Request {
 }
 
 function profile(id: string) {
-  return dbAdmin().from('profiles').select('checkout_pending_at, checkout_session_id').eq('id', id).single();
+  return dbAdmin().from('profiles').select('checkout_pending_at, checkout_session_id, checkout_attempt_key').eq('id', id).single();
 }
 
 // No active Stripe customer/subscription for this user — the first guard
@@ -367,8 +367,9 @@ Deno.test('audit 2026-09-08 (rev: item 3): a failed checkout_session_id write 50
     assertEquals(newSessionsCreated(mock), 1);
     assertEquals(expired, false);
     const { data: p } = await profile(user.id);
-    assert(p!.checkout_pending_at !== null); // mutex retained for the reconciling retry
-    assertEquals(p!.checkout_session_id, null); // write was blocked
+    assert(p!.checkout_pending_at !== null);       // mutex retained for the reconciling retry
+    assert(p!.checkout_attempt_key !== null);      // ...and so is the attempt identity
+    assertEquals(p!.checkout_session_id, null);    // write was blocked
   } finally {
     mock.restore();
     await user.cleanup();
@@ -461,16 +462,18 @@ function idemKeysOnCreate(mock: ReturnType<typeof installFakeFetch>): string[] {
     .map((c) => c.headers.get('Idempotency-Key') || '');
 }
 
-Deno.test('review #97 item3: mutex held too long + no session id → the retry reconciles under the derived key, one session', async () => {
+Deno.test('review #97 item3: mutex held too long + no session id → the retry reconciles under the stable key, one session', async () => {
   const mock = installFakeFetch();
   // The lost attempt acquired the lock ~90s ago and never came back — past
   // the 30s reconcile threshold, well within the 15-min TTL.
   const heldAt = new Date(Date.now() - 90_000).toISOString();
+  const attemptKey = `chk_${crypto.randomUUID()}_${Date.now() - 90_000}`;
   const user = await createTestUser({
     plan: 'free',
     profile: {
-      checkout_pending_at: heldAt,      // lock held by the crashed/lost attempt
-      checkout_session_id: null,        // its response never landed
+      checkout_pending_at: heldAt,        // lock held by the crashed/lost attempt
+      checkout_session_id: null,          // its response never landed
+      checkout_attempt_key: attemptKey,   // ...but its identity is durably stamped
     },
   });
   try {
@@ -481,13 +484,13 @@ Deno.test('review #97 item3: mutex held too long + no session id → the retry r
     assertEquals(res.status, 200);
     assert((await res.json()).url.includes('cs_recon'));
     assertEquals(newSessionsCreated(mock), 1);
-    // The idempotency key is DERIVED from (user id | the held
-    // checkout_pending_at), so the retry re-creates under the exact key the
-    // lost attempt used and Stripe returns the original session.
-    assertEquals(idemKeysOnCreate(mock), [`chk_${user.id}_${new Date(heldAt).getTime()}`]);
+    // The retry adopts the STORED checkout_attempt_key, so Stripe sees the
+    // exact key the lost attempt used and returns the original session.
+    assertEquals(idemKeysOnCreate(mock), [attemptKey]);
 
     const { data: p } = await profile(user.id);
-    assertEquals(p!.checkout_session_id, 'cs_recon'); // now recorded
+    assertEquals(p!.checkout_session_id, 'cs_recon');   // now recorded
+    assertEquals(p!.checkout_attempt_key, null);        // and the identity retired
   } finally {
     mock.restore();
     await user.cleanup();
@@ -541,6 +544,7 @@ Deno.test('review #97 item3: a failed checkout_session_id write keeps the mutex 
     assertEquals(expired, false, 'the session is kept — a retry reconciles it under the idempotency key');
     const { data: p } = await profile(user.id);
     assert(p!.checkout_pending_at !== null, 'mutex retained for the reconciling retry');
+    assert(p!.checkout_attempt_key !== null, 'attempt identity retained for the reconciling retry');
     assertEquals(p!.checkout_session_id, null); // still not recorded (write was blocked)
   } finally {
     mock.restore();
@@ -598,12 +602,13 @@ Deno.test('review ROUND5 1a: an active subscription that appears after the pre-l
 // there is nothing to dedupe against — return an explicit status instead
 // of gambling on a second session.
 
-Deno.test('review ROUND5 1d: a >15min stale lock with no session id reconciles under the prior key, one session', async () => {
+Deno.test('review ROUND5 1d: a >15min stale lock with no session id reconciles under the stable key, one session', async () => {
   const mock = installFakeFetch();
   const staleAt = new Date(Date.now() - 20 * 60_000).toISOString(); // 20 min ago
+  const attemptKey = `chk_${crypto.randomUUID()}_${Date.now() - 20 * 60_000}`;
   const user = await createTestUser({
     plan: 'free',
-    profile: { checkout_pending_at: staleAt, checkout_session_id: null },
+    profile: { checkout_pending_at: staleAt, checkout_session_id: null, checkout_attempt_key: attemptKey },
   });
   try {
     mockNoActiveSubscription(mock);
@@ -612,23 +617,29 @@ Deno.test('review ROUND5 1d: a >15min stale lock with no session id reconciles u
     const res = await handler(checkoutReq(user.accessToken));
     assertEquals(res.status, 200);
     assertEquals(newSessionsCreated(mock), 1);
-    // Keyed off the STALE lock's timestamp, not a fresh one.
-    assertEquals(idemKeysOnCreate(mock), [`chk_${user.id}_${new Date(staleAt).getTime()}`]);
+    // The stored attempt key is adopted — not a fresh one.
+    assertEquals(idemKeysOnCreate(mock), [attemptKey]);
 
     const { data: p } = await profile(user.id);
     assertEquals(p!.checkout_session_id, 'cs_recon_1d');
+    assertEquals(p!.checkout_attempt_key, null);
   } finally {
     mock.restore();
     await user.cleanup();
   }
 });
 
-Deno.test('review ROUND5 1d: a stale lock older than the idempotency-key retention window returns an explicit reconcile status, no new session', async () => {
+Deno.test('review ROUND5 1d: a stale attempt key older than the idempotency-key retention window returns an explicit reconcile status, no new session', async () => {
   const mock = installFakeFetch();
-  const staleAt = new Date(Date.now() - 24 * 60 * 60_000).toISOString(); // 24h ago
+  const oldMs = Date.now() - 24 * 60 * 60_000; // 24h ago
+  const attemptKey = `chk_${crypto.randomUUID()}_${oldMs}`;
   const user = await createTestUser({
     plan: 'free',
-    profile: { checkout_pending_at: staleAt, checkout_session_id: null },
+    profile: {
+      checkout_pending_at: new Date(Date.now() - 20 * 60_000).toISOString(),
+      checkout_session_id: null,
+      checkout_attempt_key: attemptKey,
+    },
   });
   try {
     mockNoActiveSubscription(mock);
@@ -638,93 +649,122 @@ Deno.test('review ROUND5 1d: a stale lock older than the idempotency-key retenti
     assertEquals(res.status, 409);
     assertEquals((await res.json()).error, 'checkout_reconcile_required');
     assertEquals(newSessionsCreated(mock), 0);
+    // Identity untouched — the next retry lands here again, not on a fresh key.
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.checkout_attempt_key, attemptKey);
   } finally {
     mock.restore();
     await user.cleanup();
   }
 });
 
-// ── ROUND 6 item 2: the mutex acquire overwrites checkout_pending_at
-// before the reconcile branch runs, so the ORIGINAL attempt's identity
-// (its derived idempotency key) was lost — a later retry, or this
-// reconcile itself being interrupted, then used a NEW key and could create
-// a second session. The original identity must survive independently of
-// who currently holds the lock.
+// ── ROUND 7 BLOCKER 1: the attempt identity is a dedicated column
+// (checkout_attempt_key), stamped once and NEVER rewritten by a lock
+// acquire or a recovery — no "restore" UPDATE whose failure/crash-window
+// could leave a fresh seed. It survives a stop right after the lock, a lost
+// sessions.create response, and any number of retries of an indeterminate
+// old attempt.
 
-Deno.test('review ROUND6 2: reconcile_required preserves the original attempt identity; a 31s-later retry does not mint a session', async () => {
+Deno.test('review ROUND7 B1: a stop right after the lock acquire → the retry reuses the SAME stamped key', async () => {
   const mock = installFakeFetch();
-  const staleAt = new Date(Date.now() - 24 * 60 * 60_000).toISOString(); // past the 23h key-retention margin
-  const staleMs = new Date(staleAt).getTime();
+  // Simulate "acquired the lock, then the isolate died before sessions.create":
+  // a fresh lock timestamp, a durably-stamped key, no session id.
+  const attemptKey = `chk_${crypto.randomUUID()}_${Date.now() - 90_000}`;
   const user = await createTestUser({
     plan: 'free',
-    profile: { checkout_pending_at: staleAt, checkout_session_id: null },
+    profile: {
+      checkout_pending_at: new Date(Date.now() - 90_000).toISOString(), // >30s, <15min
+      checkout_session_id: null,
+      checkout_attempt_key: attemptKey,
+    },
+  });
+  try {
+    mockNoActiveSubscription(mock);
+    mock.on('POST', '/v1/checkout/sessions', () => json({ id: 'cs_b1', url: 'https://checkout.stripe.com/pay/cs_b1' }));
+
+    const res = await handler(checkoutReq(user.accessToken));
+    assertEquals(res.status, 200);
+    assertEquals(newSessionsCreated(mock), 1);
+    assertEquals(idemKeysOnCreate(mock), [attemptKey], 'retry re-created under the exact stamped key');
+
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.checkout_session_id, 'cs_b1');
+    assertEquals(p!.checkout_attempt_key, null);
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('review ROUND7 B1: a reconcile_required attempt keeps its identity across a 31s-later retry (no new session)', async () => {
+  const mock = installFakeFetch();
+  const attemptKey = `chk_${crypto.randomUUID()}_${Date.now() - 24 * 60 * 60_000}`; // >23h → reconcile_required
+  const user = await createTestUser({
+    plan: 'free',
+    profile: {
+      checkout_pending_at: new Date(Date.now() - 20 * 60_000).toISOString(),
+      checkout_session_id: null,
+      checkout_attempt_key: attemptKey,
+    },
   });
   try {
     mockNoActiveSubscription(mock);
     mock.on('POST', '/v1/checkout/sessions', () => json({ id: 'cs_must_not_exist', url: 'x' })); // must NEVER be called
 
-    // Attempt 1 → explicit reconcile status.
     const r1 = await handler(checkoutReq(user.accessToken));
     assertEquals(r1.status, 409);
     assertEquals((await r1.json()).error, 'checkout_reconcile_required');
     assertEquals(newSessionsCreated(mock), 0);
-
-    // The mutex acquire clobbered checkout_pending_at with `now`; the fix
-    // restores it to the original attempt's timestamp.
     const { data: p1 } = await profile(user.id);
-    assertEquals(
-      new Date(p1!.checkout_pending_at).getTime(), staleMs,
-      'the original attempt identity is preserved, not replaced by the lock-owner time',
-    );
+    assertEquals(p1!.checkout_attempt_key, attemptKey, 'identity untouched — no restore, no rewrite');
 
-    // "31 seconds later" — the same still-indeterminate state. Must NOT
-    // fall through to a fresh key + a new session.
+    // "31s later" — still indeterminate, still no session, still the same key.
     const r2 = await handler(checkoutReq(user.accessToken));
     assertEquals(r2.status, 409);
     assertEquals((await r2.json()).error, 'checkout_reconcile_required');
     assertEquals(newSessionsCreated(mock), 0);
     const { data: p2 } = await profile(user.id);
-    assertEquals(new Date(p2!.checkout_pending_at).getTime(), staleMs);
+    assertEquals(p2!.checkout_attempt_key, attemptKey);
   } finally {
     mock.restore();
     await user.cleanup();
   }
 });
 
-Deno.test('review ROUND6 2: a reconcile whose session-id write is lost keeps the ORIGINAL key so the next retry de-dupes', async () => {
+Deno.test('review ROUND7 B1: a lost sessions.create response → the retry returns the SAME Stripe session under the same key', async () => {
   const mock = installFakeFetch();
-  const staleAt = new Date(Date.now() - 20 * 60_000).toISOString(); // 20 min: past the mutex TTL, within key retention
-  const staleMs = new Date(staleAt).getTime();
+  const attemptKey = `chk_${crypto.randomUUID()}_${Date.now() - 20 * 60_000}`;
   const user = await createTestUser({
     plan: 'free',
-    profile: { checkout_pending_at: staleAt, checkout_session_id: null },
+    profile: {
+      checkout_pending_at: new Date(Date.now() - 20 * 60_000).toISOString(),
+      checkout_session_id: null,
+      checkout_attempt_key: attemptKey,
+    },
   });
   try {
     mockNoActiveSubscription(mock);
-    // Stripe de-dupes: the same idempotency key always returns the same session.
+    // Stripe de-dupes on the idempotency key → same session id every call.
     mock.on('POST', '/v1/checkout/sessions', () => json({ id: 'cs_orig', url: 'https://checkout.stripe.com/pay/cs_orig' }));
 
-    // Attempt 1: reconciles under chk_<user>_<staleMs>, creates the session,
-    // then its checkout_session_id write is lost (500). The mutex/key must
-    // survive AND still be the ORIGINAL seed, not the lock-owner time.
+    // Attempt 1: session created, but its checkout_session_id write is lost.
     await withCheckoutSessionIdWriteBlocked(async () => {
       const r1 = await handler(checkoutReq(user.accessToken));
       assertEquals(r1.status, 500);
     });
-    assertEquals(idemKeysOnCreate(mock), [`chk_${user.id}_${staleMs}`]);
+    assertEquals(idemKeysOnCreate(mock), [attemptKey]);
     const { data: p1 } = await profile(user.id);
-    assertEquals(new Date(p1!.checkout_pending_at).getTime(), staleMs, 'original seed retained, not clobbered');
+    assertEquals(p1!.checkout_attempt_key, attemptKey, 'key retained, unchanged, for the retry');
     assertEquals(p1!.checkout_session_id, null);
 
-    // Attempt 2: reconciles under the SAME key → Stripe returns cs_orig →
-    // exactly one session ever, now recorded.
+    // Attempt 2: same key → Stripe returns cs_orig → one session ever.
     const r2 = await handler(checkoutReq(user.accessToken));
     assertEquals(r2.status, 200);
     assert((await r2.json()).url.includes('cs_orig'));
-    assertEquals(idemKeysOnCreate(mock), [`chk_${user.id}_${staleMs}`, `chk_${user.id}_${staleMs}`]);
-    assertEquals(newSessionsCreated(mock), 2); // two POSTs, but both keyed identically → one Stripe session
+    assertEquals(idemKeysOnCreate(mock), [attemptKey, attemptKey]);
     const { data: p2 } = await profile(user.id);
     assertEquals(p2!.checkout_session_id, 'cs_orig');
+    assertEquals(p2!.checkout_attempt_key, null);
   } finally {
     mock.restore();
     await user.cleanup();

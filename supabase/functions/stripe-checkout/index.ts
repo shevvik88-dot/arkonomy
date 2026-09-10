@@ -99,7 +99,7 @@ export async function handler(req: Request): Promise<Response> {
     // up simultaneously completable. Fail closed instead.
     const { data: profileBefore, error: profileBeforeErr } = await supabase
       .from('profiles')
-      .select('stripe_customer_id, checkout_session_id, checkout_pending_at')
+      .select('stripe_customer_id, checkout_session_id, checkout_pending_at, checkout_attempt_key')
       .eq('id', user.id)
       .single();
 
@@ -204,39 +204,85 @@ export async function handler(req: Request): Promise<Response> {
       // 'expired' or 'gone' (or a completed-but-cancelled subscription) —
       // release the guard fields ourselves, scoped to this exact session id
       // so we never clobber a different session another request may have
-      // just started.
+      // just started. Also drop the attempt identity so the next checkout
+      // mints a fresh key rather than resuming Stripe's expired session.
       await supabase
         .from('profiles')
-        .update({ checkout_pending_at: null, checkout_session_id: null })
+        .update({ checkout_pending_at: null, checkout_session_id: null, checkout_attempt_key: null })
         .eq('id', user.id)
         .eq('checkout_session_id', staleSessionId);
+    }
+
+    // ── ROUND 7 BLOCKER 1: stable identity for the in-flight attempt ──────
+    // The Stripe idempotency-key seed for this checkout lives in its OWN
+    // column, decoupled from the mutex timestamp. It is stamped exactly
+    // ONCE — the first request that finds it NULL wins the guarded UPDATE —
+    // and from then on every acquire/recovery/retry ADOPTS that value and
+    // never rewrites it. So a crash anywhere (including between a lock
+    // acquire and any follow-up write) leaves the identity intact, and no
+    // "restore" UPDATE is needed. A same-millisecond collision on the
+    // candidate is harmless: both requests would compute the identical
+    // string, hence the identical Stripe key.
+    const candidateKey = `chk_${user.id}_${Date.now()}`;
+    const { count: stamped, error: stampErr } = await supabase
+      .from('profiles')
+      .update({ checkout_attempt_key: candidateKey }, { count: 'exact' })
+      .eq('id', user.id)
+      .is('checkout_attempt_key', null);
+    if (stampErr) {
+      console.error('stripe-checkout: failed to stamp checkout_attempt_key:', stampErr);
+      await captureAndFlush(stampErr, { function_name: 'stripe-checkout' });
+      return new Response(JSON.stringify({ error: "Internal Server Error" }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    let attemptKey: string;
+    const attemptKeyIsFresh = !!stamped && stamped > 0;
+    if (attemptKeyIsFresh) {
+      attemptKey = candidateKey;
+    } else {
+      const { data: keyRow, error: keyErr } = await supabase
+        .from('profiles')
+        .select('checkout_attempt_key')
+        .eq('id', user.id)
+        .single();
+      if (keyErr || !keyRow?.checkout_attempt_key) {
+        console.error('stripe-checkout: failed to read the in-flight checkout_attempt_key:', keyErr);
+        await captureAndFlush(keyErr ?? new Error('checkout_attempt_key missing'), { function_name: 'stripe-checkout' });
+        return new Response(JSON.stringify({ error: "Internal Server Error" }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      attemptKey = keyRow.checkout_attempt_key;
+    }
+
+    // If this attempt's key predates Stripe's ~24h idempotency-key
+    // retention, there is nothing left to de-dupe against — do not gamble on
+    // a second concurrently-payable session; hand back an explicit state.
+    // The identity column is left untouched, so a later retry lands here
+    // again rather than on a fresh key. Checked BEFORE the mutex so there is
+    // no lock to unwind.
+    const attemptMs = Number(attemptKey.slice(attemptKey.lastIndexOf('_') + 1));
+    const KEY_RETENTION_SAFE_MS = 23 * 60 * 60 * 1000;
+    if (!attemptKeyIsFresh && !profileBefore?.checkout_session_id
+        && Number.isFinite(attemptMs) && Date.now() - attemptMs >= KEY_RETENTION_SAFE_MS) {
+      return new Response(JSON.stringify({
+        error: 'checkout_reconcile_required',
+        message: 'A previous checkout could not be confirmed. Please try again in a moment, or contact support if this keeps happening.',
+      }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Second, complementary guard against the narrower race Stripe can't
     // see for us above: two near-simultaneous requests both reaching this
     // point with no checkout_session_id yet (double tab, double click
     // before redirect) — atomic check-and-set on profiles.checkout_pending_at.
-    // This mutex only needs to cover the short window until the session
-    // below is created and its id stored — actual session lifetime is now
-    // handled entirely by the Stripe-verified check above, so its own TTL
-    // here is just a safety net against a crashed request that acquired
-    // the mutex but never got as far as storing a session id at all.
-    // Detect "did this UPDATE win the lock" via the affected-row count, not
-    // a returned row. The .or() filter is on checkout_pending_at itself, and
-    // the UPDATE sets that column — so `return=representation` can't be used
-    // to tell acquisition from rejection: PostgREST 14 re-applies the filter
-    // to the returned rows, and the just-written `now()` value no longer
-    // satisfies `IS NULL OR < (now - 15m)`, so the representation comes back
-    // empty even on a successful lock (and older PostgREST 42703s outright
-    // when a filtered column is absent from the select list). `count: 'exact'`
-    // reflects the UPDATE's own WHERE: 1 = we acquired it, 0 = someone else
-    // holds a fresh lock.
-    // Acquire the mutex. checkout_pending_at is set to a fresh ISO string;
-    // the Stripe idempotency key is DERIVED from (user id | that exact
-    // string), so a retry — or a concurrent request that lost the lock —
-    // computes the SAME key from the still-held checkout_pending_at and
-    // re-runs sessions.create() idempotently: Stripe returns the ORIGINAL
-    // session instead of minting a second one (independent review, item 3).
+    // This mutex is purely a lock-ownership timestamp now; the idempotency
+    // key is the stable checkout_attempt_key above, NOT derived from this.
+    // Detect "did this UPDATE win the lock" via the affected-row count
+    // (`count: 'exact'`); a chained `.select()` re-applies the just-changed
+    // filter and comes back empty even on success.
     const lockedAt = new Date().toISOString();
     const { count: lockAcquired, error: lockErr } = await supabase
       .from('profiles')
@@ -256,14 +302,14 @@ export async function handler(req: Request): Promise<Response> {
     // A real acquire→create→store cycle is sub-second. A lock held longer
     // than this with still no session id means the holder lost its response
     // or crashed after creating the session at Stripe — the retry that
-    // lands here should reconcile onto that session, not 409 forever.
+    // lands here should reconcile onto that session (under the SAME stable
+    // checkout_attempt_key), not 409 forever.
     const RECONCILE_AFTER_MS = 30_000;
 
-    let effectiveLockedAt = lockedAt;
     if (!lockAcquired) {
       const { data: held } = await supabase
         .from('profiles')
-        .select('checkout_pending_at, checkout_session_id')
+        .select('checkout_session_id')
         .eq('id', user.id)
         .single();
       if (held?.checkout_session_id) {
@@ -273,62 +319,22 @@ export async function handler(req: Request): Promise<Response> {
           error: 'A checkout is already in progress. Please finish or cancel it before starting another.',
         }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-      const heldAgeMs = held?.checkout_pending_at
-        ? Date.now() - new Date(held.checkout_pending_at).getTime()
-        : 0;
-      if (!held?.checkout_pending_at || heldAgeMs < RECONCILE_AFTER_MS) {
-        // A genuine concurrent double-click: the holder is actively
-        // in flight. FINDING-C behaviour — tell the client to wait.
+      // No session recorded. Decide "genuine double-click, wait" vs
+      // "lost/stale attempt, reconcile" by the AGE OF THE ATTEMPT IDENTITY
+      // (checkout_attempt_key's embedded stamp) — NOT the lock timestamp,
+      // which a concurrent request just refreshed. A genuine double-click
+      // shares a brand-new key; a retry of a lost attempt carries an old one.
+      const attemptAgeMs = Number.isFinite(attemptMs) ? Date.now() - attemptMs : Infinity;
+      if (attemptAgeMs < RECONCILE_AFTER_MS) {
         return new Response(JSON.stringify({
           error: 'A checkout is already in progress. Please finish or cancel it before starting another.',
         }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-      // Held too long with no session id — reconcile: derive the holder's
-      // idempotency key from its checkout_pending_at and re-run
-      // sessions.create() under it, so Stripe returns the ORIGINAL session.
-      effectiveLockedAt = held.checkout_pending_at;
-    } else if (profileBefore?.checkout_pending_at && !profileBefore?.checkout_session_id) {
-      // We just ACQUIRED a lock that replaced a stale one (older than the
-      // 15-min mutex TTL) whose holder never recorded a session id — it
-      // may have created a session at Stripe under its own derived key and
-      // lost the response. Reconcile under THAT key so Stripe hands back
-      // the original session instead of minting a second (ROUND5 1d).
-      //
-      // ROUND6 item 2: the mutex acquire above already overwrote
-      // checkout_pending_at with `lockedAt`, so the ORIGINAL attempt's
-      // identity now lives only in `profileBefore`. Persist it back —
-      // scoped to the lock we just took — so it is NOT a function of who
-      // currently holds the lock: a retry 31s later, or this reconcile
-      // itself crashing before it stores a session id, still derives the
-      // SAME idempotency key and Stripe still de-dupes onto the one
-      // original session.
-      const priorPendingAt = profileBefore.checkout_pending_at as string;
-      const priorAgeMs = Date.now() - new Date(priorPendingAt).getTime();
-      await supabase
-        .from('profiles')
-        .update({ checkout_pending_at: priorPendingAt })
-        .eq('id', user.id)
-        .eq('checkout_pending_at', lockedAt);
-      // Stripe retains idempotency keys for ~24h. Past that there is
-      // nothing left to dedupe against; a real session from then is itself
-      // long expired, but at the boundary we can't be certain, so don't
-      // gamble on a second live session — return an explicit state to
-      // reconcile rather than creating a new one. The identity is already
-      // restored above, so the next retry lands here again, not on a fresh
-      // key.
-      const KEY_RETENTION_SAFE_MS = 23 * 60 * 60 * 1000;
-      if (priorAgeMs < KEY_RETENTION_SAFE_MS) {
-        effectiveLockedAt = priorPendingAt;
-      } else {
-        return new Response(JSON.stringify({
-          error: 'checkout_reconcile_required',
-          message: 'A previous checkout could not be confirmed. Please try again in a moment, or contact support if this keeps happening.',
-        }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
+      // A lost/stale attempt — fall through and re-run sessions.create()
+      // under the stable attemptKey: Stripe returns the ORIGINAL session.
     }
-    // Canonicalise to epoch ms so the winner (`...Z`) and a retry reading
-    // the DB (`...+00:00`) derive the SAME key.
-    const idemKey = `chk_${user.id}_${new Date(effectiveLockedAt).getTime()}`;
+
+    const idemKey = attemptKey;
 
     // ROUND5 1a: a Checkout that COMPLETED between our pre-lock
     // findActiveSubscription and here — its webhook having cleared the
@@ -338,11 +344,12 @@ export async function handler(req: Request): Promise<Response> {
     // right before we create.
     const nowActive = await findActiveSubscription(stripe, user.email);
     if (nowActive) {
-      // Release only the lock WE just took (scoped to our exact timestamp;
-      // a reconcile under a prior holder's key leaves theirs alone).
+      // The subscription already exists — this attempt is abandoned. Release
+      // the lock WE just took (scoped to our exact timestamp) and drop the
+      // attempt identity so a genuinely new checkout later starts fresh.
       await supabase
         .from('profiles')
-        .update({ checkout_pending_at: null })
+        .update({ checkout_pending_at: null, checkout_attempt_key: null })
         .eq('id', user.id)
         .eq('checkout_pending_at', lockedAt);
       return new Response(JSON.stringify({
@@ -371,17 +378,18 @@ export async function handler(req: Request): Promise<Response> {
       cancel_url:  `${APP_URL}?trial_cancelled=true`,
     }, { idempotencyKey: idemKey });
 
-    // Record the session id, scoped so a concurrent reconcile that already
-    // wrote it isn't clobbered.
+    // Record the session id and retire the attempt identity in one write,
+    // scoped so a concurrent reconcile that already wrote the id isn't
+    // clobbered.
     const { error: sessionIdErr } = await supabase
       .from('profiles')
-      .update({ checkout_session_id: session.id })
+      .update({ checkout_session_id: session.id, checkout_attempt_key: null })
       .eq('id', user.id)
       .is('checkout_session_id', null);
 
     if (sessionIdErr) {
-      // The session is live at Stripe and the idempotency key is stored, so
-      // the retry re-creates under it and gets THIS exact session, then
+      // The session is live at Stripe and the attempt key is still stored,
+      // so the retry re-creates under it and gets THIS exact session, then
       // records it. Don't expire it (that just costs the user a round-trip)
       // and don't release the mutex/key (the retry needs both). Just fail
       // so the client retries.
