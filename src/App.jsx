@@ -12,7 +12,8 @@ import { usePostHog } from "@posthog/react";
 import { useTranslation } from "react-i18next";
 import { detectBrowserLanguage } from "./i18n";
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from "./utils/supabase";
-import { callEdgeFunction } from "./lib/callEdgeFunction";
+import { callEdgeFunction, callEdgeFunctionWithStatus } from "./lib/callEdgeFunction";
+import { classifySyncResult } from "./lib/syncResult";
 import { getCachedAccounts, setCachedAccounts, clearAccountsCache, sumDepositoryBalance, getCreditAccounts } from "./utils/accountsCache";
 import { clearDiagnosisLessonCache } from "./utils/diagnosisLessonCache";
 import { App as CapApp } from "@capacitor/app";
@@ -836,14 +837,30 @@ export default function App() {
     setSyncingBank(true);
     clearAccountsCache();
     try {
-      const data = await callEdgeFunction("plaid-sync-transactions", {});
-      if (data.error) {
-        logger.error("[Plaid] sync-transactions error:", data);
+      const res = await callEdgeFunctionWithStatus("plaid-sync-transactions", {});
+      const kind = classifySyncResult(res); // 'clean' | 'partial' | 'error'
+      const failed = Array.isArray(res.data?.failed_items) ? res.data.failed_items : [];
+
+      if (kind === "clean") {
+        // Only a full 2xx sync with the expected contract advances the
+        // timestamp — a 502/HTML/empty/401 body must NOT read as success.
+        const now = new Date().toISOString();
+        setLastSyncedAt(now);
+        try { localStorage.setItem("arkonomy_last_synced", now); } catch {}
+        await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
+      } else if (kind === "partial") {
+        // 207: some banks synced, others failed (server advanced no cursor
+        // past a failed write). Leave last_synced_at stale so bgSync retries
+        // the failed banks rather than treating them as fresh for an hour.
+        logger.warn("[Plaid] partial sync — failed items:", failed);
+        showAlertRef.current(
+          `Couldn't sync ${failed.length || "some"} of your banks. We'll try again automatically.`,
+          "warning", "alert-circle",
+        );
+      } else {
+        logger.error("[Plaid] sync-transactions error:", res.status, res.data);
+        showAlertRef.current("Couldn't refresh your banks. Try again in a moment.", "warning", "alert-circle");
       }
-      const now = new Date().toISOString();
-      setLastSyncedAt(now);
-      try { localStorage.setItem("arkonomy_last_synced", now); } catch {}
-      await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
       await loadAll(true); // silent — keep Dashboard mounted, accountBalance must not reset
     } catch (err) {
       logger.error("[Plaid] sync-transactions exception:", err);
@@ -870,14 +887,25 @@ export default function App() {
 
     setBackgroundSyncing(true);
     try {
-      const data = await callEdgeFunction("plaid-sync-transactions", {});
-      if (!data.error) {
+      const res = await callEdgeFunctionWithStatus("plaid-sync-transactions", {});
+      const kind = classifySyncResult(res);
+      if (kind === "clean") {
         const now = new Date().toISOString();
         setLastSyncedAt(now);
         try { localStorage.setItem("arkonomy_last_synced", now); } catch {}
         clearAccountsCache();
         await supabase.from("profiles").update({ last_synced_at: now }).eq("id", user.id);
         await loadAll(true);
+      } else if (kind === "partial") {
+        // Load whatever did sync, but leave last_synced_at stale so the
+        // next bgSync cycle retries the banks that failed.
+        logger.warn("[Plaid] bgSync partial — failed items:", Array.isArray(res.data?.failed_items) ? res.data.failed_items : []);
+        clearAccountsCache();
+        await loadAll(true);
+      } else {
+        // HTTP/parse error — do NOT stamp last_synced_at; the next stale
+        // check will retry.
+        logger.warn("[Plaid] bgSync error:", res.status, res.data);
       }
     } catch {
     } finally {
