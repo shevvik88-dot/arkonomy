@@ -176,40 +176,38 @@ export async function handler(req: Request): Promise<Response> {
     alpaca_connected_at: null,
   } as const;
 
-  // Retrieve the live subscription and write the profile it belongs to.
-  // matchCol/matchVal say which profile (checkout.session.completed knows
-  // the user id; the subscription/invoice events match on stripe_customer_id).
-  // Returns the matched rows ([] = no such profile).
   const isLiveStatus = (s: string) =>
     s === 'active' || s === 'trialing' || s === 'past_due' || s === 'incomplete';
 
-  // ROUND6 item 1. A single subscriptions.retrieve() is NOT enough to order
-  // concurrent handlers: handler A can get an "active" snapshot, its
-  // response is delayed, handler B meanwhile gets "canceled" and writes
-  // free, then A's delayed response lands and A writes pro — a permanent
-  // resurrection, no clock skew required. Nudging the timestamp earlier
-  // doesn't fix it (A's whole retrieve can be the slow part).
+  // Reconcile the profile a subscription event points at against the
+  // CUSTOMER's CURRENT subscription set — not the terminal/live state of
+  // the single subscription the event happened to name.
   //
-  // Fix: (a) a TERMINAL reading (canceled/unpaid/…) is monotone and final —
-  // Stripe never un-cancels — so it is applied UNCONDITIONALLY and can
-  // never be the stale-wrong write. (b) A LIVE reading is the only kind
-  // that can be a delayed/stale response, so it is applied under a
-  // compare-and-swap on the profile's stripe_event_at mark snapshotted
-  // BEFORE the Stripe read: if anything wrote the profile in between (a
-  // concurrent cancellation), the CAS misses and we loop — re-reading
-  // Stripe, which, if the subscription is really gone, now returns
-  // terminal. Lock-free: a handler that dies mid-reconcile simply doesn't
-  // write; Stripe redelivers and a fresh run reconciles.
+  // ROUND7 BLOCKER 2: a redelivered/late event for an OLD subscription A
+  // reads A=canceled. The pre-ROUND7 code took that as authoritative and
+  // wrote plan=free + cleared Alpaca — even if the user has since started
+  // subscription B and is legitimately pro. Terminality of A ≠ terminality
+  // of the user's plan. Fix: when the named subscription is not live, LIST
+  // the customer's subscriptions and downgrade only if NONE is live.
+  //
+  // Concurrency (both directions): the write is an optimistic
+  // compare-and-swap on `reconcile_nonce` — a per-write random value read
+  // BEFORE the Stripe calls. If anything else wrote the profile in between,
+  // the CAS misses and we loop, re-deriving from live Stripe state. The
+  // nonce is random (not a wall-clock value), so two independent handlers
+  // writing in the same millisecond cannot collide onto the same token.
+  // Lock-free: a handler that dies mid-reconcile just doesn't write; Stripe
+  // redelivers and a fresh run reconciles.
   async function reconcileSubscription(subId: string, matchCol: 'id' | 'stripe_customer_id', matchVal: string) {
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 4; attempt++) {
       const { data: before, error: beforeErr } = await supabase
         .from('profiles')
-        .select('stripe_event_at')
+        .select('reconcile_nonce, stripe_customer_id')
         .eq(matchCol, matchVal)
         .maybeSingle();
       if (beforeErr) throw beforeErr;
       if (!before) return [] as { id: string }[]; // no such profile (delete-account race)
-      const mark0 = before.stripe_event_at as string;
+      const nonce0 = before.reconcile_nonce as string | null;
 
       let sub: Stripe.Subscription;
       try {
@@ -219,43 +217,46 @@ export async function handler(req: Request): Promise<Response> {
         await captureAndFlush(err, { function_name: 'stripe-webhook', event_id: event.id, subscription: subId });
         throw err; // -> 500, Stripe redelivers
       }
+      const customerId = (typeof sub.customer === 'string' ? sub.customer : sub.customer?.id)
+        ?? (before.stripe_customer_id as string | null) ?? matchVal;
 
-      const live = isLiveStatus(sub.status);
+      // Is THIS subscription live? If not, does the customer have ANY other
+      // live one (a re-subscribe)? Only a customer with zero live
+      // subscriptions is actually free.
+      let liveSub: Stripe.Subscription | null = isLiveStatus(sub.status) ? sub : null;
+      if (!liveSub) {
+        const list = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 100 });
+        liveSub = list.data.find((s) => isLiveStatus(s.status)) ?? null;
+      }
+      const live = !!liveSub;
+
       const plan = live ? 'pro' : 'free';
-      const trialEndMs = typeof sub.trial_end === 'number' ? sub.trial_end * 1000 : null;
+      const trialEndMs = liveSub && typeof liveSub.trial_end === 'number' ? liveSub.trial_end * 1000 : null;
       const trial_ends_at = live && trialEndMs && trialEndMs > Date.now()
         ? new Date(trialEndMs).toISOString()
         : null;
       const fields: Record<string, unknown> = {
         plan,
         trial_ends_at,
-        stripe_customer_id: typeof sub.customer === 'string' ? sub.customer : sub.customer?.id ?? matchVal,
-        stripe_event_at: new Date().toISOString(), // breadcrumb only, not an ordering gate
+        stripe_customer_id: customerId,
+        stripe_event_at: eventAt,             // keep applyOrdered()'s ordering sane
+        reconcile_nonce: crypto.randomUUID(), // fresh CAS token for the next writer
         ...(live ? {} : ALPACA_TEARDOWN),
       };
 
-      if (!live) {
-        // Terminal — apply unconditionally.
-        const { data, error } = await supabase
-          .from('profiles').update(fields).eq(matchCol, matchVal).select('id');
-        if (error) throw error;
-        return data ?? [];
-      }
-
-      // Live — compare-and-swap on the pre-read mark. `{ count: 'exact' }`
-      // with no `.select()` is the pattern that reports the UPDATE's own
+      // Optimistic CAS on the nonce — symmetric for upgrade and downgrade.
+      // `{ count: 'exact' }` with no `.select()` reports the UPDATE's own
       // WHERE (a chained `.select()` re-applies the just-changed filter and
       // comes back empty even on success — see stripe-checkout's mutex).
-      const { count, error } = await supabase
-        .from('profiles')
-        .update(fields, { count: 'exact' })
-        .eq(matchCol, matchVal)
-        .eq('stripe_event_at', mark0);
+      const base = supabase.from('profiles').update(fields, { count: 'exact' }).eq(matchCol, matchVal);
+      const { count, error } = nonce0 === null
+        ? await base.is('reconcile_nonce', null)
+        : await base.eq('reconcile_nonce', nonce0);
       if (error) throw error;
       if (count && count > 0) return [{ id: 'ok' }];
-      // CAS miss — the profile moved under us. Loop: re-read Stripe.
+      // CAS miss — the profile moved under us. Loop: re-derive from Stripe.
     }
-    throw new Error('stripe-webhook: reconcileSubscription lost the CAS 3x (concurrent contention) — redeliver');
+    throw new Error('stripe-webhook: reconcileSubscription lost the CAS 4x (concurrent contention) — redeliver');
   }
 
   // Fallback for the rare event with no subscription id (older/degenerate
@@ -324,7 +325,7 @@ export async function handler(req: Request): Promise<Response> {
         if (session.id) {
           const { error: clearErr } = await supabase
             .from('profiles')
-            .update({ checkout_pending_at: null, checkout_session_id: null })
+            .update({ checkout_pending_at: null, checkout_session_id: null, checkout_attempt_key: null })
             .eq('id', userId)
             .eq('checkout_session_id', session.id);
           if (clearErr) { console.error('stripe-webhook: failed to clear checkout guard fields:', clearErr); throw clearErr; }
@@ -347,7 +348,7 @@ export async function handler(req: Request): Promise<Response> {
         // stripe-checkout's own guard exists to close.
         const { error } = await supabase
           .from('profiles')
-          .update({ checkout_pending_at: null, checkout_session_id: null })
+          .update({ checkout_pending_at: null, checkout_session_id: null, checkout_attempt_key: null })
           .eq('id', userId)
           .eq('checkout_session_id', session.id);
         if (error) { console.error('Failed to clear checkout_pending_at on expiry:', error); throw error; }

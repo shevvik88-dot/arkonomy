@@ -54,6 +54,17 @@ function mockSub(
     json({ id, object: 'subscription', ...fields }));
 }
 
+// stripe.subscriptions.list({ customer }) -> GET /v1/subscriptions?customer=...
+// reconcileSubscription() consults this whenever the event's subscription is
+// not itself live, to decide whether the customer has any OTHER live one.
+function mockCustomerSubs(
+  mock: ReturnType<typeof installFakeFetch>,
+  subs: Array<{ id?: string; status: string; customer?: string; trial_end?: number | null }>,
+) {
+  mock.on('GET', (u) => u.pathname === '/v1/subscriptions', () =>
+    json({ object: 'list', has_more: false, data: subs.map((s, i) => ({ id: `sub_l${i}`, object: 'subscription', ...s })) }));
+}
+
 async function delEvents(...ids: string[]) {
   if (ids.length) await dbAdmin().from('stripe_webhook_events').delete().in('event_id', ids);
 }
@@ -486,8 +497,9 @@ Deno.test('review #97 item2: two equal-second subscription events reconcile to S
     profile: { stripe_customer_id: cust, alpaca_access_token: 'tok', alpaca_refresh_token: 'ref' },
   });
   // Stripe's live subscription is already canceled by the time either
-  // event is processed.
+  // event is processed, and the customer has no other live subscription.
   mockSub(mock, subId, { status: 'canceled', customer: cust, trial_end: null });
+  mockCustomerSubs(mock, [{ id: subId, status: 'canceled', customer: cust }]);
   // Both events emitted in the SAME second. Delivered in the order that a
   // second-granular ordering guard mishandles: the stale "still active"
   // update FIRST, the cancellation SECOND (same `created`, so `lt` rejects
@@ -613,6 +625,9 @@ Deno.test('review ROUND6 1: a delayed retrieve response cannot resurrect a subsc
     }
     return json({ id: subId, object: 'subscription', status: 'canceled', customer: cust, trial_end: null });
   });
+  // The customer has only this one subscription, which is being canceled.
+  mock.on('GET', (u) => u.pathname === '/v1/subscriptions', () =>
+    json({ object: 'list', has_more: false, data: [{ id: subId, object: 'subscription', status: 'canceled', customer: cust }] }));
 
   const updEvt = evt('customer.subscription.updated', { id: subId, customer: cust, status: 'active' });
   const delEvt = evt('customer.subscription.deleted', { id: subId, customer: cust, status: 'canceled' });
@@ -655,8 +670,10 @@ Deno.test('review ROUND5 1c: a redelivered stale completed event re-fetches live
     profile: { stripe_customer_id: cust, checkout_session_id: 'cs_old', alpaca_access_token: 'tok' },
   });
   // The subscription this old completed event references is already
-  // cancelled in Stripe by the time any delivery of it is processed.
+  // cancelled in Stripe by the time any delivery of it is processed, and
+  // the customer has no other live subscription.
   mockSub(mock, subId, { status: 'canceled', customer: cust, trial_end: null });
+  mockCustomerSubs(mock, [{ id: subId, status: 'canceled', customer: cust }]);
   const e1 = evt('checkout.session.completed',
     { id: 'cs_old', client_reference_id: user.id, customer: cust, subscription: subId },
     { created: nowS - 600 });
@@ -681,6 +698,116 @@ Deno.test('review ROUND5 1c: a redelivered stale completed event re-fetches live
     assert(p!.checkout_pending_at !== null, 'the newer checkout lock is untouched');
   } finally {
     await delEvents(e1.id);
+    await user.cleanup();
+    mock.restore();
+  }
+});
+
+// ── ROUND 7 BLOCKER 2: a terminal reading of an OLD subscription must not
+// downgrade a user whose CURRENT subscription is live. reconcileSubscription
+// now derives plan from the customer's whole subscription set, not the one
+// subscription an event names, and CAS-guards the write on a random nonce
+// (symmetric for upgrade and downgrade).
+
+Deno.test('review ROUND7 B2: an old subscription cancellation does not downgrade a user with a newer active subscription', async () => {
+  const mock = installFakeFetch();
+  const cust = `cus_${crypto.randomUUID()}`;
+  const subA = `sub_${crypto.randomUUID()}`; // old, cancelled
+  const subB = `sub_${crypto.randomUUID()}`; // new, active
+  const user = await createTestUser({
+    plan: 'pro',
+    trialEndsAt: new Date(Date.now() + 5 * 86_400_000),
+    profile: { stripe_customer_id: cust, alpaca_access_token: 'tok', alpaca_refresh_token: 'ref' },
+  });
+  mockSub(mock, subA, { status: 'canceled', customer: cust, trial_end: null });
+  mockCustomerSubs(mock, [
+    { id: subA, status: 'canceled', customer: cust },
+    { id: subB, status: 'active', customer: cust },
+  ]);
+  const eA = evt('customer.subscription.deleted', { id: subA, customer: cust, status: 'canceled' });
+  try {
+    assertEquals((await post(eA.payload)).status, 200);
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.plan, 'pro', 'the live subscription B keeps the user pro despite A being terminal');
+    assertEquals(p!.alpaca_access_token, 'tok', 'Alpaca connection is not torn down');
+  } finally {
+    await delEvents(eA.id);
+    await user.cleanup();
+    mock.restore();
+  }
+});
+
+Deno.test('review ROUND7 B2: a delayed cancellation-A response after B is applied still leaves the user pro', async () => {
+  const mock = installFakeFetch();
+  const cust = `cus_${crypto.randomUUID()}`;
+  const subA = `sub_${crypto.randomUUID()}`;
+  const subB = `sub_${crypto.randomUUID()}`;
+  const user = await createTestUser({
+    plan: 'free',
+    profile: { stripe_customer_id: cust, alpaca_access_token: 'tok' },
+  });
+  // A's retrieve parks; B's is instant.
+  let releaseA!: () => void;
+  const aParked = new Promise<void>((r) => { releaseA = r; });
+  let aEntered!: () => void;
+  const aEnteredP = new Promise<void>((r) => { aEntered = r; });
+  mock.on('GET', (u) => u.pathname === `/v1/subscriptions/${subA}`, async () => {
+    aEntered();
+    await aParked;
+    return json({ id: subA, object: 'subscription', status: 'canceled', customer: cust, trial_end: null });
+  });
+  mock.on('GET', (u) => u.pathname === `/v1/subscriptions/${subB}`, () =>
+    json({ id: subB, object: 'subscription', status: 'active', customer: cust, trial_end: null }));
+  // The customer's live set: B is active throughout.
+  mockCustomerSubs(mock, [
+    { id: subA, status: 'canceled', customer: cust },
+    { id: subB, status: 'active', customer: cust },
+  ]);
+
+  const evA = evt('customer.subscription.deleted', { id: subA, customer: cust, status: 'canceled' });
+  const evB = evt('customer.subscription.updated', { id: subB, customer: cust, status: 'active' });
+  try {
+    const aDone = post(evA.payload);        // A: retrieve(subA) parks
+    await aEnteredP;
+    assertEquals((await post(evB.payload)).status, 200); // B: subB active -> writes pro
+    let { data: p } = await profile(user.id);
+    assertEquals(p!.plan, 'pro', 'B applied the upgrade');
+
+    releaseA();                             // A resumes: subA canceled, but subB still live
+    assertEquals((await aDone).status, 200);
+
+    ({ data: p } = await profile(user.id));
+    assertEquals(p!.plan, 'pro', 'A must not downgrade — the customer still has a live subscription');
+    assertEquals(p!.alpaca_access_token, 'tok');
+  } finally {
+    await delEvents(evA.id, evB.id);
+    await user.cleanup();
+    mock.restore();
+  }
+});
+
+Deno.test('review ROUND7 B2: cancelling the user\'s only active subscription downgrades to free (reconcile path)', async () => {
+  const mock = installFakeFetch();
+  const cust = `cus_${crypto.randomUUID()}`;
+  const subId = `sub_${crypto.randomUUID()}`;
+  const user = await createTestUser({
+    plan: 'pro',
+    trialEndsAt: new Date(Date.now() + 5 * 86_400_000),
+    profile: { stripe_customer_id: cust, alpaca_access_token: 'tok', alpaca_refresh_token: 'ref', alpaca_account_id: 'acct' },
+  });
+  mockSub(mock, subId, { status: 'canceled', customer: cust, trial_end: null });
+  mockCustomerSubs(mock, [{ id: subId, status: 'canceled', customer: cust }]); // nothing live
+  const e = evt('customer.subscription.deleted', { id: subId, customer: cust, status: 'canceled' });
+  try {
+    assertEquals((await post(e.payload)).status, 200);
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.plan, 'free');
+    assertEquals(p!.trial_ends_at, null);
+    assertEquals(p!.alpaca_access_token, null);
+    assertEquals(p!.alpaca_refresh_token, null);
+    assertEquals(p!.alpaca_account_id, null);
+  } finally {
+    await delEvents(e.id);
     await user.cleanup();
     mock.restore();
   }
