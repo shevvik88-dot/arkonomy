@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import { supabase } from "../utils/supabase";
 import { SUPABASE_URL, SUPABASE_KEY } from "../utils/supabase";
+import { beginOperation, settleOperation, classifyInvestOutcome } from "../lib/alpacaOperation";
 import { C, FONT, RADIUS, DASHBOARD_C as DC } from "../utils/colors";
 import { fmtPct } from "../utils/helpers";
 import GlassCard from "./shared/GlassCard";
@@ -397,14 +398,26 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
     if (buying || !buyAmt || Number(buyAmt) < 1) return;
     setBuying(true);
     setBuyResult(null);
+    const sendSym = alpacaSym(symbol);
+    const numAmt = Number(buyAmt);
+    // One key per intentional purchase. A retry while the form is unchanged
+    // reuses it (server replays the first order, never a second).
+    const op = beginOperation(user.id, sendSym, numAmt);
+    if (op.error === "storage_unavailable") {
+      setBuyResult({ error: "Can't place this order — your browser is blocking local storage. Enable it and try again." });
+      setBuying(false);
+      return;
+    }
+    const operation_id = op.id;
     try {
       const { data: result, error } = await supabase.functions.invoke("alpaca-invest", {
-        body: { amount: Number(buyAmt), symbol: alpacaSym(symbol) },
+        body: { amount: numAmt, symbol: sendSym, operation_id },
       });
       if (error) {
         // supabase.functions.invoke wraps non-2xx in FunctionsHttpError —
         // the real error body is in error.context, not error.message
         let msg = error.message ?? "Order failed";
+        const httpStatus = error.context?.status;
         try {
           const body = typeof error.context?.json === "function"
             ? await error.context.json()
@@ -413,21 +426,28 @@ function StockDetail({ symbol, onBack, user, alpacaConnected, onConnectAlpaca, i
           if (body?.details) logger.error("[Buy] Alpaca details:", body.details);
         } catch {}
         logger.error("[Buy] invoke error:", msg);
+        // Only a DEFINITE outcome ends the operation (see classifyInvestOutcome).
+        if (classifyInvestOutcome({ httpStatus, errorCode: msg }) === "settle") settleOperation(user.id, operation_id);
         if (msg.includes("Insufficient buying power") || msg.includes("not configured") || msg.includes("ALPACA_API_KEY")) {
           setBuyResult({ notConnected: true });
         } else {
           setBuyResult({ error: msg });
         }
       } else if (result?.error) {
+        if (classifyInvestOutcome({ errorCode: result.error }) === "settle") settleOperation(user.id, operation_id);
         if (result.error.includes("Insufficient buying power") || result.error.includes("not configured")) {
           setBuyResult({ notConnected: true });
         } else {
           setBuyResult({ error: result.error });
         }
       } else {
+        settleOperation(user.id, operation_id); // confirmed placement
         setBuyResult({ success: true, message: result?.message ?? `$${buyAmt} order placed` });
       }
-    } catch (e) { setBuyResult({ error: String(e) }); }
+    } catch (e) {
+      // No response — ambiguous. Leave the key open so a retry reuses it.
+      setBuyResult({ error: String(e) });
+    }
     setBuying(false);
   }
 

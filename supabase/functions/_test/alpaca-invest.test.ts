@@ -102,7 +102,17 @@ Deno.test('FINDING-A: two concurrent identical requests → one 200, one 409, on
   const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
   try {
     mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
-    mock.on('POST', '/v2/orders', () => json({ id: `ord_${crypto.randomUUID()}`, status: 'accepted' }));
+    // A real broker call is never instant. Hold ~40ms so the winning
+    // request demonstrably still owns its 'pending' reservation while the
+    // loser runs its own reservation INSERT — that INSERT must then hit the
+    // partial unique index (status IN ('pending','unknown')) and 409. With
+    // an instant mock the winner can occasionally reach a terminal status
+    // first, moving its row out of the index's predicate before the loser
+    // inserts, which is not the race this test is about.
+    mock.on('POST', '/v2/orders', async () => {
+      await new Promise((r) => setTimeout(r, 40));
+      return json({ id: `ord_${crypto.randomUUID()}`, status: 'accepted' });
+    });
 
     const [a, b] = await Promise.all([
       handler(invReq(user.accessToken, { amount: 30, symbol: 'SPY' })),
@@ -146,7 +156,7 @@ Deno.test('failure path: insufficient buying power → 400, reservation released
   }
 });
 
-Deno.test('failure path: Alpaca order rejected (500) → 400, reservation released', async () => {
+Deno.test('failure path: Alpaca 5xx on placement is AMBIGUOUS → 503 unknown, reservation KEPT (ROUND6 item 3)', async () => {
   const mock = installFakeFetch();
   const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
   try {
@@ -154,11 +164,15 @@ Deno.test('failure path: Alpaca order rejected (500) → 400, reservation releas
     mock.on('POST', '/v2/orders', () => json({ message: 'internal' }, { status: 500 }));
 
     const res = await handler(invReq(user.accessToken, { amount: 40, symbol: 'SPY' }));
-    assertEquals(res.status, 400);
-    assertEquals((await res.json()).error, 'Order failed');
+    // A 5xx may mean the order WAS accepted — must not be reported as a
+    // definite rejection (which the client settles on).
+    assertEquals(res.status, 503);
+    assertEquals((await res.json()).error, 'order_status_unknown');
 
     const { data: rows } = await investmentsOf(user.id);
-    assertEquals(rows!.length, 0);
+    assertEquals(rows!.length, 1);
+    assertEquals(rows![0].status, 'unknown');
+    assertEquals(rows![0].order_id, null);
   } finally {
     mock.restore();
     await user.cleanup();
@@ -246,6 +260,553 @@ Deno.test('not connected: paid Pro without an Alpaca token → 400, reservation 
     const { data: rows } = await investmentsOf(user.id);
     assertEquals(rows!.length, 0);
     assertEquals(mock.calls.length, 0);
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+// ── Independent audit 2026-09-07, finding #4 ─────────────────────────────
+// Stable per-operation idempotency (investments.id as client_order_id) and
+// broker reconciliation after an ambiguous network outcome, replacing the
+// old per-minute window_bucket scheme.
+
+function ordersPostCount(mock: ReturnType<typeof installFakeFetch>): number {
+  // countMatching('/v2/orders') would also match the reconciliation lookup
+  // (GET /v2/orders:by_client_order_id?...), which contains that substring
+  // too — count POSTs to the exact placement path explicitly instead.
+  return mock.calls.filter((c) => c.method === 'POST' && new URL(c.url).pathname === '/v2/orders').length;
+}
+
+async function insertRow(userId: string, fields: Record<string, unknown>) {
+  const { data, error } = await dbAdmin()
+    .from('investments')
+    .insert({ user_id: userId, ...fields })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data.id as string;
+}
+
+Deno.test('audit finding #4: an ambiguous network failure on order placement marks the row unknown, not deleted', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    mock.on('POST', '/v2/orders', () => { throw new TypeError('network error (simulated)'); });
+
+    const res = await handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY' }));
+    assertEquals(res.status, 503);
+    assertEquals((await res.json()).error, 'order_status_unknown');
+
+    // The reservation must survive as the only trace of a possibly-accepted
+    // order — deleting it here is exactly what let a retry double-buy.
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1);
+    assertEquals(rows![0].status, 'unknown');
+    assertEquals(rows![0].order_id, null);
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('audit finding #4: retrying after an ambiguous failure where the broker DID accept it syncs the row, places no second order', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    const rowId = await insertRow(user.id, { symbol: 'SPY', amount: 60, status: 'unknown' });
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    mock.on('GET', '/v2/orders:by_client_order_id', () => json({ id: brokerOrderId, status: 'accepted' }));
+
+    const res = await handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY' }));
+    assertEquals(res.status, 200);
+    const bodyJson = await res.json();
+    assertEquals(bodyJson.success, true);
+    assertEquals(bodyJson.order_id, brokerOrderId);
+
+    // No new order was placed — the earlier "ambiguous" attempt already went
+    // through, and this retry only reconciled the existing row with it.
+    assertEquals(ordersPostCount(mock), 0);
+    assertEquals(mock.countMatching('/v2/orders:by_client_order_id'), 1);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1);
+    assertEquals(rows![0].id, rowId);
+    assertEquals(rows![0].order_id, brokerOrderId);
+    assertEquals(rows![0].status, 'accepted');
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('audit finding #4: retrying after an ambiguous failure where the broker never received it places the order now, reusing the row', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    const rowId = await insertRow(user.id, { symbol: 'SPY', amount: 60, status: 'unknown' });
+    mock.on('GET', '/v2/orders:by_client_order_id', () => json({ message: 'not found' }, { status: 404 }));
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    mock.on('POST', '/v2/orders', () => json({ id: brokerOrderId, status: 'accepted' }));
+
+    const res = await handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY' }));
+    assertEquals(res.status, 200);
+    const bodyJson = await res.json();
+    assertEquals(bodyJson.success, true);
+    assertEquals(bodyJson.order_id, brokerOrderId);
+
+    // Exactly one order was ever placed, reusing the existing row/id rather
+    // than creating a second reservation.
+    assertEquals(ordersPostCount(mock), 1);
+    assertEquals(mock.calls.find((c) => c.method === 'POST' && c.url.includes('/v2/orders'))!.bodyText!.includes(`ark-${rowId}`), true);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1);
+    assertEquals(rows![0].id, rowId);
+    assertEquals(rows![0].order_id, brokerOrderId);
+    assertEquals(rows![0].status, 'accepted');
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('audit finding #4: a new purchase with a different amount is not blocked by an existing unknown row', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    await insertRow(user.id, { symbol: 'SPY', amount: 60, status: 'unknown' });
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    mock.on('POST', '/v2/orders', () => json({ id: brokerOrderId, status: 'accepted' }));
+
+    const res = await handler(invReq(user.accessToken, { amount: 75, symbol: 'SPY' }));
+    assertEquals(res.status, 200);
+    assertEquals((await res.json()).order_id, brokerOrderId);
+    assertEquals(ordersPostCount(mock), 1);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 2); // the stale $60 unknown row is untouched
+    const stale = rows!.find((r) => Number(r.amount) === 60);
+    const fresh = rows!.find((r) => Number(r.amount) === 75);
+    assertEquals(stale!.status, 'unknown');
+    assertEquals(fresh!.status, 'accepted');
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('audit finding #4: a new purchase of the same amount+symbol is not blocked once the prior operation reached a terminal status', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    await insertRow(user.id, { symbol: 'SPY', amount: 60, order_id: `ord_${crypto.randomUUID()}`, status: 'accepted' });
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    mock.on('POST', '/v2/orders', () => json({ id: brokerOrderId, status: 'accepted' }));
+
+    const res = await handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY' }));
+    assertEquals(res.status, 200);
+    assertEquals((await res.json()).order_id, brokerOrderId);
+    assertEquals(ordersPostCount(mock), 1);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 2); // both the old and the new purchase exist as separate rows
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+// ── code-reviewer follow-up, same date: two gaps found in the first pass
+// of finding #4's fix, closed before handoff.
+
+Deno.test('audit finding #4 follow-up: two concurrent retries reconciling the same unknown row → exactly one places the order', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    await insertRow(user.id, { symbol: 'SPY', amount: 60, status: 'unknown' });
+    // Both concurrent requests read the same existingRow and both get 404
+    // from reconciliation — without the compare-and-swap claim on the row
+    // (status 'unknown' -> 'pending'), both would go on to POST /v2/orders
+    // with the identical client_order_id.
+    mock.on('GET', '/v2/orders:by_client_order_id', () => json({ message: 'not found' }, { status: 404 }));
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    mock.on('POST', '/v2/orders', () => json({ id: brokerOrderId, status: 'accepted' }));
+
+    const [a, b] = await Promise.all([
+      handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY' })),
+      handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY' })),
+    ]);
+    const statuses = [a.status, b.status].sort();
+    assertEquals(statuses, [200, 409]);
+    assertEquals(ordersPostCount(mock), 1);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1);
+    assertEquals(rows![0].order_id, brokerOrderId);
+    assertEquals(rows![0].status, 'accepted');
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('audit finding #4 follow-up: Alpaca rejects the order as a duplicate client_order_id → reconciled, not released', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    // A real, synchronous rejection from Alpaca saying "this client_order_id
+    // already exists" — the old code released the reservation unconditionally
+    // on any !orderRes.ok, which for exactly this response would delete the
+    // only trace of a real order placed under that id.
+    mock.on('POST', '/v2/orders', () => json({ message: 'client order id already exists' }, { status: 422 }));
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    mock.on('GET', '/v2/orders:by_client_order_id', () => json({ id: brokerOrderId, status: 'accepted' }));
+
+    const res = await handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY' }));
+    assertEquals(res.status, 200);
+    const bodyJson = await res.json();
+    assertEquals(bodyJson.success, true);
+    assertEquals(bodyJson.order_id, brokerOrderId);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1); // not deleted — reconciled onto the existing row instead
+    assertEquals(rows![0].order_id, brokerOrderId);
+    assertEquals(rows![0].status, 'accepted');
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+// ── independent audit follow-up 2026-09-08: process-kill recovery + a
+// post-send response-body parse failure (concern #3). A 'pending' row is
+// only ever written by this handler and only stays 'pending' for one
+// in-flight run; an old one means the request that made it died before
+// resolving it. Left as-is it 409s every future attempt at that
+// (symbol, amount) forever.
+
+const STALE = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+Deno.test('process-kill recovery: a stale pending row whose order never reached the broker is recovered and placed, reusing the row', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    const rowId = await insertRow(user.id, { symbol: 'SPY', amount: 60, status: 'pending', created_at: STALE });
+    mock.on('GET', '/v2/orders:by_client_order_id', () => json({ message: 'not found' }, { status: 404 }));
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    mock.on('POST', '/v2/orders', () => json({ id: brokerOrderId, status: 'accepted' }));
+
+    const res = await handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY' }));
+    assertEquals(res.status, 200);
+    assertEquals((await res.json()).order_id, brokerOrderId);
+    assertEquals(ordersPostCount(mock), 1);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1);
+    assertEquals(rows![0].id, rowId); // same row, not a second reservation
+    assertEquals(rows![0].status, 'accepted');
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('process-kill recovery: a stale pending row whose order DID reach the broker is adopted, no second order', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    const rowId = await insertRow(user.id, { symbol: 'SPY', amount: 60, status: 'pending', created_at: STALE });
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    mock.on('GET', '/v2/orders:by_client_order_id', () => json({ id: brokerOrderId, status: 'accepted' }));
+    mock.on('POST', '/v2/orders', () => json({ id: 'ord_SHOULD_NOT_HAPPEN', status: 'accepted' }));
+
+    const res = await handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY' }));
+    assertEquals(res.status, 200);
+    assertEquals((await res.json()).order_id, brokerOrderId);
+    assertEquals(ordersPostCount(mock), 0); // the killed run had already placed it
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1);
+    assertEquals(rows![0].id, rowId);
+    assertEquals(rows![0].order_id, brokerOrderId);
+    assertEquals(rows![0].status, 'accepted');
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('a fresh pending row (a genuinely concurrent request) is still a plain 409, not a recovery', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    await insertRow(user.id, { symbol: 'SPY', amount: 60, status: 'pending' }); // created_at defaults to now()
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    mock.on('POST', '/v2/orders', () => json({ id: 'ord_x', status: 'accepted' }));
+
+    const res = await handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY' }));
+    assertEquals(res.status, 409);
+    assertEquals(ordersPostCount(mock), 0);
+    assertEquals(mock.countMatching('/v2/orders:by_client_order_id'), 0); // no reconciliation attempted
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1);
+    assertEquals(rows![0].status, 'pending'); // untouched
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('concern #3: an unreadable order-response body marks the row unknown (never deletes it), so a retry reconciles', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    // The POST reaches Alpaca and returns an HTTP 200 — but the body is
+    // truncated garbage, so .json() throws. Alpaca may well have accepted
+    // the order. The old outer catch deleted the reservation here.
+    mock.on('POST', '/v2/orders', () => new Response('{"id":"ord_trunc', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+    const res = await handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY' }));
+    assertEquals(res.status, 503);
+    assertEquals((await res.json()).error, 'order_status_unknown');
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1);          // NOT deleted
+    assertEquals(rows![0].status, 'unknown'); // left reconcilable by client_order_id
+    assertEquals(rows![0].order_id, null);
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+// ── independent audit re-verification 2026-09-08: REQ-3 full scope —
+// operation_id (client idempotency key) so a retry that arrives AFTER a
+// prior attempt already reached 'accepted' (our own 200 was lost) replays
+// that outcome instead of placing a second order. The (symbol, amount)
+// partial index only covered the unresolved window.
+
+const OP = () => crypto.randomUUID();
+
+Deno.test('REQ-3: a retry with the same operation_id after the order was accepted replays it, places no second order', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    const op = OP();
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    // First attempt already succeeded — row is terminal, our 200 never landed.
+    const rowId = await insertRow(user.id, { symbol: 'SPY', amount: 60, status: 'accepted', order_id: brokerOrderId, operation_id: op });
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    mock.on('POST', '/v2/orders', () => json({ id: 'ord_SHOULD_NOT_HAPPEN', status: 'accepted' }));
+
+    const res = await handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY', operation_id: op }));
+    assertEquals(res.status, 200);
+    const body = await res.json();
+    assertEquals(body.success, true);
+    assertEquals(body.order_id, brokerOrderId); // the ORIGINAL order
+    assertEquals(ordersPostCount(mock), 0);     // nothing new placed
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1);
+    assertEquals(rows![0].id, rowId);
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('REQ-3: two concurrent requests with one operation_id place exactly one order', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    const op = OP();
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    mock.on('POST', '/v2/orders', async () => {
+      await new Promise((r) => setTimeout(r, 40)); // real broker call is never instant
+      return json({ id: `ord_${crypto.randomUUID()}`, status: 'accepted' });
+    });
+
+    const [a, b] = await Promise.all([
+      handler(invReq(user.accessToken, { amount: 30, symbol: 'SPY', operation_id: op })),
+      handler(invReq(user.accessToken, { amount: 30, symbol: 'SPY', operation_id: op })),
+    ]);
+    // One places the order; the other loses the (user_id, operation_id)
+    // unique insert and either replays (200) or is told the op is in flight
+    // (409) — never a second order.
+    assert([a.status, b.status].every((s) => s === 200 || s === 409));
+    assert([a.status, b.status].includes(200));
+    assertEquals(ordersPostCount(mock), 1);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1);
+    assertEquals(rows![0].operation_id, op);
+    assertEquals(rows![0].status, 'accepted');
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('REQ-3: the same operation_id with a different amount or symbol is rejected, nothing placed', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    const op = OP();
+    await insertRow(user.id, { symbol: 'SPY', amount: 60, status: 'accepted', order_id: `ord_${crypto.randomUUID()}`, operation_id: op });
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    mock.on('POST', '/v2/orders', () => json({ id: 'ord_SHOULD_NOT_HAPPEN', status: 'accepted' }));
+
+    const diffAmount = await handler(invReq(user.accessToken, { amount: 999, symbol: 'SPY', operation_id: op }));
+    assertEquals(diffAmount.status, 409);
+    assertEquals((await diffAmount.json()).error, 'operation_parameters_mismatch');
+
+    const diffSymbol = await handler(invReq(user.accessToken, { amount: 60, symbol: 'QQQ', operation_id: op }));
+    assertEquals(diffSymbol.status, 409);
+    assertEquals((await diffSymbol.json()).error, 'operation_parameters_mismatch');
+
+    assertEquals(ordersPostCount(mock), 0);
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1); // untouched
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('REQ-3: a new intentional purchase with a fresh operation_id is not blocked by a resolved prior one', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    await insertRow(user.id, { symbol: 'SPY', amount: 60, status: 'accepted', order_id: `ord_${crypto.randomUUID()}`, operation_id: OP() });
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    mock.on('POST', '/v2/orders', () => json({ id: brokerOrderId, status: 'accepted' }));
+
+    const res = await handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY', operation_id: OP() })); // NEW key, same symbol+amount
+    assertEquals(res.status, 200);
+    assertEquals((await res.json()).order_id, brokerOrderId);
+    assertEquals(ordersPostCount(mock), 1);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 2); // both purchases recorded
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('REQ-3 rollout compat: a request with no operation_id still places an order (older client)', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    mock.on('POST', '/v2/orders', () => json({ id: brokerOrderId, status: 'accepted' }));
+
+    const res = await handler(invReq(user.accessToken, { amount: 60, symbol: 'SPY' })); // no operation_id
+    assertEquals(res.status, 200);
+    assertEquals((await res.json()).order_id, brokerOrderId);
+    assertEquals(ordersPostCount(mock), 1);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1);
+    assertEquals(rows![0].operation_id, null); // stays out of the operation_id index
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+// ── ROUND 6, #98 item 3: a broker 5xx (with a JSON body) on order
+// placement is AMBIGUOUS — Alpaca may have accepted the order before its
+// gateway failed the response. The non-duplicate !orderRes.ok branch used
+// to releasePending() (delete the row) and return 400 "Order failed",
+// which the client classifies as a definite outcome and settles — so a
+// manual retry with a fresh operation_id places a SECOND real order.
+Deno.test('ROUND6 item3: a 502 (JSON body) on placement keeps the row unknown; the retry reconciles, no second order', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    const op = OP();
+    const brokerOrderId = `ord_${crypto.randomUUID()}`;
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    // Broker took the order but its gateway 502'd the response (JSON body).
+    let placementCalls = 0;
+    mock.on('POST', '/v2/orders', () => {
+      placementCalls++;
+      return json({ message: 'Bad Gateway', code: 50810000 }, { status: 502 });
+    });
+    // On the retry the broker confirms it DOES hold the order.
+    mock.on('GET', '/v2/orders:by_client_order_id', () => json({ id: brokerOrderId, status: 'accepted' }));
+
+    // Attempt 1 — ambiguous 502.
+    const r1 = await handler(invReq(user.accessToken, { amount: 40, symbol: 'SPY', operation_id: op }));
+    assertEquals(r1.status, 503);
+    assertEquals((await r1.json()).error, 'order_status_unknown');
+
+    const { data: after1 } = await investmentsOf(user.id);
+    assertEquals(after1!.length, 1, 'the reservation is NOT deleted');
+    assertEquals(after1![0].status, 'unknown');
+    assertEquals(after1![0].operation_id, op);   // identity preserved for the retry
+    assertEquals(after1![0].order_id, null);
+    const rowId = after1![0].id;
+
+    // Attempt 2 — same operation_id. Reconciles with the broker, places nothing.
+    const r2 = await handler(invReq(user.accessToken, { amount: 40, symbol: 'SPY', operation_id: op }));
+    assertEquals(r2.status, 200);
+    const b2 = await r2.json();
+    assertEquals(b2.success, true);
+    assertEquals(b2.order_id, brokerOrderId);
+    assertEquals(placementCalls, 1, 'no second POST /v2/orders');
+
+    const { data: after2 } = await investmentsOf(user.id);
+    assertEquals(after2!.length, 1);
+    assertEquals(after2![0].id, rowId);          // same row, not a new one
+    assertEquals(after2![0].order_id, brokerOrderId);
+    assertEquals(after2![0].status, 'accepted');
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+// The outer catch after the order POST returned a response must not delete
+// the row either — a throw between "order accepted" and the confirm-write
+// would otherwise erase the only trace. Here a 200 body of `null` parses
+// fine, then `order.id` in the confirm UPDATE throws a TypeError that lands
+// in the outer catch.
+Deno.test('ROUND6 item3: a throw after a 2xx placement marks the row unknown, does not delete it', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'pro', profile: { alpaca_access_token: 'tok_live' } });
+  try {
+    const op = OP();
+    mock.on('GET', '/v2/account', () => json({ buying_power: '100000.00' }));
+    mock.on('POST', '/v2/orders', () => new Response('null', {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    }));
+    mock.on('GET', '/v2/orders:by_client_order_id', () => json({ message: 'not found' }, { status: 404 }));
+
+    const r1 = await handler(invReq(user.accessToken, { amount: 40, symbol: 'SPY', operation_id: op }));
+    // Whatever status it returns, the client must be able to keep the
+    // operation open (5xx / order_status_unknown / Internal Server Error
+    // all classify as 'keep') — the point is the row is NOT deleted.
+    assert(r1.status >= 500, `expected a keep-open status, got ${r1.status}`);
+
+    const { data: rows } = await investmentsOf(user.id);
+    assertEquals(rows!.length, 1, 'row survives a post-2xx throw');
+    assertEquals(rows![0].status, 'unknown');
+    assertEquals(rows![0].operation_id, op);
+    assertEquals(rows![0].order_id, null);
   } finally {
     mock.restore();
     await user.cleanup();

@@ -262,7 +262,71 @@ it stops being true."
   and the added complexity of a stored-procedure code path isn't justified
   until this actually bites in production.
 
-### T6. `alpaca-invest` — indeterminate order-placement outcome treated as failure, accepted risk
+### T6. `alpaca-invest` — indeterminate order-placement outcome treated as failure — **Fixed: 2026-09-07 (independent audit)**
+- **Fix (2026-09-07):** the order-placement `fetch()` now has its own
+  try/catch, separate from a definite Alpaca rejection. A network-level
+  throw marks the row `status: 'unknown'` (never deletes it) instead of
+  releasing the reservation. The next request for the same (user, symbol,
+  amount) — blocked from creating a fresh row by
+  `investments_user_symbol_amount_open_key`, the partial unique index that
+  replaced the old 4-column `window_bucket` constraint — reconciles with
+  Alpaca synchronously via `GET /v2/orders:by_client_order_id` (keyed on
+  `investments.id`, stable for the row's whole lifecycle, instead of a
+  per-minute bucket) before doing anything else: if Alpaca has the order,
+  the row is synced and no second order is placed; if not, the order is
+  placed now, reusing the same row/id. This supersedes the background-
+  cron recommendation below — reconciliation happens inline on the very
+  next retry rather than waiting for a periodic job, and no new row status
+  enum or cron function was needed. See
+  `supabase/migrations/20260907000001_investments_stable_idempotency.sql`
+  and `supabase/functions/_test/alpaca-invest.test.ts`.
+- **Follow-up fix (2026-09-07, same day):** a code-reviewer/security-auditor
+  pass over the fix above (before handoff, never merged) found two
+  remaining gaps in the reconcile-and-reuse path and closed both: (1) the
+  outer `catch` had lost its pendingRowId cleanup entirely — any exception
+  other than the order-placement fetch's own left a permanently stuck
+  `'pending'` row, restored; (2) two concurrent retries reconciling the
+  same `'unknown'` row could both get a 404 lookup and both place a real
+  order under the same `client_order_id` — now claimed atomically first
+  (compare-and-swap `'unknown' -> 'pending'`) — and a 422 "client order id
+  already exists" rejection from Alpaca (a real duplicate, not an
+  ambiguous one) was still releasing the reservation instead of
+  reconciling onto it.
+- **Follow-up fix (2026-09-08, re-verification on a live local stack):**
+  the edge-function integration suite was run for the first time against a
+  real local Supabase stack (`npx supabase start` + `deno test`) — the
+  sandbox that produced the fixes above could not. The stable-idempotency
+  regression tests all pass; two further gaps surfaced and were closed:
+  (a) **concern #3** — `await orderRes.json()` (and the post-duplicate
+  `await recheck.json()`) sat *outside* any try/catch, so an unreadable
+  response body *after* the POST returned — a truncated payload, a
+  connection dropped mid-body — threw into the outer `catch`, which
+  deleted the reservation even though Alpaca may have accepted the order.
+  Both parses are now guarded and route to the same mark-`'unknown'` + 503
+  path as a network throw on the POST itself (`ambiguousAfterSend()`).
+  (b) **process-kill recovery** — a `'pending'` row is only ever written by
+  this handler and only stays `'pending'` for one in-flight run; an
+  isolate torn down between the reservation INSERT and order placement left
+  it `'pending'` forever, 409-ing every future attempt at that
+  (symbol, amount). A `'pending'` row older than `STALE_PENDING_MS` (2 min,
+  well beyond any real run) is now demoted to `'unknown'` (CAS on status)
+  so the existing reconcile-with-broker path recovers it. The
+  `window_bucket` column + its old 4-column constraint are **not** dropped
+  in this round — `20260907000001` is now additive-only and the drop is
+  staged, unapplied, in `supabase/migrations-pending/` pending the new
+  handler being live in production. See the final report for full results
+  and remaining limitations.
+  (c) **REQ-3 full scope** — the partial index dedups only *unresolved*
+  operations, so a retry arriving after the prior attempt already reached
+  `'accepted'` (our own HTTP 200 was lost in transit) was not caught: the
+  terminal row is outside the index, the retry INSERT succeeds, a second
+  real order is placed. Closed with a client-supplied `operation_id`
+  (`investments.operation_id`, migration `20260907000002`, partial unique
+  index on `(user_id, operation_id)` regardless of status). alpaca-invest
+  replays a resolved operation's outcome instead of acting again; a
+  mismatched symbol/amount for a known key is rejected; a new intentional
+  purchase carries a new key. Absent `operation_id` (older client / older
+  handler) → prior behaviour unchanged, so the rollout is order-independent.
 - **Entry point:** `alpaca-invest/index.ts`, the outer `catch (err)` block
   (originally FINDING-A of the 2026-08-17 race-condition audit — the fix for
   the double-order TOCTOU gap is what introduced this narrower, distinct
