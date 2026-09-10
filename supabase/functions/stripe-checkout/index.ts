@@ -213,6 +213,34 @@ export async function handler(req: Request): Promise<Response> {
         .eq('checkout_session_id', staleSessionId);
     }
 
+    // ── ROUND 8: a pre-transition Checkout attempt ──────────────────────
+    // The previously-deployed handler acquired checkout_pending_at and
+    // called stripe.checkout.sessions.create() with NO idempotency key,
+    // then stored checkout_session_id in a NON-FATAL follow-up write. A
+    // lost response therefore leaves an orphan: a real Stripe session whose
+    // id we never recorded, created under no key we can reproduce.
+    //
+    // Signature: checkout_pending_at set, checkout_session_id NULL,
+    // checkout_attempt_key NULL. The new handler always stamps
+    // checkout_attempt_key BEFORE it can set checkout_pending_at, so this
+    // exact combination can ONLY be a pre-transition attempt — it is not a
+    // state any version of the new handler can produce.
+    //
+    // We cannot de-dupe against that orphan session (no key), so we must
+    // NOT create a second one. Return an explicit reconcile_required and
+    // leave the row untouched (do NOT reclaim it on the 15-min TTL): the
+    // signature is stable, so every retry lands here and stays safe until
+    // the orphan session's checkout.session.completed / .expired lets the
+    // webhook clear the guard, or an operator does.
+    if (profileBefore?.checkout_pending_at
+        && !profileBefore?.checkout_session_id
+        && !profileBefore?.checkout_attempt_key) {
+      return new Response(JSON.stringify({
+        error: 'checkout_reconcile_required',
+        message: 'A previous checkout could not be confirmed. Please refresh; if this keeps happening, contact support.',
+      }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     // ── ROUND 7 BLOCKER 1: stable identity for the in-flight attempt ──────
     // The Stripe idempotency-key seed for this checkout lives in its OWN
     // column, decoupled from the mutex timestamp. It is stamped exactly

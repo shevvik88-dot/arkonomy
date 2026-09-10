@@ -123,14 +123,19 @@ Deno.test('FINDING-C: two concurrent checkout attempts from the same user -> one
 });
 
 Deno.test('FINDING-C: a fresh checkout_pending_at with no session id yet blocks a concurrent second attempt', async () => {
-  // The narrower window the local mutex still covers post-fix: an attempt
-  // that acquired the lock but crashed before ever creating/storing a
-  // Stripe session id at all — nothing to verify with Stripe yet, so this
-  // must still be a plain time-based mutex.
+  // The narrower window the local mutex still covers post-fix: a NEW-scheme
+  // attempt that stamped its key and acquired the lock but hasn't created a
+  // Stripe session yet — nothing to verify with Stripe, so this stays a
+  // plain time-based mutex. (checkout_attempt_key is set: a fresh lock with
+  // NO key is the pre-transition orphan signature, handled elsewhere.)
   const mock = installFakeFetch();
   const user = await createTestUser({
     plan: 'free',
-    profile: { checkout_pending_at: new Date().toISOString(), checkout_session_id: null },
+    profile: {
+      checkout_pending_at: new Date().toISOString(),
+      checkout_session_id: null,
+      checkout_attempt_key: `chk_${crypto.randomUUID()}_${Date.now()}`,
+    },
   });
   try {
     mockNoActiveSubscription(mock);
@@ -665,10 +670,11 @@ Deno.test('review ROUND5 1d: a stale attempt key older than the idempotency-key 
 // sessions.create response, and any number of retries of an indeterminate
 // old attempt.
 
-Deno.test('review ROUND7 B1: a stop right after the lock acquire → the retry reuses the SAME stamped key', async () => {
+Deno.test('review ROUND7 B1: a row prepared in the "locked, key stamped, no session id" state → the retry reuses the SAME stamped key', async () => {
   const mock = installFakeFetch();
-  // Simulate "acquired the lock, then the isolate died before sessions.create":
-  // a fresh lock timestamp, a durably-stamped key, no session id.
+  // A row seeded to match the state a stop between the lock acquire and
+  // sessions.create would leave: a lock timestamp, a durably-stamped key,
+  // no session id. (This is a prepared fixture, not a reproduced crash.)
   const attemptKey = `chk_${crypto.randomUUID()}_${Date.now() - 90_000}`;
   const user = await createTestUser({
     plan: 'free',
@@ -696,7 +702,7 @@ Deno.test('review ROUND7 B1: a stop right after the lock acquire → the retry r
   }
 });
 
-Deno.test('review ROUND7 B1: a reconcile_required attempt keeps its identity across a 31s-later retry (no new session)', async () => {
+Deno.test('review ROUND7 B1: two consecutive retries of a >23h-stale reconcile_required attempt both stay safe, identity unchanged', async () => {
   const mock = installFakeFetch();
   const attemptKey = `chk_${crypto.randomUUID()}_${Date.now() - 24 * 60 * 60_000}`; // >23h → reconcile_required
   const user = await createTestUser({
@@ -718,7 +724,9 @@ Deno.test('review ROUND7 B1: a reconcile_required attempt keeps its identity acr
     const { data: p1 } = await profile(user.id);
     assertEquals(p1!.checkout_attempt_key, attemptKey, 'identity untouched — no restore, no rewrite');
 
-    // "31s later" — still indeterminate, still no session, still the same key.
+    // A second retry (no time advance modelled — the point is that the
+    // identity column is not rewritten between calls): still indeterminate,
+    // still no session, still the same key.
     const r2 = await handler(checkoutReq(user.accessToken));
     assertEquals(r2.status, 409);
     assertEquals((await r2.json()).error, 'checkout_reconcile_required');
@@ -765,6 +773,78 @@ Deno.test('review ROUND7 B1: a lost sessions.create response → the retry retur
     const { data: p2 } = await profile(user.id);
     assertEquals(p2!.checkout_session_id, 'cs_orig');
     assertEquals(p2!.checkout_attempt_key, null);
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+// ── ROUND 8: safe transition of a pre-transition Checkout attempt ─────────
+// The previously-deployed handler called stripe.checkout.sessions.create()
+// with NO idempotency key and stored checkout_session_id in a non-fatal
+// write. A lost response leaves an orphan: checkout_pending_at set,
+// checkout_session_id NULL, checkout_attempt_key NULL (migration default),
+// and a real Stripe session whose id we never saw and whose key we cannot
+// reconstruct. The new handler must NOT create a second session.
+
+Deno.test('review ROUND8 transition: a pre-transition orphan → reconcile_required, no second session, row untouched', async () => {
+  const mock = installFakeFetch();
+  const orphanPendingAt = new Date(Date.now() - 20 * 60_000).toISOString(); // >15min old
+  const user = await createTestUser({
+    plan: 'free',
+    profile: {
+      checkout_pending_at: orphanPendingAt,
+      checkout_session_id: null,
+      checkout_attempt_key: null, // migration default — the transition signature
+    },
+  });
+  try {
+    mockNoActiveSubscription(mock);
+    mock.on('POST', '/v1/checkout/sessions', () => json({ id: 'cs_MUST_NOT_EXIST', url: 'x' })); // must NEVER be called
+
+    const r1 = await handler(checkoutReq(user.accessToken));
+    assertEquals(r1.status, 409);
+    assertEquals((await r1.json()).error, 'checkout_reconcile_required');
+    assertEquals(newSessionsCreated(mock), 0);
+
+    // The orphan row is left exactly as-is — not reclaimed on the 15-min TTL,
+    // not stamped with a fresh key.
+    const { data: p1 } = await profile(user.id);
+    assertEquals(new Date(p1!.checkout_pending_at).getTime(), new Date(orphanPendingAt).getTime());
+    assertEquals(p1!.checkout_session_id, null);
+    assertEquals(p1!.checkout_attempt_key, null);
+
+    // A retry of the same orphan stays safe — still no session, still 409.
+    const r2 = await handler(checkoutReq(user.accessToken));
+    assertEquals(r2.status, 409);
+    assertEquals((await r2.json()).error, 'checkout_reconcile_required');
+    assertEquals(newSessionsCreated(mock), 0);
+    const { data: p2 } = await profile(user.id);
+    assertEquals(p2!.checkout_attempt_key, null);
+  } finally {
+    mock.restore();
+    await user.cleanup();
+  }
+});
+
+Deno.test('review ROUND8 transition: a user with no prior attempt can still start Checkout after the migration', async () => {
+  const mock = installFakeFetch();
+  const user = await createTestUser({ plan: 'free' }); // brand-new: every checkout_* column NULL (migration default)
+  try {
+    mockNoActiveSubscription(mock);
+    mock.on('POST', '/v1/checkout/sessions', () => json({ id: 'cs_fresh', url: 'https://checkout.stripe.com/pay/cs_fresh' }));
+
+    const res = await handler(checkoutReq(user.accessToken));
+    assertEquals(res.status, 200);
+    assert((await res.json()).url.includes('cs_fresh'));
+    assertEquals(newSessionsCreated(mock), 1);
+
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.checkout_session_id, 'cs_fresh');
+    assertEquals(p!.checkout_attempt_key, null); // retired on the session-id write
+    const keys = idemKeysOnCreate(mock);
+    assertEquals(keys.length, 1);
+    assert(/^chk_.+_\d+$/.test(keys[0]), `got ${JSON.stringify(keys[0])}`);
   } finally {
     mock.restore();
     await user.cleanup();

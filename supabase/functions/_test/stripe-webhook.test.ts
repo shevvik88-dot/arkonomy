@@ -267,6 +267,34 @@ Deno.test('independent audit 2026-09-07: an old session expiring does not clear 
   }
 });
 
+Deno.test('review ROUND8 transition: an expired pre-transition orphan (id never recorded) clears the stale marker', async () => {
+  // Pre-transition orphan: checkout_pending_at set, checkout_session_id
+  // NULL (the old handler's non-fatal write was lost), checkout_attempt_key
+  // NULL (migration default). The user abandoned that old checkout; its
+  // expiry event carries an id the DB never stored, so the scoped clear
+  // matches nothing — the orphan clear must still release checkout_pending_at
+  // so the user isn't stranded on checkout_reconcile_required.
+  const user = await createTestUser({
+    plan: 'free',
+    profile: {
+      checkout_pending_at: new Date(Date.now() - 20 * 60_000).toISOString(),
+      checkout_session_id: null,
+      checkout_attempt_key: null,
+    },
+  });
+  const e = evt('checkout.session.expired', { id: 'cs_orphan_never_recorded', client_reference_id: user.id });
+  try {
+    assertEquals((await post(e.payload)).status, 200);
+    const { data: p } = await profile(user.id);
+    assertEquals(p!.checkout_pending_at, null, 'the stale pre-transition marker is released');
+    assertEquals(p!.checkout_session_id, null);
+    assertEquals(p!.checkout_attempt_key, null);
+  } finally {
+    await delEvents(e.id);
+    await user.cleanup();
+  }
+});
+
 Deno.test('independent audit 2026-09-07: a DB failure applying the effect fails the delivery and does not stick', async () => {
   // profiles.stripe_customer_id is UNIQUE — colliding with an existing
   // customer id is a real DB error, not a mock.
