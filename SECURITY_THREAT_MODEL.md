@@ -235,7 +235,7 @@ it stops being true."
   `REVOKE`-then-`GRANT service_role` pattern to any future `SECURITY DEFINER`
   function as a hard rule (already in CLAUDE.md's Security decisions).
 
-### T5. `stripe-webhook` dedup-insert and side-effects are not one transaction — partial-failure window
+### T5. `stripe-webhook` dedup-insert and side-effects are not one transaction — partial-failure window — **Fixed: 2026-09-07 (independent audit)**
 - **Entry point:** `stripe-webhook/index.ts`, the `stripe_webhook_events` insert
   added for T3, immediately followed by a separate, independently-committed
   `profiles` update per event type.
@@ -261,6 +261,18 @@ it stops being true."
   calls) so they commit or roll back together. Not done now — narrow window,
   and the added complexity of a stored-procedure code path isn't justified
   until this actually bites in production.
+- **Fix (2026-09-07):** rather than a shared transaction, `stripe_webhook_events`
+  gained a `status` column (`processing`/`completed`,
+  `20260907000000_stripe_webhook_events_status.sql`). Every event-type branch's
+  DB write now throws on error instead of only logging it, so a failure
+  propagates to the outer `catch`, which deletes the dedup row (letting an
+  immediate retry actually reapply the effect) rather than leaving it stuck
+  "processed". A `processing` row is only ever retried once it's older than
+  60s — younger than that, it's treated as a genuinely-concurrent in-flight
+  delivery and acknowledged without reapplying, preserving the original
+  exactly-once guarantee under a race. See stripe-webhook.test.ts for the
+  four new regression cases (DB failure + retry, stale-processing retry,
+  fresh-processing no-op).
 
 ### T6. `alpaca-invest` — indeterminate order-placement outcome treated as failure, accepted risk
 - **Entry point:** `alpaca-invest/index.ts`, the outer `catch (err)` block
