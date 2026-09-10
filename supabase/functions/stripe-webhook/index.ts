@@ -329,19 +329,6 @@ export async function handler(req: Request): Promise<Response> {
             .eq('id', userId)
             .eq('checkout_session_id', session.id);
           if (clearErr) { console.error('stripe-webhook: failed to clear checkout guard fields:', clearErr); throw clearErr; }
-
-          // ROUND 8: a pre-transition orphan session that the user has now
-          // completed — its id was never recorded, so the scoped clear
-          // above matched nothing. The user has a subscription now; drop
-          // the stale markers (session id AND attempt key both NULL — a
-          // new-scheme checkout always has the key set, so it is untouched).
-          const { error: orphanErr } = await supabase
-            .from('profiles')
-            .update({ checkout_pending_at: null })
-            .eq('id', userId)
-            .is('checkout_session_id', null)
-            .is('checkout_attempt_key', null);
-          if (orphanErr) { console.error('stripe-webhook: failed to clear a pre-transition checkout orphan on completion:', orphanErr); throw orphanErr; }
         }
       }
     }
@@ -365,20 +352,6 @@ export async function handler(req: Request): Promise<Response> {
           .eq('id', userId)
           .eq('checkout_session_id', session.id);
         if (error) { console.error('Failed to clear checkout_pending_at on expiry:', error); throw error; }
-
-        // ROUND 8: a pre-transition orphan's id was never recorded, so the
-        // scoped clear above matches nothing. Clear the stale markers for
-        // the orphan signature (session id AND attempt key both NULL) so
-        // the abandoned old checkout doesn't strand the user on
-        // checkout_reconcile_required. A new-scheme in-flight checkout
-        // always has checkout_attempt_key set, so it is not touched.
-        const { error: orphanErr } = await supabase
-          .from('profiles')
-          .update({ checkout_pending_at: null })
-          .eq('id', userId)
-          .is('checkout_session_id', null)
-          .is('checkout_attempt_key', null);
-        if (orphanErr) { console.error('Failed to clear a pre-transition checkout orphan on expiry:', orphanErr); throw orphanErr; }
       }
     }
 

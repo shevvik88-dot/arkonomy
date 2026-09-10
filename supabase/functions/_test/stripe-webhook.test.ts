@@ -267,13 +267,10 @@ Deno.test('independent audit 2026-09-07: an old session expiring does not clear 
   }
 });
 
-Deno.test('review ROUND8 transition: an expired pre-transition orphan (id never recorded) clears the stale marker', async () => {
-  // Pre-transition orphan: checkout_pending_at set, checkout_session_id
-  // NULL (the old handler's non-fatal write was lost), checkout_attempt_key
-  // NULL (migration default). The user abandoned that old checkout; its
-  // expiry event carries an id the DB never stored, so the scoped clear
-  // matches nothing — the orphan clear must still release checkout_pending_at
-  // so the user isn't stranded on checkout_reconcile_required.
+Deno.test('review ROUND9 A/B: a late expired for old session A does not free indeterminate B; the next Checkout stays reconcile_required, no sessions.create', async () => {
+  const mock = installFakeFetch();
+  // Session B was opened but its id never persisted: checkout_pending_at
+  // set, checkout_session_id NULL, checkout_attempt_key NULL.
   const user = await createTestUser({
     plan: 'free',
     profile: {
@@ -282,13 +279,55 @@ Deno.test('review ROUND8 transition: an expired pre-transition orphan (id never 
       checkout_attempt_key: null,
     },
   });
-  const e = evt('checkout.session.expired', { id: 'cs_orphan_never_recorded', client_reference_id: user.id });
+  const eA = evt('checkout.session.expired', { id: 'cs_A_old_unrelated', client_reference_id: user.id });
+  try {
+    // A late `expired` from an UNRELATED old session A.
+    assertEquals((await post(eA.payload)).status, 200);
+    const { data: afterA } = await profile(user.id);
+    assert(afterA!.checkout_pending_at !== null, "B's marker must survive an unrelated expired event");
+
+    // The user now tries a fresh Checkout. B may still be open, so this
+    // must NOT create session C — it returns reconcile_required. Import the
+    // checkout handler dynamically: by now setup.ts has set ARK_EDGE_TEST,
+    // so its module-level Deno.serve() is skipped (a static import here
+    // would race the harness bootstrap and bind the port twice).
+    const { handler: checkoutHandler } = await import('../stripe-checkout/index.ts');
+    mock.on('GET', '/v1/customers', () => json({ data: [] })); // no active subscription
+    mock.on('POST', '/v1/checkout/sessions', () => json({ id: 'cs_C_MUST_NOT_EXIST', url: 'x' }));
+    const res = await checkoutHandler(new Request('http://localhost/stripe-checkout', {
+      method: 'POST', headers: { Authorization: `Bearer ${user.accessToken}` },
+    }));
+    assertEquals(res.status, 409);
+    assertEquals((await res.json()).error, 'checkout_reconcile_required');
+    const created = mock.calls.filter((c) => c.method === 'POST' && new URL(c.url).pathname === '/v1/checkout/sessions').length;
+    assertEquals(created, 0, 'no sessions.create while B may still be open');
+  } finally {
+    await delEvents(eA.id);
+    await user.cleanup();
+    mock.restore();
+  }
+});
+
+Deno.test('review ROUND9: an expired event for an unknown session id does NOT touch an indeterminate attempt', async () => {
+  // Round 8 added an unscoped clear keyed on
+  // (checkout_session_id IS NULL AND checkout_attempt_key IS NULL). That
+  // does not prove the event belongs to THIS attempt: a late `expired`
+  // from an unrelated old session A would wipe an indeterminate attempt
+  // whose id simply hasn't been written yet. The webhook must only clear
+  // on an exact checkout_session_id = session.id match.
+  const user = await createTestUser({
+    plan: 'free',
+    profile: {
+      checkout_pending_at: new Date(Date.now() - 20 * 60_000).toISOString(),
+      checkout_session_id: null,   // this attempt's id was not recorded (yet / lost)
+      checkout_attempt_key: null,
+    },
+  });
+  const e = evt('checkout.session.expired', { id: 'cs_unrelated_old_A', client_reference_id: user.id });
   try {
     assertEquals((await post(e.payload)).status, 200);
     const { data: p } = await profile(user.id);
-    assertEquals(p!.checkout_pending_at, null, 'the stale pre-transition marker is released');
-    assertEquals(p!.checkout_session_id, null);
-    assertEquals(p!.checkout_attempt_key, null);
+    assert(p!.checkout_pending_at !== null, 'the indeterminate attempt marker is preserved');
   } finally {
     await delEvents(e.id);
     await user.cleanup();
