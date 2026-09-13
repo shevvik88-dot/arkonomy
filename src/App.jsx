@@ -1148,12 +1148,19 @@ export default function App() {
 
   async function updateTransaction(id, updates) {
     try {
-      const { data } = await supabase.from("transactions").update(updates).eq("id", id).select().single();
+      const { data, error } = await supabase.from("transactions").update(updates).eq("id", id).select().single();
+      if (error) {
+        logger.error("[updateTransaction] failed:", error);
+        showAlertRef.current("Couldn't save changes. Try again.", "danger", "alert-circle");
+        return false; // keep the editor open (no finally-close) so the entered values aren't lost
+      }
       if (data) setTransactions(prev => prev.map(t => t.id === id ? data : t));
+      setEditTx(null); // only close on confirmed success
+      return true;
     } catch (err) {
       logger.error("[updateTransaction] failed:", err);
-    } finally {
-      setEditTx(null);
+      showAlertRef.current("Couldn't save changes. Try again.", "danger", "alert-circle");
+      return false;
     }
   }
 
